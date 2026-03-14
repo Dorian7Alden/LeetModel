@@ -1,0 +1,31 @@
+server:
+  port: 8080
+
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+spring:
+  application:
+    name: LeetModel
+  datasource:
+    url: jdbc:mysql://47.111.180.134:3306/leet-model
+    username: root
+    password: Senior666^
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#  security:
+#    user:
+#      name: root
+#      password: 44448888
+
+
+#jwt:
+#  secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
+#  token-expiration: 86400000 # 24小时 (毫秒)
