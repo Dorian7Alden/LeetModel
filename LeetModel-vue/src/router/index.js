@@ -57,6 +57,7 @@ const routes = [
       },
 
       {
+        path: "problem/:id",
         name: "ProblemDetail",
         component: () => import("../views/problem/ProblemDetail.vue"),
       },
