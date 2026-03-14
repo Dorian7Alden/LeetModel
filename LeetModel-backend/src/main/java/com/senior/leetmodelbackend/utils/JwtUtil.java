@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -22,6 +23,10 @@ public class JwtUtil {
     private static final Key SIGN_KEY = Keys.hmacShaKeyFor(JWT_SECRET.getBytes());
 
     private JwtUtil() {}
+
+    public static String generateToken() {
+        return generateToken(new HashMap<>());
+    }
 
     /**
      * 生成JWT Token（使用默认过期时间24小时）

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -23,7 +24,7 @@ public class AuthController {
     private UserService userService;
 
     @PostMapping("/login")
-    public Result<String> login(@RequestBody Map<String, String> params) {
+    public Result<Map<String, Object>> login(@RequestBody Map<String, String> params) {
         // TODO: 使用 Spring Security 实现登录功能
         // TODO: 通过邮箱注册
 
@@ -42,14 +43,12 @@ public class AuthController {
         if (!user.getPassword().equals(passwordLogin)) {
             return Result.error(401, "密码错误");
         }
+        String token = JwtUtil.generateToken();
 
-        // 登录成功，返回 token
-        String token = JwtUtil.generateToken(Map.of(
-                "id", user.getId(),
-                "username", user.getUsername(),
-                "email", user.getEmail()
-                // 待展示的更多信息
-        ));
-        return Result.success("登录成功", token);
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        result.put("user_data", user);
+
+        return Result.success("登录成功", result);
     }
 }
