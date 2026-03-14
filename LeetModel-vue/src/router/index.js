@@ -1,284 +1,272 @@
-import { createRouter, createWebHistory } from "vue-router"
-import MainLayout from "../layouts/MainLayout.vue"
+import { createRouter, createWebHistory } from "vue-router";
+import MainLayout from "../layouts/MainLayout.vue";
 
 const routes = [
-{
-path:"/",
-component:MainLayout,
-children:[
+  {
+    path: "/",
+    component: MainLayout,
+    children: [
+      /* ================= 首页模块 ================= */
 
-/* ================= 首页模块 ================= */
+      {
+        path: "",
+        name: "Home",
+        component: () => import("../views/home/Home.vue"),
+      },
 
-{
-path:"",
-name:"Home",
-component:()=>import("../views/home/Home.vue")
-},
+      /* ================= 训练系统 ================= */
 
+      {
+        path: "training",
+        name: "Training",
+        component: () => import("../views/training/Training.vue"),
 
-/* ================= 训练系统 ================= */
+        children: [
+          {
+            path: "modeling",
+            name: "ModelingTraining",
+            component: () => import("../views/training/ModelingTraining.vue"),
+          },
 
-{
-path:"training",
-name:"Training",
-component:()=>import("../views/training/Training.vue"),
+          {
+            path: "paper",
+            name: "PaperTraining",
+            component: () => import("../views/training/PaperTraining.vue"),
+          },
 
-children: [
+          {
+            path: "coding",
+            name: "CodingTraining",
+            component: () => import("../views/training/CodingTraining.vue"),
+          },
+        ],
+      },
 
-    {
-      path: "modeling",
-      name: "ModelingTraining",
-      component: () =>
-        import("../views/training/ModelingTraining.vue")
-    },
+      /* ================= 题库系统 ================= */
 
-    {
-      path: "paper",
-      name: "PaperTraining",
-      component: () =>
-        import("../views/training/PaperTraining.vue")
-    },
+      {
+        path: "problem",
+        name: "ProblemBank",
+        component: () => import("../views/problem/ProblemBank.vue"),
+      },
 
-    {
-      path: "coding",
-      name: "CodingTraining",
-      component: () =>
-        import("../views/training/CodingTraining.vue")
-    }
+      {
+        path: "problem/list",
+        name: "ProblemList",
+        component: () => import("../views/problem/ProblemList.vue"),
+      },
 
-  ]
+      {
+        name: "ProblemDetail",
+        component: () => import("../views/problem/ProblemDetail.vue"),
+      },
 
-},
+      {
+        path: "problem/tags",
+        name: "TagFilter",
+        component: () => import("../views/problem/TagFilter.vue"),
+      },
 
+      {
+        path: "problem/model-category",
+        name: "ModelCategory",
+        component: () => import("../views/problem/ModelCategory.vue"),
+      },
 
-/* ================= 题库系统 ================= */
+      {
+        path: "problem/industry-category",
+        name: "IndustryCategory",
+        component: () => import("../views/problem/IndustryCategory.vue"),
+      },
 
-{
-path:"problem",
-name:"ProblemBank",
-component:()=>import("../views/problem/ProblemBank.vue")
-},
+      {
+        path: "problem/discussion",
+        name: "ProblemDiscussion",
+        component: () => import("../views/problem/ProblemDiscussion.vue"),
+      },
 
-{
-path:"problem/list",
-name:"ProblemList",
-component:()=>import("../views/problem/ProblemList.vue")
-},
+      {
+        path: "problem/submissions",
+        name: "SubmissionList",
+        component: () => import("../views/problem/SubmissionList.vue"),
+      },
+      /* ================= 赛事系统 ================= */
 
-{
-path:"problem/:id",
-name:"ProblemDetail",
-component:()=>import("../views/problem/ProblemDetail.vue")
-},
+      {
+        path: "contest",
+        name: "ContestList",
+        component: () => import("../views/contest/ContestList.vue"),
+      },
 
-{
-path:"problem/tags",
-name:"TagFilter",
-component:()=>import("../views/problem/TagFilter.vue")
-},
+      {
+        path: "contest/:id",
+        name: "ContestDetail",
+        component: () => import("../views/contest/ContestDetail.vue"),
+      },
 
-{
-path:"problem/model-category",
-name:"ModelCategory",
-component:()=>import("../views/problem/ModelCategory.vue")
-},
+      {
+        path: "contest/workspace/:id",
+        name: "ContestWorkspace",
+        component: () => import("../views/contest/ContestWorkspace.vue"),
+      },
 
-{
-path:"problem/industry-category",
-name:"IndustryCategory",
-component:()=>import("../views/problem/IndustryCategory.vue")
-},
+      {
+        path: "contest/problem/:id",
+        name: "ContestProblem",
+        component: () => import("../views/contest/ContestProblem.vue"),
+      },
 
-{
-path:"problem/discussion",
-name:"ProblemDiscussion",
-component:()=>import("../views/problem/ProblemDiscussion.vue")
-},
+      {
+        path: "contest/dataset",
+        name: "DatasetDownload",
+        component: () => import("../views/contest/DatasetDownload.vue"),
+      },
 
-{
-path:"problem/submissions",
-name:"SubmissionList",
-component:()=>import("../views/problem/SubmissionList.vue")
-},
-/* ================= 赛事系统 ================= */
+      {
+        path: "contest/submit",
+        name: "FileSubmit",
+        component: () => import("../views/contest/FileSubmit.vue"),
+      },
 
-{
-path:"contest",
-name:"ContestList",
-component:()=>import("../views/contest/ContestList.vue")
-},
+      {
+        path: "contest/rank",
+        name: "ContestRank",
+        component: () => import("../views/contest/ContestRank.vue"),
+      },
 
-{
-path:"contest/:id",
-name:"ContestDetail",
-component:()=>import("../views/contest/ContestDetail.vue")
-},
+      {
+        path: "contest/result",
+        name: "ContestResult",
+        component: () => import("../views/contest/ContestResult.vue"),
+      },
 
-{
-path:"contest/workspace/:id",
-name:"ContestWorkspace",
-component:()=>import("../views/contest/ContestWorkspace.vue")
-},
+      /* ================= 社区系统 ================= */
 
-{
-path:"contest/problem/:id",
-name:"ContestProblem",
-component:()=>import("../views/contest/ContestProblem.vue")
-},
+      {
+        path: "community",
+        name: "Community",
+        component: () => import("../views/community/Community.vue"),
+      },
 
-{
-path:"contest/dataset",
-name:"DatasetDownload",
-component:()=>import("../views/contest/DatasetDownload.vue")
-},
+      {
+        path: "post/create",
+        name: "CreatePost",
+        component: () => import("../views/community/CreatePost.vue"),
+      },
+      {
+        path: "post/:id",
+        name: "PostDetail",
+        component: () => import("../views/community/PostDetail.vue"),
+      },
 
-{
-path:"contest/submit",
-name:"FileSubmit",
-component:()=>import("../views/contest/FileSubmit.vue")
-},
+      /* ================= 组队系统 ================= */
 
-{
-path:"contest/rank",
-name:"ContestRank",
-component:()=>import("../views/contest/ContestRank.vue")
-},
+      {
+        path: "team",
+        name: "TeamList",
+        component: () => import("../views/team/TeamList.vue"),
+      },
 
-{
-path:"contest/result",
-name:"ContestResult",
-component:()=>import("../views/contest/ContestResult.vue")
-},
+      {
+        path: "team/:id",
+        name: "TeamDetail",
+        component: () => import("../views/team/TeamDetail.vue"),
+      },
 
-/* ================= 社区系统 ================= */
+      {
+        path: "team/create",
+        name: "TeamCreate",
+        component: () => import("../views/team/TeamCreate.vue"),
+      },
 
-{
-path:"community",
-name:"Community",
-component:()=>import("../views/community/Community.vue")
-},
+      {
+        path: "team/match",
+        name: "TeamMatch",
+        component: () => import("../views/team/TeamMatch.vue"),
+      },
 
-{
-  path:"post/create",
-  name:"CreatePost",
-  component:()=>import("../views/community/CreatePost.vue")
-},
-{
-  path:"post/:id",
-  name:"PostDetail",
-  component:()=>import("../views/community/PostDetail.vue")
-},
+      /* ================= 成长系统 ================= */
 
-/* ================= 组队系统 ================= */
+      {
+        path: "profile",
+        name: "Profile",
+        component: () => import("../views/profile/Profile.vue"),
+      },
 
-{
-path:"team",
-name:"TeamList",
-component:()=>import("../views/team/TeamList.vue")
-},
+      {
+        path: "profile/analysis",
+        name: "SkillAnalysis",
+        component: () => import("../views/profile/SkillAnalysis.vue"),
+      },
 
-{
-path:"team/:id",
-name:"TeamDetail",
-component:()=>import("../views/team/TeamDetail.vue")
-},
+      {
+        path: "profile/training-stats",
+        name: "TrainingStats",
+        component: () => import("../views/profile/TrainingStats.vue"),
+      },
 
-{
-path:"team/create",
-name:"TeamCreate",
-component:()=>import("../views/team/TeamCreate.vue")
-},
+      {
+        path: "profile/achievement",
+        name: "Achievement",
+        component: () => import("../views/profile/Achievement.vue"),
+      },
 
-{
-path:"team/match",
-name:"TeamMatch",
-component:()=>import("../views/team/TeamMatch.vue")
-},
+      {
+        path: "profile/history",
+        name: "History",
+        component: () => import("../views/profile/History.vue"),
+      },
+      {
+        path: "profile/settings",
+        name: "settings",
+        component: () => import("../views/profile/Settings.vue"),
+      },
+      {
+        path: "submission/:id",
+        name: "SubmissionDetail",
+        component: () => import("../views/profile/SubmissionDetail.vue"),
+      },
 
-/* ================= 成长系统 ================= */
+      /* ================= 用户系统 ================= */
 
-{
-path:"profile",
-name:"Profile",
-component:()=>import("../views/profile/Profile.vue")
-},
+      {
+        path: "login",
+        name: "Login",
+        component: () => import("../views/user/Login.vue"),
+      },
 
-{
-path:"profile/analysis",
-name:"SkillAnalysis",
-component:()=>import("../views/profile/SkillAnalysis.vue")
-},
+      {
+        path: "register",
+        name: "Register",
+        component: () => import("../views/user/Register.vue"),
+      },
 
-{
-path:"profile/training-stats",
-name:"TrainingStats",
-component:()=>import("../views/profile/TrainingStats.vue")
-},
+      {
+        path: "forgot-password",
+        name: "ForgotPassword",
+        component: () => import("../views/user/ForgotPassword.vue"),
+      },
 
-{
-path:"profile/achievement",
-name:"Achievement",
-component:()=>import("../views/profile/Achievement.vue")
-},
+      {
+        path: "settings",
+        name: "Settings",
+        component: () => import("../views/user/Settings.vue"),
+      },
+    ],
+  },
 
-{
-path:"profile/history",
-name:"History",
-component:()=>import("../views/profile/History.vue")
-},
-{
-path:"profile/settings",
-name:"settings",
-component:()=>import("../views/profile/Settings.vue")
-},
-{
-path:"submission/:id",
-name:"SubmissionDetail",
-component:()=>import("../views/profile/SubmissionDetail.vue")
-},
+  /* ================= 404 ================= */
 
-/* ================= 用户系统 ================= */
-
-{
-path:"login",
-name:"Login",
-component:()=>import("../views/user/Login.vue")
-},
-
-{
-path:"register",
-name:"Register",
-component:()=>import("../views/user/Register.vue")
-},
-
-{
-path:"forgot-password",
-name:"ForgotPassword",
-component:()=>import("../views/user/ForgotPassword.vue")
-},
-
-{
-path:"settings",
-name:"Settings",
-component:()=>import("../views/user/Settings.vue")
-}
-
-]
-},
-
-/* ================= 404 ================= */
-
-{
-path:"/:pathMatch(.*)*",
-name:"NotFound",
-component:()=>import("../views/NotFound.vue")
-}
-
-]
+  {
+    path: "/:pathMatch(.*)*",
+    name: "NotFound",
+    component: () => import("../views/NotFound.vue"),
+  },
+];
 
 const router = createRouter({
-history:createWebHistory(),
-routes
-})
+  history: createWebHistory(),
+  routes,
+});
 
-export default router
+export default router;
