@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-# Vue 3 + Vite
-
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
-=======
-## LeetModel
-
 ### 项目介绍
 
 LeetModel（力模），是一款对标 LeetCode 的**数学建模**领域垂直在线实训平台，核心聚焦数学建模赛事全链路能力提升。
@@ -23,5 +14,3 @@ LeetModel（力模），是一款对标 LeetCode 的**数学建模**领域垂直
 - 📈 个人成长体系：全程记录练习数据，生成能力评价与专属成长头衔
 - 🤝 线上组队平台：支持校内、跨校多场景自由组队，快速匹配参赛伙伴
 - 👥 团队协同空间（暂议）：提供专属项目空间与实时在线协作功能
-
->>>>>>> 11d4abf6590e4ace7cdecfaad613ac25a5c151bb
