@@ -12,6 +12,11 @@ public interface CompetitionMapper {
     @Select("select * from competition")
     List<Competition> getAllCompetition();
 
-    @Select("select * from competition where end_time > NOW() order by end_time limit 3")
+    /**
+     * 获取与当前时间最接近的 3 个比赛。理想状态下可以涵盖 3 种情况
+     *  1. 已经结束的  2. 正在进行的  3. 即将开始的
+     *  比赛的状态： FINISHED, ONGOING, UPCOMING
+     */
+    @Select("select * from competition order by abs(TIMESTAMPDIFF(SECOND, NOW(), end_time)) limit 3")
     List<Competition> getCompetitionsLatest3();
 }
