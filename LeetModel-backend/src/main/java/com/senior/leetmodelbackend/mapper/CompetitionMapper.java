@@ -12,6 +12,6 @@ public interface CompetitionMapper {
     @Select("select * from competition")
     List<Competition> getAllCompetition();
 
-    @Select("select * from competition order by create_time desc limit 3")
+    @Select("select * from competition where end_time > NOW() order by end_time limit 3")
     List<Competition> getCompetitionsLatest3();
 }
