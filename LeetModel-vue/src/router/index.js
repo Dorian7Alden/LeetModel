@@ -1,17 +1,17 @@
 import { createRouter, createWebHistory } from "vue-router";
-import MainLayout from "../layouts/MainLayout.vue";
+import AppLayout from "../components/layout/AppLayout.vue";
 
 const routes = [
   {
     path: "/",
-    component: MainLayout,
+    component: AppLayout,
     children: [
       /* ================= 首页模块 ================= */
 
       {
         path: "",
         name: "Home",
-        component: () => import("../views/home/Home.vue"),
+        component: () => import("../modules/home/view/Home.vue"),
       },
 
       /* ================= 训练系统 ================= */
@@ -19,25 +19,28 @@ const routes = [
       {
         path: "training",
         name: "Training",
-        component: () => import("../views/training/Training.vue"),
+        component: () => import("../modules/training/view/Training.vue"),
 
         children: [
           {
             path: "modeling",
             name: "ModelingTraining",
-            component: () => import("../views/training/ModelingTraining.vue"),
+            component: () =>
+              import("../modules/training/components/homepage/ModelingTraining.vue"),
           },
 
           {
             path: "paper",
             name: "PaperTraining",
-            component: () => import("../views/training/PaperTraining.vue"),
+            component: () =>
+              import("../modules/training/components/homepage/PaperTraining.vue"),
           },
 
           {
             path: "coding",
             name: "CodingTraining",
-            component: () => import("../views/training/CodingTraining.vue"),
+            component: () =>
+              import("../modules/training/components/homepage/CodingTraining.vue"),
           },
         ],
       },
@@ -46,99 +49,56 @@ const routes = [
 
       {
         path: "problem",
-        name: "ProblemBank",
-        component: () => import("../views/problem/ProblemBank.vue"),
+        name: "Problem",
+        component: () => import("../modules/problem/view/Problem.vue"),
+      },
+
+      {
+        path: "problemHeader",
+        name: "ProblemHeader",
+        component: () =>
+          import("../modules/problem/components/homepage/ProblemHeader.vue"),
       },
 
       {
         path: "problem/list",
         name: "ProblemList",
-        component: () => import("../views/problem/ProblemList.vue"),
+        component: () =>
+          import("../modules/problem/components/homepage/ProblemList.vue"),
       },
 
       {
         path: "problem/:id",
         name: "ProblemDetail",
-        component: () => import("../views/problem/ProblemDetail.vue"),
-      },
-
-      {
-        path: "problem/tags",
-        name: "TagFilter",
-        component: () => import("../views/problem/TagFilter.vue"),
-      },
-
-      {
-        path: "problem/model-category",
-        name: "ModelCategory",
-        component: () => import("../views/problem/ModelCategory.vue"),
-      },
-
-      {
-        path: "problem/industry-category",
-        name: "IndustryCategory",
-        component: () => import("../views/problem/IndustryCategory.vue"),
+        component: () =>
+          import("../modules/problem/view/childview/ProblemDetail.vue"),
       },
 
       {
         path: "problem/discussion",
         name: "ProblemDiscussion",
-        component: () => import("../views/problem/ProblemDiscussion.vue"),
+        component: () =>
+          import("../modules/problem/components/subpage/ProblemDiscussion.vue"),
       },
 
-      {
-        path: "problem/submissions",
-        name: "SubmissionList",
-        component: () => import("../views/problem/SubmissionList.vue"),
-      },
       /* ================= 赛事系统 ================= */
 
       {
         path: "contest",
         name: "ContestList",
-        component: () => import("../views/contest/ContestList.vue"),
+        component: () => import("../modules/contest/view/ContestList.vue"),
       },
 
       {
         path: "contest/:id",
         name: "ContestDetail",
-        component: () => import("../views/contest/ContestDetail.vue"),
-      },
-
-      {
-        path: "contest/workspace/:id",
-        name: "ContestWorkspace",
-        component: () => import("../views/contest/ContestWorkspace.vue"),
-      },
-
-      {
-        path: "contest/problem/:id",
-        name: "ContestProblem",
-        component: () => import("../views/contest/ContestProblem.vue"),
-      },
-
-      {
-        path: "contest/dataset",
-        name: "DatasetDownload",
-        component: () => import("../views/contest/DatasetDownload.vue"),
-      },
-
-      {
-        path: "contest/submit",
-        name: "FileSubmit",
-        component: () => import("../views/contest/FileSubmit.vue"),
+        component: () => import("../modules/contest/ContestDetail.vue"),
       },
 
       {
         path: "contest/rank",
         name: "ContestRank",
-        component: () => import("../views/contest/ContestRank.vue"),
-      },
-
-      {
-        path: "contest/result",
-        name: "ContestResult",
-        component: () => import("../views/contest/ContestResult.vue"),
+        component: () => import("../modules/contest/ContestRank.vue"),
       },
 
       /* ================= 社区系统 ================= */
@@ -146,18 +106,20 @@ const routes = [
       {
         path: "community",
         name: "Community",
-        component: () => import("../views/community/Community.vue"),
+        component: () => import("../modules/community/view/Community.vue"),
       },
 
       {
         path: "post/create",
         name: "CreatePost",
-        component: () => import("../views/community/CreatePost.vue"),
+        component: () =>
+          import("../modules/community/view/childview/CreatePost.vue"),
       },
       {
         path: "post/:id",
         name: "PostDetail",
-        component: () => import("../views/community/PostDetail.vue"),
+        component: () =>
+          import("../modules/community/view/childview/PostDetail.vue"),
       },
 
       /* ================= 组队系统 ================= */
@@ -165,25 +127,14 @@ const routes = [
       {
         path: "team",
         name: "TeamList",
-        component: () => import("../views/team/TeamList.vue"),
+        component: () => import("../modules/team/view/TeamList.vue"),
       },
 
       {
         path: "team/:id",
         name: "TeamDetail",
-        component: () => import("../views/team/TeamDetail.vue"),
-      },
-
-      {
-        path: "team/create",
-        name: "TeamCreate",
-        component: () => import("../views/team/TeamCreate.vue"),
-      },
-
-      {
-        path: "team/match",
-        name: "TeamMatch",
-        component: () => import("../views/team/TeamMatch.vue"),
+        component: () =>
+          import("../modules/team/view/childview/TeamDetail.vue"),
       },
 
       /* ================= 成长系统 ================= */
@@ -191,41 +142,40 @@ const routes = [
       {
         path: "profile",
         name: "Profile",
-        component: () => import("../views/profile/Profile.vue"),
+        component: () => import("../modules/profile/view/Profile.vue"),
       },
 
       {
         path: "profile/analysis",
         name: "SkillAnalysis",
-        component: () => import("../views/profile/SkillAnalysis.vue"),
-      },
-
-      {
-        path: "profile/training-stats",
-        name: "TrainingStats",
-        component: () => import("../views/profile/TrainingStats.vue"),
+        component: () =>
+          import("../modules/profile/view/childview/SkillAnalysis.vue"),
       },
 
       {
         path: "profile/achievement",
         name: "Achievement",
-        component: () => import("../views/profile/Achievement.vue"),
+        component: () =>
+          import("../modules/profile/view/childview/Achievement.vue"),
       },
 
       {
         path: "profile/history",
         name: "History",
-        component: () => import("../views/profile/History.vue"),
+        component: () =>
+          import("../modules/profile/view/childview/History.vue"),
       },
       {
         path: "profile/settings",
         name: "settings",
-        component: () => import("../views/profile/Settings.vue"),
+        component: () =>
+          import("../modules/profile/view/childview/Settings.vue"),
       },
       {
         path: "submission/:id",
         name: "SubmissionDetail",
-        component: () => import("../views/profile/SubmissionDetail.vue"),
+        component: () =>
+          import("../modules/profile/view/childview/SubmissionDetail.vue"),
       },
 
       /* ================= 用户系统 ================= */
@@ -233,25 +183,13 @@ const routes = [
       {
         path: "login",
         name: "Login",
-        component: () => import("../views/user/Login.vue"),
+        component: () => import("../modules/user/Login.vue"),
       },
 
       {
         path: "register",
         name: "Register",
-        component: () => import("../views/user/Register.vue"),
-      },
-
-      {
-        path: "forgot-password",
-        name: "ForgotPassword",
-        component: () => import("../views/user/ForgotPassword.vue"),
-      },
-
-      {
-        path: "settings",
-        name: "Settings",
-        component: () => import("../views/user/Settings.vue"),
+        component: () => import("../modules/user/Register.vue"),
       },
     ],
   },
@@ -260,8 +198,8 @@ const routes = [
 
   {
     path: "/:pathMatch(.*)*",
-    name: "NotFound",
-    component: () => import("../views/NotFound.vue"),
+    name: "Notfound",
+    component: () => import("../modules/Notfound.vue"),
   },
 ];
 
