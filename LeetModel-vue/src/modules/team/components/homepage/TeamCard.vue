@@ -1,86 +1,68 @@
 <template>
+  <div class="team-card" @click="goDetail">
+    <h3>{{ team.name }}</h3>
 
-<div class="team-card" @click="goDetail">
+    <p class="members">当前人数：{{ team.members }} / 3</p>
 
-  <h3>{{team.name}}</h3>
-
-  <p class="members">
-    当前人数：{{team.members}} / 3
-  </p>
-
-  <div class="missing">
-
-    <span
-      v-for="role in team.missing"
-      :key="role"
-      class="tag"
-    >
-      缺 {{role}}
-    </span>
-
+    <div class="missing">
+      <span v-for="role in team.missing" :key="role" class="tag">
+        缺 {{ role }}
+      </span>
+    </div>
   </div>
-
-</div>
-
 </template>
 
 <script setup>
-
-import { useRouter } from "vue-router"
+import { useRouter } from "vue-router";
 
 const props = defineProps({
-  team:Object
-})
+  team: Object,
+});
 
-const router = useRouter()
+const router = useRouter();
 
-function goDetail(){
+function goDetail() {
   router.push({
-    name:"TeamDetail",
-    params:{ id: props.team.id }
-  })
+    name: "TeamDetail",
+    params: { id: props.team.id },
+  });
 }
-
 </script>
 
 <style scoped>
+.team-card {
+  background: white;
 
-.team-card{
+  padding: 20px;
 
-background:white;
+  border-radius: 8px;
 
-padding:20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 
-border-radius:8px;
+  cursor: pointer;
 
-box-shadow:0 2px 6px rgba(0,0,0,0.1);
-
-cursor:pointer;
-
-transition:0.2s;
-
+  transition: 0.2s;
 }
 
-.team-card:hover{
-transform:translateY(-4px);
+.team-card:hover {
+  transform: translateY(-4px);
 }
 
-.members{
-margin:10px 0;
-color:#666;
+.members {
+  margin: 10px 0;
+  color: #666;
 }
 
-.missing{
-display:flex;
-gap:10px;
+.missing {
+  display: flex;
+  gap: 10px;
 }
 
-.tag{
-background:#f56c6c;
-color:white;
-padding:4px 10px;
-border-radius:4px;
-font-size:12px;
+.tag {
+  background: #f56c6c;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
 }
-
 </style>

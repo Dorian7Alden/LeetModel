@@ -1,6 +1,6 @@
 <template>
   <div class="team-list">
-    <h2>寻找队伍</h2>
+    <TeamHeader />
 
     <div class="teams">
       <TeamCard v-for="team in teams" :key="team.id" :team="team" />
@@ -11,6 +11,7 @@
 <script setup>
 import { ref } from "vue";
 import TeamCard from "../components/homepage/TeamCard.vue";
+import TeamHeader from "../components/homepage/TeamHeader.vue";
 
 const teams = ref([
   {

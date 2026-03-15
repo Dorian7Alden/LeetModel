@@ -86,19 +86,21 @@ const routes = [
       {
         path: "contest",
         name: "ContestList",
-        component: () => import("../modules/contest/view/ContestList.vue"),
+        component: () => import("../modules/contest/view/Contest.vue"),
       },
 
       {
         path: "contest/:id",
         name: "ContestDetail",
-        component: () => import("../modules/contest/ContestDetail.vue"),
+        component: () =>
+          import("../modules/contest/view/childview/ContestDetail.vue"),
       },
 
       {
         path: "contest/rank",
         name: "ContestRank",
-        component: () => import("../modules/contest/ContestRank.vue"),
+        component: () =>
+          import("../modules/contest/components/subpage/ContestRank.vue"),
       },
 
       /* ================= 社区系统 ================= */
@@ -127,7 +129,7 @@ const routes = [
       {
         path: "team",
         name: "TeamList",
-        component: () => import("../modules/team/view/TeamList.vue"),
+        component: () => import("../modules/team/view/Team.vue"),
       },
 
       {

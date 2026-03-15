@@ -1,10 +1,6 @@
 <template>
   <div class="community">
-    <div class="header">
-      <h2>社区讨论</h2>
-
-      <button @click="goCreate">发帖</button>
-    </div>
+    <CommunityHeader />
 
     <PostCard v-for="post in posts" :key="post.id" :post="post" />
   </div>
@@ -12,14 +8,9 @@
 
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+
 import PostCard from "../components/homepage/PostCard.vue";
-
-const router = useRouter();
-
-function goCreate() {
-  router.push("/post/create");
-}
+import CommunityHeader from "../components/homepage/CommunityHeader.vue";
 
 const posts = ref([
   {
