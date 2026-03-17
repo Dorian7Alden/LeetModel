@@ -1,28 +1,36 @@
 <template>
-  <div class="home-layout">
-    <!-- 左侧内容 -->
+  <div class="home-container">
+    <div class="home-content">
+      <div class="home-layout">
+        <!-- 左侧内容 -->
 
-    <div class="main-content">
-      <ContestSection />
+        <div class="main-content">
+          <ContestSection />
 
-      <ProblemSection />
-    </div>
+          <communitySection />
+        </div>
 
-    <!-- 右侧日历 -->
+        <!-- 右侧日历 -->
 
-    <div class="sidebar">
-      <CalendarSection />
+        <div class="sidebar">
+          <CalendarSection />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import ContestSection from "../components/homepage/ContestSection.vue";
-import ProblemSection from "../components/homepage/ProblemSection.vue";
+import communitySection from "../components/homepage/communitySection.vue";
 import CalendarSection from "../components/homepage/CalendarSection.vue";
 </script>
 
 <style scoped>
+.home-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
 .home-layout {
   display: flex;
 
@@ -47,5 +55,6 @@ import CalendarSection from "../components/homepage/CalendarSection.vue";
 
 .sidebar {
   flex: 4;
+  max-width: 380px;
 }
 </style>

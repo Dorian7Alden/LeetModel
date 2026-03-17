@@ -193,6 +193,23 @@ const routes = [
         name: "Register",
         component: () => import("../modules/user/Register.vue"),
       },
+
+      /* ================= 页脚关于 ================= */
+      {
+        path: "about",
+        name: "About",
+        component: () => import("../modules/about/About.vue"),
+      },
+      {
+        path: "help",
+        name: "Help",
+        component: () => import("../modules/about/Help.vue"),
+      },
+      {
+        path: "contact",
+        name: "Contact",
+        component: () => import("../modules/about/Contact.vue"),
+      },
     ],
   },
 
@@ -208,6 +225,15 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem("token");
+
+  if (to.meta.requiresAuth && !token) {
+    next("/login");
+  } else {
+    next();
+  }
 });
 
 export default router;

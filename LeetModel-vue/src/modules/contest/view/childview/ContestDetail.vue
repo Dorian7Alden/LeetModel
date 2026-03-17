@@ -1,35 +1,70 @@
 <template>
-  <div>
-    <h2>{{ contest.title }}</h2>
+  <div class="contest-detail">
+    <h1>{{ contest.title }}</h1>
 
-    <el-tabs>
-      <el-tab-pane label="比赛说明">
-        <p>{{ contest.description }}</p>
-      </el-tab-pane>
+    <img v-if="contest.imageUrl" :src="contest.imageUrl" class="cover" />
 
-      <el-tab-pane label="题目">
-        <ul>
-          <li v-for="p in problems" :key="p">
-            {{ p }}
-          </li>
-        </ul>
-      </el-tab-pane>
+    <p class="intro">
+      {{ contest.introduction }}
+    </p>
 
-      <el-tab-pane label="排行榜">
-        <ContestRank />
-      </el-tab-pane>
-    </el-tabs>
+    <div class="info">
+      <p>
+        报名时间：{{ contest.signUpStartTime }} - {{ contest.signUpEndTime }}
+      </p>
+      <p>比赛时间：{{ contest.startTime }} - {{ contest.endTime }}</p>
+      <p>状态：{{ contest.status }}</p>
+    </div>
+
+    <a :href="contest.officialUrl" target="_blank" class="official">
+      官方网站
+    </a>
   </div>
 </template>
 
 <script setup>
-import ContestRank from "../../components/subpage/ContestRank.vue";
+import { ref, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import { getContestDetail } from "@/api/contest";
 
-const contest = {
-  title: "校内建模赛",
+const route = useRoute();
 
-  description: "3人组队建模",
-};
+const contest = ref({});
 
-const problems = ["A题", "B题", "C题"];
+onMounted(async () => {
+  const id = route.params.id;
+
+  const res = await getContestDetail(id);
+
+  contest.value = res.data;
+});
 </script>
+
+<style scoped>
+.contest-detail {
+  width: 900px;
+  margin: auto;
+  padding: 40px;
+}
+
+.cover {
+  width: 100%;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.intro {
+  line-height: 1.8;
+  color: #555;
+}
+
+.info {
+  margin-top: 20px;
+}
+
+.official {
+  display: inline-block;
+  margin-top: 20px;
+  color: #409eff;
+}
+</style>
