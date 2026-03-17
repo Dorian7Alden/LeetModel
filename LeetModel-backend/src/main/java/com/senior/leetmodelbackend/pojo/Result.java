@@ -3,12 +3,19 @@ package com.senior.leetmodelbackend.pojo;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 public class Result<T> {
 
     private int code;
     private String msg;
     private T data;
+    private Long timestamp;
+
+    public Result() {
+        this.timestamp = LocalDateTime.now().toInstant(java.time.ZoneOffset.of("+8")).toEpochMilli();
+    }
 
     public static <T> Result<T> success(T data) {
         Result<T> result = new Result<>();
