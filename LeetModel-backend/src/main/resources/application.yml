@@ -17,6 +17,20 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     type: com.alibaba.druid.pool.DruidDataSource
 
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 2042175308@qq.com
+    password: wnpwqjwhaziicgfh  # QQ 邮箱需使用授权码
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  data:
+    redis:
+      host: localhost
 #  jpa:
 #    hibernate:
 #      ddl-auto: update
