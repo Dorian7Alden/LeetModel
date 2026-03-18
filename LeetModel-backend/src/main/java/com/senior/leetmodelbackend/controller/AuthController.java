@@ -32,29 +32,37 @@ public class AuthController {
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> params) {
         // TODO: 使用 Spring Security 实现登录功能
-        // TODO: 通过邮箱注册
-        // TODO: 令牌缓存机制
 
-        // TODO: 前端传过来的密码是明文还是密文，先假设为明文。前端使用非堆成加密密码，然后后端解密之后，再换成摘要加密算法存储密码
         String emailLogin = params.get("email");
-        String passwordLogin = params.get("password");
-        User user = userService.getUserByEmail(emailLogin);
+        String passwordLogin = params.get("password"); // TODO: 前端密码是否已经加密？
 
-        // 是否已经完成注册
-        if (user.getEmail() == null) {
-            return Result.error(404, "用户不存在");
+        // TODO: 适配多种登录方式？目前之后邮箱具有唯一性，所以只能支持使用邮箱登录
+        log.info("login: {}", emailLogin);
+        User userQuery = userService.getUserByEmail(emailLogin);
+
+        // 账号是否存在
+        if (userQuery.getEmail() == null) {
+            log.error("没有邮箱为 {} 的用户", emailLogin);
+            return Result.error(404, "没有邮箱为 " + emailLogin + " 的用户");
         }
 
         // 密码是否正确
-        // TODO: 密码加密存储
-        if (!user.getPassword().equals(passwordLogin)) {
-            return Result.error(401, "密码错误");
+        // TODO: 前端密码是否已经加密？
+        if (!userQuery.getPassword().equals(passwordLogin)) {
+            log.error("用户 {} 的登录密码错误", emailLogin);
+            return Result.error(400, "用户 " + emailLogin + " 的登录密码错误");
         }
-        String token = JwtUtil.generateToken();
 
+        log.info("用户 {} 登录成功", emailLogin);
+        // 生成并刷新 token
+        // TODO: token 缓存机制，避免用户重复登录，保证每个用户仅唯一 token
+        String token = JwtUtil.generateToken(3600 * 24 * 3); // 24 * 3 小时的登录令牌
+        log.info("创建 token: {}", token);
+
+        // 封装返回结构
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
-        result.put("user_data", user);
+        result.put("user_data", userQuery); // TODO: 封装一个专门的响应用户信息的实体类
 
         return Result.success("登录成功", result);
     }
@@ -62,22 +70,23 @@ public class AuthController {
     /**
      * 发送验证码
      */
-    @PostMapping("/send-code")
-    public Result<String> sendCode(@RequestBody Map<String, String> params) {
-        // TODO: 解决邮箱配置验证码报错。抓取报错
-        String email = params.get("email");
-        verificationCodeService.generateAndSendCode(email);
-        return Result.success("已成功向邮箱 " + email + " 发送验证码");
+    @PostMapping("/verification-codes")
+    public Result<Void> sendCode(@RequestBody Map<String, String> params) {
+        // TODO: 发送验证码之前进行人机验证，完成验证后，携带验证的令牌
+        // TODO: 适配多种验证码发送方式：邮箱、手机等类型。目前只支持邮箱验证码
+        // 由于返回信息在 service 层进行了处理，这里直接返回结果
+        String email = params.get("target");
+        return verificationCodeService.sendCode(email);
     }
 
     /**
      * 注册
      */
     @PostMapping("/register")
-    public Result<String> register(@RequestBody Map<String, String> params) {
-        String email = params.get("email");
-        String password = params.get("password");
-        String code = params.get("code");
+    public Result<String> register(@RequestBody Map<String, Object> params) {
+
+        String email = (String) params.get("email");
+        String code = (String) params.get("code");
 
         // 是否已经注册
         if (userService.getUserByEmail(email) != null) {
@@ -86,12 +95,12 @@ public class AuthController {
 
         // 验证码是否正确
         if (!verificationCodeService.verifyCode(email, code)) {
-            return Result.error(400, "验证码错误");
+            return Result.error(400, "验证码错误或已过期，请重新尝试"); // TODO: 验证失败场景分类
         }
 
-        // 注册
+        // 完成注册
         try {
-            userService.register(email, password, code);
+            userService.register(params);
             return Result.success("注册成功");
         } catch (Exception e) {
             return Result.error(500, "注册失败");

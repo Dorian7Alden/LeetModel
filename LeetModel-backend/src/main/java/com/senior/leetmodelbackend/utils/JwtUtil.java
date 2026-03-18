@@ -29,6 +29,13 @@ public class JwtUtil {
     }
 
     /**
+     * 生成JWT Token（仅自定义时长）
+     */
+    public static String generateToken(long expireTime) {
+        return generateToken(new HashMap<>(), expireTime);
+    }
+
+    /**
      * 生成JWT Token（使用默认过期时间24小时）
      * @param claims 自定义载荷信息（如用户ID、用户名等）
      * @return 生成的JWT Token字符串
