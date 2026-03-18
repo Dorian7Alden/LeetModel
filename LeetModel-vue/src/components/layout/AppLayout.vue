@@ -14,7 +14,6 @@
           <router-link to="/contest" class="nav-item">赛事</router-link>
           <router-link to="/community" class="nav-item">社区</router-link>
           <router-link to="/team" class="nav-item">组队</router-link>
-          <router-link to="/profile" class="nav-item">个人中心</router-link>
         </nav>
       </div>
 
@@ -55,6 +54,7 @@
               <el-dropdown-item>题单</el-dropdown-item>
               <el-dropdown-item>收藏夹</el-dropdown-item>
               <el-dropdown-item>笔记本</el-dropdown-item>
+              <router-link to="/profile" class="nav-item">个人中心</router-link>
 
               <el-dropdown-item divided @click="logout">
                 退出登录
