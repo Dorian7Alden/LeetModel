@@ -1,6 +1,11 @@
 package com.senior.leetmodelbackend.service;
 
+import com.senior.leetmodelbackend.enums.CaptchaGenType;
+import com.senior.leetmodelbackend.enums.VerificationCodeType;
+import com.senior.leetmodelbackend.pojo.Result;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -9,43 +14,119 @@ import org.springframework.stereotype.Service;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class VerificationCodeService {
+
     @Autowired
     private StringRedisTemplate redisTemplate;
+
     @Autowired
     private JavaMailSender mailSender;
 
-    private static final String CODE_PREFIX = "LeetModel:";
-    private static final long EXPIRATION_MINUTES = 5;
+    // 从配置文件读取发件人邮箱
+    @Value("${spring.mail.username}")
+    private String mailFrom;
+
+    private static final String CODE_PREFIX = "LeetModel:"; // 缓存前缀
+    private static final long DEFAULT_EXPIRATION_SECONDS = 5 * 60; // 默认过期时间 5 分钟
 
     /**
-     * 生成并发送验证码
+     * 生成 6 位随机数字验证码
      */
-    public void generateAndSendCode(String email) {
-        // TODO: 发送频率校验。相同的邮箱验证码不能重复发送
+    private String generateRandomSixDigitCode() {
+        return String.format("%06d", new Random().nextInt(1000000));
+    }
 
-        // 生成 6 位随机验证码
-        String code = String.format("%06d", new Random().nextInt(1000000));
-
-        // 存入 Redis，设置 5 分钟过期
-        redisTemplate.opsForValue().set(CODE_PREFIX + email, code, EXPIRATION_MINUTES, TimeUnit.MINUTES);
-
-        // 发送邮件
+    /**
+     * 发送邮件方法
+     */
+    private void sendEmail(String email, String subject, String content) {
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom("2042175308@qq.com");
-        message.setSubject("LeetModel 注册验证码");
+        message.setFrom(mailFrom); // 使用配置注入的变量
+        message.setSubject(subject);
         message.setTo(email);
-        String mailContent = "LeetModel 网站提醒您，您当前正在通过邮箱注册账号，您的验证码是：" + code + "\n5分钟内有效。";
-        message.setText(mailContent);
+        message.setText(content);
         mailSender.send(message);
+    }
+
+
+    /**
+     * 核心发送验证码功能
+     */
+    private Result<Void> doSendCode(VerificationCodeType type, String target, Long expirationSeconds, CaptchaGenType codeType) {
+        if (type == VerificationCodeType.EMAIL) {
+            return sendCodeToEmail(target, expirationSeconds, codeType);
+        }
+        // 这里如果有枚举兜底，可以不用异常，但为了安全
+        return Result.error(400, "不支持的验证码类型");
+    }
+
+    /**
+     * 发送验证码到邮箱核心实现
+     */
+    private Result<Void> sendCodeToEmail(String email, Long expirationSeconds, CaptchaGenType codeType) {
+        String redisKey = CODE_PREFIX + email;
+
+        // 1. 检查是否已经存在验证码
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
+            log.warn("邮箱 {} 已经存在验证码，请勿重复发送", email);
+            return Result.error(400, "邮箱 " + email + " 已经存在验证码，请勿重复发送");
+        }
+
+        // 2. 生成验证码
+        String code;
+        if (codeType == CaptchaGenType.SIX_DIGIT) {
+            code = generateRandomSixDigitCode();
+        } else {
+            return Result.error(400, "无效的验证码生成类型");
+        }
+
+        // 3. 缓存验证码
+        redisTemplate.opsForValue().set(redisKey, code, expirationSeconds, TimeUnit.SECONDS);
+
+        // 4. 发送邮件
+        String emailContent = String.format(
+                "LeetModel 网站提醒您，您当前正在通过邮箱注册账号，您的验证码是：%s\n%d分钟内有效。",
+                code, expirationSeconds / 60
+        );
+
+        try {
+            sendEmail(email, "LeetModel 注册验证码", emailContent);
+            log.info("验证码 {} 发送至邮箱: {}", code, email);
+            return Result.success("验证码发送成功");
+        } catch (Exception e) {
+            log.error("邮件发送失败: {}", email, e);
+            // 发送失败，清理 Redis 缓存（回滚机制）
+            redisTemplate.delete(redisKey);
+            return Result.error(500, "邮件发送失败，请稍后重试");
+        }
+    }
+
+
+    /**
+     * 使用默认配置，当前仅支持发送邮箱验证码
+     */
+    public Result<Void> sendCode(String email) {
+        return doSendCode(VerificationCodeType.EMAIL, email, DEFAULT_EXPIRATION_SECONDS, CaptchaGenType.SIX_DIGIT);
     }
 
     /**
      * 校验验证码
      */
-    public boolean verifyCode(String email, String code) {
+    public Boolean verifyCode(String email, String code) {
         String storedCode = redisTemplate.opsForValue().get(CODE_PREFIX + email);
-        return code.equals(storedCode);
+        if (storedCode == null) {
+            log.warn("邮箱 {} 的验证码已经过期，请重新发送验证码", email);
+            return false;
+        }
+        if (storedCode.equals(code)) {
+            log.info("邮箱 {} 验证码通过", email);
+            redisTemplate.delete(CODE_PREFIX + email);
+            return true;
+        } else {
+            log.warn("邮箱 {} 验证码比对失败", email);
+            return false;
+        }
     }
 }
