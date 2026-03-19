@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.pojo;
+package com.senior.leetmodelbackend.entity.pojo;
 
 import lombok.Data;
 

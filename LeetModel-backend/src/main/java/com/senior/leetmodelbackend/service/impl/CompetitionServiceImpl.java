@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.service.impl;
 
 import com.senior.leetmodelbackend.mapper.CompetitionMapper;
-import com.senior.leetmodelbackend.pojo.Competition;
+import com.senior.leetmodelbackend.entity.pojo.Competition;
 import com.senior.leetmodelbackend.service.CompetitionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

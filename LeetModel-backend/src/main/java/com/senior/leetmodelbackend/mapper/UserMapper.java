@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.mapper;
 
-import com.senior.leetmodelbackend.pojo.User;
+import com.senior.leetmodelbackend.entity.pojo.User;
 import org.apache.ibatis.annotations.*;
 
 @Mapper

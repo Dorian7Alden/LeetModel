@@ -1,19 +1,24 @@
-package com.senior.leetmodelbackend.pojo;
+package com.senior.leetmodelbackend.entity.pojo;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
 
 @Data
+@Entity
 public class User {
 
     @Id
     private Integer id;
     private String username;
+
+    @NotNull
     private String email;
     @JsonIgnore
     private String password;
