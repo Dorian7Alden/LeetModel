@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.pojo;
+package com.senior.leetmodelbackend.entity.pojo;
 
 
 import lombok.Data;
@@ -38,6 +38,8 @@ public class Result<T> {
         result.setMsg(msg);
         return result;
     }
+
+
 
     public static <T> Result<T> success(String msg, T data) {
         Result<T> result = new Result<>();

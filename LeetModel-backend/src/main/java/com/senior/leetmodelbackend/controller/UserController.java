@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.pojo.Result;
-import com.senior.leetmodelbackend.pojo.User;
+import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.entity.pojo.User;
 import com.senior.leetmodelbackend.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

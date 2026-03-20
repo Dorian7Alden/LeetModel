@@ -1,8 +1,8 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.enums.CaptchaGenType;
-import com.senior.leetmodelbackend.enums.VerificationCodeType;
-import com.senior.leetmodelbackend.pojo.Result;
+import com.senior.leetmodelbackend.entity.enums.CaptchaGenType;
+import com.senior.leetmodelbackend.entity.enums.VerificationCodeType;
+import com.senior.leetmodelbackend.entity.pojo.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.enums;
+package com.senior.leetmodelbackend.entity.enums;
 
 import lombok.Getter;
 
