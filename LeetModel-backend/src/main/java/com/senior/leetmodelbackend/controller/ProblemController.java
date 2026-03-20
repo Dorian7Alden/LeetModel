@@ -20,12 +20,14 @@ public class ProblemController {
 
     /**
      * 获取题目列表，支持按关键字、难度、语言、分值范围及标签进行过滤
-     * 标签过滤示例: /api/v1/problems?tags=Array,Hash Table
      */
     @GetMapping
     public Result<PageInfo<Problem>> getProblemList(@ModelAttribute ProblemQueryDTO problemQueryDTO) {
 
         return Result.success(problemService.getProblemsByQueryDTO(problemQueryDTO));
     }
+
+    
+
 
 }

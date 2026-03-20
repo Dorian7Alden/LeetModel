@@ -39,6 +39,8 @@ public class Result<T> {
         return result;
     }
 
+
+
     public static <T> Result<T> success(String msg, T data) {
         Result<T> result = new Result<>();
         result.setCode(200);
