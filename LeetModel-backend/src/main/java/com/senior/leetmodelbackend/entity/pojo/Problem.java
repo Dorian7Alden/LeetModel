@@ -16,7 +16,7 @@ public class Problem {
     String creatorId;
     String createTime;
     String updateTime;
-
+    Integer aveScore;
 }
 
 

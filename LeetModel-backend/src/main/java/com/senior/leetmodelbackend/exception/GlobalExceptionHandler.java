@@ -3,6 +3,8 @@ package com.senior.leetmodelbackend.exception;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +15,8 @@ import java.util.Set;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * 拦截POST请求JSON参数校验异常（@Valid/@Validated校验失败）
@@ -56,7 +60,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
         // 生产环境建议记录日志，不要返回具体异常信息
-        return Result.error(500, "系统异常，请稍后重试");
+        log.error("系统异常:", e);
+        return Result.error(500, "系统异常，请稍后重试:" + e.getMessage());
     }
 
 

@@ -18,21 +18,11 @@ public class ProblemQueryDTO {
 
     String keyword;
     String difficulty;
-
+    String language;
     // 默认排序方式
     String sortOrder = "asc";
-
-//    // 排序字段：full_score-分数 difficulty-难度 create_time-发布时间
-//    private String sortField = "id";
-
-//    // 题目类型筛选
-//    private String problemType;
-//
-//    // 专题类型筛选
-//    private String specialType;
-//
-//    // 标签ID列表（多标签筛选，交集匹配）
-//    private List<Long> tagIdList;
+    Integer minAveScore;
+    Integer maxAveScore;
 
 }
 

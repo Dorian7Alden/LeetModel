@@ -10,6 +10,5 @@ import java.util.List;
 @Mapper
 public interface ProblemMapper {
 
-    @Select("SELECT * FROM problem")
     List<Problem> getProblemsByQueryDTO(ProblemQueryDTO problemQueryDTO);
 }
