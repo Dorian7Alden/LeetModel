@@ -23,6 +23,10 @@ public class ProblemServiceImpl implements ProblemService {
         Integer pageNum = problemQueryDTO.getPageNum();
         Integer pageSize = problemQueryDTO.getPageSize();
 
+        // 默认分页设置
+        if (pageNum == null) pageNum = 1;
+        if (pageSize == null) pageSize = 10;
+
         // 使用 PageHelper 进行分页查询
         PageHelper.startPage(pageNum, pageSize);
         List<Problem> problems = problemMapper.getProblemsByQueryDTO(problemQueryDTO);

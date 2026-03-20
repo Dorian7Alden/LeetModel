@@ -20,6 +20,20 @@
             <if test="maxAveScore != null">
                 AND ave_score &lt;= #{maxAveScore}
             </if>
+            <if test="tags != null and tags.size() > 0">
+                <bind name="tagsSize" value="tags.size()" />
+                AND id IN (
+                    SELECT pt.problem_id
+                    FROM problem_tag pt
+                    JOIN tag t ON pt.tag_id = t.id
+                    WHERE t.name IN
+                    <foreach collection="tags" item="tag" open="(" separator="," close=")">
+                        #{tag}
+                    </foreach>
+                    GROUP BY pt.problem_id
+                    HAVING COUNT(DISTINCT t.id) = #{tagsSize}
+                )
+            </if>
         </where>
         <if test="sortOrder != null and sortOrder != ''">
             ORDER BY id ${sortOrder}

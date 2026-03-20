@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 题目查询请求参数
  */
@@ -19,11 +21,11 @@ public class ProblemQueryDTO {
     String keyword;
     String difficulty;
     String language;
-    // 默认排序方式
-    String sortOrder = "asc";
+    String sortOrder = "asc"; // 默认排序方式
     Integer minAveScore;
     Integer maxAveScore;
 
+    List<String> tags; // 标签列表
 }
 
 
