@@ -1,42 +1,121 @@
 <template>
-  <div class="problem-list">
-    <ProblemCard v-for="p in problems" :key="p.id" :problem="p" />
+  <div class="list">
+    <!-- 空状态 -->
+    <div v-if="list.length === 0">暂无数据</div>
+
+    <!-- 列表 -->
+    <div
+      class="item"
+      v-for="item in list"
+      :key="item.id"
+      @click="goDetail(item.id)"
+    >
+      <span class="title">{{ item.title }}</span>
+      <span class="score">{{ item.score || "暂无" }}</span>
+      <span class="level easy">{{ item.difficulty || "简单" }}</span>
+    </div>
+
+    <!-- 分页 -->
+    <el-pagination
+      v-model:current-page="query.pageNum"
+      v-model:page-size="query.pageSize"
+      :total="total"
+      layout="prev, pager, next"
+      @current-change="fetchProblems"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import ProblemCard from "./ProblemCard.vue";
+import { ref, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
+import { getProblemList } from "@/api/problem";
 
-const problems = ref([
-  {
-    id: 1,
-    title: "物流配送路径优化",
-    difficulty: "中等",
-    tags: ["VRP", "图论"],
-    submit: 120,
-  },
-  {
-    id: 2,
-    title: "城市交通流预测",
-    difficulty: "困难",
-    tags: ["时间序列", "预测"],
-    submit: 80,
-  },
-  {
-    id: 3,
-    title: "仓储选址优化",
-    difficulty: "简单",
-    tags: ["线性规划"],
-    submit: 56,
-  },
-]);
+// 路由
+const router = useRouter();
+
+// 数据
+const list = ref([]);
+const total = ref(0);
+
+// 查询条件
+const query = ref({
+  pageNum: 1,
+  pageSize: 10,
+  keyword: "",
+  difficulty: "",
+  language: "",
+  tags: [],
+  minAveScore: null,
+  maxAveScore: null,
+  sortOrder: "asc",
+});
+const fetchProblems = async () => {
+  try {
+    const res = await getProblemList({
+      ...query.value,
+      tags: query.value.tags.length ? query.value.tags : undefined,
+      minAveScore: query.value.minAveScore || undefined,
+      maxAveScore: query.value.maxAveScore || undefined,
+    });
+
+    console.log("题目列表:", res);
+
+    if (res && res.code === 200) {
+      list.value = res.data.list || [];
+      total.value = res.data.total || 0;
+    } else {
+      list.value = [];
+    }
+  } catch (err) {
+    console.error("接口报错:", err);
+    list.value = [];
+  }
+};
+
+// 首次加载
+onMounted(() => {
+  fetchProblems();
+});
+
+// 跳转详情
+const goDetail = (id) => {
+  router.push(`/problem/${id}`);
+};
+
+const updateQuery = (params) => {
+  query.value = {
+    ...query.value,
+    ...params,
+    pageNum: 1,
+  };
+  fetchProblems();
+};
+defineExpose({
+  updateQuery,
+});
 </script>
 
 <style scoped>
-.problem-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+.item {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.title {
+  color: #409eff;
+}
+
+.score {
+  color: #67c23a;
+}
+
+.level.easy {
+  color: #999;
 }
 </style>

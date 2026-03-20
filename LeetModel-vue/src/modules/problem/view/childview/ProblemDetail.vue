@@ -1,36 +1,61 @@
 <template>
-  <ProblemDescription
-    :title="problem.title"
-    :description="problem.description"
-  />
+  <div class="detail">
+    <h2>{{ problem.title }}</h2>
 
-  <DatasetDownload />
+    <div class="meta">
+      <span class="difficulty">{{ problem.difficulty }}</span>
+    </div>
 
-  <ProblemDiscussion />
+    <div class="content">
+      {{ problem.content }}
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { reactive } from "vue";
+import { useRoute } from "vue-router";
+import { ref, onMounted } from "vue";
+import { getProblemDetail } from "@/api/problem";
 
-import ProblemDescription from "../../components/subpage/ProblemDescription.vue";
-import DatasetDownload from "../../components/subpage/DatasetDownload.vue";
-import ProblemDiscussion from "../../components/subpage/ProblemDiscussion.vue";
+const route = useRoute();
+const problem = ref({});
 
-const problem = reactive({
-  title: "物流配送路径优化",
+// 获取详情
+const fetchDetail = async () => {
+  const id = route.params.id;
 
-  description: `
+  const res = await getProblemDetail(id);
 
-某物流公司需要为多个客户配送货物。
+  console.log("详情数据:", res);
 
-请建立模型优化配送路径，使总运输距离最小。
+  if (res.code === 200) {
+    problem.value = res.data;
+  }
+};
 
-要求：
-
-1 建立数学模型  
-2 设计求解算法  
-3 给出模拟结果
-
-`,
+onMounted(() => {
+  fetchDetail();
 });
 </script>
+
+<style scoped>
+.detail {
+  padding: 20px;
+}
+
+.meta {
+  margin: 10px 0;
+}
+
+.difficulty {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f56c6c;
+  color: #fff;
+}
+
+.content {
+  margin-top: 20px;
+  line-height: 1.6;
+}
+</style>

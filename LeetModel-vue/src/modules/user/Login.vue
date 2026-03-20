@@ -41,29 +41,26 @@ async function handleLogin() {
     const res = await login(form.value);
 
     if (res.code === 200) {
-      const token = res.data.token;
-      const user = res.data.user_data; // ✅ 关键在这里
+      const data = res.data;
 
-      // ✅ 存本地
-      localStorage.setItem("token", token);
-      localStorage.setItem("userId", user.id);
+      const token = data.token;
+      const username = data.name || data.email; // ✅ 没有 name 就用邮箱
 
-      userStore.login(res.data.token, user.username);
+      // ✅ 存储
+      userStore.login(token, username);
+
+      // localStorage.setItem("token", token);
+      localStorage.setItem("userId", data.userId);
 
       ElMessage.success("登录成功");
 
       router.push("/");
     } else {
-      ElMessage({
-        message: res.message || "登录失败",
-        type: "error",
-      });
+      ElMessage.error(res.msg || "登录失败");
     }
   } catch (error) {
-    ElMessage({
-      message: "登录失败，请检查账号或服务器",
-      type: "error",
-    });
+    console.error(error); // ⭐ 建议加上
+    ElMessage.error("登录失败，请检查账号或服务器");
   }
 }
 </script>

@@ -2,66 +2,95 @@
   <div class="layout">
     <!-- 顶部栏 -->
     <header class="topbar">
-      <!-- 左侧：系统名 + 导航 -->
-      <div class="left-area">
-        <!-- 导航栏 -->
-        <nav class="navbar">
-          <router-link to="/" class="nav-item home-icon">
-            <img src="@/assets/icon/home.png" alt="home" />
-          </router-link>
-          <router-link to="/training" class="nav-item">训练</router-link>
-          <router-link to="/problem" class="nav-item">题库</router-link>
-          <router-link to="/contest" class="nav-item">赛事</router-link>
-          <router-link to="/community" class="nav-item">社区</router-link>
-          <router-link to="/team" class="nav-item">组队</router-link>
-        </nav>
-      </div>
+      <div :class="['topbar-inner', isHome ? 'home-inner' : 'default-inner']">
+        <!-- 左侧：系统名 + 导航 -->
+        <div class="left-area">
+          <!-- 导航栏 -->
+          <nav class="navbar">
+            <router-link to="/" class="nav-item home-icon">
+              <img src="@/assets/icon/home.png" alt="home" />
+            </router-link>
 
-      <!-- 右侧 -->
-      <!-- 右侧用户 -->
-      <div class="right-area">
-        <el-input
-          v-model="keyword"
-          placeholder="搜索题目 / 比赛 / 帖子"
-          class="search-input"
-          clearable
-        />
+            <router-link to="/problem" class="nav-item">题库</router-link>
+            <router-link to="/contest" class="nav-item">赛事</router-link>
+            <router-link to="/community" class="nav-item">社区</router-link>
+            <router-link to="/team" class="nav-item">组队</router-link>
+          </nav>
+        </div>
 
-        <!-- 未登录 -->
-        <template v-if="!userStore.isLogin">
-          <router-link to="/login">
-            <button class="btn">登录</button>
-          </router-link>
+        <!-- 右侧 -->
+        <!-- 右侧用户 -->
+        <div class="right-area">
+          <el-input
+            v-model="keyword"
+            placeholder="搜索题目 / 比赛 / 帖子"
+            class="search-input"
+            clearable
+          />
+          <!-- 右侧 登录/注册 按钮组 -->
 
-          <router-link to="/register">
-            <button class="btn register">注册</button>
-          </router-link>
-        </template>
-
-        <!-- 已登录 -->
-        <el-dropdown v-else trigger="click">
-          <div class="user-box">
-            <img class="avatar" src="../../assets/vue.svg" />
-          </div>
-
-          <template #dropdown>
-            <el-dropdown-menu class="user-card">
-              <div class="user-info">
-                <img class="avatar-big" src="../../assets/vue.svg" />
-                <div class="name">Kind EasleyaAJ</div>
-              </div>
-
-              <el-dropdown-item>题单</el-dropdown-item>
-              <el-dropdown-item>收藏夹</el-dropdown-item>
-              <el-dropdown-item>笔记本</el-dropdown-item>
-              <router-link to="/profile" class="nav-item">个人中心</router-link>
-
-              <el-dropdown-item divided @click="logout">
-                退出登录
-              </el-dropdown-item>
-            </el-dropdown-menu>
+          <!-- 未登录 -->
+          <template v-if="!userStore.isLogin">
+            <div class="nav-actions">
+              <router-link to="/register" class="register-btn"
+                >注册</router-link
+              >
+              <router-link to="/login" class="login-btn">登录</router-link>
+            </div>
           </template>
-        </el-dropdown>
+
+          <!-- 已登录 -->
+          <el-dropdown v-else trigger="click">
+            <div class="user-box">
+              <img class="avatar" src="../../assets/vue.svg" />
+            </div>
+
+            <template #dropdown>
+              <el-dropdown-menu class="user-card">
+                <!-- 顶部用户信息 -->
+                <div class="user-header">
+                  <img class="avatar-big" src="../../assets/vue.svg" />
+                  <div class="info">
+                    <div class="name">Kind EasleyaAJ</div>
+                    <div class="desc">欢迎回来 👋</div>
+                  </div>
+                </div>
+
+                <!-- 功能区 -->
+                <div class="menu-group">
+                  <el-dropdown-item class="menu-item"
+                    >📘 我的题单</el-dropdown-item
+                  >
+                  <el-dropdown-item class="menu-item"
+                    >⭐ 我的收藏</el-dropdown-item
+                  >
+                  <el-dropdown-item class="menu-item"
+                    >📝 我的笔记</el-dropdown-item
+                  >
+                </div>
+
+                <!-- 分割 -->
+                <div class="divider"></div>
+
+                <!-- 跳转 -->
+                <div class="menu-group">
+                  <router-link to="/profile" class="menu-link">
+                    <el-dropdown-item class="menu-item"
+                      >👤 个人中心</el-dropdown-item
+                    >
+                  </router-link>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- 退出 -->
+                <el-dropdown-item class="logout" @click="logout">
+                  🚪 退出登录
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </div>
     </header>
 
@@ -91,6 +120,12 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/user";
+import { useRoute } from "vue-router";
+import { computed } from "vue";
+
+const route = useRoute();
+
+const isHome = computed(() => route.path === "/");
 const userStore = useUserStore();
 const isLogin = ref(!!localStorage.getItem("token"));
 
@@ -104,19 +139,36 @@ const keyword = ref("");
 </script>
 
 <style scoped>
-.user-box {
-  cursor: pointer;
+/* 退出按钮 */
+.logout {
+  color: #f56c6c !important;
+  text-align: center;
+  font-weight: 500;
 }
 
+.logout:hover {
+  background: #fff1f0 !important;
+}
+
+/* 去掉 router-link 默认样式 */
+.menu-link {
+  text-decoration: none;
+  color: inherit;
+}
 .avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
 }
 
+/* 整体卡片 */
 .user-card {
   width: 260px;
-  padding: 10px;
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
 }
 
 .user-info {
@@ -125,11 +177,52 @@ const keyword = ref("");
   gap: 10px;
   padding: 10px;
 }
-
+/* 头像 */
 .avatar-big {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+/* 信息 */
+.info .name {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  justify-content: center; /* 水平 */
+  align-items: center; /* 垂直 */
+}
+
+.info .desc {
+  font-size: 12px;
+  opacity: 0.85;
+  display: flex;
+  justify-content: center; /* 水平 */
+  align-items: center; /* 垂直 */
+}
+/* 功能分组 */
+.menu-group {
+  padding: 6px 0;
+}
+
+/* 菜单项 */
+.menu-item {
+  padding: 10px 16px !important;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+/* hover 效果 */
+.menu-item:hover {
+  background: #f5f7fa !important;
+  padding-left: 20px !important;
+}
+
+/* 分割线 */
+.divider {
+  height: 1px;
+  background: #eee;
+  margin: 6px 0;
 }
 
 .name {
@@ -201,7 +294,7 @@ const keyword = ref("");
   padding: 0 40px;
 }
 
-/* 顶部栏 */
+/* 外层 topbar 保持全宽（不要动） */
 .topbar {
   height: 64px;
   background: #ffffff;
@@ -209,15 +302,31 @@ const keyword = ref("");
 
   display: flex;
   align-items: center;
-  justify-content: space-between;
-
-  padding: 0 40px;
+  justify-content: center; /* ⭐ 关键：让内部居中 */
 
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 
   position: sticky;
   top: 0;
   z-index: 1000;
+}
+
+/* 新增：内部容器 */
+.topbar-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 首页：1200px 居中 */
+.home-inner {
+  max-width: 1200px;
+}
+
+/* 其他页面：保持原来 padding */
+.default-inner {
+  padding: 0 40px;
 }
 
 .logo {
@@ -244,40 +353,44 @@ const keyword = ref("");
   width: 220px;
 }
 
-/* 按钮 */
-
-.btn {
-  background: #409eff;
-  color: white;
-
-  padding: 6px 14px;
-  border-radius: 6px;
-
-  text-decoration: none;
+/* 登录按钮 - LeetCode 原版样式 */
+.login-btn {
+  padding: 6px 12px;
+  margin-right: 12px;
   font-size: 14px;
-
-  transition: 0.2s;
+  color: #4a4a4a;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.btn:hover {
-  background: #2f7de1;
+
+/* 登录按钮 hover 效果 */
+.login-btn:hover {
+  background-color: #f5f5f5;
+  color: #0099cc;
 }
-.register {
-  background: #409eff;
-  color: white;
 
-  padding: 6px 14px;
-  border-radius: 6px;
-
-  text-decoration: none;
+/* 注册按钮 - LeetCode 原版样式 */
+.register-btn {
+  padding: 6px 12px;
+  margin-right: 12px;
   font-size: 14px;
-
-  transition: 0.2s;
+  color: #4a4a4a;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.register:hover {
-  background: #2f7de1;
+/* 注册按钮 hover 效果 */
+.register-btn:hover {
+  background-color: #e6f7ff;
+  border-color: #33adff;
+  color: #33adff;
 }
-
 .layout {
   display: flex;
   flex-direction: column;

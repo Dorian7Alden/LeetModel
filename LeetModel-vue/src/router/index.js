@@ -14,95 +14,75 @@ const routes = [
         component: () => import("../modules/home/view/Home.vue"),
       },
 
-      /* ================= 训练系统 ================= */
+      /* ================= 题库系统 ================= */
 
       {
-        path: "training",
-        name: "Training",
-        component: () => import("../modules/training/view/Training.vue"),
-
+        path: "problem",
+        component: () => import("../modules/problem/view/Problem.vue"),
         children: [
+          {
+            path: "",
+            redirect: "/problem/problemListPage",
+          },
+          {
+            path: "problemListPage",
+            name: "ProblemListPage",
+            component: () =>
+              import("../modules/problem/view/childview/ProblemListPage.vue"),
+          },
+          {
+            path: "leetbook",
+            name: "LeetBook",
+            component: () =>
+              import("../modules/problem/view/childview/LeetBook.vue"),
+          },
+          {
+            path: ":id",
+            name: "ProblemDetail",
+            component: () =>
+              import("../modules/problem/view/childview/ProblemDetail.vue"),
+          },
           {
             path: "modeling",
             name: "ModelingTraining",
             component: () =>
-              import("../modules/training/components/homepage/ModelingTraining.vue"),
+              import("../modules/problem/view/childview/ModelingTraining.vue"),
           },
 
           {
             path: "paper",
             name: "PaperTraining",
             component: () =>
-              import("../modules/training/components/homepage/PaperTraining.vue"),
+              import("../modules/problem/view/childview/PaperTraining.vue"),
           },
 
           {
             path: "coding",
             name: "CodingTraining",
             component: () =>
-              import("../modules/training/components/homepage/CodingTraining.vue"),
+              import("../modules/problem/view/childview/CodingTraining.vue"),
           },
         ],
       },
-
-      /* ================= 题库系统 ================= */
-
-      {
-        path: "problem",
-        name: "Problem",
-        component: () => import("../modules/problem/view/Problem.vue"),
-      },
-
-      {
-        path: "problemHeader",
-        name: "ProblemHeader",
-        component: () =>
-          import("../modules/problem/components/homepage/ProblemHeader.vue"),
-      },
-
-      {
-        path: "problem/list",
-        name: "ProblemList",
-        component: () =>
-          import("../modules/problem/components/homepage/ProblemList.vue"),
-      },
-
-      {
-        path: "problem/:id",
-        name: "ProblemDetail",
-        component: () =>
-          import("../modules/problem/view/childview/ProblemDetail.vue"),
-      },
-
-      {
-        path: "problem/discussion",
-        name: "ProblemDiscussion",
-        component: () =>
-          import("../modules/problem/components/subpage/ProblemDiscussion.vue"),
-      },
-
       /* ================= 赛事系统 ================= */
 
       {
         path: "contest",
-        name: "ContestList",
+        name: "Contest",
         component: () => import("../modules/contest/view/Contest.vue"),
       },
 
       {
-        path: "contest/:id",
-        name: "ContestDetail",
+        path: "contest/id",
+        name: "Contest/id",
         component: () =>
           import("../modules/contest/view/childview/ContestDetail.vue"),
       },
-
       {
-        path: "contest/rank",
-        name: "ContestRank",
-        component: () =>
-          import("../modules/contest/components/subpage/ContestRank.vue"),
+        path: "contest",
+        name: "Contest",
+        component: () => import("../modules/contest/view/Contest.vue"),
       },
-
       /* ================= 社区系统 ================= */
 
       {
