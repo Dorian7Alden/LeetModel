@@ -41,7 +41,14 @@ async function handleLogin() {
     const res = await login(form.value);
 
     if (res.code === 200) {
-      userStore.login(res.data.token, res.data.username);
+      const token = res.data.token;
+      const user = res.data.user_data; // ✅ 关键在这里
+
+      // ✅ 存本地
+      localStorage.setItem("token", token);
+      localStorage.setItem("userId", user.id);
+
+      userStore.login(res.data.token, user.username);
 
       ElMessage.success("登录成功");
 
