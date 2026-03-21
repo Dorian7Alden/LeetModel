@@ -73,7 +73,7 @@ public class AuthController {
         LoginVO loginVO = new LoginVO();
 
         // 生成并刷新 token
-        String token = JwtUtil.generateToken(3600 * 24 * 3); // 24 * 3 小时的登录令牌
+        String token = JwtUtil.generateToken(1000 * 3600 * 24 * 3); // 24 * 3 小时的登录令牌
         loginVO.setToken(token); // 设置 token 到 loginVO
         log.info("生成用户 {} 的登录 token: {}", emailLogin, token);
         // 封装查询到的用户信息
