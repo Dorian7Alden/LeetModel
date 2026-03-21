@@ -6,10 +6,15 @@
     <!-- 列表 -->
     <div
       class="item"
-      v-for="item in list"
+      v-for="(item, index) in list"
       :key="item.id"
       @click="goDetail(item.id)"
     >
+      <!-- 序号 -->
+      <span class="index">
+        {{ (query.pageNum - 1) * query.pageSize + index + 1 }}
+      </span>
+
       <span class="title">{{ item.title }}</span>
       <span class="score">{{ item.score || "暂无" }}</span>
       <span class="level easy">{{ item.difficulty || "简单" }}</span>
@@ -97,6 +102,11 @@ defineExpose({
 </script>
 
 <style scoped>
+.index {
+  width: 40px;
+  display: inline-block;
+  color: #999;
+}
 .item {
   display: flex;
   justify-content: space-between;

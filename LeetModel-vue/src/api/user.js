@@ -26,3 +26,31 @@ export function updateUser(userId, data) {
 export function deleteUser(userId) {
   return request.delete(`/users/${userId}`);
 }
+
+// ✅ 重置密码
+export function resetPassword(data) {
+  return request({
+    url: "/auth/reset-password",
+    method: "post",
+    data,
+  });
+}
+
+/**
+ * 退出登录
+ */
+export function logout() {
+  const token = localStorage.getItem("token");
+
+  return request.post("/auth/logout", {
+    token: token,
+  });
+}
+// // ✅ 退出登录
+// export function logout(data) {
+//   return request({
+//     url: "/auth/logout",
+//     method: "post",
+//     data, // ✅ 必须有
+//   });
+// }

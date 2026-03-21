@@ -84,7 +84,7 @@
                 <div class="divider"></div>
 
                 <!-- 退出 -->
-                <el-dropdown-item class="logout" @click="logout">
+                <el-dropdown-item class="logout" @click="handleLogout">
                   🚪 退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -122,7 +122,8 @@ import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/user";
 import { useRoute } from "vue-router";
 import { computed } from "vue";
-
+import { logout } from "@/api/user";
+import { ElMessage } from "element-plus";
 const route = useRoute();
 
 const isHome = computed(() => route.path === "/");
@@ -131,10 +132,24 @@ const isLogin = ref(!!localStorage.getItem("token"));
 
 const router = useRouter();
 
-function logout() {
-  userStore.logout();
-}
+async function handleLogout() {
+  try {
+    await logout(); // ✅ 调后端接口
 
+    ElMessage.success("退出成功");
+  } catch (err) {
+    console.log("退出接口异常", err);
+  } finally {
+    // ✅ 无论成功失败都执行
+    localStorage.removeItem("token");
+
+    // ✅ 清空 pinia 状态（关键！）
+    userStore.$reset();
+
+    // ✅ 跳转登录页
+    router.push("/login");
+  }
+}
 const keyword = ref("");
 </script>
 

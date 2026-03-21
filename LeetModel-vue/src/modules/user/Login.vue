@@ -9,6 +9,11 @@
         <input v-model="form.password" type="password" placeholder="密码" />
 
         <button class="login-btn" @click="handleLogin">登录</button>
+        <div style="margin-top: 10px; text-align: right">
+          <router-link to="/forgot-password" style="font-size: 13px">
+            忘记密码？
+          </router-link>
+        </div>
       </div>
 
       <div class="register-link">
@@ -50,7 +55,7 @@ async function handleLogin() {
       userStore.login(token, username);
 
       // localStorage.setItem("token", token);
-      localStorage.setItem("userId", data.userId);
+      localStorage.setItem("userId", data.id);
 
       ElMessage.success("登录成功");
 

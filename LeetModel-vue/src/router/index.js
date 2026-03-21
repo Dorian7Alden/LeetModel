@@ -173,7 +173,10 @@ const routes = [
         name: "Register",
         component: () => import("../modules/user/Register.vue"),
       },
-
+      {
+        path: "/forgot-password",
+        component: () => import("../modules/user/ForgotPassword.vue"),
+      },
       /* ================= 页脚关于 ================= */
       {
         path: "about",
