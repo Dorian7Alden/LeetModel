@@ -82,7 +82,11 @@ public class AuthController {
         loginVO.setToken(token); // 设置 token 到 loginVO
         log.info("生成用户 {} 的登录 token: {}", emailLogin, token);
         // 封装查询到的用户信息
+        System.out.println("=====================================================");
+        System.out.println(userQuery);
         BeanUtils.copyProperties(userQuery, loginVO);
+        System.out.println(loginVO);
+        System.out.println("=====================================================");
 
         return Result.success("登录成功", loginVO);
     }
