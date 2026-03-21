@@ -17,4 +17,6 @@ public interface UserService {
     void deleteUserById(Integer userId);
 
     void updateUserById(User user);
+
+    void resetPassword(String email, String password);
 }

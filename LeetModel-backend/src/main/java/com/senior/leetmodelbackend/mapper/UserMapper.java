@@ -22,4 +22,7 @@ public interface UserMapper {
     Integer getMaxUserId();
 
     void updateUserById(User user);
+
+    @Update("update user set password = #{password}, update_time = NOW() where email = #{email}")
+    void updateUserPassword(String email, String password);
 }

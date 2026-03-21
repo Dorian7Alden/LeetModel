@@ -83,4 +83,9 @@ public class UserServiceImpl implements UserService {
         log.info("更新用户信息: {}", user);
         userMapper.updateUserById(user);
     }
+
+    @Override
+    public void resetPassword(String email, String password) {
+        userMapper.updateUserPassword(email, password);
+    }
 }

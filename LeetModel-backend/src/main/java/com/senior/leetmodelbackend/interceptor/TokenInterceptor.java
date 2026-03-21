@@ -1,5 +1,8 @@
 package com.senior.leetmodelbackend.interceptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.utils.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -36,12 +39,13 @@ public class TokenInterceptor implements HandlerInterceptor {
         log.info("请求通过拦截器: {}", requestURI);
 
         String token = request.getHeader("token");
+        ObjectMapper mapper = new ObjectMapper();
 
         // token 为空
         if (token == null || token.isEmpty()) {
             log.info("令牌为空，请求头中缺少token");
-            //response.getWriter().write("令牌为空");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);  // 返回 401 状态码，前端自己控制页面跳转
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING)));
             return false;
         }
 
@@ -50,8 +54,8 @@ public class TokenInterceptor implements HandlerInterceptor {
             JwtUtil.parseToken(token);
         } catch (Exception e) {
             log.info("令牌解析失败");
-            //response.getWriter().write("令牌解析失败");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 返回 401 状态码，前端自己控制页面跳转
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 

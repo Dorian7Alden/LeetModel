@@ -1,5 +1,7 @@
 package com.senior.leetmodelbackend.controller;
 
+import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.entity.pojo.User;
 import com.senior.leetmodelbackend.service.UserService;
@@ -26,7 +28,7 @@ public class UserController {
         User userByEmail = userService.getUserByEmail(email);
         if (userByEmail == null) {
             // TODO: 异常太广泛了，没有考虑是什么原因导致的 null 。数据库异常没有抓取
-            return Result.error(404, "没有找到邮箱为 " + email + " 的用户");
+            return Result.error(UserErrorCode.USER_NOT_FOUND, "没有找到邮箱为 " + email + " 的用户");
         }
         return Result.success("成功通过邮箱查询到用户", userByEmail);
     }
@@ -39,7 +41,8 @@ public class UserController {
         // TODO: 查询失败的情景，而非没有找到
         User userById = userService.getUserById(userId);
         if (userById == null) {
-            return Result.error(404, "没有找到 id 为 " + userId + " 的用户");
+            // TODO: 异常太广泛了，没有考虑是什么原因导致的 null 。数据库异常没有抓取
+            return Result.error(UserErrorCode.USER_NOT_FOUND, "没有找到 id 为 " + userId + " 的用户");
         }
         return Result.success("成功通过用户 id 查询到用户", userById);
     }
@@ -53,7 +56,7 @@ public class UserController {
             userService.deleteUserById(userId);
             return Result.success("已经成功删除用户 id 为 " + userId + " 的用户");
         } catch (Exception e) {
-            return Result.error(404, "删除用户 " + userId + " 失败");
+            return Result.error(GlobalErrorCode.RESOURCE_NOT_FOUND, "删除用户 " + userId + " 失败");
         }
     }
 

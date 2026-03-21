@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.controller;
 
 import com.senior.leetmodelbackend.entity.pojo.Competition;
+import com.senior.leetmodelbackend.entity.enums.error.CompetitionErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.service.CompetitionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,7 @@ public class CompetitionController {
         List<Competition> allCompetitions = competitionService.getAllCompetitions();
 
         if (allCompetitions.isEmpty()) {
-            return Result.error(404, "没有比赛");
+            return Result.error(CompetitionErrorCode.COMPETITION_NOT_FOUND, "没有比赛");
         }
         return Result.success(allCompetitions);
     }
@@ -36,7 +37,7 @@ public class CompetitionController {
         List<Competition> allCompetitions = competitionService.getCompetitionsLatest3();
 
         if (allCompetitions.isEmpty()) {
-            return Result.error(404, "没有比赛");
+            return Result.error(CompetitionErrorCode.COMPETITION_NOT_FOUND, "没有比赛");
         }
         if (allCompetitions.size() < 3) {
             return Result.success("即将举办的比赛不足 3 场", allCompetitions);
