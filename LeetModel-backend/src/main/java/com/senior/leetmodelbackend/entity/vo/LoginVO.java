@@ -10,9 +10,9 @@ public class LoginVO {
 
     private String token;
 
-    private Integer userId;
+    private Integer id;
     private String email;
-    private String name;
+    private String username;
     private String role;
     private String school;
     private String trainerType;

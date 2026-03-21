@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.entity.pojo;
 
 
+import com.senior.leetmodelbackend.entity.enums.error.BaseErrorCode;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -53,6 +54,20 @@ public class Result<T> {
         Result<T> result = new Result<>();
         result.setCode(code);
         result.setMsg(msg);
+        return result;
+    }
+
+    public static <T> Result<T> error(BaseErrorCode errorCode) {
+        Result<T> result = new Result<>();
+        result.setCode(errorCode.getCode());
+        result.setMsg(errorCode.getMsg());
+        return result;
+    }
+
+    public static <T> Result<T> error(BaseErrorCode errorCode, String msgOverride) {
+        Result<T> result = new Result<>();
+        result.setCode(errorCode.getCode());
+        result.setMsg(msgOverride);
         return result;
     }
 

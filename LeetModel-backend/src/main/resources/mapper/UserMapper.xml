@@ -6,7 +6,8 @@
         UPDATE user
         <set>
             <if test="username != null and username != ''">username = #{username},</if>
-            <if test="password != null and password != ''">password = #{password},</if>
+#             TODO: 这里不应该支持修改密码
+<!--            <if test="password != null and password != ''">password = #{password},</if>-->
             <if test="phone != null and phone != ''">phone = #{phone},</if>
             <if test="school != null and school != ''">school = #{school},</if>
             <if test="role != null and role != ''">role = #{role},</if>

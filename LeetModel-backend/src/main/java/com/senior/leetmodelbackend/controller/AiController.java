@@ -1,5 +1,8 @@
 package com.senior.leetmodelbackend.controller;
 
+import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.entity.enums.error.ProblemErrorCode;
+import com.senior.leetmodelbackend.entity.enums.error.ThirdPartyErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
 import com.senior.leetmodelbackend.service.SubmissionAiReviewService;
@@ -41,13 +44,13 @@ public class AiController {
         try {
             String submissionContent = requestBody.get("submissionContent");
             if (submissionContent == null || submissionContent.isEmpty()) {
-                return Result.error(400, "提交内容不能为空");
+                return Result.error(com.senior.leetmodelbackend.entity.enums.error.ProblemErrorCode.SUBMISSION_CONTENT_BLANK);
             }
             Integer reviewId = submissionAiReviewService.submitReview(userId, problemId, submissionContent);
             return Result.success("审核任务已创建", reviewId);
         } catch (Exception e) {
             log.error("提交 AI 审核异常：", e);
-            return Result.error(500, "提交审核失败：" + e.getMessage());
+            return Result.error(ThirdPartyErrorCode.AI_MODEL_CALL_FAILED, "提交审核失败：" + e.getMessage());
         }
     }
 
@@ -66,13 +69,13 @@ public class AiController {
                                           @RequestBody String submissionContent) {
         try {
             if (submissionContent == null || submissionContent.trim().isEmpty()) {
-                return Result.error(400, "提交内容不能为空");
+                return Result.error(ProblemErrorCode.SUBMISSION_CONTENT_BLANK);
             }
             Integer reviewId = submissionAiReviewService.submitReview(userId, problemId, submissionContent);
             return Result.success("审核任务已创建", reviewId);
         } catch (Exception e) {
             log.error("提交 AI 审核异常 (Raw)：", e);
-            return Result.error(500, "提交审核失败：" + e.getMessage());
+            return Result.error(ThirdPartyErrorCode.AI_MODEL_CALL_FAILED, "提交审核失败：" + e.getMessage());
         }
     }
 
@@ -87,12 +90,12 @@ public class AiController {
         try {
             SubmissionAiReview review = submissionAiReviewService.getReviewResult(id);
             if (review == null) {
-                return Result.error(404, "未找到该审核任务");
+                return Result.error(GlobalErrorCode.RESOURCE_NOT_FOUND, "未找到该审核任务");
             }
             return Result.success("success", review);
         } catch (Exception e) {
             log.error("获取 AI 审核结果异常：", e);
-            return Result.error(500, "获取结果失败：" + e.getMessage());
+            return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR, "获取结果失败：" + e.getMessage());
         }
     }
 
@@ -112,7 +115,7 @@ public class AiController {
             return Result.success("success", response);
         } catch (Exception e) {
             log.error("AI 对话接口异常：", e);
-            return Result.error(500, "AI 对话请求失败：" + e.getMessage());
+            return Result.error(ThirdPartyErrorCode.AI_MODEL_CALL_FAILED, "AI 对话请求失败：" + e.getMessage());
         }
     }
 

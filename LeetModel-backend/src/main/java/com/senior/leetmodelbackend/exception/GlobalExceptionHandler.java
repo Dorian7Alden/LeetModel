@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.exception;
 
+import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -34,7 +35,7 @@ public class GlobalExceptionHandler {
         }
         // 返回参数错误提示（截取最后一个分号，避免多余）
         String msg = !errorMsg.isEmpty() ? errorMsg.substring(0, errorMsg.length() - 1) : "参数校验失败";
-        return Result.error(400, msg);
+        return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, msg);
     }
 
     /**
@@ -51,7 +52,7 @@ public class GlobalExceptionHandler {
             errorMsg.append(paramName).append(":").append(message).append(";");
         }
         String msg = errorMsg.length() > 0 ? errorMsg.substring(0, errorMsg.length() - 1) : "参数校验失败";
-        return Result.error(400, msg);
+        return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, msg);
     }
 
     /**
@@ -61,7 +62,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         // 生产环境建议记录日志，不要返回具体异常信息
         log.error("系统异常:", e);
-        return Result.error(500, "系统异常，请稍后重试:" + e.getMessage());
+        return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR, "系统异常，请稍后重试:" + e.getMessage());
     }
 
 

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.PostMapper">
+
+    <select id="selectPostList" resultType="com.senior.leetmodelbackend.entity.pojo.Post">
+        SELECT
+            id,
+            publisher_id as publisherId,
+            type,
+            title,
+            content,
+            like_cnt as likeCnt,
+            comment_cnt as commentCnt,
+            view_cnt as viewCnt,
+            heat,
+            status,
+            create_time as createTime,
+            update_time as updateTime
+        FROM post
+        <where>
+            <if test="query.type != null and query.type != ''">
+                AND type = #{query.type}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (title LIKE CONCAT('%', #{query.keyword}, '%') OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+            </if>
+        </where>
+        <choose>
+            <when test="query.sortField == 'heat'">
+                ORDER BY heat
+            </when>
+            <when test="query.sortField == 'likeCnt'">
+                ORDER BY like_cnt
+            </when>
+            <when test="query.sortField == 'viewCnt'">
+                ORDER BY view_cnt
+            </when>
+            <when test="query.sortField == 'commentCnt'">
+                ORDER BY comment_cnt
+            </when>
+            <when test="query.sortField == 'createTime'">
+                ORDER BY create_time
+            </when>
+            <otherwise>
+                ORDER BY create_time
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="query.sortOrder == 'asc'">
+                ASC
+            </when>
+            <otherwise>
+                DESC
+            </otherwise>
+        </choose>
+        LIMIT #{query.pageSize} OFFSET #{query.offset}
+    </select>
+
+    <select id="selectPostCount" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM post
+        <where>
+            <if test="query.type != null and query.type != ''">
+                AND type = #{query.type}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (title LIKE CONCAT('%', #{query.keyword}, '%') OR content LIKE CONCAT('%', #{query.keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+</mapper>

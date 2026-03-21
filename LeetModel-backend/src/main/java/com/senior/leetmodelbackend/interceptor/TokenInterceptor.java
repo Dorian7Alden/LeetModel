@@ -1,5 +1,8 @@
 package com.senior.leetmodelbackend.interceptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.utils.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -8,6 +11,8 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -23,9 +28,12 @@ import java.util.Set;
 @Slf4j
 public class TokenInterceptor implements HandlerInterceptor {
 
-    @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
 
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws Exception {
 
         // 解决返回数据乱码问题，统一设置为 UTF-8 编码
         response.setCharacterEncoding("UTF-8");
@@ -36,22 +44,34 @@ public class TokenInterceptor implements HandlerInterceptor {
         log.info("请求通过拦截器: {}", requestURI);
 
         String token = request.getHeader("token");
+        ObjectMapper mapper = new ObjectMapper();
 
         // token 为空
         if (token == null || token.isEmpty()) {
             log.info("令牌为空，请求头中缺少token");
-            //response.getWriter().write("令牌为空");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);  // 返回 401 状态码，前端自己控制页面跳转
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter()
+                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING)));
+            return false;
+        }
+
+        // 检查 token 是否在黑名单中
+        if (redisTemplate.hasKey("token:blacklist:" + token)) {
+            log.info("令牌已被加入黑名单: {}", token);
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter()
+                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 
         // 校验 token
         try {
-            JwtUtil.parseToken(token);
+            JwtUtil.parseToken(token); // TODO: 这里应该是校验令牌，而不是解析令牌
         } catch (Exception e) {
             log.info("令牌解析失败");
-            //response.getWriter().write("令牌解析失败");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 返回 401 状态码，前端自己控制页面跳转
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter()
+                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 
