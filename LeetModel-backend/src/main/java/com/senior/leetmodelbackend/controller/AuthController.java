@@ -2,7 +2,9 @@ package com.senior.leetmodelbackend.controller;
 
 
 import com.senior.leetmodelbackend.entity.dto.LoginRequestDTO;
-import com.senior.leetmodelbackend.entity.enums.ErrorCode;
+import com.senior.leetmodelbackend.entity.dto.ResetPasswordDTO;
+import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
 import com.senior.leetmodelbackend.entity.pojo.User;
 import com.senior.leetmodelbackend.entity.vo.LoginVO;
@@ -43,11 +45,11 @@ public class AuthController {
         // 校验参数完整性
         if (emailLogin.isEmpty() || emailLogin.isBlank()) {
             log.error("邮箱登录失败 {} -----> 邮箱不能为空", emailLogin);
-            return Result.error(ErrorCode.EMAIL_BLANK.getCode(), "邮箱不能为空");
+            return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, "邮箱不能为空");
         }
         if (passwordLogin.isEmpty() || passwordLogin.isBlank()) {
             log.error("密码登录失败 {} -----> 密码不能为空", passwordLogin);
-            return Result.error(ErrorCode.PASSWORD_BLANK.getCode(), "密码不能为空");
+            return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, "密码不能为空");
         }
 
         // TODO: 格式校验，不管
@@ -61,11 +63,11 @@ public class AuthController {
         // 业务异常
         if (userQuery == null) {
             log.error("邮箱登录失败 {} -----> 用户不存在", emailLogin);
-            return Result.error(ErrorCode.USER_NOT_FOUND.getCode(), "用户不存在");
+            return Result.error(UserErrorCode.USER_NOT_FOUND);
         }
         if (!userQuery.getPassword().equals(passwordLogin)) {
             log.error("用户 {} 登录失败 -----> 密码错误", emailLogin);
-            return Result.error(ErrorCode.PASSWORD_ERROR.getCode(), "邮箱密码出错");
+            return Result.error(UserErrorCode.PASSWORD_INCORRECT);
         }
 
         // 登录成功
@@ -105,12 +107,12 @@ public class AuthController {
 
         // 是否已经注册
         if (userService.getUserByEmail(email) != null) {
-            return Result.error(400, "用户已存在");
+            return Result.error(UserErrorCode.USER_ALREADY_EXISTS);
         }
 
         // 验证码是否正确
         if (!verificationCodeService.verifyCode(email, code)) {
-            return Result.error(400, "验证码错误或已过期，请重新尝试"); // TODO: 验证失败场景分类
+            return Result.error(UserErrorCode.VERIFICATION_CODE_INCORRECT); 
         }
 
         // 完成注册
@@ -118,7 +120,34 @@ public class AuthController {
             userService.register(params);
             return Result.success("注册成功");
         } catch (Exception e) {
-            return Result.error(500, "注册失败");
+            return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR, "注册失败");
         }
+    }
+
+    /***
+     * 找回密码
+     */
+    @PostMapping("/reset-password")
+    public Result<LoginVO> resetPassword(@RequestBody ResetPasswordDTO resetPasswordDTO) {
+        if (resetPasswordDTO.getEmail() == null || resetPasswordDTO.getEmail().isBlank()) {
+            return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, "邮箱不能为空");
+        } else if (resetPasswordDTO.getCode() == null || resetPasswordDTO.getCode().isBlank()) {
+            return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, "验证码不能为空");
+        } else if (resetPasswordDTO.getPassword() == null || resetPasswordDTO.getPassword().isBlank()) {
+            return Result.error(GlobalErrorCode.PARAM_VALIDATION_ERROR, "密码不能为空");
+        }
+        // 验证码校验
+        if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getCode())) {
+            return Result.error(UserErrorCode.VERIFICATION_CODE_INCORRECT);
+        }
+        // 更新密码
+        userService.resetPassword(resetPasswordDTO.getEmail(), resetPasswordDTO.getPassword());
+        // 完成登录
+        LoginVO loginVO = new LoginVO();
+        User user = userService.getUserByEmail(resetPasswordDTO.getEmail());
+        BeanUtils.copyProperties(user, loginVO);
+        loginVO.setToken(JwtUtil.generateToken(1000 * 3600 * 24 * 3));
+
+        return Result.success("重置密码成功", loginVO);
     }
 }
