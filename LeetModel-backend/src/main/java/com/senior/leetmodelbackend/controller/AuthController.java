@@ -1,6 +1,5 @@
 package com.senior.leetmodelbackend.controller;
 
-
 import com.senior.leetmodelbackend.entity.dto.LoginRequestDTO;
 import com.senior.leetmodelbackend.entity.dto.ResetPasswordDTO;
 import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
@@ -11,10 +10,12 @@ import com.senior.leetmodelbackend.entity.vo.LoginVO;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.service.VerificationCodeService;
 import com.senior.leetmodelbackend.utils.JwtUtil;
+import io.jsonwebtoken.Claims;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +33,8 @@ public class AuthController {
     private UserService userService;
     @Autowired
     private VerificationCodeService verificationCodeService;
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
 
     /**
      * 用户登录
@@ -112,7 +115,7 @@ public class AuthController {
 
         // 验证码是否正确
         if (!verificationCodeService.verifyCode(email, code)) {
-            return Result.error(UserErrorCode.VERIFICATION_CODE_INCORRECT); 
+            return Result.error(UserErrorCode.VERIFICATION_CODE_INCORRECT);
         }
 
         // 完成注册
@@ -149,5 +152,39 @@ public class AuthController {
         loginVO.setToken(JwtUtil.generateToken(1000 * 3600 * 24 * 3));
 
         return Result.success("重置密码成功", loginVO);
+    }
+
+    /**
+     * 退出登录
+     * 防止 token 被滥用，将 token 加入 redis 黑名单
+     */
+    @PostMapping("/logout")
+    public Result<Void> logout(@RequestBody Map<String, String> request) {
+        try {
+            // 从请求体中获取token
+            String token = request.get("token");
+            if (token == null || token.isEmpty()) {
+                return Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING, "Token不能为空");
+            }
+
+            // 解析 token 获取过期时间
+            Claims claims = JwtUtil.parseToken(token);
+            long expirationTime = claims.getExpiration().getTime();
+            long currentTime = System.currentTimeMillis();
+
+            // 计算 token 剩余有效期
+            long remainingTime = expirationTime - currentTime;
+
+            if (remainingTime > 0) {
+                // 将 token 加入 Redis 黑名单，设置过期时间为剩余有效期
+                redisTemplate.opsForValue().set("token:blacklist:" + token, "1", remainingTime);
+                log.info("Token 已加入黑名单: {}", token);
+            }
+
+            return Result.success("退出登录成功");
+        } catch (Exception e) {
+            log.error("退出登录失败: {}", e.getMessage());
+            return Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID, "退出登录失败");
+        }
     }
 }
