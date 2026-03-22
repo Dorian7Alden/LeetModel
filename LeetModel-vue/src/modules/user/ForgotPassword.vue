@@ -63,7 +63,7 @@ const handleSendCode = async () => {
   }
 
   try {
-    await request.post("/auth//verification-codes", {
+    await request.post("/auth/verification-codes", {
       target: form.email,
     });
 
