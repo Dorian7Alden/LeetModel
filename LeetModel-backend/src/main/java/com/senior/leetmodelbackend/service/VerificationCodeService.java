@@ -6,12 +6,10 @@ import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
 import com.senior.leetmodelbackend.entity.enums.error.ThirdPartyErrorCode;
 import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
 import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.utils.EmailUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.util.Random;
@@ -24,40 +22,15 @@ public class VerificationCodeService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @Autowired
-    private JavaMailSender mailSender;
-
-    // 从配置文件读取发件人邮箱
-    @Value("${spring.mail.username}")
-    private String mailFrom;
-
     private static final String CODE_PREFIX = "LeetModel:"; // 缓存前缀
-    private static final long DEFAULT_EXPIRATION_SECONDS = 5 * 60; // 默认过期时间 5 分钟
+    private static final long DEFAULT_EXPIRATION_SECONDS = 5 * 60;
 
-    /**
-     * 生成 6 位随机数字验证码
-     */
     private String generateRandomSixDigitCode() {
         return String.format("%06d", new Random().nextInt(1000000));
     }
 
-    /**
-     * 发送邮件方法
-     */
-    private void sendEmail(String email, String subject, String content) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom); // 使用配置注入的变量
-        message.setSubject(subject);
-        message.setTo(email);
-        message.setText(content);
-        mailSender.send(message);
-    }
-
-
-    /**
-     * 核心发送验证码功能
-     */
-    private Result<Void> doSendCode(VerificationCodeType type, String target, Long expirationSeconds, CaptchaGenType codeType) {
+    private Result<Void> doSendCode(VerificationCodeType type, String target, Long expirationSeconds,
+            CaptchaGenType codeType) {
         if (type == VerificationCodeType.EMAIL) {
             return sendCodeToEmail(target, expirationSeconds, codeType);
         }
@@ -91,11 +64,10 @@ public class VerificationCodeService {
         // 4. 发送邮件
         String emailContent = String.format(
                 "LeetModel 网站提醒您，您当前正在通过邮箱注册账号，您的验证码是：%s\n%d分钟内有效。",
-                code, expirationSeconds / 60
-        );
+                code, expirationSeconds / 60);
 
         try {
-            sendEmail(email, "LeetModel 注册验证码", emailContent);
+            EmailUtils.sendEmail(email, "LeetModel 注册验证码", emailContent);
             log.info("验证码 {} 发送至邮箱: {}", code, email);
             return Result.success("验证码发送成功");
         } catch (Exception e) {
@@ -105,7 +77,6 @@ public class VerificationCodeService {
             return Result.error(ThirdPartyErrorCode.EMAIL_SEND_FAILED, "邮件发送失败，请稍后重试");
         }
     }
-
 
     /**
      * 使用默认配置，当前仅支持发送邮箱验证码

@@ -126,6 +126,7 @@ public class AuthController {
         try {
             userService.register(params);
             return Result.success("注册成功");
+            // TODO: 完成验证码之后，验证码失效处理！！
         } catch (Exception e) {
             return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR, "注册失败");
         }
@@ -168,6 +169,7 @@ public class AuthController {
             // 从请求体中获取token
             String token = request.get("token");
             if (token == null || token.isEmpty()) {
+                // TODO: 校验退出登录请求体中的 token 与当前用户是否匹配
                 return Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING, "Token不能为空");
             }
 
