@@ -1,45 +1,65 @@
 <template>
-  <div class="community">
-    <CommunityHeader />
+  <div class="discussion-page">
+    <!-- 页面容器 -->
+    <div class="page-container">
+      <!-- 左侧：主内容区 -->
+      <div class="main-content">
+        <Discussionlist />
+      </div>
 
-    <PostCard v-for="post in posts" :key="post.id" :post="post" />
+      <!-- 右侧：侧边栏 -->
+      <div class="sidebar">
+        <SidebarExplore />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-
-import PostCard from "../components/homepage/PostCard.vue";
-import CommunityHeader from "../components/homepage/CommunityHeader.vue";
-
-const posts = ref([
-  {
-    id: 1,
-    title: "数学建模如何入门？",
-    author: "小明",
-    replies: 12,
-  },
-  {
-    id: 2,
-    title: "推荐几个 Python 建模库",
-    author: "小红",
-    replies: 6,
-  },
-]);
+// 引入你之前的两个组件
+import Discussionlist from "../components/homepage/Discussionlist.vue";
+import SidebarExplore from "../components/homepage/SidebarExplore.vue";
 </script>
 
 <style scoped>
-.header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
+.discussion-page {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #f7f8fa;
+  padding: 20px 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-button {
-  background: #409eff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+/* 核心左右布局 */
+.page-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 0 20px;
+}
+
+/* 左侧主内容：占大部分宽度 */
+.main-content {
+  flex: 1;
+  min-width: 0; /* 防止flex拉伸异常 */
+}
+
+/* 右侧侧边栏：固定宽度 */
+.sidebar {
+  width: 380px;
+  flex-shrink: 0;
+}
+
+/* 响应式：小屏幕自动堆叠 */
+@media (max-width: 1024px) {
+  .page-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+  }
 }
 </style>
