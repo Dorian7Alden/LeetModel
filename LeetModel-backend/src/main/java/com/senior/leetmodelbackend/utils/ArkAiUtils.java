@@ -13,6 +13,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -33,10 +34,11 @@ public class ArkAiUtils {
 
     private ArkService arkService;
 
+    @Value("ark.ai.api-key")
+    private String apiKey;
+
     @PostConstruct
     public void init() {
-        // 从本地环境变量读取 API Key
-        String apiKey = System.getenv("ARK_API_KEY");
         if (apiKey == null || apiKey.isEmpty()) {
             log.error("未找到环境变量 ARK_API_KEY，AI 服务可能无法正常工作");
         }
