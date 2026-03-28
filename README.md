@@ -2,7 +2,7 @@
 
 <h1 align="center">LeetModel</h1>
 
-<div style="display: flex; justify-content: center; gap: 2px; flex-wrap: wrap;">
+<div align="center" style="display: flex; justify-content: center; gap: 2px; flex-wrap: wrap;">
 <img src="https://img.shields.io/badge/开发中-8B0000?logoColor=white&color=8B0000" alt="开发中">
 <img src="https://img.shields.io/badge/Vue%203-1A237E?logo=vue.js&logoColor=4FC08D&color=1A237E" alt="Vue 3">
 <img src="https://img.shields.io/badge/Spring%20Boot%203-1B5E20?logo=springboot&logoColor=6DB33F&color=1B5E20" alt="Spring Boot 3">
