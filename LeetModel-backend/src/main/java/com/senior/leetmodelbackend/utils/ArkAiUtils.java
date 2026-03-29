@@ -33,7 +33,7 @@ public class ArkAiUtils {
 
     private ArkService arkService;
 
-    @Value("ark.ai.api-key")
+    @Value("${ark.ai.api-key}")
     private String apiKey;
 
     @PostConstruct
@@ -117,7 +117,7 @@ public class ArkAiUtils {
 
     /**
      * 发起流式对话 (Stream 模式)
-     *
+     * ❌❌❌ 该功能已舍弃 ❌❌❌
      * @param prompt 用户的提问
      * @return Flux<String> 流式响应的字符串流
      */

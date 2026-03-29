@@ -4,6 +4,7 @@ import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.BasePrompt;
 import com.senior.leetmodelbackend.pojo.enums.PromptEnums;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -13,12 +14,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Component
 public class PromptUtils {
 
     /**
      * 配置：是否优先从本地文件读取（true 则优先本地，false 则优先数据库）
      */
-    @Value("ai.is-prompt-load-from-file")
+    @Value("${ai.is-prompt-load-from-file}")
     private boolean PRIORITY_LOCAL;
 
     /**

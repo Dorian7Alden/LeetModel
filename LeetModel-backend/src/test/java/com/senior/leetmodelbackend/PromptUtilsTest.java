@@ -2,11 +2,8 @@ package com.senior.leetmodelbackend;
 
 import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.GenFullProblemSysPrompt;
 import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.GenFullProblemUserPrompt;
-import com.senior.leetmodelbackend.pojo.enums.PromptEnums;
 import com.senior.leetmodelbackend.utils.PromptUtils;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 public class PromptUtilsTest {
 
