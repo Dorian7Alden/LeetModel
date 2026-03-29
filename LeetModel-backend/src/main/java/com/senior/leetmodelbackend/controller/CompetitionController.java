@@ -1,8 +1,8 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.entity.pojo.Competition;
-import com.senior.leetmodelbackend.entity.enums.error.CompetitionErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.pojo.entity.Competition;
+import com.senior.leetmodelbackend.pojo.enums.error.CompetitionErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.service.CompetitionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;

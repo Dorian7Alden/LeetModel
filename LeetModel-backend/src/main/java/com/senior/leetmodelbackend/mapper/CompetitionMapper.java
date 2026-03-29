@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.mapper;
 
-import com.senior.leetmodelbackend.entity.pojo.Competition;
+import com.senior.leetmodelbackend.pojo.entity.Competition;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 

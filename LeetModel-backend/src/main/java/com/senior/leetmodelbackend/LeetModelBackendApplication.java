@@ -12,6 +12,7 @@ public class LeetModelBackendApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(LeetModelBackendApplication.class, args);
+
     }
 
 }

@@ -1,9 +1,9 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
-import com.senior.leetmodelbackend.entity.pojo.User;
+import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

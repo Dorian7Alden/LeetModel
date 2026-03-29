@@ -14,6 +14,11 @@
       "name": "jwt.excluded-uris",
       "type": "java.lang.String",
       "description": "配置 jwt 拦截校验 token 时过滤的网络请求."
+    },
+    {
+      "name": "ai.is-prompt-load-from-file",
+      "type": "java.lang.Boolean",
+      "description": "是否从本地文件中读取提示词."
     }
   ]
 }

@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend;
 
 
-import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.pojo.entity.Result;
 
 public class ResultTest {
 

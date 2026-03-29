@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.service.impl;
 
-import com.senior.leetmodelbackend.entity.pojo.Problem;
-import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
+import com.senior.leetmodelbackend.pojo.entity.Problem;
+import com.senior.leetmodelbackend.pojo.relation.SubmissionAiReview;
 import com.senior.leetmodelbackend.mapper.ProblemMapper;
 import com.senior.leetmodelbackend.mapper.SubmissionAiReviewMapper;
 import com.senior.leetmodelbackend.service.SubmissionAiReviewService;

@@ -1,12 +1,12 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.entity.dto.LoginRequestDTO;
-import com.senior.leetmodelbackend.entity.dto.ResetPasswordDTO;
-import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
-import com.senior.leetmodelbackend.entity.pojo.User;
-import com.senior.leetmodelbackend.entity.vo.LoginVO;
+import com.senior.leetmodelbackend.pojo.dto.LoginRequestDTO;
+import com.senior.leetmodelbackend.pojo.dto.ResetPasswordDTO;
+import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.pojo.entity.User;
+import com.senior.leetmodelbackend.pojo.vo.LoginVO;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.service.VerificationCodeService;
 import com.senior.leetmodelbackend.utils.JwtUtil;
@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j

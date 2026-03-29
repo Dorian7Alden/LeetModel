@@ -1,10 +1,10 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.ProblemErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.ThirdPartyErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
-import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
+import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.ProblemErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.ThirdPartyErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.pojo.relation.SubmissionAiReview;
 import com.senior.leetmodelbackend.service.SubmissionAiReviewService;
 import com.senior.leetmodelbackend.utils.ArkAiUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +44,7 @@ public class AiController {
         try {
             String submissionContent = requestBody.get("submissionContent");
             if (submissionContent == null || submissionContent.isEmpty()) {
-                return Result.error(com.senior.leetmodelbackend.entity.enums.error.ProblemErrorCode.SUBMISSION_CONTENT_BLANK);
+                return Result.error(com.senior.leetmodelbackend.pojo.enums.error.ProblemErrorCode.SUBMISSION_CONTENT_BLANK);
             }
             Integer reviewId = submissionAiReviewService.submitReview(userId, problemId, submissionContent);
             return Result.success("审核任务已创建", reviewId);

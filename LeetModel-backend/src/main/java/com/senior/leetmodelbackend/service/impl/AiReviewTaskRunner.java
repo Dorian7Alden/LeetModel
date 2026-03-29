@@ -3,7 +3,7 @@ package com.senior.leetmodelbackend.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.senior.leetmodelbackend.config.AiReviewConfig;
-import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
+import com.senior.leetmodelbackend.pojo.relation.SubmissionAiReview;
 import com.senior.leetmodelbackend.mapper.SubmissionAiReviewMapper;
 import com.senior.leetmodelbackend.utils.ArkAiUtils;
 import lombok.extern.slf4j.Slf4j;

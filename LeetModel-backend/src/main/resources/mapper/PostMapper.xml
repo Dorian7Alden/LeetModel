@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.senior.leetmodelbackend.mapper.PostMapper">
 
-    <select id="selectPostList" resultType="com.senior.leetmodelbackend.entity.pojo.Post">
+    <select id="selectPostList" resultType="com.senior.leetmodelbackend.pojo.entity.Post">
         SELECT
             id,
             publisher_id as publisherId,

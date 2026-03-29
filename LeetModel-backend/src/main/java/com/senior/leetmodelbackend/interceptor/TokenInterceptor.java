@@ -1,13 +1,9 @@
 package com.senior.leetmodelbackend.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.utils.JwtUtil;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -15,11 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * 令牌拦截器

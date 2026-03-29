@@ -1,8 +1,8 @@
 package com.senior.leetmodelbackend.service.impl;
 
-import com.senior.leetmodelbackend.entity.dto.PostQueryDTO;
-import com.senior.leetmodelbackend.entity.pojo.Post;
-import com.senior.leetmodelbackend.entity.vo.PostQueryVO;
+import com.senior.leetmodelbackend.pojo.dto.PostQueryDTO;
+import com.senior.leetmodelbackend.pojo.entity.Post;
+import com.senior.leetmodelbackend.pojo.vo.PostQueryVO;
 import com.senior.leetmodelbackend.mapper.PostMapper;
 import com.senior.leetmodelbackend.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;

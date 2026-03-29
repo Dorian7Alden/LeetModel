@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.entity.dto.PostQueryDTO;
-import com.senior.leetmodelbackend.entity.vo.PostQueryVO;
+import com.senior.leetmodelbackend.pojo.dto.PostQueryDTO;
+import com.senior.leetmodelbackend.pojo.vo.PostQueryVO;
 
 public interface PostService {
 

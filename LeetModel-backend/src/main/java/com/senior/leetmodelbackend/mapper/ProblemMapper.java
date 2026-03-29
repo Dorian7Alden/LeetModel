@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.mapper;
 
-import com.senior.leetmodelbackend.entity.dto.ProblemQueryDTO;
-import com.senior.leetmodelbackend.entity.pojo.Problem;
+import com.senior.leetmodelbackend.pojo.dto.ProblemQueryDTO;
+import com.senior.leetmodelbackend.pojo.entity.Problem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 

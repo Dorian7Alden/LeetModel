@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.service.impl;
 
 import com.senior.leetmodelbackend.mapper.UserMapper;
-import com.senior.leetmodelbackend.entity.pojo.User;
+import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.service.VerificationCodeService;
 import lombok.extern.slf4j.Slf4j;

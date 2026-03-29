@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
+import com.senior.leetmodelbackend.pojo.relation.SubmissionAiReview;
 
 public interface SubmissionAiReviewService {
     

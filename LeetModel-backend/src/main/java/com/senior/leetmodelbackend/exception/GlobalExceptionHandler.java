@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.exception;
 
-import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;

@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.exception;
 
-import com.senior.leetmodelbackend.entity.enums.error.BaseErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.BaseErrorCode;
 import lombok.Getter;
 
 @Getter

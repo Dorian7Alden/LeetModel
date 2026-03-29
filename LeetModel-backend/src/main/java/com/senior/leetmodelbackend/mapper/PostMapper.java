@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.mapper;
 
-import com.senior.leetmodelbackend.entity.dto.PostQueryDTO;
-import com.senior.leetmodelbackend.entity.pojo.Post;
+import com.senior.leetmodelbackend.pojo.dto.PostQueryDTO;
+import com.senior.leetmodelbackend.pojo.entity.Post;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.entity.pojo.User;
+import com.senior.leetmodelbackend.pojo.entity.User;
 
 import java.util.Map;
 

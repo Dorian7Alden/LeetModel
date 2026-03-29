@@ -1,11 +1,11 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.entity.enums.CaptchaGenType;
-import com.senior.leetmodelbackend.entity.enums.VerificationCodeType;
-import com.senior.leetmodelbackend.entity.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.ThirdPartyErrorCode;
-import com.senior.leetmodelbackend.entity.enums.error.UserErrorCode;
-import com.senior.leetmodelbackend.entity.pojo.Result;
+import com.senior.leetmodelbackend.pojo.enums.CaptchaGenType;
+import com.senior.leetmodelbackend.pojo.enums.VerificationCodeType;
+import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.ThirdPartyErrorCode;
+import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.utils.EmailUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

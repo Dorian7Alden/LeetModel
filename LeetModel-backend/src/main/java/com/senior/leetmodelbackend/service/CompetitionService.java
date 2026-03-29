@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.entity.pojo.Competition;
+import com.senior.leetmodelbackend.pojo.entity.Competition;
 
 import java.util.List;
 

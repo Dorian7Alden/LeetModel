@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.mapper;
 
-import com.senior.leetmodelbackend.entity.pojo.SubmissionAiReview;
+import com.senior.leetmodelbackend.pojo.relation.SubmissionAiReview;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 

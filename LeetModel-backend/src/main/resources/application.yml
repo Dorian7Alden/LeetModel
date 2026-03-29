@@ -41,6 +41,8 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD} # 环境变量中配置 redis 密码
 
+
+
 #  jpa:
 #    hibernate:
 #      ddl-auto: update
@@ -54,6 +56,9 @@ spring:
 #jwt:
 #  secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
 #  token-expiration: 86400000 # 24小时 (毫秒)
+
+ai:
+  is-prompt-load-from-file: true
 
 # 火山引擎相关配置
 ark:
