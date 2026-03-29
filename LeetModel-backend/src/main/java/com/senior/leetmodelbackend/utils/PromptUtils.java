@@ -2,6 +2,7 @@ package com.senior.leetmodelbackend.utils;
 
 import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.BasePrompt;
 import com.senior.leetmodelbackend.pojo.enums.PromptEnums;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -10,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class PromptUtils {
 
     /**
@@ -65,6 +67,7 @@ public class PromptUtils {
                 return "";
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                log.info("从本地文件加载提示词模板: {}", prompt.getDescription());
                 return reader.lines().collect(Collectors.joining("\n"));
             }
         } catch (Exception e) {
@@ -80,7 +83,8 @@ public class PromptUtils {
         // 模拟数据库返回，目前仅作示意
         // 如果是真实数据库，会根据 PromptEnums.name() 查询
         if (prompt == PromptEnums.GEN_FULL_PROBLEM_SYS_PROMPT) {
-            return "【DB模拟模板】生成题目：{{difficulty}} - {{background}} - {{problem_type}}";
+            log.info("从数据库中读取提示词模板: {}", prompt.getDescription());
+            return "暂时没有实现从数据库读取提示词";
         }
         return "";
     }
@@ -100,5 +104,15 @@ public class PromptUtils {
         }
         return result;
     }
+
+
+    /**
+     * 解析提示词
+     * 专门用来解析 ai 的响应，获取对应的数据
+     */
+    // TODO: 相应解析器
+
+    
+
 
 }

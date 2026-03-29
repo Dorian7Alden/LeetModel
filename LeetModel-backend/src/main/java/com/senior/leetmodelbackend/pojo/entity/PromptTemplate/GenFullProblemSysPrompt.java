@@ -12,24 +12,13 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class GenFullProblemSysPrompt extends BasePrompt {
 
-    private String difficulty;
-    private String background;
-    private String problem_type;
-
     @Builder
-    public GenFullProblemSysPrompt(String difficulty, String background, String problem_type) {
+    public GenFullProblemSysPrompt() {
         super(PromptEnums.GEN_FULL_PROBLEM_SYS_PROMPT);
-        this.difficulty = difficulty;
-        this.background = background;
-        this.problem_type = problem_type;
     }
 
     @Override
     public Map<String, String> buildVariablesMap() {
-        Map<String, String> variablesMap = new HashMap<>();
-        variablesMap.put("difficulty", difficulty);
-        variablesMap.put("background", background);
-        variablesMap.put("problem_type", problem_type);
-        return variablesMap;
+        return new HashMap<>();
     }
 }
