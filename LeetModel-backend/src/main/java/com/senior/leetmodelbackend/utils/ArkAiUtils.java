@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +51,7 @@ public class ArkAiUtils {
     }
 
     /**
-     * 发起对话 (一问一答)
+     * 发起对话 (一问一答) (无系统提示词)
      *
      * @param prompt 用户的提问
      * @return AI 的回答内容
@@ -64,11 +63,11 @@ public class ArkAiUtils {
     /**
      * 发起对话 (一问一答)
      *
-     * @param prompt 用户的提问
+     * @param userPrompt 用户的提问
      * @param systemPrompt 系统提示词，用于设定 AI 的角色和行为
      * @return AI 的回答内容
      */
-    public String chat(String prompt, String systemPrompt) {
+    public String chat(String userPrompt, String systemPrompt) {
         try {
             // 构建消息列表
             final List<ChatMessage> messages = new ArrayList<>();
@@ -85,7 +84,7 @@ public class ArkAiUtils {
             // 添加用户消息
             ChatMessage userMessage = ChatMessage.builder()
                     .role(ChatMessageRole.USER)
-                    .content(prompt)
+                    .content(userPrompt)
                     .build();
             messages.add(userMessage);
 
@@ -128,7 +127,7 @@ public class ArkAiUtils {
 
     /**
      * 发起流式对话 (Stream 模式) - OpenAI 兼容格式
-     *
+     * ❌❌❌ 该功能已舍弃 ❌❌❌
      * @param prompt 用户的提问
      * @param systemPrompt 系统提示词，用于设定 AI 的角色和行为
      * @return Flux<String> OpenAI 格式的 SSE 流式响应

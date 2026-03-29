@@ -5,13 +5,17 @@ import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.GenFullProblemUser
 import com.senior.leetmodelbackend.pojo.enums.PromptEnums;
 import com.senior.leetmodelbackend.utils.PromptUtils;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 public class PromptUtilsTest {
+
+    private final PromptUtils promptUtils = new PromptUtils();
 
     @Test
     public void buildPrompt() {
 
-        String promptTemplate = PromptUtils.buildPrompt(GenFullProblemUserPrompt.builder()
+        String promptTemplate = promptUtils.buildPrompt(GenFullProblemUserPrompt.builder()
                 .difficulty("简单")
                 .data_feature("大规模数据")
                 .problem_type("连续建模")
@@ -26,7 +30,7 @@ public class PromptUtilsTest {
         System.out.println("=========================================================================================");
         System.out.println();
 
-        promptTemplate = PromptUtils.buildPrompt(GenFullProblemSysPrompt.builder().build());
+        promptTemplate = promptUtils.buildPrompt(GenFullProblemSysPrompt.builder().build());
         System.out.println(promptTemplate);
 
     }

@@ -3,6 +3,7 @@ package com.senior.leetmodelbackend.utils;
 import com.senior.leetmodelbackend.pojo.entity.PromptTemplate.BasePrompt;
 import com.senior.leetmodelbackend.pojo.enums.PromptEnums;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -17,7 +18,8 @@ public class PromptUtils {
     /**
      * 配置：是否优先从本地文件读取（true 则优先本地，false 则优先数据库）
      */
-    private static final boolean PRIORITY_LOCAL = true;
+    @Value("ai.is-prompt-load-from-file")
+    private boolean PRIORITY_LOCAL;
 
     /**
      * 唯一的构建提示词的函数，支持传入封装好的提示词对象
@@ -25,7 +27,7 @@ public class PromptUtils {
      * @param prompt 封装好的提示词对象
      * @return 构建好的完整提示词
      */
-    public static String buildPrompt(BasePrompt prompt) {
+    public String buildPrompt(BasePrompt prompt) {
         if (prompt == null) {
             return "";
         }
@@ -39,7 +41,7 @@ public class PromptUtils {
      * @param variablesMap 变量映射
      * @return 构建好的完整提示词
      */
-    public static String buildPrompt(PromptEnums promptType, Map<String, String> variablesMap) {
+    public String buildPrompt(PromptEnums promptType, Map<String, String> variablesMap) {
         String template;
 
         if (PRIORITY_LOCAL) {
@@ -112,7 +114,7 @@ public class PromptUtils {
      */
     // TODO: 相应解析器
 
-    
+
 
 
 }
