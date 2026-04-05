@@ -115,7 +115,11 @@ public class PromptUtils {
      * 专门用来解析 ai 的响应，获取对应的数据
      */
     // TODO: 相应解析器
+    public static class ResponseParser {
 
+
+
+    }
 
 
 
