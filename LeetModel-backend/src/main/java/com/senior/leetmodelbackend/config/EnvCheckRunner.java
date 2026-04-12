@@ -3,35 +3,45 @@ package com.senior.leetmodelbackend.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
 public class EnvCheckRunner implements CommandLineRunner {
 
-    @Value("spring.datasource.url")
-    private String datasourceUrl;
+    private final String datasourceUrl;
+    private final String datasourceUsername;
+    private final String datasourcePassword;
+    private final String mailUsername;
+    private final String mailPassword;
+    private final String redisHost;
+    private final String redisPassword;
+    private final String arkApiKey;
+    private final String deepseekApiKey;
 
-    @Value("spring.datasource.username")
-    private String datasourceUsername;
+    public EnvCheckRunner(
+            @Value("${spring.datasource.url}") String datasourceUrl,
+            @Value("${spring.datasource.username}") String datasourceUsername,
+            @Value("${spring.datasource.password}") String datasourcePassword,
+            @Value("${spring.mail.username}") String mailUsername,
+            @Value("${spring.mail.password}") String mailPassword,
+            @Value("${spring.data.redis.host}") String redisHost,
+            @Value("${spring.data.redis.password}") String redisPassword,
+            @Value("${ark.ai.api-key}") String arkApiKey,
+            @Value("${spring.ai.openai.api-key}") String deepseekApiKey
+    ) {
+        this.datasourceUrl = datasourceUrl;
+        this.datasourceUsername = datasourceUsername;
+        this.datasourcePassword = datasourcePassword;
+        this.mailUsername = mailUsername;
+        this.mailPassword = mailPassword;
+        this.redisHost = redisHost;
+        this.redisPassword = redisPassword;
+        this.arkApiKey = arkApiKey;
+        this.deepseekApiKey = deepseekApiKey;
+    }
 
-    @Value("spring.datasource.password:")
-    private String datasourcePassword;
-
-    @Value("spring.mail.username:")
-    private String mailUsername;
-
-    @Value("spring.mail.password:")
-    private String mailPassword;
-
-    @Value("spring.data.redis.host:")
-    private String redisHost;
-
-    @Value("spring.data.redis.password:")
-    private String redisPassword;
-
-    @Value("ark.ai.api-key:")
-    private String arkApiKey;
 
     @Override
     public void run(String... args) throws Exception {
@@ -54,6 +64,9 @@ public class EnvCheckRunner implements CommandLineRunner {
         
         // 检查火山引擎配置
         if (!checkConfig("Ark API Key", arkApiKey)) hasError = true;
+        
+        // 检查 DeepSeek 配置
+        if (!checkConfig("DeepSeek API Key", deepseekApiKey)) hasError = true;
         
         if (hasError) {
             log.error("========== 环境配置检查失败，请检查上述配置项 ==========");

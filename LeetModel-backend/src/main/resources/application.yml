@@ -40,6 +40,15 @@ spring:
       host: ${REDIS_HOST} # redis 服务器 IP
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD} # 环境变量中配置 redis 密码
+  ai:
+    openai:
+      api-key: ${DEEPSEEK_API_KEY} # Deepseek 的 API KEY
+      chat:
+        options:
+          model: deepseek-chat
+      base-url: https://api.deepseek.com
+
+
 
 
 
@@ -65,4 +74,4 @@ ark:
   ai:
     base-url: https://ark.cn-beijing.volces.com/api/v3
     model: deepseek-v3-2-251201
-    api-key: ${ARK_API_KEY} # 火山引擎 API KEY
+    api-key: ${ARK_API_KEY:} # 火山引擎 API KEY
