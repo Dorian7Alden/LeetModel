@@ -38,7 +38,7 @@
             <version>3.18.4</version>
         </dependency>
 
-        <!-- 配置文件绑定依赖，用来封装配置 -->
+        <!-- 配置文件提示 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>

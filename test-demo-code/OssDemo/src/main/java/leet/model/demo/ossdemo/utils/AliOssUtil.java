@@ -98,11 +98,35 @@ public class AliOssUtil {
     }
 
     /**
-     * 上传文件到 OSS 服务器，默认上传到根目录
+     * 上传文件到 OSS 服务器，使用文件后缀来分类文件
      * @param objectFile MultipartFile 文件对象
      * @return 上传的文件的可访问链接
      */
     public String uploadFile(MultipartFile objectFile) {
-        return uploadFile(objectFile, "");
+        if (objectFile.isEmpty()) throw new RuntimeException("上传文件不能为空");
+
+        // 原始文件名
+        String originalFilename = objectFile.getOriginalFilename();
+        // 获取文件后缀
+        String suffix = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            suffix = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        }
+
+        // 根据文件后缀确定虚拟目录
+        String virtualDir = switch (suffix) {
+            case ".md", ".markdown" -> "markdowns/";
+            case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg" -> "images/";
+            case ".pdf" -> "pdfs/";
+            case ".doc", ".docx" -> "documents/";
+            case ".txt" -> "texts/";
+            default -> "others/";
+        };
+
+        return uploadFile(objectFile, virtualDir);
     }
+
+
+
+
 }
