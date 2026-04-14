@@ -7,13 +7,8 @@ package com.senior.leetmodelbackend.pojo.enums.error;
 public interface BaseErrorCode {
     /**
      * 获取状态码
-     * @return 5位数业务状态码
+     * @return 5 位数业务状态码
      */
     int getCode();
-
-    /**
-     * 获取错误提示信息
-     * @return 面向用户的提示信息
-     */
     String getMsg();
 }
