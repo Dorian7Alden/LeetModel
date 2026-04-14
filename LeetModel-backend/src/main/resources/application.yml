@@ -50,16 +50,13 @@ spring:
 
 
 
-
-
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#    show-sql: true
-#  security:
-#    user:
-#      name: root
-#      password: 44448888
+aliyun:
+  oss:
+    endpoint: oss-cn-beijing.aliyuncs.com         # 地域节点
+    access-key-id: ${OSS_ACCESS_KEY_ID}           # 密钥 ID
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET}   # 密钥秘钥
+    bucket-name: leet-model                       # 存储空间名
+    region: cn-beijing                            # 访问地域
 
 
 #jwt:
