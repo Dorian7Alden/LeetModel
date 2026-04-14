@@ -203,6 +203,75 @@ const routes = [
     name: "Notfound",
     component: () => import("../modules/Notfound.vue"),
   },
+
+  /* =================后台管理页面================= */
+  {
+    path: '/admin',
+    component: () => import("../modules/admin/layout/Layout.vue"),
+    redirect: '/admin/dashboard',
+    children: [
+      {
+        path: '',
+        meta: { title: '首页概览', icon: 'House' },
+        children: [
+          {
+            path: 'dashboard',
+            name: 'AdminDashboard',
+            component: () => import('../modules/admin/views/dashboard/index.vue'),
+            meta: { title: '首页概览' }
+          }
+        ]
+      },
+      {
+        path: 'problem',
+        meta: { title: '题目管理', icon: 'Document' },
+        children: [
+          {
+            path: 'upload',
+            name: 'AdminUploadProblem',
+            component: () => import('../modules/admin/views/problem/Upload.vue'),
+            meta: { title: '上传题目' }
+          },
+          {
+            path: 'list',
+            name: 'AdminProblemList',
+            component: () => import('../modules/admin/views/problem/List.vue'),
+            meta: { title: '题目列表' }
+          }
+        ]
+      },
+      {
+        path: 'submission',
+        meta: { title: '作品管理', icon: 'UploadFilled' },
+        children: [
+          {
+            path: 'submit',
+            name: 'AdminSubmitWork',
+            component: () => import('../modules/admin/views/submission/Submit.vue'),
+            meta: { title: '提交作品' }
+          },
+          {
+            path: 'list',
+            name: 'AdminSubmissionList',
+            component: () => import('../modules/admin/views/submission/List.vue'),
+            meta: { title: '作品列表' }
+          }
+        ]
+      },
+      {
+        path: 'file',
+        meta: { title: '文件管理', icon: 'Folder' },
+        children: [
+          {
+            path: 'oss',
+            name: 'AdminOssUpload',
+            component: () => import('../modules/admin/views/file/OssUpload.vue'),
+            meta: { title: 'OSS文件上传' }
+          }
+        ]
+      }
+    ]
+  }
 ];
 
 const router = createRouter({

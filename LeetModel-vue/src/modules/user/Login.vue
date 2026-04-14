@@ -59,7 +59,11 @@ async function handleLogin() {
 
       ElMessage.success("登录成功");
 
-      router.push("/");
+      if (form.value.email === 'admin@email.com') {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/");
+      }
     } else {
       ElMessage.error(res.msg || "登录失败");
     }
