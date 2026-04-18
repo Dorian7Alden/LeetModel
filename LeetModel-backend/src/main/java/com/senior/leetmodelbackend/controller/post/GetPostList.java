@@ -1,21 +1,19 @@
-package com.senior.leetmodelbackend.controller;
+package com.senior.leetmodelbackend.controller.post;
 
 import com.senior.leetmodelbackend.pojo.dto.PostQueryDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.vo.PostQueryVO;
 import com.senior.leetmodelbackend.service.PostService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/posts")
-public class PostController {
+@AllArgsConstructor
+public class GetPostList extends PostController {
 
-    @Autowired
-    private PostService postService;
+    private final PostService postService;
 
     /**
      * 分页查询，条件筛选
@@ -28,5 +26,6 @@ public class PostController {
         PostQueryVO vo = postService.getPostList(postQueryDTO);
         return Result.success(vo);
     }
+
 
 }
