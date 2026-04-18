@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.config;
+package com.senior.leetmodelbackend.common.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -17,7 +17,6 @@ public class EnvCheckRunner implements CommandLineRunner {
     private final String mailPassword;
     private final String redisHost;
     private final String redisPassword;
-    private final String arkApiKey;
     private final String deepseekApiKey;
 
     public EnvCheckRunner(
@@ -28,7 +27,6 @@ public class EnvCheckRunner implements CommandLineRunner {
             @Value("${spring.mail.password}") String mailPassword,
             @Value("${spring.data.redis.host}") String redisHost,
             @Value("${spring.data.redis.password}") String redisPassword,
-            @Value("${ark.ai.api-key}") String arkApiKey,
             @Value("${spring.ai.openai.api-key}") String deepseekApiKey
     ) {
         this.datasourceUrl = datasourceUrl;
@@ -38,7 +36,6 @@ public class EnvCheckRunner implements CommandLineRunner {
         this.mailPassword = mailPassword;
         this.redisHost = redisHost;
         this.redisPassword = redisPassword;
-        this.arkApiKey = arkApiKey;
         this.deepseekApiKey = deepseekApiKey;
     }
 
@@ -61,9 +58,6 @@ public class EnvCheckRunner implements CommandLineRunner {
         // 检查 Redis 配置
         if (!checkConfig("Redis Host", redisHost)) hasError = true;
         if (!checkConfig("Redis 密码", redisPassword)) hasError = true;
-        
-        // 检查火山引擎配置
-        if (!checkConfig("Ark API Key", arkApiKey)) hasError = true;
         
         // 检查 DeepSeek 配置
         if (!checkConfig("DeepSeek API Key", deepseekApiKey)) hasError = true;

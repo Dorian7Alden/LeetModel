@@ -62,13 +62,3 @@ aliyun:
 #jwt:
 #  secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
 #  token-expiration: 86400000 # 24小时 (毫秒)
-
-ai:
-  is-prompt-load-from-file: true
-
-# 火山引擎相关配置
-ark:
-  ai:
-    base-url: https://ark.cn-beijing.volces.com/api/v3
-    model: deepseek-v3-2-251201
-    api-key: ${ARK_API_KEY:} # 火山引擎 API KEY

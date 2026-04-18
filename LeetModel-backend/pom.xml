@@ -104,12 +104,7 @@
             <artifactId>jakarta.persistence-api</artifactId>
         </dependency>
 
-        <!-- 火山引擎调用大模型依赖 -->
-        <dependency>
-            <groupId>com.volcengine</groupId>
-            <artifactId>volcengine-java-sdk-ark-runtime</artifactId>
-            <version>0.2.36</version>
-        </dependency>
+
 
         <!-- Spring AI 核心依赖 -->
         <dependency>
