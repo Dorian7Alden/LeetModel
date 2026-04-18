@@ -1,6 +1,6 @@
 package com.senior.leetmodelbackend.controller.admin;
 
-import com.senior.leetmodelbackend.utils.OssUtils;
+import com.senior.leetmodelbackend.common.utils.OssUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

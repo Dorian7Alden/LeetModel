@@ -17,6 +17,8 @@ public class Problem {
     String createTime;
     String updateTime;
     Integer aveScore;
+    String contentUrl;
+
 }
 
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.TagMapper">
+
+    <!-- 插入标签-->
+    <insert id="insertTag" parameterType="com.senior.leetmodelbackend.pojo.dto.tag.CreateProblemTagDTO">
+        insert into tag (tag_id, tag_name, category_id) values (#{tagId}, #{tagName}, #{categoryId})
+    </insert>
+
+
+</mapper>

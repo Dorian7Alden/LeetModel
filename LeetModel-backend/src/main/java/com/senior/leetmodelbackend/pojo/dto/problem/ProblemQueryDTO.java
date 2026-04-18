@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.pojo.dto;
+package com.senior.leetmodelbackend.pojo.dto.problem;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

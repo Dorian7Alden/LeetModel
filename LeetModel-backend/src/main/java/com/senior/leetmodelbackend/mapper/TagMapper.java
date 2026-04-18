@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.mapper;
 
 import com.senior.leetmodelbackend.pojo.entity.Tag;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 

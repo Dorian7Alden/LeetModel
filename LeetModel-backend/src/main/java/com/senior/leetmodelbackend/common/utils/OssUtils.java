@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.utils;
+package com.senior.leetmodelbackend.common.utils;
 
 import com.aliyun.oss.ClientBuilderConfiguration;
 import com.aliyun.oss.OSS;

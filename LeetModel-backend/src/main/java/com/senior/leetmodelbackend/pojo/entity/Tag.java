@@ -25,30 +25,11 @@ public class Tag {
     private Long categoryId;
     
     /**
-     * 父标签ID（0=顶级标签）
-     */
-    private Long parentId;
-    
-    /**
      * 标签名称
      */
     private String name;
     
-    /**
-     * 标签编码（全局唯一）
-     */
-    private String code;
-    
-    /**
-     * 标签颜色（Hex色值）
-     */
-    private String color;
-    
-    /**
-     * 标签图标（URL格式）
-     */
-    private String icon;
-    
+
     /**
      * 标签描述
      */
