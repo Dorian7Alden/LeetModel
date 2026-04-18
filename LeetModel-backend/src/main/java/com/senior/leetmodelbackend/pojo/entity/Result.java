@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.pojo.entity;
 
 
-import com.senior.leetmodelbackend.pojo.enums.error.BaseErrorCode;
+import com.senior.leetmodelbackend.common.exception.ErrorCode;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -45,11 +45,11 @@ public class Result<T> {
         return new Result<>(code, msg, null);
     }
 
-    public static <T> Result<T> error(BaseErrorCode errorCode) {
+    public static <T> Result<T> error(ErrorCode errorCode) {
         return new Result<>(errorCode.getCode(), errorCode.getMsg(), null);
     }
 
-    public static <T> Result<T> error(BaseErrorCode errorCode, String msgOverride) {
+    public static <T> Result<T> error(ErrorCode errorCode, String msgOverride) {
         return new Result<>(errorCode.getCode(), msgOverride, null);
     }
 

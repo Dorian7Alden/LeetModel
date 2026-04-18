@@ -1,6 +1,5 @@
 package com.senior.leetmodelbackend.common.exception;
 
-import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,7 +35,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         // 生产环境建议记录日志，不要返回具体异常信息
         log.error("服务器未知异常:", e);
-        return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR);
+        return Result.error(ErrorCode.SYSTEM_INTERNAL_ERROR);
     }
 
 }

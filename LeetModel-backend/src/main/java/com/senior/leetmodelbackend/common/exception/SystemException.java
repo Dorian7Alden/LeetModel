@@ -1,6 +1,5 @@
 package com.senior.leetmodelbackend.common.exception;
 
-import com.senior.leetmodelbackend.pojo.enums.error.BaseErrorCode;
 import lombok.Getter;
 
 /**
@@ -18,7 +17,7 @@ public class SystemException extends RuntimeException {
         this.msg = msg;
     }
 
-    public SystemException(BaseErrorCode errorCode) {
+    public SystemException(ErrorCode errorCode) {
         super(errorCode.getMsg());
         this.code = errorCode.getCode();
         this.msg = errorCode.getMsg();

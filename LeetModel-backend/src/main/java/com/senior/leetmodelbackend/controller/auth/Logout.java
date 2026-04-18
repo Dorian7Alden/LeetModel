@@ -1,11 +1,10 @@
 package com.senior.leetmodelbackend.controller.auth;
 
 import com.senior.leetmodelbackend.pojo.entity.Result;
-import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.common.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,7 +30,7 @@ public class Logout extends AuthController {
             String token = request.get("token");
             if (token == null || token.isEmpty()) {
                 // TODO: 校验退出登录请求体中的 token 与当前用户是否匹配
-                return Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING, "Token不能为空");
+                return Result.error(ErrorCode.UNAUTHORIZED_TOKEN_MISSING, "Token不能为空");
             }
 
             // 解析 token 获取过期时间
@@ -51,7 +50,7 @@ public class Logout extends AuthController {
             return Result.success("退出登录成功");
         } catch (Exception e) {
             log.error("退出登录失败: {}", e.getMessage());
-            return Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID, "退出登录失败");
+            return Result.error(ErrorCode.UNAUTHORIZED_TOKEN_INVALID, "退出登录失败");
         }
     }
 

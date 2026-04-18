@@ -1,8 +1,7 @@
 package com.senior.leetmodelbackend.controller.auth;
 
 import com.senior.leetmodelbackend.pojo.entity.Result;
-import com.senior.leetmodelbackend.pojo.enums.error.GlobalErrorCode;
-import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.common.exception.ErrorCode;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.service.VerificationCodeService;
 import lombok.AllArgsConstructor;
@@ -30,12 +29,12 @@ public class Register extends AuthController {
 
         // 是否已经注册
         if (userService.getUserByEmail(email) != null) {
-            return Result.error(UserErrorCode.USER_ALREADY_EXISTS);
+            return Result.error(ErrorCode.USER_ALREADY_EXISTS);
         }
 
         // 验证码是否正确
         if (!verificationCodeService.verifyCode(email, code)) {
-            return Result.error(UserErrorCode.VERIFICATION_CODE_INCORRECT);
+            return Result.error(ErrorCode.VERIFICATION_CODE_INCORRECT);
         }
 
         // 完成注册
@@ -44,7 +43,7 @@ public class Register extends AuthController {
             return Result.success("注册成功");
             // TODO: 完成验证码之后，验证码失效处理！！
         } catch (Exception e) {
-            return Result.error(GlobalErrorCode.SYSTEM_INTERNAL_ERROR, "注册失败");
+            return Result.error(ErrorCode.SYSTEM_INTERNAL_ERROR, "注册失败");
         }
     }
 

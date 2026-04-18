@@ -1,6 +1,5 @@
 package com.senior.leetmodelbackend.common.exception;
 
-import com.senior.leetmodelbackend.pojo.enums.error.BaseErrorCode;
 import lombok.Getter;
 
 /**
@@ -23,19 +22,9 @@ public class BusinessException extends RuntimeException {
         this.message = message;
     }
 
-    public BusinessException(BaseErrorCode errorCode, String message) {
-        this.code = errorCode.getCode();
-        this.message = message;
-    }
-
-    public BusinessException(BaseErrorCode errorCode, String msgOverride, String message) {
-        this.code = errorCode.getCode();
-        this.message = message;
-    }
-
-    public BusinessException(int code, String message, String message1) {
+    public BusinessException(int code, String message) {
         this.code = code;
-        this.message = message1;
+        this.message = message;
     }
 
 }

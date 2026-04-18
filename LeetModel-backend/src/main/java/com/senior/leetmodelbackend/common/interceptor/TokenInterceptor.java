@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.senior.leetmodelbackend.pojo.enums.error.UserErrorCode;
+import com.senior.leetmodelbackend.common.exception.ErrorCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.utils.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,7 +43,7 @@ public class TokenInterceptor implements HandlerInterceptor {
             log.info("令牌为空，请求头中缺少token");
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
-                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_MISSING)));
+                    .write(mapper.writeValueAsString(Result.error(ErrorCode.UNAUTHORIZED_TOKEN_MISSING)));
             return false;
         }
 
@@ -52,7 +52,7 @@ public class TokenInterceptor implements HandlerInterceptor {
             log.info("令牌已被加入黑名单: {}", token);
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
-                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
+                    .write(mapper.writeValueAsString(Result.error(ErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 
@@ -63,7 +63,7 @@ public class TokenInterceptor implements HandlerInterceptor {
             log.info("令牌解析失败");
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
-                    .write(mapper.writeValueAsString(Result.error(UserErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
+                    .write(mapper.writeValueAsString(Result.error(ErrorCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 
