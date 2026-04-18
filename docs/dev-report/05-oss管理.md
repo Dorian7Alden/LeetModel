@@ -18,8 +18,29 @@
 
 ### 数据表设计
 
-oss_file_log()
+oss_file()
 
 ### sql
 
+```sql
 
+CREATE TABLE oss_file (
+    file_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+
+    file_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    file_url VARCHAR(1024) NOT NULL COMMENT 'OSS访问URL',
+
+    file_type VARCHAR(50) COMMENT '文件类型（image/pdf/md/zip等）',
+    content_type VARCHAR(100) COMMENT 'MIME类型（image/png等）',
+
+    file_size BIGINT COMMENT '文件大小（字节）',
+
+    uploader_id BIGINT COMMENT '上传人ID',
+
+    is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除（0-未删 1-已删）',
+
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+```
