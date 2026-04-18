@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class Competition {
 
-    private int id;
+    private int competitionId;
     private String title;
     private String language;
     private String introduction;
