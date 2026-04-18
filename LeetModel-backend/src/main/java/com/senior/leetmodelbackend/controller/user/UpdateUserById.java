@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller.user;
 
+import com.senior.leetmodelbackend.common.validator.ParameterValidator;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.service.UserService;
@@ -23,6 +24,13 @@ public class UpdateUserById extends UserController {
     @PutMapping("/{user_id}")
     public Result<String> updateUserById(@PathVariable("user_id") Integer userId, @RequestBody User user) {
         log.info("接口捕获到用户: {}", user);
+        
+        ParameterValidator.init()
+                .notNull(userId, "用户ID不能为空")
+                .isTrue(userId > 0, "用户ID必须大于0")
+                .notNull(user, "更新的用户信息不能为空")
+                .validateAndThrow();
+        
         user.setId(userId);
         userService.updateUserById(user);
         return Result.success("已经成功更新用户 id 为 " + userId + " 的用户");

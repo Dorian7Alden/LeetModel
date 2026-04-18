@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller.user;
 
+import com.senior.leetmodelbackend.common.validator.ParameterValidator;
 import com.senior.leetmodelbackend.common.exception.BusinessException;
 import com.senior.leetmodelbackend.common.exception.ErrorCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
@@ -21,6 +22,10 @@ public class GetUserByEmail extends UserController {
      */
     @GetMapping("/email/{email}")
     public Result<User> getUserByEmail(@PathVariable String email) {
+        ParameterValidator.init()
+                .hasLength(email, "查询的邮箱不能为空")
+                .validateAndThrow();
+                
         User userByEmail = userService.getUserByEmail(email);
 
         if (userByEmail == null) {
