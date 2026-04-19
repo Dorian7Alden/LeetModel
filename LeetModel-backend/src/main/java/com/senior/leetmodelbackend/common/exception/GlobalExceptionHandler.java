@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         // 生产环境建议记录日志，不要返回具体异常信息
         log.error("服务器未知异常:", e);
-        return Result.error(ErrorCode.SYSTEM_INTERNAL_ERROR);
+        return Result.error(ResponseCode.SYSTEM_INTERNAL_ERROR);
     }
 
 }

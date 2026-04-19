@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.common.validator;
 
 import com.senior.leetmodelbackend.common.exception.BusinessException;
-import com.senior.leetmodelbackend.common.exception.ErrorCode;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
@@ -81,7 +81,7 @@ public class ParameterValidator {
 
     public void validateAndThrow() {
         if (!errors.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAM_VALIDATION_ERROR, String.join("; ", errors));
+            throw new BusinessException(ResponseCode.PARAM_VALIDATION_ERROR, String.join("; ", errors));
         }
     }
 }

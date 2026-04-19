@@ -1,7 +1,7 @@
 package com.senior.leetmodelbackend.controller.competition;
 
 import com.senior.leetmodelbackend.common.exception.BusinessException;
-import com.senior.leetmodelbackend.common.exception.ErrorCode;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.entity.Competition;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.service.CompetitionService;
@@ -26,7 +26,7 @@ public class GetCompetitions extends CompetitionController {
         List<Competition> allCompetitions = competitionService.getAllCompetitions();
 
         if (allCompetitions.isEmpty()) {
-            throw new BusinessException(ErrorCode.COMPETITION_NO_COMPETITION);
+            throw new BusinessException(ResponseCode.COMPETITION_NO_COMPETITION);
         }
 
         return Result.success(allCompetitions);

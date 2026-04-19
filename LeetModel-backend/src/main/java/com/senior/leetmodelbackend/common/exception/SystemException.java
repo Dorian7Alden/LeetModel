@@ -17,10 +17,10 @@ public class SystemException extends RuntimeException {
         this.msg = msg;
     }
 
-    public SystemException(ErrorCode errorCode) {
-        super(errorCode.getMsg());
-        this.code = errorCode.getCode();
-        this.msg = errorCode.getMsg();
+    public SystemException(ResponseCode responseCode) {
+        super(responseCode.getMsg());
+        this.code = responseCode.getCode();
+        this.msg = responseCode.getMsg();
     }
 
 }

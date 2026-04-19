@@ -2,7 +2,7 @@ package com.senior.leetmodelbackend.controller.user;
 
 import com.senior.leetmodelbackend.common.validator.ParameterValidator;
 import com.senior.leetmodelbackend.common.exception.BusinessException;
-import com.senior.leetmodelbackend.common.exception.ErrorCode;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.service.UserService;
@@ -29,7 +29,7 @@ public class GetUserByEmail extends UserController {
         User userByEmail = userService.getUserByEmail(email);
 
         if (userByEmail == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND, "没有找到邮箱为 " + email + " 的用户");
+            throw new BusinessException(ResponseCode.USER_NOT_FOUND, "没有找到邮箱为 " + email + " 的用户");
         }
 
         return Result.success("成功通过邮箱查询到用户", userByEmail);

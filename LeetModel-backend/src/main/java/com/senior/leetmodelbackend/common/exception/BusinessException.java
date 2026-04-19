@@ -12,13 +12,13 @@ public class BusinessException extends RuntimeException {
     private final String message;
 
 
-    public BusinessException(ErrorCode errorCode) {
-        this.code = errorCode.getCode();
-        this.message = errorCode.getMsg();
+    public BusinessException(ResponseCode responseCode) {
+        this.code = responseCode.getCode();
+        this.message = responseCode.getMsg();
     }
 
-    public BusinessException(ErrorCode errorCode, String message) {
-        this.code = errorCode.getCode();
+    public BusinessException(ResponseCode responseCode, String message) {
+        this.code = responseCode.getCode();
         this.message = message;
     }
 

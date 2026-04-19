@@ -3,7 +3,7 @@ package com.senior.leetmodelbackend.common.exception;
 import lombok.Getter;
 
 @Getter
-public enum ErrorCode {
+public enum ResponseCode {
 
     /**
      * 全局通用状态码 (00模块)
@@ -37,7 +37,7 @@ public enum ErrorCode {
     private final Integer code;
     private final String msg;
 
-    ErrorCode(Integer code, String msg) {
+    ResponseCode(Integer code, String msg) {
         this.code = code;
         this.msg = msg;
     }

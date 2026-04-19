@@ -4,7 +4,7 @@ package com.senior.leetmodelbackend.controller.auth;
 import com.senior.leetmodelbackend.pojo.dto.LoginRequestDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
-import com.senior.leetmodelbackend.common.exception.ErrorCode;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.vo.LoginVO;
 import com.senior.leetmodelbackend.service.UserService;
 import jakarta.validation.Valid;
@@ -34,11 +34,11 @@ public class Login extends AuthController {
         // 校验参数完整性
         if (emailLogin.isEmpty() || emailLogin.isBlank()) {
             log.error("邮箱登录失败 {} -----> 邮箱不能为空", emailLogin);
-            return Result.error(ErrorCode.PARAM_VALIDATION_ERROR, "邮箱不能为空");
+            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "邮箱不能为空");
         }
         if (passwordLogin.isEmpty() || passwordLogin.isBlank()) {
             log.error("密码登录失败 {} -----> 密码不能为空", passwordLogin);
-            return Result.error(ErrorCode.PARAM_VALIDATION_ERROR, "密码不能为空");
+            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "密码不能为空");
         }
 
         // TODO: 格式校验，不管
@@ -52,11 +52,11 @@ public class Login extends AuthController {
         // 业务异常
         if (userQuery == null) {
             log.error("邮箱登录失败 {} -----> 用户不存在", emailLogin);
-            return Result.error(ErrorCode.USER_NOT_FOUND);
+            return Result.error(ResponseCode.USER_NOT_FOUND);
         }
         if (!userQuery.getPassword().equals(passwordLogin)) {
             log.error("用户 {} 登录失败 -----> 密码错误", emailLogin);
-            return Result.error(ErrorCode.USER_PASSWORD_WRONG);
+            return Result.error(ResponseCode.USER_PASSWORD_WRONG);
         }
 
         // 登录成功

@@ -2,7 +2,7 @@ package com.senior.leetmodelbackend.service;
 
 import com.senior.leetmodelbackend.pojo.enums.CaptchaGenType;
 import com.senior.leetmodelbackend.pojo.enums.VerificationCodeType;
-import com.senior.leetmodelbackend.common.exception.ErrorCode;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.utils.EmailUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ public class VerificationCodeService {
             return sendCodeToEmail(target, expirationSeconds, codeType);
         }
         // 这里如果有枚举兜底，可以不用异常，但为了安全
-        return Result.error(ErrorCode.PARAM_VALIDATION_ERROR, "不支持的验证码类型");
+        return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "不支持的验证码类型");
     }
 
     /**
@@ -45,7 +45,7 @@ public class VerificationCodeService {
         // 1. 检查是否已经存在验证码
         if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
             log.warn("邮箱 {} 已经存在验证码，请勿重复发送", email);
-            return Result.error(ErrorCode.VERIFICATION_CODE_FREQUENT, "邮箱 " + email + " 已经存在验证码，请勿重复发送");
+            return Result.error(ResponseCode.VERIFICATION_CODE_FREQUENT, "邮箱 " + email + " 已经存在验证码，请勿重复发送");
         }
 
         // 2. 生成验证码
@@ -53,7 +53,7 @@ public class VerificationCodeService {
         if (codeType == CaptchaGenType.SIX_DIGIT) {
             code = generateRandomSixDigitCode();
         } else {
-            return Result.error(ErrorCode.PARAM_VALIDATION_ERROR, "无效的验证码生成类型");
+            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "无效的验证码生成类型");
         }
 
         // 3. 缓存验证码
@@ -72,7 +72,7 @@ public class VerificationCodeService {
             log.error("邮件发送失败: {}", email, e);
             // 发送失败，清理 Redis 缓存（回滚机制）
             redisTemplate.delete(redisKey);
-            return Result.error(ErrorCode.EMAIL_SEND_FAILED, "邮件发送失败，请稍后重试");
+            return Result.error(ResponseCode.EMAIL_SEND_FAILED, "邮件发送失败，请稍后重试");
         }
     }
 
