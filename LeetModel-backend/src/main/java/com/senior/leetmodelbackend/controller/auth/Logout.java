@@ -34,7 +34,7 @@ public class Logout extends AuthController {
             }
 
             // 解析 token 获取过期时间
-            Claims claims = com.senior.leetmodelbackend.utils.JwtUtil.parseToken(token);
+            Claims claims = com.senior.leetmodelbackend.common.utils.JwtUtil.parseToken(token);
             long expirationTime = claims.getExpiration().getTime();
             long currentTime = System.currentTimeMillis();
 

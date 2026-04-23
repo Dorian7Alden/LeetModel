@@ -1,6 +1,6 @@
-package com.senior.leetmodelbackend.config;
+package com.senior.leetmodelbackend.common.config;
 
-import com.senior.leetmodelbackend.interceptor.TokenInterceptor;
+import com.senior.leetmodelbackend.common.interceptor.TokenInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

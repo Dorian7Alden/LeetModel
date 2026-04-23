@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.controller.auth;
 
 
+import com.senior.leetmodelbackend.common.utils.JwtUtil;
 import com.senior.leetmodelbackend.pojo.dto.LoginRequestDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
@@ -63,8 +64,8 @@ public class Login extends AuthController {
         log.info("用户 {} 登录成功", emailLogin);
         LoginVO loginVO = new LoginVO();
 
-        // 生成并刷新 token
-        String token = com.senior.leetmodelbackend.utils.JwtUtil.generateToken(1000 * 3600 * 24 * 3); // 24 * 3 小时的登录令牌
+        // 生成并刷新 token（过期时间由配置文件统一控制）
+        String token = JwtUtil.generateToken(userQuery);
         loginVO.setToken(token); // 设置 token 到 loginVO
         log.info("生成用户 {} 的登录 token: {}", emailLogin, token);
         // 封装查询到的用户信息

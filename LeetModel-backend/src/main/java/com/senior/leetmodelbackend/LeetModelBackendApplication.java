@@ -11,8 +11,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class LeetModelBackendApplication {
 
     public static void main(String[] args) {
+        System.setProperty("pagehelper.banner", "false");   // PageHelper 2.x 版本只能通过 System.setProperty() 禁用 banner
         SpringApplication.run(LeetModelBackendApplication.class, args);
-
     }
 
 }

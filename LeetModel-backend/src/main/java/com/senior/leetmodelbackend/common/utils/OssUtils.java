@@ -5,7 +5,7 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.common.auth.DefaultCredentialProvider;
 import com.aliyun.oss.common.comm.SignVersion;
-import com.senior.leetmodelbackend.config.OssConfig;
+import com.senior.leetmodelbackend.common.property.OssProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -23,13 +23,13 @@ public class OssUtils {
     /**
      * 阿里云 OSS 配置
      */
-    private final OssConfig ossConfig;
+    private final OssProperties ossConfig;
     /**
      * 阿里云 OSS 客户端
      */
     private OSS ossClient;
 
-    public OssUtils(OssConfig ossConfig) {
+    public OssUtils(OssProperties ossConfig) {
         this.ossConfig = ossConfig;
     }
 

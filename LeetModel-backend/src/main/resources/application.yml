@@ -9,10 +9,11 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
 
 # PageHelper 分页配置
-pagehelper:
+page-helper:
   helper-dialect: mysql
   reasonable: true
   support-methods-arguments: true
+
 
 spring:
   application:
@@ -59,6 +60,6 @@ aliyun:
     region: cn-beijing                            # 访问地域
 
 
-#jwt:
-#  secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
-#  token-expiration: 86400000 # 24小时 (毫秒)
+jwt:
+  secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
+  token-expiration: 259200000 # 3 * 24 小时 (毫秒)

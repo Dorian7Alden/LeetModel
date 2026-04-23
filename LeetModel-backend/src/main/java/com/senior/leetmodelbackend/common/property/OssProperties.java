@@ -1,4 +1,4 @@
-package com.senior.leetmodelbackend.config;
+package com.senior.leetmodelbackend.common.property;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "aliyun.oss")
-public class OssConfig {
+public class OssProperties {
 
     /**
      * OSS 的 终端坐标

@@ -1,9 +1,9 @@
-package com.senior.leetmodelbackend.interceptor;
+package com.senior.leetmodelbackend.common.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
-import com.senior.leetmodelbackend.utils.JwtUtil;
+import com.senior.leetmodelbackend.common.utils.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;

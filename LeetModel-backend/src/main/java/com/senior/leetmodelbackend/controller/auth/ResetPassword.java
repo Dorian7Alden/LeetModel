@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller.auth;
 
+import com.senior.leetmodelbackend.common.utils.JwtUtil;
 import com.senior.leetmodelbackend.pojo.dto.ResetPasswordDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
@@ -43,7 +44,7 @@ public class ResetPassword {
         LoginVO loginVO = new LoginVO();
         User user = userService.getUserByEmail(resetPasswordDTO.getEmail());
         BeanUtils.copyProperties(user, loginVO);
-        loginVO.setToken(com.senior.leetmodelbackend.utils.JwtUtil.generateToken(1000 * 3600 * 24 * 3));
+        loginVO.setToken(JwtUtil.generateToken(user));
 
         return Result.success("重置密码成功", loginVO);
     }

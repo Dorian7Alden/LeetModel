@@ -1,10 +1,14 @@
-package com.senior.leetmodelbackend.utils;
+package com.senior.leetmodelbackend.common.utils;
 
+import com.senior.leetmodelbackend.common.property.JwtProperties;
+import com.senior.leetmodelbackend.pojo.entity.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
@@ -17,35 +21,70 @@ import java.util.Map;
 @Component
 public class JwtUtil {
 
-    // TODO: 调整配置方式
-    private static final String JWT_SECRET = "6666666666666666666666666666666666666666";
-    private static final long DEFAULT_EXPIRE_TIME = 1000 * 60 * 60 * 24;
-    private static final Key SIGN_KEY = Keys.hmacShaKeyFor(JWT_SECRET.getBytes());
+    private final JwtProperties jwtProperties;
 
-    private JwtUtil() {}
+    private static long defaultExpireTime;
+    private static Key signKey;
+
+    public JwtUtil(JwtProperties jwtProperties) {
+        this.jwtProperties = jwtProperties;
+    }
+
+    /**
+     * 初始化JWT工具类
+     */
+    @PostConstruct
+    private void init() {
+        String secretKey = jwtProperties.getSecretKey();
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("jwt.secret-key 配置不能为空");
+        }
+
+        defaultExpireTime = jwtProperties.getTokenExpiration();
+        signKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+    }
 
     public static String generateToken() {
         return generateToken(new HashMap<>());
     }
 
     /**
-     * 生成JWT Token（仅自定义时长）
+     * 生成包含用户载荷的 JWT Token
+     * @param user 登录用户
+     * @return 生成的JWT Token字符串
      */
-    public static String generateToken(long expireTime) {
-        return generateToken(new HashMap<>(), expireTime);
+    public static String generateToken(User user) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalArgumentException("用户信息不能为空，且必须包含用户ID");
+        }
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+
+        if (user.getEmail() != null) {
+            claims.put("email", user.getEmail());
+        }
+        if (user.getUsername() != null) {
+            claims.put("username", user.getUsername());
+        }
+        if (user.getRole() != null) {
+            claims.put("role", user.getRole());
+        }
+
+        return generateToken(claims);
     }
 
     /**
-     * 生成JWT Token（使用默认过期时间24小时）
-     * @param claims 自定义载荷信息（如用户ID、用户名等）
+     * 生成JWT Token
+     * @param claims 自定义载荷信息
      * @return 生成的JWT Token字符串
      */
     public static String generateToken(Map<String, Object> claims) {
-        return generateToken(claims, DEFAULT_EXPIRE_TIME);
+        return generateToken(claims, defaultExpireTime);
     }
 
     /**
-     * 生成JWT Token（自定义过期时间）
+     * 生成JWT Token
      * @param claims 自定义载荷信息
      * @param expireTime 过期时间（单位：毫秒）
      * @return 生成的JWT Token字符串
@@ -60,7 +99,7 @@ public class JwtUtil {
                 .addClaims(claims) // 添加自定义载荷
                 .setIssuedAt(new Date()) // 设置签发时间（可选，便于追踪）
                 .setExpiration(new Date(System.currentTimeMillis() + expireTime)) // 设置过期时间
-                .signWith(SIGN_KEY, SignatureAlgorithm.HS256) // 指定签名算法和密钥
+                .signWith(signKey, SignatureAlgorithm.HS256) // 指定签名算法和密钥
                 .compact(); // 生成Token字符串
     }
 
@@ -80,7 +119,7 @@ public class JwtUtil {
         }
 
         return Jwts.parserBuilder()
-                .setSigningKey(SIGN_KEY) // 设置签名密钥
+            .setSigningKey(signKey) // 设置签名密钥
                 .build()
                 .parseClaimsJws(token) // 解析Token
                 .getBody(); // 获取载荷信息
