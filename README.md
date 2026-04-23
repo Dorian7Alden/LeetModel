@@ -1,6 +1,6 @@
 
 
-<h1 align="center"><img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px" style="vertical-align: middle; margin-right: 10px;">LeetModel</h1>
+<h1 align="center" style="display: flex; align-items: center; justify-content: center; gap: 10px;"><img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">LeetModel</h1>
 
 <div align="center" style="display: flex; justify-content: center; gap: 2px; flex-wrap: wrap;">
 <img src="https://img.shields.io/badge/开发中-8B0000?logoColor=white&color=8B0000" alt="开发中">
