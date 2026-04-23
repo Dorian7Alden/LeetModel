@@ -1,6 +1,9 @@
 
 
-<h1 align="center" style="display: flex; align-items: center; justify-content: center; gap: 10px;"><img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">LeetModel</h1>
+<p align="center">
+<img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">
+</p>
+<h1 align="center">LeetModel</h1>
 
 <div align="center" style="display: flex; justify-content: center; gap: 2px; flex-wrap: wrap;">
 <img src="https://img.shields.io/badge/开发中-8B0000?logoColor=white&color=8B0000" alt="开发中">
@@ -20,7 +23,7 @@ LeetModel（力模），是一款对标 LeetCode 的**数学建模**领域垂直
 
 
 
-### 项目文件树
+### 项目结构
 
 ```text
 LeetModel/                                   # 项目根目录
