@@ -14,3 +14,15 @@ export function getProblemDetail(id) {
     method: "get",
   });
 }
+
+// 上传题目
+export function uploadProblem(data) {
+  return request({
+    url: "/problems/upload",
+    method: "post",
+    headers: {
+      "Content-Type": "multipart/form-data"
+    },
+    data,
+  });
+}

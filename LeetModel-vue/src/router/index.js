@@ -227,16 +227,10 @@ const routes = [
         meta: { title: '题目管理', icon: 'Document' },
         children: [
           {
-            path: 'upload',
-            name: 'AdminUploadProblem',
-            component: () => import('../modules/admin/views/problem/Upload.vue'),
-            meta: { title: '上传题目' }
-          },
-          {
             path: 'list',
             name: 'AdminProblemList',
             component: () => import('../modules/admin/views/problem/List.vue'),
-            meta: { title: '题目列表' }
+            meta: { title: '题目管理' }
           }
         ]
       },
@@ -245,28 +239,22 @@ const routes = [
         meta: { title: '作品管理', icon: 'UploadFilled' },
         children: [
           {
-            path: 'submit',
-            name: 'AdminSubmitWork',
-            component: () => import('../modules/admin/views/submission/Submit.vue'),
-            meta: { title: '提交作品' }
-          },
-          {
             path: 'list',
             name: 'AdminSubmissionList',
             component: () => import('../modules/admin/views/submission/List.vue'),
-            meta: { title: '作品列表' }
+            meta: { title: '作品管理' }
           }
         ]
       },
       {
-        path: 'file',
-        meta: { title: '文件管理', icon: 'Folder' },
+        path: 'tag',
+        meta: { title: '标签管理', icon: 'CollectionTag' },
         children: [
           {
-            path: 'oss',
-            name: 'AdminOssUpload',
-            component: () => import('../modules/admin/views/file/OssUpload.vue'),
-            meta: { title: 'OSS文件上传' }
+            path: 'list',
+            name: 'AdminTagList',
+            component: () => import('../modules/admin/views/tag/List.vue'),
+            meta: { title: '标签管理' }
           }
         ]
       }

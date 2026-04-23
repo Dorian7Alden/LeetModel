@@ -8,7 +8,7 @@
           <!-- 导航栏 -->
           <nav class="navbar">
             <router-link to="/" class="nav-item home-icon">
-              <img src="@/assets/icon/home.png" alt="home" />
+              <img src="@/assets/images/logo-big.png" alt="home" />
             </router-link>
 
             <router-link to="/problem" class="nav-item">题库</router-link>
