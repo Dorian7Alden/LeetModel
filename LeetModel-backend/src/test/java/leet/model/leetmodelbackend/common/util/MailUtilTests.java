@@ -49,7 +49,7 @@ class MailUtilTests {
         mailUtil.sendTextMail("receiver@example.com", "Test Subject", "Test Content");
 
         assertEquals(1, capturingJavaMailSender.sentMessages.size());
-        MimeMessage message = capturingJavaMailSender.sentMessages.getFirst();
+        MimeMessage message = capturingJavaMailSender.sentMessages.get(0);
         assertEquals("Test Subject", message.getSubject());
         assertEquals(qqMailProperties.getUsername(), ((InternetAddress) message.getFrom()[0]).getAddress());
         assertEquals("receiver@example.com", ((InternetAddress) message.getAllRecipients()[0]).getAddress());
