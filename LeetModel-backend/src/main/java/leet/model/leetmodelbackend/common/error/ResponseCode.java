@@ -16,7 +16,11 @@ public enum ResponseCode {
     AUTH_UNAUTHORIZED(40101, "未登录或令牌缺失"),
     AUTH_INVALID_TOKEN(40102, "令牌无效"),
     AUTH_TOKEN_EXPIRED(40103, "令牌已过期"),
-    AUTH_FORBIDDEN(40301, "无权限访问");
+    AUTH_FORBIDDEN(40301, "无权限访问"),
+
+    AUTH_EMAIL_SEND_FAILED(50101, "验证码邮件发送失败，请稍后重试"),
+    AUTH_EMAIL_CODE_CACHE_FAILED(50102, "验证码缓存失败，请稍后重试"),
+    AUTH_EMAIL_SEND_TOO_FREQUENT(50103, "验证码发送过于频繁，请稍后再试");
 
     private final Integer code;
 

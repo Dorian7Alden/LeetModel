@@ -9,11 +9,11 @@ spring:
     default-encoding: UTF-8
     properties:
       mail:
-        SMTP:
+        smtp:
           auth: true                  # 开启认证
           ssl:
             enable: true              # 使用 SSL 加密（465端口必须）
-          STARTTLS:
+          starttls:
             enable: false             # SSL 时不用 STARTTLS
   data:
     redis:

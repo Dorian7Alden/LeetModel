@@ -60,7 +60,7 @@ public class MailUtil {
             helper.setSubject(subject);
             helper.setText(content, html);
             javaMailSender.send(mimeMessage);
-        } catch (MessagingException exception) {
+        } catch (MessagingException | RuntimeException exception) {
             throw new IllegalStateException("邮件发送失败", exception);
         }
     }
