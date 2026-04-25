@@ -35,3 +35,10 @@
 - 重构优化
 - 文档维护
 - AI 协作开发
+
+
+### 开发约定
+
+开发流程与提交粒度的执行细则，统一遵循 `docs/instructions/04-development-workflow.md`。
+
+该文档定义了目标确认、版本 TODO 对齐、按 TODO 开发、TODO 与 commit 对齐的强制要求。

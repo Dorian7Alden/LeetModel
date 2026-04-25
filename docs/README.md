@@ -18,6 +18,7 @@ docs/
 - 开发前必读：`instructions/00-development-setup.md`
 - 文档撰写规范：`instructions/01-document-regulations.md`
 - HTTP 响应规范：`instructions/02-response-regulations.md`
+- 开发流程与提交规范：`instructions/04-development-workflow.md`
 
 - `instructions` 目录下存放的是作用于整个项目的开发规范
 - `system-design` 目录存放的是每个版本的计划安排以及功能设计，按照每个版本进行逐渐完善项目

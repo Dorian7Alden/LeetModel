@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: LeetModel-backend
+
+
+server:
+  port: 8081
+
+
