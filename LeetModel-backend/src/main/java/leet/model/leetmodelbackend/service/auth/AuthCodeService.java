@@ -3,6 +3,7 @@ package leet.model.leetmodelbackend.service.auth;
 import leet.model.leetmodelbackend.common.error.BusinessException;
 import leet.model.leetmodelbackend.common.error.ResponseCode;
 import leet.model.leetmodelbackend.common.util.MailUtil;
+import leet.model.leetmodelbackend.property.AuthCodeProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -11,7 +12,6 @@ import org.springframework.util.StreamUtils;
 
 import java.io.IOException;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -21,21 +21,15 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class AuthCodeService {
 
-    private static final String EMAIL_CODE_KEY_PREFIX = "auth:email:code:";
-
-    private static final String EMAIL_COOLDOWN_KEY_PREFIX = "auth:email:cooldown:";
-
     private static final String EMAIL_CODE_TEMPLATE_PATH = "templates/mail/email-code.html";
-
-    private static final Duration EMAIL_CODE_EXPIRE = Duration.ofMinutes(5);
-
-    private static final Duration EMAIL_SEND_COOLDOWN = Duration.ofSeconds(60);
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final MailUtil mailUtil;
 
     private final StringRedisTemplate stringRedisTemplate;
+
+    private final AuthCodeProperties authCodeProperties;
 
     public void sendEmailCode(String email) {
         String normalizedEmail = email.trim().toLowerCase();
@@ -62,7 +56,7 @@ public class AuthCodeService {
 
         try {
             stringRedisTemplate.opsForValue()
-                    .set(buildCodeKey(normalizedEmail), code, EMAIL_CODE_EXPIRE);
+                    .set(buildCodeKey(normalizedEmail), code, authCodeProperties.getRedisCodeExpire());
         } catch (RuntimeException exception) {
             releaseCooldown(cooldownKey);
             throw new BusinessException(ResponseCode.AUTH_EMAIL_CODE_CACHE_FAILED);
@@ -73,7 +67,7 @@ public class AuthCodeService {
         String template = loadEmailCodeTemplate();
         return template
                 .replace("${code}", code)
-                .replace("${validMinutes}", String.valueOf(EMAIL_CODE_EXPIRE.toMinutes()))
+                .replace("${validMinutes}", String.valueOf(authCodeProperties.getRedisCodeExpire().toMinutes()))
                 .replace("${supportEmail}", "support@mathmodel.com");
     }
 
@@ -89,7 +83,7 @@ public class AuthCodeService {
     private boolean acquireSendCooldown(String cooldownKey) {
         try {
             Boolean acquired = stringRedisTemplate.opsForValue()
-                    .setIfAbsent(cooldownKey, "1", EMAIL_SEND_COOLDOWN);
+                    .setIfAbsent(cooldownKey, "1", authCodeProperties.getRedisSendCooldown());
             return Boolean.TRUE.equals(acquired);
         } catch (RuntimeException exception) {
             throw new BusinessException(ResponseCode.AUTH_EMAIL_CODE_CACHE_FAILED);
@@ -105,11 +99,11 @@ public class AuthCodeService {
     }
 
     private String buildCodeKey(String email) {
-        return EMAIL_CODE_KEY_PREFIX + email;
+        return authCodeProperties.getRedisCodeKeyPrefix() + email;
     }
 
     private String buildCooldownKey(String email) {
-        return EMAIL_COOLDOWN_KEY_PREFIX + email;
+        return authCodeProperties.getRedisCooldownKeyPrefix() + email;
     }
 
     private String generateCode() {

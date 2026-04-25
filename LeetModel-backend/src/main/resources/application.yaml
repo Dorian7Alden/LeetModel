@@ -29,3 +29,11 @@ server:
 jwt:
   secret: dXNlcl9zZWNyZXRfa2V5X2Zvcl9qd3RfYXV0aF9kZW1vXzI1NmJpdF8xMjM=   # 256-bit Base64 密钥
   expiration: 86400000   # 24 小时 (毫秒)
+
+leet-model:
+  auth:
+    email-code:
+      redis-code-key-prefix: "auth:email:code:"
+      redis-cooldown-key-prefix: "auth:email:cooldown:"
+      redis-code-expire: 5m
+      redis-send-cooldown: 60s
