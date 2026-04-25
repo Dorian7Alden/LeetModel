@@ -1,9 +1,31 @@
 spring:
   application:
     name: LeetModel-backend
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: ${QQ_MAIL_USER}         # QQ 邮箱
+    password: ${QQ_MAIL_AUTH_CODE}    # QQ 邮箱需使用授权码
+    default-encoding: UTF-8
+    properties:
+      mail:
+        SMTP:
+          auth: true                  # 开启认证
+          ssl:
+            enable: true              # 使用 SSL 加密（465端口必须）
+          STARTTLS:
+            enable: false             # SSL 时不用 STARTTLS
+  data:
+    redis:
+      host: ${REDIS_HOST}             # redis 服务器 IP
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}     # 环境变量中配置 redis 密码
 
 
 server:
   port: 8081
 
 
+jwt:
+  secret: dXNlcl9zZWNyZXRfa2V5X2Zvcl9qd3RfYXV0aF9kZW1vXzI1NmJpdF8xMjM=   # 256-bit Base64 密钥
+  expiration: 86400000   # 24 小时 (毫秒)
