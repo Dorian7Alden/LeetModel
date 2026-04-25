@@ -17,6 +17,9 @@
 3. 【推荐】阅读顺序保持稳定，建议按编号从小到大阅读。
    说明：编号顺序有助于先统一格式规范，再落地到具体业务规范。
 
+4. 【推荐】如果本次任务涉及 Git commit 描述或提交格式，请补充阅读 `docs/instructions/05-git-commit-regulation.md`。
+   说明：提交信息写法单独成章时，优先直接查阅对应规范文件。
+
 
 
 ### 开发前最小执行清单
@@ -42,3 +45,5 @@
 开发流程与提交粒度的执行细则，统一遵循 `docs/instructions/04-development-workflow.md`。
 
 该文档定义了目标确认、版本 TODO 对齐、按 TODO 开发、TODO 与 commit 对齐的强制要求。
+
+Git commit 描述格式与示例，统一遵循 `docs/instructions/05-git-commit-regulation.md`。
