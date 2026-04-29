@@ -21,16 +21,24 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class AuthCodeService {
 
+    /** 验证码邮件模板 classpath 路径 */
     private static final String EMAIL_CODE_TEMPLATE_PATH = "templates/mail/email-code.html";
 
+    /** 用于生成 6 位随机验证码的 SecureRandom 实例 */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /** 邮件发送工具 */
     private final MailUtil mailUtil;
 
+    /** Redis 字符串操作模板 */
     private final StringRedisTemplate stringRedisTemplate;
 
+    /** 验证码相关配置 */
     private final AuthCodeProperties authCodeProperties;
 
+    /**
+     * 发送邮箱验证码：限频检查、生成代码、渲染模板、发送邮件并缓存到 Redis。
+     */
     public void sendEmailCode(String email) {
         String normalizedEmail = email.trim().toLowerCase();
         String cooldownKey = buildCooldownKey(normalizedEmail);
@@ -63,6 +71,7 @@ public class AuthCodeService {
         }
     }
 
+    /** 将验证码等变量替换到邮件模板中，生成最终 HTML 邮件内容 */
     private String renderEmailCodeMailContent(String code) {
         String template = loadEmailCodeTemplate();
         return template
@@ -71,6 +80,7 @@ public class AuthCodeService {
                 .replace("${supportEmail}", "support@mathmodel.com");
     }
 
+    /** 从 classpath 加载验证码邮件模板 */
     private String loadEmailCodeTemplate() {
         try {
             ClassPathResource resource = new ClassPathResource(EMAIL_CODE_TEMPLATE_PATH);
@@ -80,6 +90,7 @@ public class AuthCodeService {
         }
     }
 
+    /** 尝试设置发送冷却锁，true 表示获取成功可以发送，false 表示仍在冷却期内 */
     private boolean acquireSendCooldown(String cooldownKey) {
         try {
             Boolean acquired = stringRedisTemplate.opsForValue()
@@ -90,6 +101,7 @@ public class AuthCodeService {
         }
     }
 
+    /** 邮件发送或缓存失败时释放冷却锁，允许用户立即重试 */
     private void releaseCooldown(String cooldownKey) {
         try {
             stringRedisTemplate.delete(cooldownKey);
@@ -98,14 +110,17 @@ public class AuthCodeService {
         }
     }
 
+    /** 拼接验证码 Redis key */
     private String buildCodeKey(String email) {
         return authCodeProperties.getRedisCodeKeyPrefix() + email;
     }
 
+    /** 拼接冷却期 Redis key */
     private String buildCooldownKey(String email) {
         return authCodeProperties.getRedisCooldownKeyPrefix() + email;
     }
 
+    /** 生成 6 位数字验证码 */
     private String generateCode() {
         return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }

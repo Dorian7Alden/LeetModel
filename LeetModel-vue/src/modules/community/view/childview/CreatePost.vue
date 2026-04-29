@@ -11,7 +11,7 @@
       <div class="header-actions">
         <button class="cancel-btn">取消</button>
         <button class="publish-btn" :disabled="!postTitle.trim()">
-          <span class="publish-icon">✈️</span>
+          <el-icon class="publish-icon"><Promotion /></el-icon>
           发布
         </button>
       </div>
@@ -20,7 +20,7 @@
     <!-- 话题选择栏 -->
     <div class="topic-bar">
       <div class="topic-selector">
-        <span class="topic-icon">👤</span>
+        <el-icon class="topic-icon"><UserFilled /></el-icon>
         <button class="add-topic-btn">+ 话题</button>
       </div>
     </div>
@@ -48,6 +48,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { Promotion, UserFilled } from "@element-plus/icons-vue";
 
 // 响应式数据
 const postTitle = ref("");
@@ -131,7 +132,7 @@ const focusEditor = () => {
 }
 
 .publish-icon {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* 话题选择栏 */
@@ -147,7 +148,7 @@ const focusEditor = () => {
 }
 
 .topic-icon {
-  font-size: 20px;
+  font-size: 18px;
   color: #999;
 }
 

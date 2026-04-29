@@ -35,10 +35,19 @@
         </p>
 
         <div class="meta">
-          <span>👍 {{ item.likeCnt }}</span>
-          <span>👁 {{ item.viewCnt }}</span>
-          <span>💬 {{ item.commentCnt }}</span>
-          <span>🔥 {{ item.heat }}</span>
+          <span class="meta-item">{{ item.likeCnt }} 赞</span>
+          <span class="meta-item">
+            <el-icon><View /></el-icon>
+            {{ item.viewCnt }}
+          </span>
+          <span class="meta-item">
+            <el-icon><ChatDotSquare /></el-icon>
+            {{ item.commentCnt }}
+          </span>
+          <span class="meta-item">
+            <el-icon><TrendCharts /></el-icon>
+            {{ item.heat }}
+          </span>
         </div>
 
         <div class="footer">
@@ -65,6 +74,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { getPostList } from "@/api/post";
+import { View, ChatDotSquare, TrendCharts } from "@element-plus/icons-vue";
 
 // 📦 列表数据
 const list = ref([]);
@@ -196,6 +206,12 @@ const handleReset = () => {
   gap: 15px;
   font-size: 14px;
   color: #999;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .footer {

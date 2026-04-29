@@ -22,7 +22,10 @@
     <!-- 每日一题 -->
 
     <div class="daily-problem">
-      <div class="daily-header">🔥 每日 1 题</div>
+      <div class="daily-header">
+        <el-icon><TrendCharts /></el-icon>
+        每日 1 题
+      </div>
 
       <div class="problem-title">1878. 矩阵中最大的三个菱形和</div>
 
@@ -42,6 +45,7 @@
 <script setup>
 import { computed } from "vue";
 import { useUserStore } from "@/store/user";
+import { TrendCharts } from "@element-plus/icons-vue";
 
 const userStore = useUserStore();
 

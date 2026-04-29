@@ -2,7 +2,9 @@
   <div class="sidebar-container">
     <!-- 搜索框 -->
     <div class="search-box">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon">
+        <el-icon><Search /></el-icon>
+      </span>
       <input type="text" placeholder="搜索" class="search-input" />
     </div>
 
@@ -130,6 +132,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { Search } from "@element-plus/icons-vue";
 
 // 分类数据
 const techPosts = ref([

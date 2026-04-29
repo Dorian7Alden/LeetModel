@@ -8,16 +8,19 @@ import lombok.Getter;
 @Getter
 public class BusinessException extends RuntimeException {
 
+    /** 错误码 */
     private final ResponseCode responseCode;
 
+    /** 详细错误信息，默认取 responseCode 内置消息 */
     private final String detailMessage;
 
+    /** 使用 responseCode 内置消息构造 */
     public BusinessException(ResponseCode responseCode) {
         this(responseCode, responseCode.getMsg());
     }
 
+    /** 使用自定义消息构造，允许前端展示更精确的错误信息 */
     public BusinessException(ResponseCode responseCode, String detailMessage) {
-        super(detailMessage == null ? responseCode.getMsg() : detailMessage);
         this.responseCode = responseCode;
         this.detailMessage = detailMessage == null ? responseCode.getMsg() : detailMessage;
     }

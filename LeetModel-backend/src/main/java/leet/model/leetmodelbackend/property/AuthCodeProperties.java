@@ -5,6 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
+/**
+ * 邮箱验证码相关配置，映射 leet-model.auth.email-code 前缀。
+ */
 @Data
 @ConfigurationProperties(prefix = "leet-model.auth.email-code")
 public class AuthCodeProperties {

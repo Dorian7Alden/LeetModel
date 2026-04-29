@@ -1,7 +1,10 @@
 <template>
   <!-- 热门标签 -->
   <div class="card">
-    <div class="title">🔥 热门标签</div>
+    <div class="title">
+      <el-icon><TrendCharts /></el-icon>
+      热门标签
+    </div>
 
     <input class="search" placeholder="输入标签" />
 
@@ -14,7 +17,9 @@
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { TrendCharts } from "@element-plus/icons-vue";
+</script>
 
 <style scoped>
 /* 卡片 */

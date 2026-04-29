@@ -5,6 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.Map;
 
+/**
+ * QQ 邮箱 SMTP 发件配置，映射 spring.mail 前缀。
+ */
 @Data
 @ConfigurationProperties(prefix = "spring.mail")
 public class QQMailProperties {

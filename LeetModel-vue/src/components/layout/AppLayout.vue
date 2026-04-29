@@ -8,7 +8,7 @@
           <!-- 导航栏 -->
           <nav class="navbar">
             <router-link to="/" class="nav-item home-icon">
-              <img src="@/assets/images/logo-big.png" alt="home" />
+              <img src="@/assets/images/logo-with-en.png" alt="home" />
             </router-link>
 
             <router-link to="/problem" class="nav-item">题库</router-link>
@@ -52,21 +52,24 @@
                   <img class="avatar-big" src="../../assets/vue.svg" />
                   <div class="info">
                     <div class="name">Kind EasleyaAJ</div>
-                    <div class="desc">欢迎回来 👋</div>
+                    <div class="desc">欢迎回来</div>
                   </div>
                 </div>
 
                 <!-- 功能区 -->
                 <div class="menu-group">
-                  <el-dropdown-item class="menu-item"
-                    >📘 我的题单</el-dropdown-item
-                  >
-                  <el-dropdown-item class="menu-item"
-                    >⭐ 我的收藏</el-dropdown-item
-                  >
-                  <el-dropdown-item class="menu-item"
-                    >📝 我的笔记</el-dropdown-item
-                  >
+                  <el-dropdown-item class="menu-item">
+                    <el-icon class="menu-icon"><Collection /></el-icon>
+                    我的题单
+                  </el-dropdown-item>
+                  <el-dropdown-item class="menu-item">
+                    <el-icon class="menu-icon"><StarFilled /></el-icon>
+                    我的收藏
+                  </el-dropdown-item>
+                  <el-dropdown-item class="menu-item">
+                    <el-icon class="menu-icon"><Document /></el-icon>
+                    我的笔记
+                  </el-dropdown-item>
                 </div>
 
                 <!-- 分割 -->
@@ -75,9 +78,10 @@
                 <!-- 跳转 -->
                 <div class="menu-group">
                   <router-link to="/profile" class="menu-link">
-                    <el-dropdown-item class="menu-item"
-                      >👤 个人中心</el-dropdown-item
-                    >
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><UserFilled /></el-icon>
+                      个人中心
+                    </el-dropdown-item>
                   </router-link>
                 </div>
 
@@ -85,7 +89,8 @@
 
                 <!-- 退出 -->
                 <el-dropdown-item class="logout" @click="handleLogout">
-                  🚪 退出登录
+                  <el-icon class="menu-icon"><SwitchButton /></el-icon>
+                  退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -124,6 +129,13 @@ import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { logout } from "@/api/user";
 import { ElMessage } from "element-plus";
+import {
+  Collection,
+  StarFilled,
+  Document,
+  UserFilled,
+  SwitchButton,
+} from "@element-plus/icons-vue";
 const route = useRoute();
 
 const isHome = computed(() => route.path === "/");
@@ -226,6 +238,14 @@ const keyword = ref("");
   padding: 10px 16px !important;
   font-size: 14px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-icon {
+  font-size: 16px;
+  color: #666;
 }
 /* hover 效果 */
 .menu-item:hover {
@@ -245,7 +265,6 @@ const keyword = ref("");
   font-weight: 600;
 }
 .home-icon img {
-  width: 20px;
   height: 20px;
 }
 .home-icon {

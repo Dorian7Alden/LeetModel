@@ -17,7 +17,9 @@
           :class="{ active: activeKey === item.key }"
           @click="handleMenuClick(item)"
         >
-          <span class="menu-icon">{{ item.icon }}</span>
+          <span class="menu-icon">
+            <el-icon><component :is="iconMap[item.key]" /></el-icon>
+          </span>
 
           <span v-if="!isCollapsed" class="menu-label">
             {{ item.label }}
@@ -61,6 +63,13 @@
 import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "@/store/user";
+import {
+  List,
+  TrendCharts,
+  StarFilled,
+  Reading,
+  Aim,
+} from "@element-plus/icons-vue";
 
 /* ---------------- 状态 ---------------- */
 const userStore = useUserStore();
@@ -71,20 +80,26 @@ const isCollapsed = ref(false);
 const activeKey = ref("all");
 
 /* ---------------- 菜单数据 ---------------- */
+const iconMap = {
+  all: List,
+  hot: TrendCharts,
+  top: StarFilled,
+  leetbook: Reading,
+  training: Aim,
+};
+
 const menuList = ref([
   {
     key: "all",
     label: "全部题目",
-    icon: "📋",
     path: "/problem/problemListPage",
   },
-  { key: "hot", label: "热题 HOT 100", icon: "🔥", path: "/problem/hot" },
-  { key: "top", label: "精选 TOP 200", icon: "⭐", path: "/problem/top" },
-  { key: "leetbook", label: "LeetBook", icon: "📚", path: "/problem/leetbook" },
+  { key: "hot", label: "热题 HOT 100", path: "/problem/hot" },
+  { key: "top", label: "精选 TOP 200", path: "/problem/top" },
+  { key: "leetbook", label: "LeetBook", path: "/problem/leetbook" },
   {
     key: "training",
     label: "专项训练",
-    icon: "🎯",
     open: false,
     children: [
       { key: "model", label: "建模手", path: "/problem/modeling" },

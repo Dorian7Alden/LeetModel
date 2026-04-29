@@ -1,6 +1,9 @@
 <template>
   <div class="community-section">
-    <h2 class="title">🔥 热门帖子</h2>
+    <h2 class="title">
+      <el-icon><TrendCharts /></el-icon>
+      热门帖子
+    </h2>
 
     <!-- 列表 -->
     <div v-if="postList.length > 0">
@@ -18,8 +21,11 @@
         </div>
 
         <div class="right">
-          <div>🔥 {{ item.heat }}</div>
-          <div>👍 {{ item.likeCnt }}</div>
+          <div class="stat">
+            <el-icon><TrendCharts /></el-icon>
+            {{ item.heat }}
+          </div>
+          <div class="stat">{{ item.likeCnt }} 赞</div>
         </div>
       </div>
     </div>
@@ -32,6 +38,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { getPostList } from "@/api/post";
+import { TrendCharts } from "@element-plus/icons-vue";
 
 const router = useRouter();
 
