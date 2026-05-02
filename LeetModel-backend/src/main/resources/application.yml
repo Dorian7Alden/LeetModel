@@ -19,17 +19,17 @@ spring:
   application:
     name: LeetModel
   datasource:
-    url: ${MYSQL_URL} # mysql的数据库地址
-    username: ${MYSQL_USER} # 数据库用户名
-    password: ${MYSQL_PASSWORD} # 数据库密码
+    url: ${LM_MYSQL_URL} # mysql的数据库地址
+    username: ${LM_MYSQL_USER} # 数据库用户名
+    password: ${LM_MYSQL_PASSWORD} # 数据库密码
     driver-class-name: com.mysql.cj.jdbc.Driver
     type: com.alibaba.druid.pool.DruidDataSource
 
   mail:
     host: smtp.qq.com
     port: 587
-    username: ${QQ_MAIL_USER} # QQ 邮箱
-    password: ${QQ_MAIL_AUTH_CODE} # QQ 邮箱需使用授权码
+    username: ${LM_QQ_MAIL_USER} # QQ 邮箱
+    password: ${LM_QQ_MAIL_AUTH_CODE} # QQ 邮箱需使用授权码
     properties:
       mail:
         smtp:
@@ -38,12 +38,12 @@ spring:
             enable: true
   data:
     redis:
-      host: ${REDIS_HOST} # redis 服务器 IP
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD} # 环境变量中配置 redis 密码
+      host: ${LM_REDIS_HOST} # redis 服务器 IP
+      port: ${LM_REDIS_PORT:6379}
+      password: ${LM_REDIS_PASSWORD} # 环境变量中配置 redis 密码
   ai:
     openai:
-      api-key: ${DEEPSEEK_API_KEY} # Deepseek 的 API KEY
+      api-key: ${LM_DEEPSEEK_API_KEY} # Deepseek 的 API KEY
       chat:
         options:
           model: deepseek-chat
@@ -54,8 +54,8 @@ spring:
 aliyun:
   oss:
     endpoint: oss-cn-beijing.aliyuncs.com         # 地域节点
-    access-key-id: ${OSS_ACCESS_KEY_ID}           # 密钥 ID
-    access-key-secret: ${OSS_ACCESS_KEY_SECRET}   # 密钥秘钥
+    access-key-id: ${LM_OSS_ACCESS_KEY_ID}           # 密钥 ID
+    access-key-secret: ${LM_OSS_ACCESS_KEY_SECRET}   # 密钥秘钥
     bucket-name: leet-model                       # 存储空间名
     region: cn-beijing                            # 访问地域
 
