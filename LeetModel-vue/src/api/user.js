@@ -46,11 +46,14 @@ export function logout() {
     token: token,
   });
 }
-// // ✅ 退出登录
-// export function logout(data) {
-//   return request({
-//     url: "/auth/logout",
-//     method: "post",
-//     data, // ✅ 必须有
-//   });
-// }
+export function getAllUsers() {
+  return request({ url: "/admin/users", method: "get" });
+}
+
+export function getUserRoles(userId) {
+  return request({ url: `/admin/users/${userId}/roles`, method: "get" });
+}
+
+export function assignUserRoles(userId, roleIds) {
+  return request({ url: `/admin/users/${userId}/roles`, method: "put", data: { ids: roleIds } });
+}

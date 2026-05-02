@@ -3,10 +3,14 @@ package com.senior.leetmodelbackend.service;
 import com.senior.leetmodelbackend.common.utils.Md5Util;
 import com.senior.leetmodelbackend.mapper.UserMapper;
 import com.senior.leetmodelbackend.pojo.dto.RegisterDTO;
+import com.senior.leetmodelbackend.pojo.entity.Role;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -33,12 +37,7 @@ public class UserService {
         newUser.setPassword(Md5Util.encode(request.getPassword()));
         newUser.setUsername("user_" + newUser.getUserId());
 
-        // 管理员识别（临时方案）
-        if ("admin@email.com".equals(request.getEmail())) {
-            newUser.setRole("admin");
-        } else {
-            newUser.setRole("user");
-        }
+        newUser.setRole("MEMBER");
 
         log.info("insertUser: {}", newUser);
         userMapper.insertUser(newUser);
@@ -72,5 +71,24 @@ public class UserService {
 
     public void resetPassword(String email, String password) {
         userMapper.updateUserPassword(email, password);
+    }
+
+    public List<User> getAllUsers() {
+        return userMapper.getAllUsers();
+    }
+
+    public List<Role> getUserRoles(Long userId) {
+        return userMapper.getRolesByUserId(userId);
+    }
+
+    @Transactional
+    public void assignUserRoles(Long userId, List<Long> roleIds) {
+        userMapper.deleteUserRolesByUserId(userId);
+        if (roleIds != null && !roleIds.isEmpty()) {
+            for (Long roleId : roleIds) {
+                userMapper.insertUserRole(userId, roleId);
+            }
+        }
+        log.info("分配用户角色: userId={}, roleIds={}", userId, roleIds);
     }
 }

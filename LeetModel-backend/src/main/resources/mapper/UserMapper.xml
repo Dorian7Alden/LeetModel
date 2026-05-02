@@ -16,4 +16,11 @@
         WHERE user_id = #{userId}
     </update>
 
+    <select id="getRolesByUserId" resultType="com.senior.leetmodelbackend.pojo.entity.Role">
+        select r.* from role r
+        inner join user_role ur on r.role_id = ur.role_id
+        where ur.user_id = #{userId}
+        order by r.role_id
+    </select>
+
 </mapper>

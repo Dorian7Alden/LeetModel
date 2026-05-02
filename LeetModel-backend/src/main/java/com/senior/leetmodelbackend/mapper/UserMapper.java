@@ -1,7 +1,10 @@
 package com.senior.leetmodelbackend.mapper;
 
+import com.senior.leetmodelbackend.pojo.entity.Role;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import org.apache.ibatis.annotations.*;
+
+import java.util.List;
 
 @Mapper
 public interface UserMapper {
@@ -25,4 +28,15 @@ public interface UserMapper {
 
     @Update("update user set password = #{password}, update_time = NOW() where email = #{email}")
     void updateUserPassword(String email, String password);
+
+    @Select("select user_id, username, email, status, create_time, update_time from user order by user_id")
+    List<User> getAllUsers();
+
+    List<Role> getRolesByUserId(Long userId);
+
+    @Select("insert into user_role (user_id, role_id, create_time, update_time) values (#{userId}, #{roleId}, now(), now())")
+    void insertUserRole(Long userId, Long roleId);
+
+    @Select("delete from user_role where user_id = #{userId}")
+    void deleteUserRolesByUserId(Long userId);
 }

@@ -258,6 +258,42 @@ const routes = [
             meta: { title: '标签管理' }
           }
         ]
+      },
+      {
+        path: 'role',
+        meta: { title: '角色管理', icon: 'UserFilled' },
+        children: [
+          {
+            path: 'list',
+            name: 'AdminRoleList',
+            component: () => import('../modules/admin/views/role/List.vue'),
+            meta: { title: '角色管理' }
+          }
+        ]
+      },
+      {
+        path: 'permission',
+        meta: { title: '权限管理', icon: 'Key' },
+        children: [
+          {
+            path: 'list',
+            name: 'AdminPermissionList',
+            component: () => import('../modules/admin/views/permission/List.vue'),
+            meta: { title: '权限管理' }
+          }
+        ]
+      },
+      {
+        path: 'auth',
+        meta: { title: '授权管理', icon: 'Lock' },
+        children: [
+          {
+            path: 'index',
+            name: 'AdminAuth',
+            component: () => import('../modules/admin/views/auth/Index.vue'),
+            meta: { title: '授权管理' }
+          }
+        ]
       }
     ]
   }
@@ -273,7 +309,7 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !token) {
     next("/login");
-  } else if (to.path.startsWith("/admin") && role !== "admin") {
+  } else if (to.path.startsWith("/admin") && role !== "ADMIN" && role !== "SUPER_ADMIN") {
     next("/");
   } else {
     next();

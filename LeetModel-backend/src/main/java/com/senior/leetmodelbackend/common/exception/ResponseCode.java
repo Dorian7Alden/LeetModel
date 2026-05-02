@@ -37,6 +37,14 @@ public enum ResponseCode {
     AUTH_EMAIL_SEND_TOO_FREQUENT(50103, "验证码发送过于频繁，请稍后再试"),
 
     /**
+     * 角色权限模块 (04)
+     */
+    ROLE_NOT_FOUND(40401, "角色不存在"),
+    ROLE_CODE_DUPLICATE(40402, "角色编码已存在"),
+    PERMISSION_NOT_FOUND(40403, "权限不存在"),
+    PERMISSION_CODE_DUPLICATE(40404, "权限编码已存在"),
+
+    /**
      * 第三方服务与AI模块 (06)
      */
     EMAIL_SEND_FAILED(50601, "邮件发送失败，服务器异常或网络超时");
