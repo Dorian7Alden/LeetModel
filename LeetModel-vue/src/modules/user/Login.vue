@@ -64,11 +64,7 @@ async function handleLogin() {
 
       ElMessage.success("登录成功");
 
-      if (role === "admin") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/");
-      }
+      router.push("/");
     } else {
       ElMessage.error(res.msg || "登录失败");
     }

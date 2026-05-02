@@ -6,7 +6,7 @@ export const useUserStore = defineStore("user", {
     token: localStorage.getItem("token") || "",
     username: "",
     email: "",
-    role: "",
+    role: localStorage.getItem("role") || "",
   }),
 
   getters: {
@@ -22,6 +22,7 @@ export const useUserStore = defineStore("user", {
       this.role = role;
 
       localStorage.setItem("token", token);
+      localStorage.setItem("role", role);
     },
 
     async logout() {
@@ -36,6 +37,7 @@ export const useUserStore = defineStore("user", {
         this.role = "";
 
         localStorage.removeItem("token");
+        localStorage.removeItem("role");
       }
     },
   },

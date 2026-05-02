@@ -40,6 +40,10 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <router-link to="/" class="back-home-link">
+            <el-icon><HomeFilled /></el-icon>
+            返回首页
+          </router-link>
           <el-dropdown>
             <span class="user-dropdown">
               管理员 <el-icon><ArrowDown /></el-icon>
@@ -132,6 +136,10 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
 }
+.header-right {
+  display: flex;
+  align-items: center;
+}
 .toggle-btn {
   font-size: 20px;
   cursor: pointer;
@@ -144,6 +152,19 @@ const handleLogout = () => {
   align-items: center;
   color: #444;
   font-weight: 500;
+}
+.back-home-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #444;
+  font-size: 14px;
+  margin-right: 16px;
+  transition: color 0.2s;
+}
+.back-home-link:hover {
+  color: #409eff;
 }
 .main-content {
   background-color: #f5f7fa;

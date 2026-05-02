@@ -15,7 +15,7 @@
             <router-link to="/contest" class="nav-item">赛事</router-link>
             <router-link to="/community" class="nav-item">社区</router-link>
             <router-link to="/team" class="nav-item">组队</router-link>
-            <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="nav-item admin-nav">后台管理</router-link>
+            <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="nav-item admin-nav">管理端</router-link>
           </nav>
         </div>
 
@@ -155,6 +155,7 @@ async function handleLogout() {
   } finally {
     // ✅ 无论成功失败都执行
     localStorage.removeItem("token");
+    localStorage.removeItem("role");
 
     // ✅ 清空 pinia 状态（关键！）
     userStore.$reset();
