@@ -108,12 +108,6 @@
             <version>2.1.1</version>
         </dependency>
 
-        <!-- JPA 持久层依赖 -->
-        <dependency>
-            <groupId>jakarta.persistence</groupId>
-            <artifactId>jakarta.persistence-api</artifactId>
-        </dependency>
-
         <!-- Spring AI 核心依赖 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

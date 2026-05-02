@@ -1,10 +1,10 @@
 package com.senior.leetmodelbackend.service;
 
+import com.senior.leetmodelbackend.common.utils.EmailUtils;
 import com.senior.leetmodelbackend.pojo.enums.CaptchaGenType;
 import com.senior.leetmodelbackend.pojo.enums.VerificationCodeType;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.entity.Result;
-import com.senior.leetmodelbackend.utils.EmailUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;

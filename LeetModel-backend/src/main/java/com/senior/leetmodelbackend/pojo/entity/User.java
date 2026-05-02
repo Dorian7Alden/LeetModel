@@ -3,17 +3,13 @@ package com.senior.leetmodelbackend.pojo.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 
 @Data
-@Entity
 public class User {
 
-    @Id
     private Integer id;
     private String username;
 
