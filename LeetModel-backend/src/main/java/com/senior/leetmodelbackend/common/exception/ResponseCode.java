@@ -29,6 +29,13 @@ public enum ResponseCode {
     COMPETITION_NO_COMPETITION(40301, "当前没有相关赛事"),
 
     /**
+     * 鉴权验证码模块 (05)
+     */
+    AUTH_EMAIL_SEND_FAILED(50101, "验证码邮件发送失败，请稍后重试"),
+    AUTH_EMAIL_CODE_CACHE_FAILED(50102, "验证码缓存失败，请稍后重试"),
+    AUTH_EMAIL_SEND_TOO_FREQUENT(50103, "验证码发送过于频繁，请稍后再试"),
+
+    /**
      * 第三方服务与AI模块 (06)
      */
     EMAIL_SEND_FAILED(50601, "邮件发送失败，服务器异常或网络超时");

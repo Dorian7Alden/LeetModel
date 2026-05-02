@@ -42,7 +42,7 @@
 import { reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
-import request from "@/api/request";
+import { sendCode, resetPassword } from "@/api/user";
 
 const router = useRouter();
 
@@ -63,9 +63,7 @@ const handleSendCode = async () => {
   }
 
   try {
-    await request.post("/auth/verification-codes", {
-      target: form.email,
-    });
+    await sendCode(form.email);
 
     ElMessage.success("验证码已发送");
 
@@ -87,7 +85,7 @@ const handleReset = async () => {
   }
 
   try {
-    await request.post("/auth/reset-password", {
+    await resetPassword({
       email: form.email,
       code: form.code,
       password: form.password,

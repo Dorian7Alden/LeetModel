@@ -14,8 +14,6 @@ public class UserService {
 
     @Autowired
     private UserMapper userMapper;
-    @Autowired
-    private VerificationCodeService verificationCodeService;
 
     public User getUserByEmail(String email) {
         try {

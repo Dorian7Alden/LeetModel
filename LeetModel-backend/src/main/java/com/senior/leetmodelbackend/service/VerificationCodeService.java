@@ -1,104 +1,115 @@
 package com.senior.leetmodelbackend.service;
 
-import com.senior.leetmodelbackend.common.utils.EmailUtils;
-import com.senior.leetmodelbackend.pojo.enums.CaptchaGenType;
-import com.senior.leetmodelbackend.pojo.enums.VerificationCodeType;
+import com.senior.leetmodelbackend.common.exception.BusinessException;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
-import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.common.property.AuthCodeProperties;
+import com.senior.leetmodelbackend.common.utils.EmailUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class VerificationCodeService {
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
+    private static final String EMAIL_CODE_TEMPLATE_PATH = "templates/mail/email-code.html";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private static final String CODE_PREFIX = "LeetModel:"; // 缓存前缀
-    private static final long DEFAULT_EXPIRATION_SECONDS = 5 * 60;
+    private final EmailUtils emailUtils;
+    private final StringRedisTemplate redisTemplate;
+    private final AuthCodeProperties authCodeProperties;
 
-    private String generateRandomSixDigitCode() {
-        return String.format("%06d", new Random().nextInt(1000000));
-    }
+    public void sendEmailCode(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+        String cooldownKey = buildCooldownKey(normalizedEmail);
 
-    private Result<Void> doSendCode(VerificationCodeType type, String target, Long expirationSeconds,
-            CaptchaGenType codeType) {
-        if (type == VerificationCodeType.EMAIL) {
-            return sendCodeToEmail(target, expirationSeconds, codeType);
-        }
-        // 这里如果有枚举兜底，可以不用异常，但为了安全
-        return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "不支持的验证码类型");
-    }
-
-    /**
-     * 发送验证码到邮箱核心实现
-     */
-    private Result<Void> sendCodeToEmail(String email, Long expirationSeconds, CaptchaGenType codeType) {
-        String redisKey = CODE_PREFIX + email;
-
-        // 1. 检查是否已经存在验证码
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
-            log.warn("邮箱 {} 已经存在验证码，请勿重复发送", email);
-            return Result.error(ResponseCode.VERIFICATION_CODE_FREQUENT, "邮箱 " + email + " 已经存在验证码，请勿重复发送");
+        if (!acquireSendCooldown(cooldownKey)) {
+            throw new BusinessException(ResponseCode.AUTH_EMAIL_SEND_TOO_FREQUENT);
         }
 
-        // 2. 生成验证码
-        String code;
-        if (codeType == CaptchaGenType.SIX_DIGIT) {
-            code = generateRandomSixDigitCode();
-        } else {
-            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "无效的验证码生成类型");
-        }
-
-        // 3. 缓存验证码
-        redisTemplate.opsForValue().set(redisKey, code, expirationSeconds, TimeUnit.SECONDS);
-
-        // 4. 发送邮件
-        String emailContent = String.format(
-                "LeetModel 网站提醒您，您当前正在通过邮箱注册账号，您的验证码是：%s\n%d分钟内有效。",
-                code, expirationSeconds / 60);
+        String code = generateCode();
 
         try {
-            EmailUtils.sendEmail(email, "LeetModel 注册验证码", emailContent);
-            log.info("验证码 {} 发送至邮箱: {}", code, email);
-            return Result.success("验证码发送成功");
-        } catch (Exception e) {
-            log.error("邮件发送失败: {}", email, e);
-            // 发送失败，清理 Redis 缓存（回滚机制）
-            redisTemplate.delete(redisKey);
-            return Result.error(ResponseCode.EMAIL_SEND_FAILED, "邮件发送失败，请稍后重试");
+            String mailContent = renderEmailCodeMailContent(code);
+            emailUtils.sendHtmlMail(normalizedEmail, "LeetModel 邮箱验证码", mailContent);
+        } catch (RuntimeException exception) {
+            releaseCooldown(cooldownKey);
+            throw new BusinessException(ResponseCode.AUTH_EMAIL_SEND_FAILED);
         }
+
+        try {
+            redisTemplate.opsForValue()
+                    .set(buildCodeKey(normalizedEmail), code, authCodeProperties.getRedisCodeExpire());
+        } catch (RuntimeException exception) {
+            releaseCooldown(cooldownKey);
+            throw new BusinessException(ResponseCode.AUTH_EMAIL_CODE_CACHE_FAILED);
+        }
+
+        log.info("验证码已发送至邮箱: {}", normalizedEmail);
     }
 
-    /**
-     * 使用默认配置，当前仅支持发送邮箱验证码
-     */
-    public Result<Void> sendCode(String email) {
-        return doSendCode(VerificationCodeType.EMAIL, email, DEFAULT_EXPIRATION_SECONDS, CaptchaGenType.SIX_DIGIT);
-    }
-
-    /**
-     * 校验验证码
-     */
     public Boolean verifyCode(String email, String code) {
-        String storedCode = redisTemplate.opsForValue().get(CODE_PREFIX + email);
+        String storedCode = redisTemplate.opsForValue().get(buildCodeKey(email));
         if (storedCode == null) {
-            log.warn("邮箱 {} 的验证码已经过期，请重新发送验证码", email);
+            log.warn("邮箱 {} 的验证码已过期", email);
             return false;
         }
         if (storedCode.equals(code)) {
-            log.info("邮箱 {} 验证码通过", email);
-            redisTemplate.delete(CODE_PREFIX + email);
+            log.info("邮箱 {} 验证码校验通过", email);
+            redisTemplate.delete(buildCodeKey(email));
             return true;
-        } else {
-            log.warn("邮箱 {} 验证码比对失败", email);
-            return false;
         }
+        log.warn("邮箱 {} 验证码比对失败", email);
+        return false;
+    }
+
+    private String renderEmailCodeMailContent(String code) {
+        String template = loadEmailCodeTemplate();
+        return template
+                .replace("${code}", code)
+                .replace("${validMinutes}", String.valueOf(authCodeProperties.getRedisCodeExpire().toMinutes()))
+                .replace("${supportEmail}", "support@mathmodel.com");
+    }
+
+    private String loadEmailCodeTemplate() {
+        try {
+            ClassPathResource resource = new ClassPathResource(EMAIL_CODE_TEMPLATE_PATH);
+            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new BusinessException(ResponseCode.AUTH_EMAIL_SEND_FAILED);
+        }
+    }
+
+    private boolean acquireSendCooldown(String cooldownKey) {
+        Boolean acquired = redisTemplate.opsForValue()
+                .setIfAbsent(cooldownKey, "1", authCodeProperties.getRedisSendCooldown());
+        return Boolean.TRUE.equals(acquired);
+    }
+
+    private void releaseCooldown(String cooldownKey) {
+        try {
+            redisTemplate.delete(cooldownKey);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private String buildCodeKey(String email) {
+        return authCodeProperties.getRedisCodeKeyPrefix() + email;
+    }
+
+    private String buildCooldownKey(String email) {
+        return authCodeProperties.getRedisCooldownKeyPrefix() + email;
+    }
+
+    private String generateCode() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
 }

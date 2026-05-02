@@ -11,7 +11,7 @@ export function login(data) {
 // 发送验证码
 export function sendCode(email) {
   return request.post("/auth/verification-codes", {
-    target: email,
+    email,
   });
 }
 // 注册

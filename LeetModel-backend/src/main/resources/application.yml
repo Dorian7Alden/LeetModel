@@ -60,6 +60,14 @@ aliyun:
     region: cn-beijing                            # 访问地域
 
 
+leet-model:
+  auth:
+    email-code:
+      redis-code-key-prefix: "auth:email:code:"
+      redis-cooldown-key-prefix: "auth:email:cooldown:"
+      redis-code-expire: 5m
+      redis-send-cooldown: 60s
+
 jwt:
   secret-key: your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
   token-expiration: 259200000 # 3 * 24 小时 (毫秒)

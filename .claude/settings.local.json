@@ -9,7 +9,15 @@
       "Bash(./mvnw clean *)",
       "Bash(./mvnw dependency:tree -Dincludes=org.springframework.data:spring-data-redis)",
       "Bash(where mvn *)",
-      "Read(//c/Program Files//**)"
+      "Read(//c/Program Files//**)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.java\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Remove-Item \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\\\\src\\\\main\\\\resources\\\\templates\\\\verification-code-email.html\")",
+      "PowerShell(Get-Command mvn -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command mvnw -ErrorAction SilentlyContinue)",
+      "Bash(dir \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\" /s /b)",
+      "Bash(Get-ChildItem -Recurse \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\")",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

@@ -1,37 +1,41 @@
 package com.senior.leetmodelbackend.common.utils;
 
 import com.senior.leetmodelbackend.common.property.MailProperties;
-
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.SimpleMailMessage;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-@Slf4j
+import java.nio.charset.StandardCharsets;
+
 @Component
+@RequiredArgsConstructor
 public class EmailUtils {
 
-    private static JavaMailSender mailSender;
-    private static String mailFrom;
+    private final JavaMailSender javaMailSender;
+    private final MailProperties mailProperties;
 
-    public EmailUtils(JavaMailSender mailSender, MailProperties mailProperties) {
-        EmailUtils.mailSender = mailSender;
-        EmailUtils.mailFrom = mailProperties.getUsername();
+    public void sendTextMail(String to, String subject, String content) {
+        sendMail(to, subject, content, false);
     }
 
-    /**
-     * 发送邮件
-     * 
-     * @param email   收件人邮箱
-     * @param subject 邮件主题
-     * @param content 邮件内容
-     */
-    public static void sendEmail(String email, String subject, String content) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(mailFrom);
-        message.setSubject(subject);
-        message.setTo(email);
-        message.setText(content);
-        mailSender.send(message);
+    public void sendHtmlMail(String to, String subject, String content) {
+        sendMail(to, subject, content, true);
+    }
+
+    private void sendMail(String to, String subject, String content, boolean html) {
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, html, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailProperties.getUsername());
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(content, html);
+            javaMailSender.send(mimeMessage);
+        } catch (MessagingException | RuntimeException exception) {
+            throw new IllegalStateException("邮件发送失败", exception);
+        }
     }
 }
