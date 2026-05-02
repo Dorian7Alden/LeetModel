@@ -1,6 +1,21 @@
 spring:
+
   application:
     name: LeetModel-backend
+
+  datasource:
+    url: ${MYSQL_URL} # mysql的数据库地址
+    username: ${MYSQL_USER} # 数据库用户名
+    password: ${MYSQL_PASSWORD} # 数据库密码
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+
+  data:
+    redis:
+      host: ${REDIS_HOST}             # redis 服务器 IP
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}     # 环境变量中配置 redis 密码
+
   mail:
     host: smtp.qq.com
     port: 465
@@ -15,11 +30,6 @@ spring:
             enable: true              # 使用 SSL 加密（465端口必须）
           starttls:
             enable: false             # SSL 时不用 STARTTLS
-  data:
-    redis:
-      host: ${REDIS_HOST}             # redis 服务器 IP
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}     # 环境变量中配置 redis 密码
 
 
 server:
@@ -37,3 +47,5 @@ leet-model:
       redis-cooldown-key-prefix: "auth:email:cooldown:"
       redis-code-expire: 5m
       redis-send-cooldown: 60s
+
+

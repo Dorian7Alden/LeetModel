@@ -3,7 +3,7 @@ import router from "@/router";
 import { useUserStore } from "@/store/user";
 
 const service = axios.create({
-  baseURL: "http://localhost:8080/api/v1",
+  baseURL: "http://localhost:8081/api/v1",
   timeout: 5000,
 });
 

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile *)",
+      "Bash(./mvnw compile *)",
+      "Bash(npx vite *)",
+      "Bash(git add *)",
+      "Bash(./mvnw test *)",
+      "Bash(./mvnw clean *)",
+      "Bash(./mvnw dependency:tree -Dincludes=org.springframework.data:spring-data-redis)",
+      "Bash(where mvn *)",
+      "Read(//c/Program Files//**)"
+    ]
+  }
+}
