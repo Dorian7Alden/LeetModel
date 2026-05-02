@@ -15,6 +15,7 @@
             <router-link to="/contest" class="nav-item">赛事</router-link>
             <router-link to="/community" class="nav-item">社区</router-link>
             <router-link to="/team" class="nav-item">组队</router-link>
+            <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="nav-item admin-nav">后台管理</router-link>
           </nav>
         </div>
 
@@ -51,8 +52,8 @@
                 <div class="user-header">
                   <img class="avatar-big" src="../../assets/vue.svg" />
                   <div class="info">
-                    <div class="name">Kind EasleyaAJ</div>
-                    <div class="desc">欢迎回来</div>
+                    <div class="name">{{ userStore.username || '用户' }}</div>
+                    <div class="desc">{{ userStore.email }}</div>
                   </div>
                 </div>
 
@@ -313,6 +314,16 @@ const keyword = ref("");
 
 .nav-item:hover::after {
   width: 100%;
+}
+/* 后台管理入口样式 */
+.admin-nav {
+  color: #e6a23c !important;
+}
+.admin-nav:hover {
+  color: #cf9236 !important;
+}
+.admin-nav::after {
+  background: #e6a23c;
 }
 /* 当前高亮 */
 

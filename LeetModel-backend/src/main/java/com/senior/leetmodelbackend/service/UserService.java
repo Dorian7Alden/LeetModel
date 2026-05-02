@@ -1,12 +1,12 @@
 package com.senior.leetmodelbackend.service;
 
+import com.senior.leetmodelbackend.common.utils.Md5Util;
 import com.senior.leetmodelbackend.mapper.UserMapper;
+import com.senior.leetmodelbackend.pojo.dto.RegisterDTO;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -21,28 +21,25 @@ public class UserService {
             return userMapper.getUserByEmail(email);
         }
         catch (Exception e) {
-            // TODO: 异常太广泛了，没有考虑是什么原因导致的 null 。数据库异常没有抓取
             log.error("getUserByEmail: {} error: {}", email, e.getMessage());
             return null;
         }
     }
 
-    public void register(String email, String password, String code) {
+    public void register(RegisterDTO request) {
         User newUser = new User();
-        newUser.setId(userMapper.getMaxUserId()+1); // 模拟逻辑自增 id
-        newUser.setEmail(email);
-        newUser.setPassword(password);
-        // TODO: 防止报错，密码加密
-        userMapper.insertUser(newUser);
-    }
+        newUser.setUserId(userMapper.getMaxUserId() + 1);
+        newUser.setEmail(request.getEmail());
+        newUser.setPassword(Md5Util.encode(request.getPassword()));
+        newUser.setUsername("user_" + newUser.getUserId());
 
-    public void register(Map<String, Object> params) {
-        User newUser = new User();
-        newUser.setId(userMapper.getMaxUserId()+1);
-        newUser.setEmail((String) params.get("email"));
-        newUser.setPassword((String) params.get("password"));
-        // 生成一个临时用户名
-        newUser.setUsername("user_" + newUser.getId());
+        // 管理员识别（临时方案）
+        if ("admin@email.com".equals(request.getEmail())) {
+            newUser.setRole("admin");
+        } else {
+            newUser.setRole("user");
+        }
+
         log.info("insertUser: {}", newUser);
         userMapper.insertUser(newUser);
     }
@@ -53,7 +50,6 @@ public class UserService {
             return userMapper.getUserById(userId);
         }
         catch (Exception e) {
-            // TODO: 异常太广泛了，没有考虑是什么原因导致的 null 。数据库异常没有抓取
             log.error("getUserById: {} error: {}", userId, e.getMessage());
             return null;
         }

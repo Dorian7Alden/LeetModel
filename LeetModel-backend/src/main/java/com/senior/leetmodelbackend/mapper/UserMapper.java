@@ -9,16 +9,16 @@ public interface UserMapper {
     @Select("select * from user where email = #{email}")
     User getUserByEmail(String email);
 
-    @Insert("insert into user (user.id, username, email, password, create_time, update_time) values (#{id}, #{username}, #{email}, #{password}, NOW(), NOW())")
+    @Insert("insert into user (user_id, username, email, password, create_time, update_time) values (#{userId}, #{username}, #{email}, #{password}, NOW(), NOW())")
     void insertUser(User user);
 
-    @Select("select * from user where id = #{userId}")
+    @Select("select * from user where user_id = #{userId}")
     User getUserById(Integer userId);
 
-    @Delete("delete from user where id = #{userId}")
+    @Delete("delete from user where user_id = #{userId}")
     void deleteUserById(Integer userId);
 
-    @Select("select MAX(id) from user;")
+    @Select("select MAX(user_id) from user")
     Integer getMaxUserId();
 
     void updateUserById(User user);

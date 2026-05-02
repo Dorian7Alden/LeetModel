@@ -2,13 +2,14 @@ package com.senior.leetmodelbackend.controller.auth;
 
 
 import com.senior.leetmodelbackend.common.utils.JwtUtil;
+import com.senior.leetmodelbackend.common.utils.Md5Util;
 import com.senior.leetmodelbackend.pojo.dto.LoginRequestDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.pojo.vo.LoginVO;
 import com.senior.leetmodelbackend.service.UserService;
-import jakarta.validation.Valid;
+import com.senior.leetmodelbackend.validator.auth.LoginParamValidator;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -22,58 +23,46 @@ import org.springframework.web.bind.annotation.RestController;
 public class Login extends AuthController {
 
     private final UserService userService;
+    private final LoginParamValidator loginParamValidator;
 
     /**
      * 用户登录
      */
     @PostMapping("/login")
-    public Result<LoginVO> login(@Valid @RequestBody LoginRequestDTO loginRequestDTO) {
+    public Result<LoginVO> login(@RequestBody LoginRequestDTO request) {
 
-        String emailLogin = loginRequestDTO.getEmail();
-        String passwordLogin = loginRequestDTO.getPassword(); // TODO: 前端密码是否已经加密？
+        loginParamValidator.validate(request);
 
-        // 校验参数完整性
-        if (emailLogin.isEmpty() || emailLogin.isBlank()) {
-            log.error("邮箱登录失败 {} -----> 邮箱不能为空", emailLogin);
-            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "邮箱不能为空");
-        }
-        if (passwordLogin.isEmpty() || passwordLogin.isBlank()) {
-            log.error("密码登录失败 {} -----> 密码不能为空", passwordLogin);
-            return Result.error(ResponseCode.PARAM_VALIDATION_ERROR, "密码不能为空");
-        }
+        String email = request.getEmail();
+        String password = request.getPassword();
 
-        // TODO: 格式校验，不管
-        // TODO: 适配多种登录方式？目前之后邮箱具有唯一性，所以只能支持使用邮箱登录
-        // TODO: 使用 Spring Security 实现登录功能
-        // TODO: 前端密码是否已经加密？
-        // TODO: token 缓存机制，避免用户重复登录，保证每个用户仅唯一 token
+        User userQuery = userService.getUserByEmail(email);
 
-        User userQuery = userService.getUserByEmail(emailLogin);
-
-        // 业务异常
         if (userQuery == null) {
-            log.error("邮箱登录失败 {} -----> 用户不存在", emailLogin);
+            log.error("邮箱登录失败 {} -----> 用户不存在", email);
             return Result.error(ResponseCode.USER_NOT_FOUND);
         }
-        if (!userQuery.getPassword().equals(passwordLogin)) {
-            log.error("用户 {} 登录失败 -----> 密码错误", emailLogin);
+        if (!Md5Util.matches(password, userQuery.getPassword())) {
+            log.error("用户 {} 登录失败 -----> 密码错误", email);
             return Result.error(ResponseCode.USER_PASSWORD_WRONG);
         }
 
-        // 登录成功
-        log.info("用户 {} 登录成功", emailLogin);
+        // 管理员识别（临时方案）
+        if ("admin@email.com".equals(email)) {
+            userQuery.setRole("admin");
+        } else {
+            userQuery.setRole("user");
+        }
+
+        log.info("用户 {} 登录成功", email);
         LoginVO loginVO = new LoginVO();
 
-        // 生成并刷新 token（过期时间由配置文件统一控制）
         String token = JwtUtil.generateToken(userQuery);
-        loginVO.setToken(token); // 设置 token 到 loginVO
-        log.info("生成用户 {} 的登录 token: {}", emailLogin, token);
-        // 封装查询到的用户信息
-        System.out.println("=====================================================");
-        System.out.println(userQuery);
+        loginVO.setToken(token);
+        log.info("生成用户 {} 的登录 token: {}", email, token);
+
         BeanUtils.copyProperties(userQuery, loginVO);
-        System.out.println(loginVO);
-        System.out.println("=====================================================");
+        loginVO.setId(userQuery.getUserId());
 
         return Result.success("登录成功", loginVO);
     }

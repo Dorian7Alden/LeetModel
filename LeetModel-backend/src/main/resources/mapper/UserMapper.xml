@@ -10,12 +10,10 @@
 <!--            <if test="password != null and password != ''">password = #{password},</if>-->
             <if test="phone != null and phone != ''">phone = #{phone},</if>
             <if test="school != null and school != ''">school = #{school},</if>
-            <if test="role != null and role != ''">role = #{role},</if>
-            <if test="trainerType != null and trainerType != ''">trainer_type = #{trainerType},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             update_time = now(),
         </set>
-        WHERE id = #{id}
+        WHERE user_id = #{userId}
     </update>
 
 </mapper>

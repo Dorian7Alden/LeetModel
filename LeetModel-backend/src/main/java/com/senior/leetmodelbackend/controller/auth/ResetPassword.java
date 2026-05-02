@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.controller.auth;
 
 import com.senior.leetmodelbackend.common.utils.JwtUtil;
+import com.senior.leetmodelbackend.common.utils.Md5Util;
 import com.senior.leetmodelbackend.pojo.dto.ResetPasswordDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
@@ -38,12 +39,13 @@ public class ResetPassword {
         if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getCode())) {
             return Result.error(ResponseCode.VERIFICATION_CODE_INCORRECT);
         }
-        // 更新密码
-        userService.resetPassword(resetPasswordDTO.getEmail(), resetPasswordDTO.getPassword());
+        // 更新密码（MD5 加密）
+        userService.resetPassword(resetPasswordDTO.getEmail(), Md5Util.encode(resetPasswordDTO.getPassword()));
         // 完成登录
         LoginVO loginVO = new LoginVO();
         User user = userService.getUserByEmail(resetPasswordDTO.getEmail());
         BeanUtils.copyProperties(user, loginVO);
+        loginVO.setId(user.getUserId());
         loginVO.setToken(JwtUtil.generateToken(user));
 
         return Result.success("重置密码成功", loginVO);

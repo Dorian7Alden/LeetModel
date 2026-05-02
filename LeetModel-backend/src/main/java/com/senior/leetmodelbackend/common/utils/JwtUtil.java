@@ -54,12 +54,12 @@ public class JwtUtil {
      * @return 生成的JWT Token字符串
      */
     public static String generateToken(User user) {
-        if (user == null || user.getId() == null) {
+        if (user == null || user.getUserId() == null) {
             throw new IllegalArgumentException("用户信息不能为空，且必须包含用户ID");
         }
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId());
+        claims.put("userId", user.getUserId());
 
         if (user.getEmail() != null) {
             claims.put("email", user.getEmail());

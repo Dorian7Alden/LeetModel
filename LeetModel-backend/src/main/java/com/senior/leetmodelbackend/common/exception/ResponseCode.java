@@ -22,6 +22,7 @@ public enum ResponseCode {
     USER_ALREADY_EXISTS(40105, "该账号已存在"),
     VERIFICATION_CODE_INCORRECT(40106, "验证码错误或已过期"),
     VERIFICATION_CODE_FREQUENT(40107, "验证码获取过于频繁，请稍后再试"),
+    PASSWORD_TOO_SHORT(40108, "密码长度不能少于6位"),
 
     /**
      * 赛事模块 (03)

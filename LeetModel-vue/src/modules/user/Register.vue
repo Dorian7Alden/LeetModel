@@ -17,7 +17,7 @@
 
         <!-- 密码 -->
         <div class="input-group">
-          <input v-model="password" type="password" placeholder="请输入密码" />
+          <input v-model="password" type="password" placeholder="请输入密码（至少6位）" />
         </div>
 
         <!-- 注册按钮 -->
@@ -44,11 +44,32 @@ const password = ref("");
 const code = ref("");
 
 const getCode = async () => {
-  await sendCode(email.value);
-  alert("验证码已发送");
+  if (!email.value) {
+    ElMessage.warning("请先输入邮箱");
+    return;
+  }
+  try {
+    await sendCode(email.value);
+    ElMessage.success("验证码已发送");
+  } catch (err) {
+    ElMessage.error("验证码发送失败");
+  }
 };
 
 const doRegister = async () => {
+  if (!email.value) {
+    ElMessage.warning("请输入邮箱");
+    return;
+  }
+  if (!code.value) {
+    ElMessage.warning("请输入验证码");
+    return;
+  }
+  if (!password.value || password.value.length < 6) {
+    ElMessage.warning("密码至少需要6位");
+    return;
+  }
+
   try {
     const res = await register({
       email: email.value,
@@ -58,12 +79,12 @@ const doRegister = async () => {
 
     ElMessage.success(res.msg);
 
-    // ⭐ 延迟跳转（让用户看到提示）
     setTimeout(() => {
       router.push("/login");
     }, 1000);
   } catch (err) {
-    ElMessage.error(err.response.msg);
+    const msg = err?.response?.data?.msg || err?.response?.msg || "注册失败";
+    ElMessage.error(msg);
   }
 };
 </script>

@@ -42,6 +42,11 @@ const form = ref({
 });
 
 async function handleLogin() {
+  if (!form.value.email || !form.value.password) {
+    ElMessage.warning("请输入邮箱和密码");
+    return;
+  }
+
   try {
     const res = await login(form.value);
 
@@ -49,17 +54,17 @@ async function handleLogin() {
       const data = res.data;
 
       const token = data.token;
-      const username = data.name || data.email; // ✅ 没有 name 就用邮箱
+      const username = data.username || data.email;
+      const email = data.email;
+      const role = data.role || "user";
 
-      // ✅ 存储
-      userStore.login(token, username);
+      userStore.login(token, username, email, role);
 
-      // localStorage.setItem("token", token);
       localStorage.setItem("userId", data.id);
 
       ElMessage.success("登录成功");
 
-      if (form.value.email === 'admin@email.com') {
+      if (role === "admin") {
         router.push("/admin/dashboard");
       } else {
         router.push("/");
@@ -68,7 +73,7 @@ async function handleLogin() {
       ElMessage.error(res.msg || "登录失败");
     }
   } catch (error) {
-    console.error(error); // ⭐ 建议加上
+    console.error(error);
     ElMessage.error("登录失败，请检查账号或服务器");
   }
 }

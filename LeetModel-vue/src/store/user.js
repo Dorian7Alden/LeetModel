@@ -5,30 +5,35 @@ export const useUserStore = defineStore("user", {
   state: () => ({
     token: localStorage.getItem("token") || "",
     username: "",
+    email: "",
+    role: "",
   }),
 
   getters: {
     isLogin: (state) => !!state.token,
+    isAdmin: (state) => state.role === "admin",
   },
 
   actions: {
-    login(token, username) {
+    login(token, username, email, role) {
       this.token = token;
       this.username = username;
+      this.email = email;
+      this.role = role;
 
       localStorage.setItem("token", token);
     },
 
-    // 🔥 改这里
     async logout() {
       try {
-        await logoutApi(); // ✅ 调后端
+        await logoutApi();
       } catch (err) {
         console.log("退出接口异常", err);
       } finally {
-        // ✅ 无论如何都清理前端状态
         this.token = "";
         this.username = "";
+        this.email = "";
+        this.role = "";
 
         localStorage.removeItem("token");
       }

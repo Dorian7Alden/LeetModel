@@ -17,7 +17,13 @@
       "PowerShell(Get-Command mvnw -ErrorAction SilentlyContinue)",
       "Bash(dir \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\" /s /b)",
       "Bash(Get-ChildItem -Recurse \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Recurse -Depth 0 \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\")",
+      "Bash(Select-Object FullName, Mode)",
+      "PowerShell(Get-ChildItem -Recurse \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\\\\src\\\\main\\\\resources\" | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Recurse -Directory \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\\\\src\\\\main\\\\java\" | ForEach-Object { $_.FullName })",
+      "Bash(Get-ChildItem -Directory \"d:\\\\repositories\\\\leet-model-test\\\\.claude\\\\skills\")",
+      "PowerShell(Get-ChildItem \"d:\\\\repositories\\\\leet-model-test\\\\.claude\\\\skills\" -Directory | ForEach-Object { $_.FullName })"
     ]
   }
 }

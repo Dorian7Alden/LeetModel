@@ -31,7 +31,7 @@ public class UpdateUserById extends UserController {
                 .notNull(user, "更新的用户信息不能为空")
                 .validateAndThrow();
         
-        user.setId(userId);
+        user.setUserId(userId);
         userService.updateUserById(user);
         return Result.success("已经成功更新用户 id 为 " + userId + " 的用户");
     }
