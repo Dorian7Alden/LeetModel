@@ -27,6 +27,9 @@ public class VerificationCodeService {
     private final StringRedisTemplate redisTemplate;
     private final AuthCodeProperties authCodeProperties;
 
+    /**
+     * 发送邮箱验证码：限频检查 → 生成6位验证码 → 发送邮件 → 缓存到 Redis
+     */
     public void sendEmailCode(String email) {
         String normalizedEmail = email.trim().toLowerCase();
         String cooldownKey = buildCooldownKey(normalizedEmail);
@@ -56,6 +59,9 @@ public class VerificationCodeService {
         log.info("验证码已发送至邮箱: {}", normalizedEmail);
     }
 
+    /**
+     * 校验邮箱验证码，校验通过后删除 Redis 中的验证码
+     */
     public Boolean verifyCode(String email, String code) {
         String storedCode = redisTemplate.opsForValue().get(buildCodeKey(email));
         if (storedCode == null) {
@@ -71,6 +77,9 @@ public class VerificationCodeService {
         return false;
     }
 
+    /**
+     * 将验证码填充到 HTML 邮件模板
+     */
     private String renderEmailCodeMailContent(String code) {
         String template = loadEmailCodeTemplate();
         return template
@@ -79,6 +88,9 @@ public class VerificationCodeService {
                 .replace("${supportEmail}", "support@mathmodel.com");
     }
 
+    /**
+     * 从 classpath 加载邮件模板
+     */
     private String loadEmailCodeTemplate() {
         try {
             ClassPathResource resource = new ClassPathResource(EMAIL_CODE_TEMPLATE_PATH);
@@ -88,12 +100,18 @@ public class VerificationCodeService {
         }
     }
 
+    /**
+     * 获取发送冷却锁（基于 Redis setIfAbsent），获取失败表示仍在冷却期
+     */
     private boolean acquireSendCooldown(String cooldownKey) {
         Boolean acquired = redisTemplate.opsForValue()
                 .setIfAbsent(cooldownKey, "1", authCodeProperties.getRedisSendCooldown());
         return Boolean.TRUE.equals(acquired);
     }
 
+    /**
+     * 释放发送冷却锁（邮件或缓存写入失败时回滚）
+     */
     private void releaseCooldown(String cooldownKey) {
         try {
             redisTemplate.delete(cooldownKey);
@@ -109,6 +127,9 @@ public class VerificationCodeService {
         return authCodeProperties.getRedisCooldownKeyPrefix() + email;
     }
 
+    /**
+     * 生成 6 位数字验证码
+     */
     private String generateCode() {
         return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }

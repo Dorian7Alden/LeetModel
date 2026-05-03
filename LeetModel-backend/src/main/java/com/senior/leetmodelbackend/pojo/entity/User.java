@@ -1,6 +1,5 @@
 package com.senior.leetmodelbackend.pojo.entity;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
@@ -10,17 +9,19 @@ import java.time.LocalDateTime;
 @Data
 public class User {
 
-    private Integer userId;
+    private Long userId;
     private String username;
-
     private String email;
+
     @JsonIgnore
     private String password;
+
     private String school;
+
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private String phone; // TODO: 响应数据的时候保护隐私，防止输出完整的手机号
-    private String role;
-    private String trainerType;
+    private String phone;
+
+    private Long avatarFileId;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

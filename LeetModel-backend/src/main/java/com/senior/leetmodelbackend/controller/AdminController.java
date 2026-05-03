@@ -1,0 +1,235 @@
+package com.senior.leetmodelbackend.controller;
+
+import com.senior.leetmodelbackend.common.exception.BusinessException;
+import com.senior.leetmodelbackend.common.exception.ResponseCode;
+import com.senior.leetmodelbackend.common.utils.OssUtils;
+import com.senior.leetmodelbackend.pojo.dto.admin.AssignIdsDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.RoleDTO;
+import com.senior.leetmodelbackend.pojo.entity.Permission;
+import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.pojo.entity.Role;
+import com.senior.leetmodelbackend.pojo.entity.User;
+import com.senior.leetmodelbackend.pojo.vo.UserVO;
+import com.senior.leetmodelbackend.pojo.vo.admin.PermissionVO;
+import com.senior.leetmodelbackend.pojo.vo.admin.RoleVO;
+import com.senior.leetmodelbackend.service.PermissionService;
+import com.senior.leetmodelbackend.service.RoleService;
+import com.senior.leetmodelbackend.service.UserService;
+import com.senior.leetmodelbackend.validator.admin.AssignIdsParamValidator;
+import com.senior.leetmodelbackend.validator.admin.PermissionParamValidator;
+import com.senior.leetmodelbackend.validator.admin.RoleParamValidator;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/v1/admin")
+@AllArgsConstructor
+public class AdminController {
+
+    private final UserService userService;
+    private final RoleService roleService;
+    private final PermissionService permissionService;
+    private final OssUtils ossUtils;
+
+    private final RoleParamValidator roleParamValidator;
+    private final PermissionParamValidator permissionParamValidator;
+    private final AssignIdsParamValidator assignIdsParamValidator;
+
+    // ==================== User Management ====================
+
+    /**
+     * 获取全部用户列表
+     */
+    @GetMapping("/users")
+    public Result<List<UserVO>> getUserList() {
+        List<User> users = userService.getAllUsers();
+        List<UserVO> voList = new ArrayList<>();
+        for (User user : users) {
+            voList.add(UserVO.createVO(user));
+        }
+        return Result.success(voList);
+    }
+
+    /**
+     * 查看用户持有的角色
+     */
+    @GetMapping("/users/{userId}/roles")
+    public Result<List<RoleVO>> getUserRoles(@PathVariable Long userId) {
+        List<Role> roles = userService.getUserRoles(userId);
+        List<RoleVO> voList = new ArrayList<>();
+        if (roles != null) {
+            for (Role role : roles) {
+                voList.add(RoleVO.createVO(role));
+            }
+        }
+        return Result.success(voList);
+    }
+
+    /**
+     * 分配用户角色（全量替换）
+     */
+    @PutMapping("/users/{userId}/roles")
+    public Result<Void> assignUserRoles(@PathVariable Long userId, @RequestBody AssignIdsDTO request) {
+        assignIdsParamValidator.validate(request);
+        userService.assignUserRoles(userId, request.getIds());
+        return Result.success("分配成功");
+    }
+
+    // ==================== Role Management ====================
+
+    /**
+     * 获取全部角色列表
+     */
+    @GetMapping("/roles")
+    public Result<List<RoleVO>> getRoleList() {
+        List<Role> roles = roleService.getRoleList();
+        List<RoleVO> voList = new ArrayList<>();
+        for (Role role : roles) {
+            voList.add(RoleVO.createVO(role));
+        }
+        return Result.success(voList);
+    }
+
+    /**
+     * 获取角色详情
+     */
+    @GetMapping("/roles/{roleId}")
+    public Result<RoleVO> getRoleDetail(@PathVariable Long roleId) {
+        Role role = roleService.getRoleById(roleId);
+        return Result.success(RoleVO.createVO(role));
+    }
+
+    /**
+     * 创建角色
+     */
+    @PostMapping("/roles")
+    public Result<Void> createRole(@RequestBody RoleDTO request) {
+        roleParamValidator.validate(request);
+        roleService.createRole(request);
+        return Result.success("创建成功");
+    }
+
+    /**
+     * 更新角色
+     */
+    @PutMapping("/roles/{roleId}")
+    public Result<Void> updateRole(@PathVariable Long roleId, @RequestBody RoleDTO request) {
+        roleParamValidator.validate(request);
+        roleService.updateRole(roleId, request);
+        return Result.success("更新成功");
+    }
+
+    /**
+     * 删除角色
+     */
+    @DeleteMapping("/roles/{roleId}")
+    public Result<Void> deleteRole(@PathVariable Long roleId) {
+        roleService.deleteRole(roleId);
+        return Result.success("删除成功");
+    }
+
+    /**
+     * 查看角色持有的权限
+     */
+    @GetMapping("/roles/{roleId}/permissions")
+    public Result<List<PermissionVO>> getRolePermissions(@PathVariable Long roleId) {
+        List<Permission> permissions = roleService.getRolePermissions(roleId);
+        List<PermissionVO> voList = new ArrayList<>();
+        for (Permission permission : permissions) {
+            voList.add(PermissionVO.createVO(permission));
+        }
+        return Result.success(voList);
+    }
+
+    /**
+     * 分配角色权限（全量替换）
+     */
+    @PutMapping("/roles/{roleId}/permissions")
+    public Result<Void> assignRolePermissions(@PathVariable Long roleId, @RequestBody AssignIdsDTO request) {
+        assignIdsParamValidator.validate(request);
+        roleService.assignRolePermissions(roleId, request.getIds());
+        return Result.success("分配成功");
+    }
+
+    // ==================== Permission Management ====================
+
+    /**
+     * 获取全部权限列表
+     */
+    @GetMapping("/permissions")
+    public Result<List<PermissionVO>> getPermissionList() {
+        List<Permission> permissions = permissionService.getPermissionList();
+        List<PermissionVO> voList = new ArrayList<>();
+        for (Permission permission : permissions) {
+            voList.add(PermissionVO.createVO(permission));
+        }
+        return Result.success(voList);
+    }
+
+    /**
+     * 获取权限详情
+     */
+    @GetMapping("/permissions/{permissionId}")
+    public Result<PermissionVO> getPermissionById(@PathVariable Long permissionId) {
+        Permission permission = permissionService.getPermissionById(permissionId);
+        return Result.success(PermissionVO.createVO(permission));
+    }
+
+    /**
+     * 创建权限
+     */
+    @PostMapping("/permissions")
+    public Result<Void> createPermission(@RequestBody PermissionDTO request) {
+        permissionParamValidator.validate(request);
+        permissionService.createPermission(request);
+        return Result.success("创建成功");
+    }
+
+    /**
+     * 更新权限
+     */
+    @PutMapping("/permissions/{permissionId}")
+    public Result<Void> updatePermission(@PathVariable Long permissionId, @RequestBody PermissionDTO request) {
+        permissionParamValidator.validate(request);
+        permissionService.updatePermission(permissionId, request);
+        return Result.success("更新成功");
+    }
+
+    /**
+     * 删除权限
+     */
+    @DeleteMapping("/permissions/{permissionId}")
+    public Result<Void> deletePermission(@PathVariable Long permissionId) {
+        permissionService.deletePermission(permissionId);
+        return Result.success("删除成功");
+    }
+
+    // ==================== File Upload ====================
+
+    /**
+     * 上传文件到 OSS
+     */
+    @PostMapping("/upload")
+    public Result<String> uploadFile2Oss(@RequestParam MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResponseCode.PARAM_VALIDATION_ERROR, "上传文件不能为空");
+        }
+        String url = ossUtils.uploadFile(file);
+        return Result.success(url);
+    }
+}

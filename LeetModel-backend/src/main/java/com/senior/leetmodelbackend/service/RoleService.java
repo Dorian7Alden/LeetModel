@@ -8,7 +8,6 @@ import com.senior.leetmodelbackend.pojo.entity.Permission;
 import com.senior.leetmodelbackend.pojo.entity.Role;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +20,16 @@ public class RoleService {
 
     private final RoleMapper roleMapper;
 
+    /**
+     * 获取全部角色列表
+     */
     public List<Role> getRoleList() {
         return roleMapper.getAllRoles();
     }
 
+    /**
+     * 根据 ID 查询角色，不存在则抛出 ROLE_NOT_FOUND
+     */
     public Role getRoleById(Long roleId) {
         Role role = roleMapper.getRoleById(roleId);
         if (role == null) {
@@ -33,20 +38,26 @@ public class RoleService {
         return role;
     }
 
+    /**
+     * 创建角色，code 重复时抛出 ROLE_CODE_DUPLICATE
+     */
     public void createRole(RoleDTO dto) {
         Role existing = roleMapper.getRoleByCode(dto.getCode());
         if (existing != null) {
             throw new BusinessException(ResponseCode.ROLE_CODE_DUPLICATE);
         }
         Role role = new Role();
-        BeanUtils.copyProperties(dto, role);
-        if (role.getStatus() == null) {
-            role.setStatus(true);
-        }
+        role.setName(dto.getName());
+        role.setCode(dto.getCode());
+        role.setDescription(dto.getDescription());
+        role.setStatus(dto.getStatus() != null ? dto.getStatus() : true);
         roleMapper.insertRole(role);
         log.info("创建角色: {} [{}]", role.getName(), role.getCode());
     }
 
+    /**
+     * 更新角色，不存在则抛出 ROLE_NOT_FOUND，code 冲突则抛出 ROLE_CODE_DUPLICATE
+     */
     public void updateRole(Long roleId, RoleDTO dto) {
         getRoleById(roleId);
         Role existing = roleMapper.getRoleByCode(dto.getCode());
@@ -54,23 +65,35 @@ public class RoleService {
             throw new BusinessException(ResponseCode.ROLE_CODE_DUPLICATE);
         }
         Role role = new Role();
-        BeanUtils.copyProperties(dto, role);
         role.setRoleId(roleId);
+        role.setName(dto.getName());
+        role.setCode(dto.getCode());
+        role.setDescription(dto.getDescription());
+        role.setStatus(dto.getStatus());
         roleMapper.updateRole(role);
         log.info("更新角色: {} [{}]", role.getName(), role.getCode());
     }
 
+    /**
+     * 删除角色，不存在则抛出 ROLE_NOT_FOUND
+     */
     public void deleteRole(Long roleId) {
         getRoleById(roleId);
         roleMapper.deleteRole(roleId);
         log.info("删除角色: {}", roleId);
     }
 
+    /**
+     * 查询角色持有的权限列表，角色不存在则抛出 ROLE_NOT_FOUND
+     */
     public List<Permission> getRolePermissions(Long roleId) {
         getRoleById(roleId);
         return roleMapper.getPermissionsByRoleId(roleId);
     }
 
+    /**
+     * 分配角色权限（先删后增），角色不存在则抛出 ROLE_NOT_FOUND
+     */
     @Transactional
     public void assignRolePermissions(Long roleId, List<Long> permissionIds) {
         getRoleById(roleId);

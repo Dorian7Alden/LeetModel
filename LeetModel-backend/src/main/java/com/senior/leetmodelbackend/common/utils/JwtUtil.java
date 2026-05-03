@@ -1,7 +1,6 @@
 package com.senior.leetmodelbackend.common.utils;
 
 import com.senior.leetmodelbackend.common.property.JwtProperties;
-import com.senior.leetmodelbackend.pojo.entity.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
@@ -50,25 +49,28 @@ public class JwtUtil {
 
     /**
      * 生成包含用户载荷的 JWT Token
-     * @param user 登录用户
+     * @param userId 用户ID
+     * @param email 邮箱
+     * @param username 用户名
+     * @param role 角色编码
      * @return 生成的JWT Token字符串
      */
-    public static String generateToken(User user) {
-        if (user == null || user.getUserId() == null) {
-            throw new IllegalArgumentException("用户信息不能为空，且必须包含用户ID");
+    public static String generateToken(Long userId, String email, String username, String role) {
+        if (userId == null) {
+            throw new IllegalArgumentException("用户ID不能为空");
         }
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getUserId());
+        claims.put("userId", userId);
 
-        if (user.getEmail() != null) {
-            claims.put("email", user.getEmail());
+        if (email != null) {
+            claims.put("email", email);
         }
-        if (user.getUsername() != null) {
-            claims.put("username", user.getUsername());
+        if (username != null) {
+            claims.put("username", username);
         }
-        if (user.getRole() != null) {
-            claims.put("role", user.getRole());
+        if (role != null) {
+            claims.put("role", role);
         }
 
         return generateToken(claims);

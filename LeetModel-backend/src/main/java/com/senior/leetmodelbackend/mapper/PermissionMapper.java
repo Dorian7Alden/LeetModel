@@ -1,6 +1,7 @@
 package com.senior.leetmodelbackend.mapper;
 
 import com.senior.leetmodelbackend.pojo.entity.Permission;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
@@ -22,6 +23,6 @@ public interface PermissionMapper {
 
     void updatePermission(Permission permission);
 
-    @Select("delete from permission where permission_id = #{permissionId}")
+    @Delete("delete from permission where permission_id = #{permissionId}")
     void deletePermission(Long permissionId);
 }

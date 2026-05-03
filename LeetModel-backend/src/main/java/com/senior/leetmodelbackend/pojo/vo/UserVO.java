@@ -6,26 +6,24 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class LoginVO {
+public class UserVO {
 
-    private String token;
     private Long id;
-    private String email;
     private String username;
-    private String role;
+    private String email;
     private String school;
+    private Long avatarFileId;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
-    public static LoginVO createVO(User user, String role, String token) {
-        LoginVO vo = new LoginVO();
-        vo.setToken(token);
+    public static UserVO createVO(User user) {
+        UserVO vo = new UserVO();
         vo.setId(user.getUserId());
-        vo.setEmail(user.getEmail());
         vo.setUsername(user.getUsername());
-        vo.setRole(role);
+        vo.setEmail(user.getEmail());
         vo.setSchool(user.getSchool());
+        vo.setAvatarFileId(user.getAvatarFileId());
         vo.setStatus(user.getStatus());
         vo.setCreateTime(user.getCreateTime());
         vo.setUpdateTime(user.getUpdateTime());
