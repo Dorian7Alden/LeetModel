@@ -31,7 +31,7 @@ public class UserService {
      * 根据邮箱查询用户，不存在则抛出 USER_NOT_FOUND
      */
     public User getUserByEmail(String email) {
-        log.info("getUserByEmail: {}", email);
+        log.debug("getUserByEmail: {}", email);
         User user = userMapper.getUserByEmail(email);
         if (user == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "没有找到邮箱为 " + email + " 的用户");
@@ -43,7 +43,7 @@ public class UserService {
      * 根据 ID 查询用户，不存在则抛出 USER_NOT_FOUND
      */
     public User getUserById(Integer userId) {
-        log.info("getUserById: {}", userId);
+        log.debug("getUserById: {}", userId);
         User user = userMapper.getUserById(userId);
         if (user == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "没有找到 id 为 " + userId + " 的用户");
@@ -54,6 +54,7 @@ public class UserService {
     /**
      * 用户认证：验证邮箱和密码，失败抛出对应业务异常
      */
+    @Transactional(readOnly = true)
     public User authenticate(String email, String password) {
         User user = getUserByEmail(email);
         if (!Md5Util.matches(password, user.getPassword())) {
@@ -83,6 +84,7 @@ public class UserService {
     /**
      * 用户注册，邮箱重复时抛出 USER_ALREADY_EXISTS，默认分配 MEMBER 角色
      */
+    @Transactional
     public void register(RegisterDTO request) {
         if (userMapper.getUserByEmail(request.getEmail()) != null) {
             throw new BusinessException(ResponseCode.USER_ALREADY_EXISTS);
@@ -93,7 +95,7 @@ public class UserService {
         newUser.setPassword(Md5Util.encode(request.getPassword()));
         newUser.setUsername("user_" + Long.toHexString(System.nanoTime()));
 
-        log.info("insertUser: {}", newUser);
+        log.info("注册新用户: {}", newUser.getEmail());
         userMapper.insertUser(newUser);
 
         Role memberRole = roleMapper.getRoleByCode("MEMBER");
@@ -107,7 +109,7 @@ public class UserService {
      * 删除用户，不存在则抛出 USER_NOT_FOUND
      */
     public void deleteUserById(Integer userId) {
-        log.info("deleteUserById: {}", userId);
+        log.debug("deleteUserById: {}", userId);
         if (userMapper.getUserById(userId) == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "删除失败，没有找到 id 为 " + userId + " 的用户");
         }

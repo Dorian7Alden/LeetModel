@@ -31,13 +31,13 @@ public class TokenInterceptor implements HandlerInterceptor {
         response.setContentType("application/json;charset=UTF-8");
 
         String requestURI = request.getRequestURI();
-        log.info("请求通过拦截器: {}", requestURI);
+        log.debug("请求通过拦截器: {}", requestURI);
 
         String token = request.getHeader("token");
         ObjectMapper mapper = new ObjectMapper();
 
         if (token == null || token.isEmpty()) {
-            log.info("令牌为空，请求头中缺少token");
+            log.debug("令牌为空，请求头中缺少token");
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
                     .write(mapper.writeValueAsString(Result.error(ResponseCode.UNAUTHORIZED_TOKEN_MISSING)));
@@ -45,7 +45,7 @@ public class TokenInterceptor implements HandlerInterceptor {
         }
 
         if (tokenService.isBlacklisted(token)) {
-            log.info("令牌已被加入黑名单: {}", token);
+            log.info("令牌已被加入黑名单: {}...", token.substring(0, Math.min(20, token.length())));
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
                     .write(mapper.writeValueAsString(Result.error(ResponseCode.UNAUTHORIZED_TOKEN_INVALID)));
@@ -59,14 +59,14 @@ public class TokenInterceptor implements HandlerInterceptor {
             request.setAttribute("username", claims.get("username"));
             request.setAttribute("role", claims.get("role"));
         } catch (Exception e) {
-            log.info("令牌解析失败");
+            log.debug("令牌解析失败");
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
                     .write(mapper.writeValueAsString(Result.error(ResponseCode.UNAUTHORIZED_TOKEN_INVALID)));
             return false;
         }
 
-        log.info("token 校验通过，放行");
+        log.debug("token 校验通过，放行");
         return true;
     }
 }

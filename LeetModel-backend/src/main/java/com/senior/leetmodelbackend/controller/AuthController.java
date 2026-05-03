@@ -53,7 +53,6 @@ public class AuthController {
 
         log.info("用户 {} 登录成功", email);
         String token = JwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getUsername(), role);
-        log.info("生成用户 {} 的登录 token: {}", email, token);
 
         return Result.success("登录成功", LoginVO.createVO(user, role, token));
     }

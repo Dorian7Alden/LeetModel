@@ -25,7 +25,7 @@ public class TokenService {
         if (remainingTime > 0) {
             redisTemplate.opsForValue()
                     .set(BLACKLIST_KEY_PREFIX + token, "1", Duration.ofMillis(remainingTime));
-            log.info("Token 已加入黑名单: {}", token);
+            log.info("Token 已加入黑名单: {}...", token.substring(0, Math.min(20, token.length())));
         }
     }
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 默认日志级别 -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- 项目包：INFO，开发环境可切换为 DEBUG -->
+    <springProfile name="dev">
+        <logger name="com.senior.leetmodelbackend" level="DEBUG" />
+    </springProfile>
+    <springProfile name="!dev">
+        <logger name="com.senior.leetmodelbackend" level="INFO" />
+    </springProfile>
+
+    <!-- 禁止 MyBatis mapper 输出 SQL/结果集到日志 -->
+    <logger name="com.senior.leetmodelbackend.mapper" level="WARN" />
+
+    <!-- 框架日志 -->
+    <logger name="org.springframework" level="WARN" />
+    <logger name="org.mybatis" level="WARN" />
+</configuration>
