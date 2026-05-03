@@ -5,22 +5,32 @@
       <div :class="['topbar-inner', isHome ? 'home-inner' : 'default-inner']">
         <!-- 左侧：系统名 + 导航 -->
         <div class="left-area">
-          <!-- 导航栏 -->
           <nav class="navbar">
             <router-link to="/" class="nav-item home-icon">
               <img src="@/assets/images/logo-with-en.png" alt="home" />
             </router-link>
 
-            <router-link to="/problem" class="nav-item">题库</router-link>
-            <router-link to="/contest" class="nav-item">赛事</router-link>
-            <router-link to="/community" class="nav-item">社区</router-link>
-            <router-link to="/team" class="nav-item">组队</router-link>
-            <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="nav-item admin-nav">管理端</router-link>
+            <router-link
+              v-for="item in navItems"
+              :key="item.path"
+              :to="item.path"
+              class="nav-item"
+              :class="{ active: isActive(item.path) }"
+            >
+              {{ item.label }}
+            </router-link>
+            <router-link
+              v-if="userStore.isAdmin"
+              to="/admin/dashboard"
+              class="nav-item admin-nav"
+              :class="{ active: isActive('/admin') }"
+            >
+              管理端
+            </router-link>
           </nav>
         </div>
 
         <!-- 右侧 -->
-        <!-- 右侧用户 -->
         <div class="right-area">
           <el-input
             v-model="keyword"
@@ -28,14 +38,10 @@
             class="search-input"
             clearable
           />
-          <!-- 右侧 登录/注册 按钮组 -->
-
           <!-- 未登录 -->
           <template v-if="!userStore.isLogin">
             <div class="nav-actions">
-              <router-link to="/register" class="register-btn"
-                >注册</router-link
-              >
+              <router-link to="/register" class="register-btn">注册</router-link>
               <router-link to="/login" class="login-btn">登录</router-link>
             </div>
           </template>
@@ -48,7 +54,6 @@
 
             <template #dropdown>
               <el-dropdown-menu class="user-card">
-                <!-- 顶部用户信息 -->
                 <div class="user-header">
                   <img class="avatar-big" src="../../assets/vue.svg" />
                   <div class="info">
@@ -57,7 +62,6 @@
                   </div>
                 </div>
 
-                <!-- 功能区 -->
                 <div class="menu-group">
                   <el-dropdown-item class="menu-item">
                     <el-icon class="menu-icon"><Collection /></el-icon>
@@ -73,10 +77,8 @@
                   </el-dropdown-item>
                 </div>
 
-                <!-- 分割 -->
                 <div class="divider"></div>
 
-                <!-- 跳转 -->
                 <div class="menu-group">
                   <router-link to="/profile" class="menu-link">
                     <el-dropdown-item class="menu-item">
@@ -88,7 +90,6 @@
 
                 <div class="divider"></div>
 
-                <!-- 退出 -->
                 <el-dropdown-item class="logout" @click="handleLogout">
                   <el-icon class="menu-icon"><SwitchButton /></el-icon>
                   退出登录
@@ -108,67 +109,347 @@
     <!-- 页脚 -->
     <footer class="footer">
       <div class="footer-content">
-        <div class="footer-left">© 2026 数学建模在线评测系统</div>
+        <div class="footer-brand">
+          <span class="footer-logo">LeetModel</span>
+          <p class="footer-tagline">以模型会友，以算法相知</p>
+        </div>
 
         <div class="footer-links">
-          <router-link to="/about">关于我们</router-link>
-
-          <router-link to="/help">使用帮助</router-link>
-
-          <router-link to="/contact">联系我们</router-link>
+          <div class="footer-col">
+            <h4>平台</h4>
+            <router-link to="/problem">题库</router-link>
+            <router-link to="/contest">赛事</router-link>
+            <router-link to="/community">社区</router-link>
+            <router-link to="/team">组队</router-link>
+          </div>
+          <div class="footer-col">
+            <h4>支持</h4>
+            <router-link to="/about">关于我们</router-link>
+            <router-link to="/help">使用帮助</router-link>
+            <router-link to="/contact">联系我们</router-link>
+          </div>
         </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 数学建模在线评测系统. All rights reserved.</span>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-import { useUserStore } from "@/store/user";
-import { useRoute } from "vue-router";
-import { computed } from "vue";
-import { logout } from "@/api/user";
-import { ElMessage } from "element-plus";
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useUserStore } from '@/store/user'
+import { logout } from '@/api/user'
+import { ElMessage } from 'element-plus'
 import {
   Collection,
   StarFilled,
   Document,
   UserFilled,
   SwitchButton,
-} from "@element-plus/icons-vue";
-const route = useRoute();
+} from '@element-plus/icons-vue'
 
-const isHome = computed(() => route.path === "/");
-const userStore = useUserStore();
-const isLogin = ref(!!localStorage.getItem("token"));
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
 
-const router = useRouter();
+const isHome = computed(() => route.path === '/')
+const keyword = ref('')
+
+const navItems = [
+  { label: '题库', path: '/problem' },
+  { label: '赛事', path: '/contest' },
+  { label: '社区', path: '/community' },
+  { label: '组队', path: '/team' },
+]
+
+function isActive(path) {
+  if (path === '/admin') return route.path.startsWith('/admin')
+  return route.path === path
+}
 
 async function handleLogout() {
   try {
-    await logout(); // ✅ 调后端接口
-
-    ElMessage.success("退出成功");
+    await logout()
+    ElMessage.success('退出成功')
   } catch (err) {
-    console.log("退出接口异常", err);
+    console.log('退出接口异常', err)
   } finally {
-    // ✅ 无论成功失败都执行
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-
-    // ✅ 清空 pinia 状态（关键！）
-    userStore.$reset();
-
-    // ✅ 跳转登录页
-    router.push("/login");
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    userStore.$reset()
+    router.push('/login')
   }
 }
-const keyword = ref("");
 </script>
 
 <style scoped>
-/* 退出按钮 */
+/* ========== CSS Variables Defaults ========== */
+:root {
+  --lm-primary: #409eff;
+  --lm-surface: #ffffff;
+  --lm-bg: #f8f9fb;
+  --lm-border: #e8ecf1;
+  --lm-text-primary: #1a1a2e;
+  --lm-text-secondary: #666666;
+  --lm-text-muted: #999999;
+}
+
+/* ========== Layout ========== */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--lm-bg, #f8f9fb);
+}
+
+/* ========== Topbar ========== */
+.topbar {
+  height: 64px;
+  background: var(--lm-surface, #ffffff);
+  border-bottom: 1px solid var(--lm-border, #eee);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.topbar-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-inner {
+  max-width: 1200px;
+}
+
+.default-inner {
+  padding: 0 40px;
+}
+
+/* ========== Navbar ========== */
+.left-area {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.home-icon img {
+  height: 22px;
+  transition: opacity 0.2s;
+}
+
+.home-icon:hover img {
+  opacity: 0.8;
+}
+
+.home-icon {
+  display: flex;
+  align-items: center;
+}
+
+.nav-item {
+  color: var(--lm-text-secondary, #555);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 6px;
+  position: relative;
+  transition: color 0.2s, background 0.2s;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.nav-item:hover {
+  color: var(--lm-primary, #409eff);
+  background: rgba(64, 158, 255, 0.06);
+}
+
+/* Active indicator */
+.nav-item.active {
+  color: var(--lm-primary, #409eff);
+  font-weight: 600;
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 3px;
+  background: var(--lm-primary, #409eff);
+  border-radius: 3px 3px 0 0;
+}
+
+/* Admin nav */
+.admin-nav {
+  color: #e6a23c !important;
+}
+
+.admin-nav:hover {
+  color: #cf9236 !important;
+  background: rgba(230, 162, 60, 0.06) !important;
+}
+
+.admin-nav.active {
+  color: #cf9236 !important;
+}
+
+.admin-nav.active::after {
+  background: #e6a23c;
+}
+
+/* ========== Right Area ========== */
+.right-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-input {
+  width: 220px;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+}
+
+.login-btn,
+.register-btn {
+  padding: 6px 12px;
+  margin-right: 12px;
+  font-size: 14px;
+  color: #555;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.register-btn {
+  margin-right: 8px;
+}
+
+.register-btn {
+  padding: 6px 14px;
+  background: var(--lm-primary, #409eff);
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.register-btn:hover {
+  background: #337ecc;
+  color: #fff;
+}
+
+.login-btn:hover {
+  background: var(--lm-bg, #f5f7fa);
+  color: var(--lm-primary, #409eff);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--lm-border, #e0e0e0);
+  transition: border-color 0.2s;
+  cursor: pointer;
+}
+
+.avatar:hover {
+  border-color: var(--lm-primary, #409eff);
+}
+
+/* ========== Dropdown ========== */
+.user-card {
+  width: 260px;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.user-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f0f7ff, #e6f0ff);
+}
+
+.avatar-big {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.info .name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lm-text-primary, #1a1a2e);
+}
+
+.info .desc {
+  font-size: 12px;
+  color: var(--lm-text-muted, #999);
+}
+
+.menu-group {
+  padding: 4px 0;
+}
+
+.menu-item {
+  padding: 10px 16px !important;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lm-text-primary, #1a1a2e);
+}
+
+.menu-icon {
+  font-size: 16px;
+  color: var(--lm-text-secondary, #666);
+}
+
+.menu-item:hover {
+  background: var(--lm-bg, #f5f7fa) !important;
+  padding-left: 20px !important;
+}
+
+.divider {
+  height: 1px;
+  background: var(--lm-border, #eee);
+  margin: 4px 0;
+}
+
+.menu-link {
+  text-decoration: none;
+  color: inherit;
+}
+
 .logout {
   color: #f56c6c !important;
   text-align: center;
@@ -179,307 +460,99 @@ const keyword = ref("");
   background: #fff1f0 !important;
 }
 
-/* 去掉 router-link 默认样式 */
-.menu-link {
-  text-decoration: none;
-  color: inherit;
-}
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-}
-
-/* 整体卡片 */
-.user-card {
-  width: 260px;
-  padding: 0;
-  border-radius: 12px;
-  overflow: hidden;
-
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-}
-/* 头像 */
-.avatar-big {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-}
-
-/* 信息 */
-.info .name {
-  font-size: 15px;
-  font-weight: 600;
-  display: flex;
-  justify-content: center; /* 水平 */
-  align-items: center; /* 垂直 */
-}
-
-.info .desc {
-  font-size: 12px;
-  opacity: 0.85;
-  display: flex;
-  justify-content: center; /* 水平 */
-  align-items: center; /* 垂直 */
-}
-/* 功能分组 */
-.menu-group {
-  padding: 6px 0;
-}
-
-/* 菜单项 */
-.menu-item {
-  padding: 10px 16px !important;
-  font-size: 14px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.menu-icon {
-  font-size: 16px;
-  color: #666;
-}
-/* hover 效果 */
-.menu-item:hover {
-  background: #f5f7fa !important;
-  padding-left: 20px !important;
-}
-
-/* 分割线 */
-.divider {
-  height: 1px;
-  background: #eee;
-  margin: 6px 0;
-}
-
-.name {
-  font-size: 16px;
-  font-weight: 600;
-}
-.home-icon img {
-  height: 20px;
-}
-.home-icon {
-  display: flex;
-  align-items: center;
-}
-.left-area {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-}
-/* 导航栏 */
-
-.navbar {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-}
-/* 导航项 */
-.nav-item {
-  color: #444;
-  text-decoration: none;
-  font-size: 15px;
-
-  padding: 6px 4px;
-
-  position: relative;
-  transition: all 0.2s;
-}
-
-.nav-item:hover {
-  color: #409eff;
-}
-.nav-item::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: -6px;
-
-  width: 0;
-  height: 2px;
-
-  background: #409eff;
-  transition: 0.25s;
-}
-
-.nav-item:hover::after {
-  width: 100%;
-}
-/* 后台管理入口样式 */
-.admin-nav {
-  color: #e6a23c !important;
-}
-.admin-nav:hover {
-  color: #cf9236 !important;
-}
-.admin-nav::after {
-  background: #e6a23c;
-}
-/* 当前高亮 */
-
-.router-link-active {
-  color: #409eff;
-  font-weight: 600;
-}
-/* 容器 */
-
-.nav-container {
-  display: flex;
-  gap: 30px;
-  padding: 0 40px;
-}
-
-/* 外层 topbar 保持全宽（不要动） */
-.topbar {
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #eee;
-
-  display: flex;
-  align-items: center;
-  justify-content: center; /* ⭐ 关键：让内部居中 */
-
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
-/* 新增：内部容器 */
-.topbar-inner {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* 首页：1200px 居中 */
-.home-inner {
-  max-width: 1200px;
-}
-
-/* 其他页面：保持原来 padding */
-.default-inner {
-  padding: 0 40px;
-}
-
-.logo {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  text-decoration: none;
-}
-
-.logo:hover {
-  color: #409eff;
-}
-
-/* 右侧区域 */
-
-.right-area {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-/* 搜索框 */
-
-.search-input {
-  width: 220px;
-}
-
-/* 登录按钮 - LeetCode 原版样式 */
-.login-btn {
-  padding: 6px 12px;
-  margin-right: 12px;
-  font-size: 14px;
-  color: #4a4a4a;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-/* 登录按钮 hover 效果 */
-.login-btn:hover {
-  background-color: #f5f5f5;
-  color: #0099cc;
-}
-
-/* 注册按钮 - LeetCode 原版样式 */
-.register-btn {
-  padding: 6px 12px;
-  margin-right: 12px;
-  font-size: 14px;
-  color: #4a4a4a;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-/* 注册按钮 hover 效果 */
-.register-btn:hover {
-  background-color: #e6f7ff;
-  border-color: #33adff;
-  color: #33adff;
-}
-.layout {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh; /* 页面最小高度 = 视口高度 */
-}
-
-/* 内容区域自动撑开 */
-
+/* ========== Content ========== */
 .content {
   flex: 1;
   padding: 20px;
 }
 
-/* 页脚 */
-
+/* ========== Footer ========== */
 .footer {
-  background: #f8f9fa;
-  border-top: 1px solid #eee;
-  padding: 18px 0;
+  background: var(--lm-surface, #fff);
+  border-top: 1px solid var(--lm-border, #e8ecf1);
+  padding: 0;
 }
+
 .footer-content {
   max-width: 1200px;
   margin: 0 auto;
-
+  padding: 40px 20px 28px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-
-  font-size: 14px;
-  color: #666;
+  gap: 48px;
+  flex-wrap: wrap;
 }
+
+.footer-brand {
+  max-width: 240px;
+}
+
+.footer-logo {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--lm-text-primary, #1a1a2e);
+  letter-spacing: 1px;
+}
+
+.footer-tagline {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--lm-text-muted, #999);
+}
+
 .footer-links {
   display: flex;
-  gap: 20px;
+  gap: 48px;
 }
 
-.footer-links a {
+.footer-col h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lm-text-primary, #1a1a2e);
+  margin: 0 0 10px;
+}
+
+.footer-col a {
+  display: block;
+  font-size: 13px;
+  color: var(--lm-text-secondary, #666);
   text-decoration: none;
-  color: #666;
-  transition: 0.2s;
+  padding: 4px 0;
+  transition: color 0.2s;
 }
 
-.footer-links a:hover {
-  color: #409eff;
+.footer-col a:hover {
+  color: var(--lm-primary, #409eff);
+}
+
+.footer-bottom {
+  border-top: 1px solid var(--lm-border, #e8ecf1);
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--lm-text-muted, #999);
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    gap: 16px;
+  }
+
+  .nav-item {
+    font-size: 13px;
+    padding: 6px 4px;
+  }
+
+  .search-input {
+    width: 140px;
+  }
+
+  .footer-content {
+    gap: 24px;
+  }
+
+  .footer-links {
+    gap: 24px;
+  }
 }
 </style>

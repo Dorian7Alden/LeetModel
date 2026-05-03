@@ -1,14 +1,9 @@
 <template>
   <div class="problem-page">
-    <!-- 左侧 -->
     <ProblemSidebar />
-
-    <!-- 中间 -->
     <main class="center">
       <router-view />
     </main>
-
-    <!-- 右侧 -->
     <ProblemRightPanel />
   </div>
 </template>
@@ -21,11 +16,22 @@ import ProblemRightPanel from "../components/homepage/ProblemRightPanel.vue";
 <style scoped>
 .problem-page {
   display: flex;
-  gap: 20px;
-  padding: 20px;
+  gap: 0;
+  min-height: calc(100vh - 64px);
+  background: var(--lm-bg);
 }
 
 .center {
   flex: 1;
+  min-width: 0;
+  padding: 20px 24px;
+}
+
+@media (max-width: 1200px) {
+  .center { padding: 16px; }
+}
+
+@media (max-width: 768px) {
+  .problem-page { flex-direction: column; }
 }
 </style>

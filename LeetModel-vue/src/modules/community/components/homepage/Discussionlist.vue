@@ -1,233 +1,222 @@
 <template>
   <div class="discussion-page">
-    <!-- 🔍 筛选区 -->
+    <!-- Filter Bar -->
     <div class="filter-bar">
-      <input v-model="query.keyword" placeholder="搜索帖子..." class="input" />
-
-      <!-- 类型 -->
-      <select v-model="query.type" @change="fetchList" class="select">
-        <option value="">全部类型</option>
-        <option value="experience">经验</option>
-        <option value="skill">技巧</option>
-        <option value="discuss">讨论</option>
-      </select>
-
-      <!-- 排序 -->
-      <select v-model="query.sortField" @change="fetchList" class="select">
-        <option value="createTime">最新</option>
-        <option value="likeCnt">点赞最多</option>
-        <option value="viewCnt">浏览最多</option>
-        <option value="commentCnt">评论最多</option>
-        <option value="heat">最热</option>
-      </select>
-
-      <button class="btn" @click="handleSearch">搜索</button>
-      <button class="btn reset-btn" @click="handleReset">清空</button>
+      <el-input
+        v-model="query.keyword"
+        placeholder="搜索帖子..."
+        :prefix-icon="Search"
+        clearable
+        class="filter-input"
+        @keyup.enter="handleSearch"
+      />
+      <el-select v-model="query.type" placeholder="全部类型" class="filter-select" @change="handleSearch">
+        <el-option label="全部类型" value="" />
+        <el-option label="经验分享" value="experience" />
+        <el-option label="技巧教程" value="skill" />
+        <el-option label="讨论交流" value="discuss" />
+      </el-select>
+      <el-select v-model="query.sortField" placeholder="排序" class="filter-select" @change="handleSearch">
+        <el-option label="最新发布" value="createTime" />
+        <el-option label="点赞最多" value="likeCnt" />
+        <el-option label="浏览最多" value="viewCnt" />
+        <el-option label="评论最多" value="commentCnt" />
+        <el-option label="最热" value="heat" />
+      </el-select>
+      <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
+      <el-button :icon="Refresh" @click="handleReset">重置</el-button>
     </div>
 
-    <!-- 📋 列表 -->
-    <div v-if="list.length > 0">
-      <div v-for="item in list" :key="item.id" class="post-card">
-        <h3 class="title">{{ item.title }}</h3>
-
-        <p class="content">
-          {{ formatContent(item.content) }}
-        </p>
-
-        <div class="meta">
-          <span class="meta-item">{{ item.likeCnt }} 赞</span>
-          <span class="meta-item">
-            <el-icon><View /></el-icon>
-            {{ item.viewCnt }}
-          </span>
-          <span class="meta-item">
-            <el-icon><ChatDotSquare /></el-icon>
-            {{ item.commentCnt }}
-          </span>
-          <span class="meta-item">
-            <el-icon><TrendCharts /></el-icon>
-            {{ item.heat }}
-          </span>
-        </div>
-
-        <div class="footer">
-          <span>类型：{{ item.type }}</span>
-          <span>发布时间：{{ item.createTime }}</span>
+    <!-- Post Cards -->
+    <div v-if="pagedList.length > 0" class="post-cards">
+      <div
+        class="post-card card-hover"
+        v-for="post in pagedList"
+        :key="post.postId"
+        @click="$router.push(`/post/${post.postId}`)"
+      >
+        <div class="post-main">
+          <div class="post-avatar" :style="{ background: avatarColor(post.publisherName) }">
+            {{ post.publisherName.charAt(0) }}
+          </div>
+          <div class="post-body">
+            <div class="post-header">
+              <span class="post-author">{{ post.publisherName }}</span>
+              <span v-if="post.isTop" class="pin-badge">置顶</span>
+              <el-tag size="small" type="info">{{ typeLabel(post.type) }}</el-tag>
+              <span class="post-time">{{ post.createTime }}</span>
+            </div>
+            <h3 class="post-title">{{ post.title }}</h3>
+            <p class="post-excerpt">{{ excerpt(post.content) }}</p>
+            <div class="post-tags" v-if="post.tags">
+              <span class="post-tag" v-for="tag in post.tags" :key="tag">{{ tag }}</span>
+            </div>
+            <div class="post-stats">
+              <span><el-icon :size="14"><StarFilled /></el-icon> {{ post.likeCnt }}</span>
+              <span><el-icon :size="14"><ChatLineSquare /></el-icon> {{ post.commentCnt }}</span>
+              <span><el-icon :size="14"><View /></el-icon> {{ post.viewCnt }}</span>
+              <span class="heat"><el-icon :size="14"><TrendCharts /></el-icon> {{ post.heat }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 空状态 -->
-    <div v-else class="empty">暂无数据</div>
+    <div v-else class="empty-state">
+      <el-empty description="暂无帖子" />
+    </div>
 
-    <!-- 📄 分页 -->
-    <div class="pagination">
-      <button @click="prevPage" :disabled="query.pageNum === 1">上一页</button>
-
-      <span>第 {{ query.pageNum }} 页</span>
-
-      <button @click="nextPage">下一页</button>
+    <!-- Pagination -->
+    <div class="pagination-wrap" v-if="filteredList.length > 0">
+      <el-pagination
+        v-model:current-page="query.pageNum"
+        :page-size="query.pageSize"
+        :total="filteredList.length"
+        background
+        layout="prev, pager, next, total"
+        @current-change="handlePageChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { getPostList } from "@/api/post";
-import { View, ChatDotSquare, TrendCharts } from "@element-plus/icons-vue";
+import { ref, computed, onMounted } from 'vue'
+import { Search, Refresh, StarFilled, ChatLineSquare, View, TrendCharts } from '@element-plus/icons-vue'
+import { mockPosts } from '@/mock/data.js'
 
-// 📦 列表数据
-const list = ref([]);
+const allPosts = ref([])
+const query = ref({ keyword: '', type: '', sortField: 'createTime', pageNum: 1, pageSize: 5 })
 
-// // 🔍 查询参数（完全对齐后端）
-// const query = ref({
-//   pageNum: 1,
-//   pageSize: 10,
-//   keyword: "",
-//   type: "",
-//   sortField: "createTime",
-//   sortOrder: "desc",
-// });
-
-// 🚀 获取数据
-const fetchList = async () => {
-  try {
-    const res = await getPostList(query.value);
-
-    console.log("帖子数据：", res);
-
-    // 🔥 核心：正确取值
-    list.value = res.data.list || [];
-  } catch (err) {
-    console.error("获取帖子失败：", err);
-  }
-};
-
-// 🔍 搜索
-const handleSearch = () => {
-  query.value.pageNum = 1;
-  fetchList();
-};
-
-// ➡️ 下一页
-const nextPage = () => {
-  query.value.pageNum++;
-  fetchList();
-};
-
-// ⬅️ 上一页
-const prevPage = () => {
-  if (query.value.pageNum > 1) {
-    query.value.pageNum--;
-    fetchList();
-  }
-};
-
-// 🧹 简单处理内容（去掉 markdown 符号）
-const formatContent = (content) => {
-  if (!content) return "";
-  return (
-    content
-      .replace(/[#>*`]/g, "")
-      .replace(/\n/g, " ")
-      .slice(0, 100) + "..."
-  );
-};
-
-// 初始化
 onMounted(() => {
-  fetchList();
-});
-const defaultQuery = {
-  pageNum: 1,
-  pageSize: 10,
-  keyword: "",
-  type: "",
-  sortField: "createTime",
-  sortOrder: "desc",
-};
+  allPosts.value = [...mockPosts]
+})
 
-const query = ref({ ...defaultQuery });
+const filteredList = computed(() => {
+  let list = [...allPosts.value]
+  if (query.value.keyword) {
+    const kw = query.value.keyword.toLowerCase()
+    list = list.filter(p => p.title.toLowerCase().includes(kw) || p.content.toLowerCase().includes(kw))
+  }
+  if (query.value.type) {
+    list = list.filter(p => p.type === query.value.type)
+  }
+  const sortMap = { createTime: 'createTime', likeCnt: 'likeCnt', viewCnt: 'viewCnt', commentCnt: 'commentCnt', heat: 'heat' }
+  const field = sortMap[query.value.sortField] || 'createTime'
+  list.sort((a, b) => {
+    if (field === 'createTime') return new Date(b[field]) - new Date(a[field])
+    return b[field] - a[field]
+  })
+  return list
+})
 
-// ✅ 清空 + 刷新
-const handleReset = () => {
-  query.value = { ...defaultQuery }; // 🔥 重新赋值（不要逐个改）
+const pagedList = computed(() => {
+  const start = (query.value.pageNum - 1) * query.value.pageSize
+  return filteredList.value.slice(start, start + query.value.pageSize)
+})
 
-  fetchList(); // 重新请求
-};
+function handleSearch() { query.value.pageNum = 1 }
+function handleReset() { query.value = { keyword: '', type: '', sortField: 'createTime', pageNum: 1, pageSize: 5 } }
+function handlePageChange() { /* pagedList reacts automatically */ }
+
+function typeLabel(t) {
+  const map = { experience: '经验分享', skill: '技巧教程', discuss: '讨论交流' }
+  return map[t] || t
+}
+
+function excerpt(content) {
+  return content.replace(/[#>*`\n]/g, ' ').replace(/\s+/g, ' ').slice(0, 120) + '...'
+}
+
+function avatarColor(name) {
+  const colors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#8b5cf6', '#0891b2', '#e11d48', '#7c3aed']
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return colors[Math.abs(hash) % colors.length]
+}
 </script>
 
 <style scoped>
 .discussion-page {
-  max-width: 800px;
-  margin: 0 auto;
+  max-width: 100%;
 }
 
-/* 筛选栏 */
 .filter-bar {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-.input {
-  flex: 1;
-  padding: 6px;
+.filter-input { width: 240px; }
+.filter-select { width: 140px; }
+
+.post-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.select {
-  padding: 6px;
-}
-
-.btn {
-  padding: 6px 12px;
+.post-card {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
+  padding: 18px 20px;
   cursor: pointer;
 }
 
-/* 卡片 */
-.post-card {
-  border: 1px solid #eee;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 8px;
+.post-main { display: flex; gap: 14px; }
+
+.post-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 600;
+  flex-shrink: 0;
 }
 
-.title {
-  margin-bottom: 10px;
+.post-body { flex: 1; min-width: 0; }
+
+.post-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px;
 }
 
-.content {
-  color: #666;
-  margin-bottom: 10px;
+.post-author { font-size: 13px; font-weight: 600; color: var(--lm-text-primary); }
+
+.pin-badge {
+  font-size: 10px; font-weight: 600; color: var(--lm-danger);
+  background: var(--lm-danger-bg); padding: 1px 6px; border-radius: 3px;
 }
 
-.meta {
-  display: flex;
-  gap: 15px;
-  font-size: 14px;
-  color: #999;
+.post-time { font-size: 12px; color: var(--lm-text-muted); margin-left: auto; }
+
+.post-title {
+  font-size: 16px; font-weight: 600; color: var(--lm-text-primary);
+  margin: 0 0 6px; line-height: 1.4;
 }
 
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.post-excerpt {
+  font-size: 13px; color: var(--lm-text-secondary); margin: 0 0 8px;
+  line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-.footer {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #bbb;
+.post-tags { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+
+.post-tag {
+  font-size: 11px; color: var(--lm-primary); background: var(--lm-primary-bg);
+  padding: 2px 8px; border-radius: 4px;
 }
 
-/* 分页 */
-.pagination {
-  margin-top: 20px;
-  text-align: center;
+.post-stats {
+  display: flex; gap: 16px; font-size: 12px; color: var(--lm-text-muted);
 }
 
-.empty {
-  text-align: center;
-  color: #999;
-}
+.post-stats span { display: inline-flex; align-items: center; gap: 3px; }
+.heat { color: var(--lm-warning); }
+
+.pagination-wrap { margin-top: 24px; display: flex; justify-content: center; }
 </style>

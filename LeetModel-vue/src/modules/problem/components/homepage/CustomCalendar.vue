@@ -1,222 +1,133 @@
 <template>
-  <div class="leetcode-calendar">
-    <!-- 头部 -->
+  <div class="custom-calendar">
     <div class="calendar-header">
-      <button class="prev-btn" @click="prevMonth">‹</button>
+      <button class="nav-btn" @click="prevMonth">
+        <el-icon :size="14"><ArrowLeft /></el-icon>
+      </button>
       <span class="year-month">{{ currentYear }}年{{ currentMonth }}月</span>
-      <button class="next-btn" @click="nextMonth">›</button>
+      <button class="nav-btn" @click="nextMonth">
+        <el-icon :size="14"><ArrowRight /></el-icon>
+      </button>
     </div>
 
-    <!-- 星期 -->
     <div class="weekdays">
       <span class="weekday" v-for="w in weeks" :key="w">{{ w }}</span>
     </div>
 
-    <!-- 日期 -->
     <div class="days-grid">
-      <!-- 上月占位 -->
+      <div v-for="i in prevMonthDaysCount" :key="'prev-' + i" class="day empty" />
       <div
-        v-for="index in prevMonthDaysCount"
-        :key="`prev-${index}`"
-        class="day empty"
-      />
-
-      <!-- 本月 -->
-      <div
-        v-for="day in totalDays"
-        :key="`current-${day}`"
+        v-for="day in totalDays" :key="'cur-' + day"
         class="day"
-        :class="{
-          today: isToday(day),
-          completed: completedDays.includes(day),
-        }"
-      >
-        {{ day }}
-      </div>
+        :class="{ today: isToday(day), completed: completedDays.includes(day) }"
+      >{{ day }}</div>
     </div>
 
-    <!-- 底部 -->
     <div class="calendar-footer">
       <span class="legend">
-        <span class="dot completed-dot"></span>
-        已完成
+        <span class="dot completed-dot"></span> 已完成
       </span>
       <span class="legend">
-        <span class="dot today-dot"></span>
-        今日
+        <span class="dot today-dot"></span> 今日
       </span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed } from 'vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
-/* ---------------- 基础状态 ---------------- */
-const now = new Date();
+const now = new Date()
+const currentYear = ref(now.getFullYear())
+const currentMonth = ref(now.getMonth() + 1)
+const today = now.getDate()
+const weeks = ['日', '一', '二', '三', '四', '五', '六']
+const completedDays = ref([3, 7, 10, 14, 18, 21, 24, 28])
 
-const currentYear = ref(now.getFullYear());
-const currentMonth = ref(now.getMonth() + 1);
-const today = now.getDate();
+const totalDays = computed(() => new Date(currentYear.value, currentMonth.value, 0).getDate())
+const firstDayOfWeek = computed(() => new Date(currentYear.value, currentMonth.value - 1, 1).getDay())
+const prevMonthDaysCount = computed(() => firstDayOfWeek.value)
 
-const weeks = ["日", "一", "二", "三", "四", "五", "六"];
-
-// 模拟数据（后面可以换接口）
-const completedDays = ref([5, 8, 12, 15, 18, 22, 25]);
-
-/* ---------------- 计算属性 ---------------- */
-
-// 当月总天数
-const totalDays = computed(() => {
-  return new Date(currentYear.value, currentMonth.value, 0).getDate();
-});
-
-// 当月1号星期几
-const firstDayOfWeek = computed(() => {
-  return new Date(currentYear.value, currentMonth.value - 1, 1).getDay();
-});
-
-// 上月占位
-const prevMonthDaysCount = computed(() => {
-  return firstDayOfWeek.value;
-});
-
-/* ---------------- 方法 ---------------- */
-
-// 上一月
 const prevMonth = () => {
-  if (currentMonth.value === 1) {
-    currentYear.value--;
-    currentMonth.value = 12;
-  } else {
-    currentMonth.value--;
-  }
-};
-
-// 下一月
+  if (currentMonth.value === 1) { currentYear.value--; currentMonth.value = 12 }
+  else currentMonth.value--
+}
 const nextMonth = () => {
-  if (currentMonth.value === 12) {
-    currentYear.value++;
-    currentMonth.value = 1;
-  } else {
-    currentMonth.value++;
-  }
-};
-
-// 是否今天
-const isToday = (day) => {
-  return (
-    currentYear.value === now.getFullYear() &&
-    currentMonth.value === now.getMonth() + 1 &&
-    day === today
-  );
-};
+  if (currentMonth.value === 12) { currentYear.value++; currentMonth.value = 1 }
+  else currentMonth.value++
+}
+const isToday = (day) => currentYear.value === now.getFullYear() && currentMonth.value === now.getMonth() + 1 && day === today
 </script>
 
 <style scoped>
-.leetcode-calendar {
+.custom-calendar {
   width: 100%;
-  max-width: 280px;
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
+  padding: 14px;
 }
 
-/* 头部 */
 .calendar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-size: 15px;
-  font-weight: 600;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
 }
 
-.prev-btn,
-.next-btn {
-  background: none;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
+.year-month {
+  font-size: 14px; font-weight: 600; color: var(--lm-text-primary);
 }
 
-.prev-btn:hover,
-.next-btn:hover {
-  background: #f5f5f5;
+.nav-btn {
+  border: none; background: var(--lm-bg-secondary);
+  border-radius: var(--lm-radius-sm); cursor: pointer;
+  padding: 4px 6px; display: flex; align-items: center;
+  color: var(--lm-text-secondary);
 }
 
-/* 星期 */
+.nav-btn:hover { background: var(--lm-border); }
+
 .weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 8px;
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
 }
 
 .weekday {
-  text-align: center;
-  font-size: 12px;
-  color: #999;
+  text-align: center; font-size: 11px; color: var(--lm-text-muted); font-weight: 500;
 }
 
-/* 日期 */
 .days-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
 }
 
 .day {
-  width: 32px;
-  height: 32px;
-  line-height: 32px;
-  text-align: center;
-  border-radius: 6px;
-  margin: 0 auto;
+  width: 28px; height: 28px; line-height: 28px;
+  text-align: center; border-radius: 6px;
+  margin: 0 auto; font-size: 12px; color: var(--lm-text-primary);
 }
 
-.day.empty {
-  background: transparent;
-}
+.day.empty { background: transparent; }
 
-/* 今日 */
 .day.today {
-  background: #ffa726;
-  color: white;
+  background: var(--lm-primary); color: #ffffff; font-weight: 600;
 }
 
-/* 已完成 */
 .day.completed {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--lm-primary-bg); color: var(--lm-primary); font-weight: 500;
 }
 
-/* 底部 */
 .calendar-footer {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 12px;
-  font-size: 12px;
+  display: flex; justify-content: center; gap: 16px;
+  margin-top: 10px; font-size: 11px; color: var(--lm-text-secondary);
 }
 
-.legend {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+.legend { display: flex; align-items: center; gap: 4px; }
 
 .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
 }
 
-.completed-dot {
-  background: #2e7d32;
-}
-
-.today-dot {
-  background: #ffa726;
-}
+.completed-dot { background: var(--lm-primary); }
+.today-dot { background: var(--lm-primary); opacity: 0.4; }
 </style>

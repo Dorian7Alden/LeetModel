@@ -1,384 +1,207 @@
 <template>
   <div class="problem-header">
-    <!-- 标签 -->
-    <div class="tag-container">
-      <span
-        v-for="tag in tagList"
-        :key="tag"
-        :class="['tag', selectedTags.includes(tag) ? 'active' : '']"
-        @click="toggleTag(tag)"
-      >
-        {{ tag }}
-      </span>
+    <!-- Tags -->
+    <div class="tag-section">
+      <span class="section-label">标签筛选</span>
+      <div class="tag-container">
+        <span
+          v-for="tag in tagList"
+          :key="tag"
+          :class="['tag-chip', selectedTags.includes(tag) ? 'active' : '']"
+          @click="toggleTag(tag)"
+        >{{ tag }}</span>
+      </div>
     </div>
-    <!-- 🔥 一整行筛选 -->
+
+    <!-- Filter Row -->
     <div class="filter-row">
-      <!-- 搜索 -->
-      <div class="search-box">
-        <input v-model="keyword" placeholder="搜索题目..." />
-        <button @click="emitChange">搜索</button>
-      </div>
+      <el-input
+        v-model="keyword"
+        placeholder="搜索题目..."
+        :prefix-icon="Search"
+        clearable
+        class="filter-search"
+        @change="emitChange"
+        @clear="emitChange"
+      />
 
-      <!-- 难度 -->
-      <select v-model="difficulty" @change="emitChange">
-        <option value="">难度</option>
-        <option value="Easy">简单</option>
-        <option value="Medium">中等</option>
-        <option value="Hard">困难</option>
-      </select>
+      <el-select v-model="difficulty" placeholder="难度" clearable class="filter-select" @change="emitChange">
+        <el-option label="入门" value="入门" />
+        <el-option label="中等" value="中等" />
+        <el-option label="困难" value="困难" />
+        <el-option label="挑战" value="挑战" />
+      </el-select>
 
-      <!-- 语言 -->
-      <select v-model="language" @change="emitChange">
-        <option value="">语言</option>
-        <option value="CN">中文</option>
-        <option value="EN">英文</option>
-      </select>
+      <el-select v-model="language" placeholder="语言" clearable class="filter-select" @change="emitChange">
+        <el-option label="Python" value="Python" />
+        <el-option label="MATLAB" value="MATLAB" />
+        <el-option label="R" value="R" />
+        <el-option label="C++" value="C++" />
+      </el-select>
 
-      <!-- 排序 -->
-      <select v-model="sortOrder" @change="emitChange">
-        <option value="asc">正序</option>
-        <option value="desc">倒序</option>
-      </select>
+      <el-select v-model="scoreRange" placeholder="评分区间" clearable class="filter-select" @change="handleRangeChange">
+        <el-option v-for="r in scoreRanges" :key="r.label" :label="r.label" :value="r.label" />
+      </el-select>
 
-      <!-- 分数 -->
-      <div class="score-row">
-        <span class="label">评分：</span>
+      <el-input-number
+        v-model="minAveScore"
+        :min="0" :max="100"
+        placeholder="最低分"
+        class="filter-score"
+        controls-position="right"
+        size="default"
+        @change="onScoreInput"
+      />
+      <span class="score-sep">—</span>
+      <el-input-number
+        v-model="maxAveScore"
+        :min="0" :max="100"
+        placeholder="最高分"
+        class="filter-score"
+        controls-position="right"
+        size="default"
+        @change="onScoreInput"
+      />
 
-        <!-- ⭐ 下拉选择 -->
-        <select v-model="selectedRange" @change="handleRangeChange">
-          <option value="">区间选择</option>
-          <option
-            v-for="range in scoreRanges"
-            :key="range.label"
-            :value="range.label"
-          >
-            {{ range.label }}
-          </option>
-        </select>
+      <el-select v-model="sortOrder" class="filter-sort" @change="emitChange">
+        <el-option label="默认排序" value="default" />
+        <el-option label="评分从高到低" value="desc" />
+        <el-option label="评分从低到高" value="asc" />
+        <el-option label="最新发布" value="newest" />
+      </el-select>
 
-        <!-- ⭐ 手动输入 -->
-        <input
-          v-model.number="minAveScore"
-          type="number"
-          placeholder="最低"
-          @input="clearRange"
-        />
-        <span>-</span>
-        <input
-          v-model.number="maxAveScore"
-          type="number"
-          placeholder="最高"
-          @input="clearRange"
-        />
-      </div>
-      <!-- 清空 -->
-      <button class="reset-btn" @click="reset">清空</button>
+      <el-button :icon="Refresh" @click="reset" text>清空</el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-// const handleScoreSearch = () => {
-//   emitChange();
-// };
-
-// 标签
+import { ref } from 'vue'
+import { Search, Refresh } from '@element-plus/icons-vue'
 
 const tagList = [
-  "国赛",
-  "美赛",
-  "评价模型",
-  "预测模型",
-  "动态规划",
-  "数据分析",
-  "神经网络",
-  "遗传算法",
-  "模拟退火",
-  "时间序列",
-  "回归分析",
-  "图像处理",
-  "文本挖掘",
-  "优化问题",
-  "分类问题",
-];
+  '时间序列', '神经网络', '遗传算法', '动态规划', '线性回归',
+  '聚类分析', '图论模型', '微分方程', '蒙特卡洛', '梯度下降',
+  '国赛', '美赛', '交通物流', '金融经济', '生物医学',
+]
 
-// 条件
-const keyword = ref("");
-const difficulty = ref("");
-const language = ref("");
-const selectedTags = ref([]);
-const minAveScore = ref("");
-const maxAveScore = ref("");
-const sortOrder = ref("asc");
+const keyword = ref('')
+const difficulty = ref('')
+const language = ref('')
+const selectedTags = ref([])
+const minAveScore = ref(null)
+const maxAveScore = ref(null)
+const sortOrder = ref('default')
+const scoreRange = ref('')
 
-const emit = defineEmits(["change"]);
+const emit = defineEmits(['change'])
 
-// 标签切换
+const scoreRanges = [
+  { label: '0-20', min: 0, max: 20 },
+  { label: '20-40', min: 20, max: 40 },
+  { label: '40-60', min: 40, max: 60 },
+  { label: '60-80', min: 60, max: 80 },
+  { label: '80-100', min: 80, max: 100 },
+]
+
 const toggleTag = (tag) => {
-  const index = selectedTags.value.indexOf(tag);
+  const idx = selectedTags.value.indexOf(tag)
+  if (idx > -1) selectedTags.value.splice(idx, 1)
+  else selectedTags.value.push(tag)
+  emitChange()
+}
 
-  if (index > -1) {
-    selectedTags.value.splice(index, 1);
-  } else {
-    selectedTags.value.push(tag);
-  }
+const handleRangeChange = () => {
+  const range = scoreRanges.find(r => r.label === scoreRange.value)
+  if (range) { minAveScore.value = range.min; maxAveScore.value = range.max }
+  else { minAveScore.value = null; maxAveScore.value = null }
+  emitChange()
+}
 
-  emitChange();
-};
+const onScoreInput = () => {
+  scoreRange.value = ''
+  emitChange()
+}
 
-// ⭐ 核心：统一抛出所有条件
 const emitChange = () => {
-  emit("change", {
+  emit('change', {
     keyword: keyword.value,
     difficulty: difficulty.value,
     language: language.value,
-    tags: selectedTags.value,
-    minAveScore: minAveScore.value, // ⭐改名
-    maxAveScore: maxAveScore.value, // ⭐改名
+    tags: [...selectedTags.value],
+    minAveScore: minAveScore.value,
+    maxAveScore: maxAveScore.value,
     sortOrder: sortOrder.value,
-  });
-};
-// ⭐ 下拉选中值
-const selectedRange = ref("");
+  })
+}
 
-// 固定区间
-const scoreRanges = [
-  { label: "0-20", min: 0, max: 20 },
-  { label: "20-40", min: 20, max: 40 },
-  { label: "40-60", min: 40, max: 60 },
-  { label: "60-80", min: 60, max: 80 },
-  { label: "80-100", min: 80, max: 100 },
-];
-
-// ⭐ 选择下拉
-const handleRangeChange = () => {
-  const range = scoreRanges.find((r) => r.label === selectedRange.value);
-
-  if (range) {
-    minAveScore.value = range.min;
-    maxAveScore.value = range.max;
-  } else {
-    minAveScore.value = "";
-    maxAveScore.value = "";
-  }
-
-  emitChange();
-};
-
-// ⭐ 手动输入时取消下拉选中
-const clearRange = () => {
-  selectedRange.value = "";
-  emitChange();
-};
-
-// 清空
 const reset = () => {
-  keyword.value = "";
-  difficulty.value = "";
-  language.value = "";
-  selectedTags.value = [];
-  minAveScore.value = "";
-  maxAveScore.value = "";
-  sortOrder.value = "asc";
-  selectedRange.value = "";
-
-  emitChange();
-};
+  keyword.value = ''
+  difficulty.value = ''
+  language.value = ''
+  selectedTags.value = []
+  minAveScore.value = null
+  maxAveScore.value = null
+  sortOrder.value = 'default'
+  scoreRange.value = ''
+  emitChange()
+}
 </script>
 
 <style scoped>
-/* 一整行 */
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  flex-wrap: nowrap; /* ❗禁止换行 */
-  overflow-x: auto; /* ⭐ 超出可横向滚动 */
-}
-
-/* 统一高度 */
-/* 全部统一 */
-.filter-row select,
-.score-row input,
-.search-box input,
-.search-box button {
-  height: 36px;
-}
-.filter-row > * {
-  flex-shrink: 0; /* ❗不允许被压缩 */
-}
 .problem-header {
-  background: #fff;
-  padding: 18px;
-  border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  position: relative;
-  top: 0;
-  z-index: 10;
-}
-.problem-header::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 40px;
-  height: 100%;
-  background: linear-gradient(to right, transparent, #fff);
-  pointer-events: none;
+  gap: 16px;
 }
 
-/* 搜索 */
-.search-box {
-  display: flex;
+.tag-section { display: flex; flex-direction: column; gap: 10px; }
+
+.section-label {
+  font-size: 13px; font-weight: 600; color: var(--lm-text-secondary);
 }
 
-.search-box input {
-  width: 150px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px 0 0 6px;
-  outline: none;
-}
-
-.search-box button {
-  height: 36px;
-  padding: 0 14px;
-  border: none;
-  background: #409eff;
-  color: #fff;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
-}
-
-.search-box button:hover {
-  background: #2f7de1;
-}
-
-/* 筛选 */
-.filters {
-  display: flex;
-  gap: 10px;
-}
-
-.filters select {
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-/* 分数 */
-.score-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.score-row select {
-  height: 34px;
-  padding: 0 8px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  cursor: pointer;
-}
-
-.score-row input {
-  width: 60px;
-  height: 34px;
-  padding: 0 6px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-}
-
-/* 分数标签 */
-.score-tag {
-  padding: 4px 10px;
-  background: #f2f3f5;
-  border-radius: 16px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.score-tag:hover {
-  background: #e4e7ed;
-}
-
-/* 选中 */
-.score-tag.active {
-  background: #67c23a;
-  color: #fff;
-}
-.label {
-  color: #666;
-  font-size: 14px;
-}
-
-.dash {
-  color: #999;
-}
-
-.confirm {
-  padding: 6px 12px;
-  background: #67c23a;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.confirm:hover {
-  background: #5daf34;
-}
-
-/* 标签 */
 .tag-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: flex; flex-wrap: wrap; gap: 8px;
 }
 
-.tag {
-  padding: 6px 12px;
+.tag-chip {
+  padding: 5px 14px;
   border-radius: 20px;
-  background: #f2f3f5;
+  background: var(--lm-bg-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--lm-transition);
+  color: var(--lm-text-secondary);
+  font-weight: 500;
+  border: 1px solid transparent;
 }
 
-.tag:hover {
-  background: #e4e7ed;
+.tag-chip:hover {
+  background: var(--lm-primary-bg);
+  color: var(--lm-primary);
 }
 
-.tag.active {
-  background: #409eff;
-  color: white;
+.tag-chip.active {
+  background: var(--lm-primary);
+  color: #ffffff;
+  border-color: var(--lm-primary);
 }
 
-/* 底部 */
-.bottom-row {
-  display: flex;
-  justify-content: flex-end;
+.filter-row {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
 }
 
-.reset-btn {
-  padding: 6px 12px;
-  background: #f56c6c;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.reset-btn:hover {
-  background: #dd6161;
-}
+.filter-search { width: 200px; }
+.filter-select { width: 120px; }
+.filter-sort { width: 150px; }
+.filter-score { width: 120px; }
+
+.score-sep { color: var(--lm-text-muted); font-size: 13px; }
 </style>

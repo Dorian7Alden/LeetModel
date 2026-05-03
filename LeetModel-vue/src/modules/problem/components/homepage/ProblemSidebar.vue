@@ -1,247 +1,157 @@
 <template>
-  <div class="leetcode-left-menu" :class="{ collapsed: isCollapsed }">
-    <!-- 头部 -->
-    <div class="menu-header">
-      <span v-if="!isCollapsed">题库导航</span>
+  <div class="problem-sidebar" :class="{ collapsed: isCollapsed }">
+    <div class="sidebar-header">
+      <span v-if="!isCollapsed" class="header-title">题库导航</span>
       <button class="collapse-btn" @click="toggleCollapse">
-        {{ isCollapsed ? "→" : "←" }}
+        <el-icon :size="16"><component :is="isCollapsed ? 'DArrowRight' : 'DArrowLeft'" /></el-icon>
       </button>
     </div>
 
-    <!-- 菜单 -->
     <div class="menu-list">
       <template v-for="item in menuList" :key="item.key">
-        <!-- 一级菜单 -->
         <div
           class="menu-item"
           :class="{ active: activeKey === item.key }"
           @click="handleMenuClick(item)"
         >
           <span class="menu-icon">
-            <el-icon><component :is="iconMap[item.key]" /></el-icon>
+            <el-icon :size="18"><component :is="iconMap[item.key]" /></el-icon>
           </span>
-
-          <span v-if="!isCollapsed" class="menu-label">
-            {{ item.label }}
-          </span>
-
-          <span
-            v-if="item.children && !isCollapsed"
-            class="arrow"
-            :class="{ open: item.open }"
-          >
-            ▾
+          <span v-if="!isCollapsed" class="menu-label">{{ item.label }}</span>
+          <span v-if="item.children && !isCollapsed" class="arrow" :class="{ open: item.open }">
+            <el-icon :size="12"><ArrowDown /></el-icon>
           </span>
         </div>
 
-        <!-- 子菜单 -->
-        <div
-          v-if="item.children && item.open && !isCollapsed"
-          class="submenu-list"
-        >
+        <div v-if="item.children && item.open && !isCollapsed" class="submenu-list">
           <div
-            v-for="sub in item.children"
-            :key="sub.key"
+            v-for="sub in item.children" :key="sub.key"
             class="submenu-item"
             :class="{ active: activeKey === sub.key }"
             @click="handleMenuClick(sub)"
-          >
-            {{ sub.label }}
-          </div>
+          >{{ sub.label }}</div>
         </div>
       </template>
     </div>
-
-    <!-- 登录按钮 -->
-    <router-link v-if="!userStore.isLogin" to="/register" class="login-btn">
-      登录 / 注册
-    </router-link>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
-import { useRouter, useRoute } from "vue-router";
-import { useUserStore } from "@/store/user";
-import {
-  List,
-  TrendCharts,
-  StarFilled,
-  Reading,
-  Aim,
-} from "@element-plus/icons-vue";
+import { ref, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { List, TrendCharts, StarFilled, Reading, Aim, DArrowLeft, DArrowRight, ArrowDown } from '@element-plus/icons-vue'
 
-/* ---------------- 状态 ---------------- */
-const userStore = useUserStore();
-const router = useRouter();
-const route = useRoute();
+const router = useRouter()
+const route = useRoute()
 
-const isCollapsed = ref(false);
-const activeKey = ref("all");
+const isCollapsed = ref(false)
+const activeKey = ref('all')
 
-/* ---------------- 菜单数据 ---------------- */
-const iconMap = {
-  all: List,
-  hot: TrendCharts,
-  top: StarFilled,
-  leetbook: Reading,
-  training: Aim,
-};
+const iconMap = { all: List, hot: TrendCharts, top: StarFilled, leetbook: Reading, training: Aim }
 
 const menuList = ref([
+  { key: 'all', label: '全部题目', path: '/problem/problemListPage' },
+  { key: 'hot', label: '热题 HOT 100', path: '/problem/hot' },
+  { key: 'top', label: '精选 TOP 200', path: '/problem/top' },
+  { key: 'leetbook', label: 'LeetBook', path: '/problem/leetbook' },
   {
-    key: "all",
-    label: "全部题目",
-    path: "/problem/problemListPage",
-  },
-  { key: "hot", label: "热题 HOT 100", path: "/problem/hot" },
-  { key: "top", label: "精选 TOP 200", path: "/problem/top" },
-  { key: "leetbook", label: "LeetBook", path: "/problem/leetbook" },
-  {
-    key: "training",
-    label: "专项训练",
-    open: false,
-    children: [
-      { key: "model", label: "建模手", path: "/problem/modeling" },
-      { key: "code", label: "编程手", path: "/problem/coding" },
-      { key: "paper", label: "论文手", path: "/problem/paper" },
+    key: 'training', label: '专项训练', open: false, children: [
+      { key: 'model', label: '建模手', path: '/problem/modeling' },
+      { key: 'code', label: '编程手', path: '/problem/coding' },
+      { key: 'paper', label: '论文手', path: '/problem/paper' },
     ],
   },
-]);
+])
 
-/* ---------------- 方法 ---------------- */
+const toggleCollapse = () => { isCollapsed.value = !isCollapsed.value }
 
-// 折叠
-const toggleCollapse = () => {
-  isCollapsed.value = !isCollapsed.value;
-};
-
-// 点击菜单
 const handleMenuClick = (item) => {
-  // 有子菜单 → 展开
-  if (item.children) {
-    item.open = !item.open;
-    return;
-  }
+  if (item.children) { item.open = !item.open; return }
+  activeKey.value = item.key
+  if (item.path) router.push(item.path)
+}
 
-  activeKey.value = item.key;
-
-  // 路由跳转
-  if (item.path) {
-    router.push(item.path);
-  }
-};
-
-/* ---------------- 路由联动 ---------------- */
-
-// 根据路由自动高亮
-watch(
-  () => route.path,
-  (path) => {
-    menuList.value.forEach((item) => {
-      if (item.path === path) {
-        activeKey.value = item.key;
-      }
-
-      if (item.children) {
-        item.children.forEach((sub) => {
-          if (sub.path === path) {
-            activeKey.value = sub.key;
-            item.open = true;
-          }
-        });
-      }
-    });
-  },
-  { immediate: true },
-);
+watch(() => route.path, (path) => {
+  menuList.value.forEach(item => {
+    if (item.path === path) activeKey.value = item.key
+    if (item.children) {
+      item.children.forEach(sub => {
+        if (sub.path === path) { activeKey.value = sub.key; item.open = true }
+      })
+    }
+  })
+}, { immediate: true })
 </script>
 
 <style scoped>
-.leetcode-left-menu {
-  width: 240px;
-  height: 100vh;
-  background: #fff;
-  border-right: 1px solid #eee;
+.problem-sidebar {
+  width: 220px;
+  min-height: calc(100vh - 64px);
+  background: var(--lm-surface);
+  border-right: 1px solid var(--lm-border);
   padding: 16px 0;
-  transition: 0.3s;
-  position: sticky;
-  top: 0;
+  transition: width 0.25s ease;
+  position: sticky; top: 64px;
+  flex-shrink: 0;
 }
 
-.leetcode-left-menu.collapsed {
-  width: 60px;
+.problem-sidebar.collapsed { width: 56px; }
+
+.sidebar-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 14px 14px;
 }
 
-/* 头部 */
-.menu-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px 16px;
-  font-weight: 600;
+.header-title {
+  font-size: 15px; font-weight: 700; color: var(--lm-text-primary);
 }
 
 .collapse-btn {
-  border: none;
-  background: none;
-  cursor: pointer;
+  border: none; background: var(--lm-bg-secondary);
+  border-radius: var(--lm-radius-sm); cursor: pointer;
+  padding: 4px; display: flex; align-items: center;
+  color: var(--lm-text-secondary);
+  transition: background var(--lm-transition);
 }
 
-/* 菜单 */
-.menu-list {
-  padding: 0 8px;
-}
+.collapse-btn:hover { background: var(--lm-border); }
+
+.menu-list { padding: 0 6px; }
 
 .menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 8px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--lm-radius-sm);
   cursor: pointer;
-  transition: 0.2s;
+  transition: all var(--lm-transition);
+  margin-bottom: 2px;
+  color: var(--lm-text-secondary);
 }
 
-.menu-item:hover {
-  background: #f5f5f5;
-}
+.menu-item:hover { background: var(--lm-bg); color: var(--lm-text-primary); }
 
 .menu-item.active {
-  background: #e6f0ff;
-  color: #409eff;
+  background: var(--lm-primary-bg); color: var(--lm-primary); font-weight: 600;
 }
 
-/* 子菜单 */
-.submenu-list {
-  padding-left: 30px;
-}
+.menu-label { font-size: 14px; flex: 1; }
+
+.arrow { transition: transform var(--lm-transition); }
+.arrow.open { transform: rotate(180deg); }
+
+.submenu-list { padding-left: 16px; }
 
 .submenu-item {
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 9px 12px; border-radius: var(--lm-radius-sm);
+  cursor: pointer; font-size: 13px; color: var(--lm-text-secondary);
+  margin-bottom: 2px;
+  transition: all var(--lm-transition);
 }
 
-.submenu-item:hover {
-  background: #f5f5f5;
-}
+.submenu-item:hover { background: var(--lm-bg); color: var(--lm-text-primary); }
+.submenu-item.active { background: var(--lm-primary-bg); color: var(--lm-primary); font-weight: 600; }
 
-.submenu-item.active {
-  background: #e6f0ff;
-  color: #409eff;
-}
-
-/* 登录按钮 */
-.login-btn {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 16px;
-  height: 44px;
-  border-radius: 10px;
-  background: #222;
-  color: #fff;
-  text-decoration: none;
+@media (max-width: 768px) {
+  .problem-sidebar { display: none; }
 }
 </style>

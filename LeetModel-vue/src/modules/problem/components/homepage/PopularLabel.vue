@@ -1,59 +1,99 @@
 <template>
-  <!-- 热门标签 -->
-  <div class="card">
-    <div class="title">
-      <el-icon><TrendCharts /></el-icon>
-      热门标签
+  <div class="popular-label">
+    <div class="label-header">
+      <el-icon :size="18"><TrendCharts /></el-icon>
+      <span>热门标签</span>
     </div>
 
-    <input class="search" placeholder="输入标签" />
+    <el-input
+      v-model="searchText"
+      placeholder="搜索标签..."
+      :prefix-icon="Search"
+      size="small"
+      clearable
+    />
 
-    <div class="tags">
-      <span class="tag">数学建模</span>
-      <span class="tag">优化</span>
-      <span class="tag">回归</span>
-      <span class="tag">机器学习</span>
+    <div class="tags-container">
+      <span
+        class="tag-badge"
+        v-for="tag in filteredTags"
+        :key="tag.tagId"
+        :style="{ fontSize: tagSize(tag.usageCount) + 'px' }"
+        @click="$router.push('/problem/problemListPage')"
+      >
+        {{ tag.name }}
+      </span>
+    </div>
+
+    <div class="label-footer">
+      <span class="total-label">{{ mockTags.length }} 个标签</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { TrendCharts } from "@element-plus/icons-vue";
+import { ref, computed } from 'vue'
+import { TrendCharts, Search } from '@element-plus/icons-vue'
+import { mockTags } from '@/mock/data.js'
+
+const searchText = ref('')
+
+const filteredTags = computed(() => {
+  if (!searchText.value) return [...mockTags].sort((a, b) => b.usageCount - a.usageCount).slice(0, 20)
+  const kw = searchText.value.toLowerCase()
+  return mockTags.filter(t => t.name.toLowerCase().includes(kw)).sort((a, b) => b.usageCount - a.usageCount)
+})
+
+function tagSize(count) {
+  if (count > 300) return 15
+  if (count > 200) return 14
+  if (count > 100) return 13
+  return 12
+}
 </script>
 
 <style scoped>
-/* 卡片 */
-.card {
-  background: #fff;
+.popular-label {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
   padding: 16px;
+}
+
+.label-header {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700;
+  color: var(--lm-text-primary);
+  margin-bottom: 12px;
+}
+
+.tags-container {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-badge {
+  padding: 4px 10px;
+  background: var(--lm-bg-secondary);
   border-radius: 16px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-}
-/* 标签 */
-.title {
-  font-weight: bold;
-  margin-bottom: 10px;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all var(--lm-transition);
 }
 
-.search {
-  width: 100%;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  margin-bottom: 10px;
+.tag-badge:hover {
+  background: var(--lm-primary-bg);
+  color: var(--lm-primary);
 }
 
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.label-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--lm-border-light);
 }
 
-.tag {
-  padding: 6px 10px;
-  background: #f2f2f2;
-  border-radius: 12px;
-  font-size: 12px;
+.total-label {
+  font-size: 12px; color: var(--lm-text-muted);
 }
 </style>
