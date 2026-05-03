@@ -38,6 +38,9 @@
             </el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无角色数据" />
+        </template>
       </el-table>
     </el-card>
 

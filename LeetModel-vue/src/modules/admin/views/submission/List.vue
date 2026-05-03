@@ -1,7 +1,7 @@
 <template>
   <div class="submission-list">
     <el-card shadow="never">
-      <div class="filter-bar">
+      <div class="action-bar">
         <el-input v-model="filters.query" placeholder="搜索题目ID或作者" style="width: 250px" />
         <el-select v-model="filters.status" placeholder="评测状态" clearable style="width: 150px">
           <el-option label="Pending" value="Pending" />
@@ -9,7 +9,7 @@
           <el-option label="Finished" value="Finished" />
         </el-select>
         <div class="action-buttons">
-          <el-button type="primary" icon="Search">筛选</el-button>
+          <el-button type="primary" icon="Search" @click="applyFilters">筛选</el-button>
           <el-button icon="Refresh" @click="fetchData">刷新</el-button>
           <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
@@ -22,7 +22,9 @@
         <el-table-column prop="id" label="作品流水" width="100" />
         <el-table-column prop="problemTitle" label="所属题目" min-width="180" />
         <el-table-column prop="author" label="作者" width="120" />
-        <el-table-column prop="submitTime" label="提交时间" width="160" />
+        <el-table-column label="提交时间" width="160">
+          <template #default="scope">{{ formatTime(scope.row.submitTime) }}</template>
+        </el-table-column>
         <el-table-column prop="score" label="AI评分" width="80">
           <template #default="scope">
             <span :style="{ color: scope.row.score >= 80 ? '#67C23A' : '#E6A23C' }">
@@ -39,17 +41,23 @@
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
-            <el-button size="small" type="primary" link>查看详情</el-button>
-            <el-button size="small" type="danger" link>重新评测</el-button>
+            <el-button size="small" type="primary" link @click="viewDetail(scope.row)">查看详情</el-button>
+            <el-button size="small" type="danger" link @click="reEvaluate(scope.row)">重新评测</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无作品数据" />
+        </template>
       </el-table>
 
        <div class="pagination-container">
         <el-pagination
           background
           layout="prev, pager, next, total"
-          :total="45"
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :total="total"
+          @current-change="fetchData"
         />
       </div>
     </el-card>
@@ -73,7 +81,7 @@
           <el-upload
             class="upload-demo"
             drag
-            action="https://run.mocky.io/v3/9d059bf9-4660-45f2-925d-ce80ad6c4d15"
+            action="#"
             :limit="1"
             accept=".pdf,.doc,.docx"
             :on-change="handlePaperChange"
@@ -87,7 +95,7 @@
         <el-form-item label="代码附件" prop="code">
           <el-upload
             class="upload-demo"
-            action="https://run.mocky.io/v3/9d059bf9-4660-45f2-925d-ce80ad6c4d15"
+            action="#"
             accept=".zip,.rar,.tar.gz"
             :on-change="handleCodeChange"
             :auto-upload="false"
@@ -107,14 +115,27 @@
 
 <script setup>
 import { reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+
+const formatTime = (val) => {
+  if (!val) return '-';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+};
 
 const filters = reactive({ query: '', status: '' });
 const loading = ref(false);
 const createDialogVisible = ref(false);
 const submitLoading = ref(false);
 const formRef = ref(null);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(5);
 
 const tableData = ref([
   { id: 'S1001', problemTitle: '2023高教社杯A题', author: 'Team Alpha', submitTime: '10:05:00', score: 85, status: 'Finished' },
@@ -192,6 +213,23 @@ const onSubmit = async () => {
   }
 };
 
+const applyFilters = () => {
+  currentPage.value = 1;
+  fetchData();
+};
+
+const viewDetail = (row) => {
+  ElMessage.info(`查看作品详情: ${row.id}`);
+};
+
+const reEvaluate = (row) => {
+  ElMessageBox.confirm(`确定重新评测作品「${row.id}」吗？`, '确认', {
+    type: 'warning'
+  }).then(() => {
+    ElMessage.success('已提交重新评测请求');
+  }).catch(() => {});
+};
+
 const fetchData = () => {
   loading.value = true;
   setTimeout(() => {
@@ -202,7 +240,7 @@ const fetchData = () => {
 </script>
 
 <style scoped>
-.filter-bar {
+.action-bar {
   display: flex;
   align-items: center;
   gap: 12px;

@@ -26,14 +26,21 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column prop="updateTime" label="更新时间" width="180" />
+        <el-table-column label="创建时间" width="180">
+          <template #default="scope">{{ formatTime(scope.row.createTime) }}</template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="180">
+          <template #default="scope">{{ formatTime(scope.row.updateTime) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary" link @click="openEditDialog(scope.row)">编辑</el-button>
             <el-button size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无题目数据" />
+        </template>
       </el-table>
 
       <div class="pagination-container">
@@ -102,6 +109,16 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
+
+const formatTime = (val) => {
+  if (!val) return '-';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+};
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { getProblemList, getProblemDetail, createProblem, updateProblem, deleteProblem } from '@/api/problem';
@@ -147,13 +164,18 @@ const getStatusType = (status) => statusMap[status]?.type || 'info';
 const fetchList = async () => {
   tableLoading.value = true;
   try {
-    const res = await getProblemList({ page: currentPage.value, pageSize: pageSize.value });
+    const params = { page: currentPage.value, pageSize: pageSize.value };
+    if (searchQuery.value.trim()) {
+      params.keyword = searchQuery.value.trim();
+    }
+    const res = await getProblemList(params);
     if (res.code === 20000 && res.data) {
       tableData.value = res.data.records || [];
       total.value = res.data.total || 0;
     }
   } catch (error) {
     console.error('获取题目列表失败', error);
+    ElMessage.error('获取题目列表失败');
   } finally {
     tableLoading.value = false;
   }
@@ -225,6 +247,7 @@ const handleDelete = (row) => {
       fetchList();
     } catch (error) {
       console.error('删除题目失败', error);
+      ElMessage.error('删除题目失败');
     }
   }).catch(() => {});
 };
@@ -260,6 +283,7 @@ const onSubmit = async () => {
     fetchList();
   } catch (error) {
     console.error('保存题目失败', error);
+    ElMessage.error('保存题目失败');
   } finally {
     submitLoading.value = false;
   }

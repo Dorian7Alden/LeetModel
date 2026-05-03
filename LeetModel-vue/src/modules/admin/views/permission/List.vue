@@ -38,6 +38,9 @@
             </el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无权限数据" />
+        </template>
       </el-table>
     </el-card>
 

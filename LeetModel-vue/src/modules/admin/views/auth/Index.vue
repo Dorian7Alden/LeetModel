@@ -1,6 +1,6 @@
 <template>
   <div class="auth-page">
-    <el-card shadow="never">
+    <el-card shadow="never" v-loading="loading">
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <!-- ==================== 用户授权 ==================== -->
         <el-tab-pane label="用户授权" name="user">
@@ -71,12 +71,15 @@
 
           <template v-if="selectedRoleId">
             <el-divider />
-            <el-checkbox-group v-model="checkedPermissions" class="checkbox-list">
-              <el-checkbox v-for="perm in allPermissions" :key="perm.permissionId" :label="perm.permissionId">
-                <span class="check-label">{{ perm.name }}</span>
-                <span class="check-desc">{{ perm.code }}</span>
-              </el-checkbox>
-            </el-checkbox-group>
+            <div v-for="group in permissionGroups" :key="group.label" class="perm-group">
+              <div class="perm-group-title">{{ group.label }}</div>
+              <el-checkbox-group v-model="checkedPermissions" class="checkbox-list">
+                <el-checkbox v-for="perm in group.permissions" :key="perm.permissionId" :label="perm.permissionId">
+                  <span class="check-label">{{ perm.name }}</span>
+                  <span class="check-desc">{{ perm.code }}</span>
+                </el-checkbox>
+              </el-checkbox-group>
+            </div>
             <div class="save-bar">
               <el-button type="primary" :loading="roleSaving" @click="saveRolePermissions">
                 保存
@@ -98,6 +101,7 @@ import { getRoleList, getRolePermissions, assignRolePermissions } from "@/api/ro
 import { getPermissionList } from "@/api/permission";
 
 const activeTab = ref("user");
+const loading = ref(true);
 
 // ================== 用户授权 ==================
 const users = ref([]);
@@ -150,6 +154,26 @@ const selectedRoleId = ref(null);
 const checkedPermissions = ref([]);
 const roleSaving = ref(false);
 
+const permissionGroups = computed(() => {
+  const groups = [
+    { label: '首页', prefix: 'DASHBOARD' },
+    { label: '用户管理', prefix: 'USER' },
+    { label: '题目管理', prefix: 'PROBLEM' },
+    { label: '作品管理', prefix: 'SUBMISSION' },
+    { label: '标签管理', prefix: 'TAG' },
+    { label: '帖子管理', prefix: 'POST' },
+    { label: '赛事管理', prefix: 'CONTEST' },
+    { label: '角色管理', prefix: 'ROLE' },
+    { label: '权限管理', prefix: 'PERMISSION' },
+    { label: '授权管理', prefix: 'AUTH' },
+    { label: '文件上传', prefix: 'FILE' },
+  ];
+  return groups.map(g => ({
+    label: g.label,
+    permissions: allPermissions.value.filter(p => (p.code || '').startsWith(g.prefix))
+  })).filter(g => g.permissions.length > 0);
+});
+
 const selectRole = async (roleId) => {
   if (!roleId) {
     checkedPermissions.value = [];
@@ -178,10 +202,12 @@ const saveRolePermissions = async () => {
 
 // ================== 初始化 ==================
 const handleTabChange = (tab) => {
-  if (tab === "user") {
+  if (tab === 'user') {
     selectedRoleId.value = null;
+    checkedPermissions.value = [];
   } else {
     selectedUser.value = null;
+    checkedRoles.value = [];
   }
 };
 
@@ -197,6 +223,8 @@ onMounted(async () => {
     allPermissions.value = Array.isArray(permRes.data) ? permRes.data : [];
   } catch {
     ElMessage.error("加载数据失败");
+  } finally {
+    loading.value = false;
   }
 });
 </script>
@@ -252,7 +280,29 @@ onMounted(async () => {
   font-size: 14px;
   color: #333;
 }
+.perm-group {
+  margin-bottom: 16px;
+}
+.perm-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #ebeef5;
+}
 :deep(.current-row) {
   background-color: #ecf5ff !important;
+}
+@media (max-width: 900px) {
+  .auth-layout {
+    flex-direction: column;
+  }
+  .auth-right {
+    border-left: none;
+    border-top: 1px solid #eee;
+    padding-left: 0;
+    padding-top: 20px;
+  }
 }
 </style>

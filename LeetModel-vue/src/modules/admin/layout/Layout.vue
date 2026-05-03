@@ -1,7 +1,10 @@
 <template>
   <el-container class="layout-container">
     <el-aside :width="isCollapse ? '64px' : '200px'" class="aside">
-      <div class="logo">{{ isCollapse ? 'LM' : 'LeetModel 管理端' }}</div>
+      <div class="logo" :class="{ collapsed: isCollapse }">
+        <el-icon :size="isCollapse ? 22 : 24" class="logo-icon"><HomeFilled /></el-icon>
+        <span v-if="!isCollapse" class="logo-text">LeetModel</span>
+      </div>
       <el-menu
         :default-active="$route.path"
         class="el-menu-vertical"
@@ -35,8 +38,8 @@
         <div class="header-left">
           <el-icon class="toggle-btn" @click="toggleCollapse"><Fold v-if="!isCollapse"/><Expand v-else/></el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="$route.path !== '/dashboard'">{{ $route.meta.title }}</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/admin/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="$route.path !== '/admin/dashboard'">{{ $route.meta.title }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
@@ -46,7 +49,7 @@
           </router-link>
           <el-dropdown>
             <span class="user-dropdown">
-              管理员 <el-icon><ArrowDown /></el-icon>
+              {{ userStore.username || '管理员' }} <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
@@ -93,7 +96,6 @@ const toggleCollapse = () => {
 
 const handleLogout = () => {
   userStore.logout();
-  localStorage.removeItem('userId');
   ElMessage.success('已退出登录');
   router.push('/login');
 };
@@ -114,11 +116,23 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #444;
+  gap: 10px;
+  color: #303133;
   font-size: 18px;
-  font-weight: bold;
+  font-weight: 700;
   background-color: #ffffff;
   border-bottom: 1px solid #eee;
+  letter-spacing: 0.5px;
+}
+.logo.collapsed {
+  justify-content: center;
+}
+.logo-icon {
+  color: #409eff;
+  flex-shrink: 0;
+}
+.logo-text {
+  white-space: nowrap;
 }
 .el-menu-vertical {
   border-right: none;
