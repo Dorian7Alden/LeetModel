@@ -139,10 +139,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
-import { logout } from '@/api/user'
-import { ElMessage } from 'element-plus'
+import { useAuth } from '@/composables/useAuth'
 import {
   Collection,
   StarFilled,
@@ -152,8 +151,8 @@ import {
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
-const router = useRouter()
 const userStore = useUserStore()
+const { handleLogout } = useAuth()
 
 const isHome = computed(() => route.path === '/')
 const keyword = ref('')
@@ -168,20 +167,6 @@ const navItems = [
 function isActive(path) {
   if (path === '/admin') return route.path.startsWith('/admin')
   return route.path === path
-}
-
-async function handleLogout() {
-  try {
-    await logout()
-    ElMessage.success('退出成功')
-  } catch (err) {
-    console.log('退出接口异常', err)
-  } finally {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    userStore.$reset()
-    router.push('/login')
-  }
 }
 </script>
 
