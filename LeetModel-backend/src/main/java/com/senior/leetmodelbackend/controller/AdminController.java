@@ -8,6 +8,7 @@ import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.ProblemDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.RoleDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.SubmissionDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.UserBatchUpdateDTO;
 import com.senior.leetmodelbackend.pojo.entity.PageResult;
 import com.senior.leetmodelbackend.pojo.entity.OssFile;
 import com.senior.leetmodelbackend.pojo.entity.Permission;
@@ -30,6 +31,7 @@ import com.senior.leetmodelbackend.validator.admin.PermissionParamValidator;
 import com.senior.leetmodelbackend.validator.admin.ProblemParamValidator;
 import com.senior.leetmodelbackend.validator.admin.RoleParamValidator;
 import com.senior.leetmodelbackend.validator.admin.SubmissionParamValidator;
+import com.senior.leetmodelbackend.validator.admin.UserBatchUpdateValidator;
 import com.senior.leetmodelbackend.validator.user.UserIdParamValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
@@ -67,6 +69,7 @@ public class AdminController {
     private final ProblemParamValidator problemParamValidator;
     private final SubmissionParamValidator submissionParamValidator;
     private final AssignIdsParamValidator assignIdsParamValidator;
+    private final UserBatchUpdateValidator userBatchUpdateValidator;
 
     // ==================== User Management ====================
 
@@ -78,6 +81,14 @@ public class AdminController {
     public Result<List<UserVO>> getUserList() {
         List<User> users = userService.getAllUsers();
         List<UserVO> voList = users.stream().map(UserVO::createVO).toList();
+        for (UserVO vo : voList) {
+            if (vo.getAvatarFileId() != null) {
+                OssFile ossFile = ossFileMapper.getOssFileById(vo.getAvatarFileId());
+                if (ossFile != null) {
+                    vo.setAvatarUrl(ossFile.getFileUrl());
+                }
+            }
+        }
         return Result.success(voList);
     }
 
@@ -105,6 +116,17 @@ public class AdminController {
         assignIdsParamValidator.validate(request);
         userService.assignUserRoles(userId, request.getIds());
         return Result.success("分配成功");
+    }
+
+    /**
+     * 批量更新用户信息（仅更新传入的非空字段）
+     */
+    @RequirePermission("USER_UPDATE")
+    @PutMapping("/users/batch")
+    public Result<Void> batchUpdateUsers(@RequestBody UserBatchUpdateDTO dto) {
+        userBatchUpdateValidator.validate(dto);
+        userService.batchUpdateUsers(dto);
+        return Result.success();
     }
 
     // ==================== Role Management ====================

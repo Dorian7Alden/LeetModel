@@ -7,6 +7,7 @@ import com.senior.leetmodelbackend.mapper.RoleMapper;
 import com.senior.leetmodelbackend.mapper.UserMapper;
 import com.senior.leetmodelbackend.pojo.dto.RegisterDTO;
 import com.senior.leetmodelbackend.pojo.dto.UserUpdateDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.UserBatchUpdateDTO;
 import com.senior.leetmodelbackend.pojo.entity.Role;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import lombok.AllArgsConstructor;
@@ -127,8 +128,34 @@ public class UserService {
         user.setUserId(userId);
         user.setUsername(dto.getUsername());
         user.setSchool(dto.getSchool());
+        user.setPhone(dto.getPhone());
         user.setAvatarFileId(dto.getAvatarFileId());
         userMapper.updateUserById(user);
+    }
+
+    /**
+     * 批量更新用户信息，仅更新传入的非空字段
+     */
+    @Transactional
+    public void batchUpdateUsers(UserBatchUpdateDTO dto) {
+        User template = new User();
+        template.setSchool(dto.getSchool());
+        template.setPhone(dto.getPhone());
+        template.setStatus(dto.getStatus());
+
+        for (Integer userId : dto.getUserIds()) {
+            if (userMapper.getUserById(userId) == null) {
+                log.warn("批量更新跳过不存在的用户: userId={}", userId);
+                continue;
+            }
+            User user = new User();
+            user.setUserId(userId);
+            user.setSchool(template.getSchool());
+            user.setPhone(template.getPhone());
+            user.setStatus(template.getStatus());
+            userMapper.updateUserById(user);
+        }
+        log.info("批量更新用户完成: userIds={}", dto.getUserIds());
     }
 
     /**

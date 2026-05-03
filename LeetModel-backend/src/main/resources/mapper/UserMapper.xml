@@ -10,6 +10,7 @@
 <!--            <if test="password != null and password != ''">password = #{password},</if>-->
             <if test="phone != null and phone != ''">phone = #{phone},</if>
             <if test="school != null and school != ''">school = #{school},</if>
+            <if test="avatarFileId != null">avatar_file_id = #{avatarFileId},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             update_time = now(),
         </set>

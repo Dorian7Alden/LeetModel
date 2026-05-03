@@ -12,7 +12,9 @@ public class UserVO {
     private String username;
     private String email;
     private String school;
+    private String phone;
     private Integer avatarFileId;
+    private String avatarUrl;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -23,6 +25,7 @@ public class UserVO {
         vo.setUsername(user.getUsername());
         vo.setEmail(user.getEmail());
         vo.setSchool(user.getSchool());
+        vo.setPhone(user.getPhone());
         vo.setAvatarFileId(user.getAvatarFileId());
         vo.setStatus(user.getStatus());
         vo.setCreateTime(user.getCreateTime());
