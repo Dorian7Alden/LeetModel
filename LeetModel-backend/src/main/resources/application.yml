@@ -46,7 +46,7 @@ spring:
       api-key: ${LM_DEEPSEEK_API_KEY} # Deepseek 的 API KEY
       chat:
         options:
-          model: deepseek-chat
+          model: deepseek-v4-pro
       base-url: https://api.deepseek.com
 
 

@@ -34,7 +34,23 @@
       "Bash(Get-ChildItem -Recurse -Depth 5 -Name)",
       "Bash(Select-Object -First 150)",
       "Bash(git log *)",
-      "Bash(Get-ChildItem -Recurse -Depth 2 \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\")"
+      "Bash(Get-ChildItem -Recurse -Depth 2 \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\")",
+      "Bash(Get-ChildItem -Recurse -Directory \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\" -Depth 0)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(Test-Path *)",
+      "Bash(python -c \"print\\('hello'\\)\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(xxd)",
+      "Bash(node *)",
+      "Bash(cygpath *)",
+      "Bash(bash -x \"C:/Users/senio/.claude/plugins/cache/claude-sound-fx/sound-fx/0.2.0/hooks/hook.sh\" start)",
+      "PowerShell($file = \"C:\\\\Users\\\\senio\\\\.claude\\\\plugins\\\\cache\\\\claude-sound-fx\\\\sound-fx\\\\0.2.0\\\\assets\\\\keyboard\\\\KeyboardStart1.mp3\"; try { $w = New-Object -ComObject WMPlayer.OCX; $w.settings.volume = 60; $w.URL = $file; $null = $w.controls; Start-Sleep 2; Write-Host \"Playback initiated - media duration: $\\($w.currentMedia.duration\\)\"; $w.close\\(\\) } catch { Write-Host \"ERROR: $_\" })",
+      "PowerShell($file = \"C:\\\\Users\\\\senio\\\\.claude\\\\plugins\\\\cache\\\\claude-sound-fx\\\\sound-fx\\\\0.2.0\\\\assets\\\\keyboard\\\\KeyboardStart1.mp3\"; Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Volume = 0.6; $player.Open\\($file\\); $player.Play\\(\\); Start-Sleep 3; Write-Host \"Duration: $\\($player.NaturalDuration.TimeSpan\\)\"; $player.Close\\(\\))",
+      "Bash(dir *)",
+      "Bash(bash *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\senio\\\\Desktop\\\\SpringAiTest\" -Recurse -Depth 3)",
+      "Bash(Select-Object FullName -ExpandProperty FullName)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

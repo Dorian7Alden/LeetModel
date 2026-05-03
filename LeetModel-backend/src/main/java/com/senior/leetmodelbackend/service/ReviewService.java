@@ -149,13 +149,11 @@ public class ReviewService {
                         + "\n\n" + converter.getFormat();
                 if (attempt > 1) {
                     systemPrompt += STRICT_JSON_INSTRUCTION;
-                    if (lastError != null) {
-                        String errorMsg = lastError.getMessage();
-                        if (errorMsg != null && errorMsg.length() > 200) {
-                            errorMsg = errorMsg.substring(0, 200) + "...";
-                        }
-                        systemPrompt += "\n上次输出解析失败原因：" + errorMsg;
+                    String errorMsg = lastError.getMessage();
+                    if (errorMsg != null && errorMsg.length() > 200) {
+                        errorMsg = errorMsg.substring(0, 200) + "...";
                     }
+                    systemPrompt += "\n上次输出解析失败原因：" + errorMsg;
                 }
 
                 String userPrompt = promptService.buildUserMessage(problemContent, submissionContent).getText();
@@ -211,7 +209,7 @@ public class ReviewService {
 
         reviewLogService.logFailure(submission.getSubmissionId(), review.getReviewId(),
                 "维度评审失败（已达最大重试次数）: " + dimension.getName(),
-                lastError != null ? lastError.getMessage() : "unknown");
+                lastError.getMessage());
 
         return review;
     }
