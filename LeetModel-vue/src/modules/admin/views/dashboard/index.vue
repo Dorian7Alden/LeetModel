@@ -4,17 +4,9 @@
     <el-row :gutter="20" class="stat-row">
       <el-col :xs="24" :sm="12" :lg="6" v-for="item in stats" :key="item.title">
         <el-card shadow="never" class="stat-card-wrapper">
-          <StatCard
-            :title="item.title"
-            :value="item.value"
-            :icon="item.icon"
-            :color="item.color"
-            :bg-color="item.bgColor"
-            :trend="item.trend"
-            :trend-up="item.trendUp"
-            :subtitle="item.subtitle"
-            :hover="true"
-          />
+          <StatCard :title="item.title" :value="item.value" :icon="item.icon" :color="item.color"
+            :bg-color="item.bgColor" :trend="item.trend" :trend-up="item.trendUp" :subtitle="item.subtitle"
+            :hover="true" />
         </el-card>
       </el-col>
     </el-row>
@@ -43,12 +35,7 @@
               <el-button text type="primary" size="small">查看全部</el-button>
             </div>
           </template>
-          <el-table
-            :data="recentSubmissions"
-            size="default"
-            stripe
-            class="submission-table"
-          >
+          <el-table :data="recentSubmissions" size="default" stripe class="submission-table">
             <el-table-column prop="userName" label="用户" min-width="100">
               <template #default="{ row }">
                 <span class="table-user">{{ row.userName }}</span>
@@ -57,15 +44,10 @@
             <el-table-column prop="title" label="作品标题" min-width="180" show-overflow-tooltip />
             <el-table-column prop="status" label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag
-                  :type="statusType(row.status)"
-                  size="small"
-                  effect="plain"
-                  round
-                >
+                <el-tag :type="statusType(row.status)" size="small" effect="plain" round>
                   {{ statusLabel(row.status) }}
                 </el-tag>
-              </el-table-column>
+              </template>
             </el-table-column>
             <el-table-column prop="totalScore" label="得分" width="80" align="center">
               <template #default="{ row }">
@@ -361,6 +343,7 @@ onBeforeUnmount(() => {
   .stat-row .el-col {
     margin-bottom: 16px;
   }
+
   .chart-container,
   .pie-container {
     height: 260px;
