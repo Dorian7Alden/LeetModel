@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.SubmissionMapper">
+
+    <resultMap id="SubmissionVOMap" type="com.senior.leetmodelbackend.pojo.vo.admin.SubmissionVO">
+        <id property="submissionId" column="submission_id"/>
+        <result property="problemId" column="problem_id"/>
+        <result property="problemTitle" column="problem_title"/>
+        <result property="userId" column="user_id"/>
+        <result property="username" column="username"/>
+        <result property="title" column="title"/>
+        <result property="status" column="status"/>
+        <result property="totalScore" column="total_score"/>
+        <result property="submitTime" column="submit_time"/>
+        <result property="completeTime" column="complete_time"/>
+    </resultMap>
+
+    <select id="getSubmissionList" resultMap="SubmissionVOMap">
+        select s.*, p.problem_title, u.username
+        from submission s
+        left join problem p on s.problem_id = p.problem_id
+        left join user u on s.user_id = u.user_id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                and (p.problem_title like concat('%', #{keyword}, '%')
+                     or u.username like concat('%', #{keyword}, '%')
+                     or s.title like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                and s.status = #{status}
+            </if>
+        </where>
+        order by s.create_time desc
+    </select>
+
+    <select id="getSubmissionById" resultType="com.senior.leetmodelbackend.pojo.entity.Submission">
+        select * from submission where submission_id = #{submissionId}
+    </select>
+
+    <insert id="insertSubmission" parameterType="com.senior.leetmodelbackend.pojo.entity.Submission"
+            useGeneratedKeys="true" keyProperty="submissionId">
+        insert into submission (problem_id, user_id, title, content_file_id, status, total_score, submit_time, create_time, update_time)
+        values (#{problemId}, #{userId}, #{title}, #{contentFileId}, #{status}, #{totalScore}, now(), now(), now())
+    </insert>
+
+    <update id="updateSubmissionStatus">
+        update submission
+        set status = #{status}, update_time = now()
+        <if test="status == 'COMPLETED' or status == 'FAILED'">
+            , complete_time = now()
+        </if>
+        where submission_id = #{submissionId}
+    </update>
+
+    <update id="updateSubmissionScore">
+        update submission
+        set total_score = #{totalScore}, status = #{status}, complete_time = now(), update_time = now()
+        where submission_id = #{submissionId}
+    </update>
+
+</mapper>

@@ -7,6 +7,7 @@ import com.senior.leetmodelbackend.pojo.dto.admin.AssignIdsDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.ProblemDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.RoleDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.SubmissionDTO;
 import com.senior.leetmodelbackend.pojo.entity.PageResult;
 import com.senior.leetmodelbackend.pojo.entity.OssFile;
 import com.senior.leetmodelbackend.pojo.entity.Permission;
@@ -18,14 +19,17 @@ import com.senior.leetmodelbackend.pojo.vo.admin.FileUploadVO;
 import com.senior.leetmodelbackend.pojo.vo.admin.PermissionVO;
 import com.senior.leetmodelbackend.pojo.vo.admin.ProblemVO;
 import com.senior.leetmodelbackend.pojo.vo.admin.RoleVO;
+import com.senior.leetmodelbackend.pojo.vo.admin.SubmissionVO;
 import com.senior.leetmodelbackend.service.PermissionService;
 import com.senior.leetmodelbackend.service.ProblemService;
 import com.senior.leetmodelbackend.service.RoleService;
+import com.senior.leetmodelbackend.service.SubmissionService;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.validator.admin.AssignIdsParamValidator;
 import com.senior.leetmodelbackend.validator.admin.PermissionParamValidator;
 import com.senior.leetmodelbackend.validator.admin.ProblemParamValidator;
 import com.senior.leetmodelbackend.validator.admin.RoleParamValidator;
+import com.senior.leetmodelbackend.validator.admin.SubmissionParamValidator;
 import com.senior.leetmodelbackend.validator.user.UserIdParamValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
@@ -53,6 +57,7 @@ public class AdminController {
     private final RoleService roleService;
     private final PermissionService permissionService;
     private final ProblemService problemService;
+    private final SubmissionService submissionService;
     private final OssUtils ossUtils;
     private final OssFileMapper ossFileMapper;
 
@@ -60,6 +65,7 @@ public class AdminController {
     private final RoleParamValidator roleParamValidator;
     private final PermissionParamValidator permissionParamValidator;
     private final ProblemParamValidator problemParamValidator;
+    private final SubmissionParamValidator submissionParamValidator;
     private final AssignIdsParamValidator assignIdsParamValidator;
 
     // ==================== User Management ====================
@@ -292,6 +298,64 @@ public class AdminController {
     @DeleteMapping("/problems/{problemId}")
     public Result<Void> deleteProblem(@PathVariable Integer problemId) {
         problemService.deleteProblem(problemId);
+        return Result.success("删除成功");
+    }
+
+    // ==================== Submission Management ====================
+
+    /**
+     * 获取作品分页列表
+     */
+    @RequirePermission("SUBMISSION_VIEW")
+    @GetMapping("/submissions")
+    public Result<PageResult<SubmissionVO>> getSubmissionList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status) {
+        PageResult<SubmissionVO> pageResult = submissionService.getSubmissionList(page, pageSize, keyword, status);
+        return Result.success(pageResult);
+    }
+
+    /**
+     * 获取作品详情（含评审结果）
+     */
+    @RequirePermission("SUBMISSION_VIEW")
+    @GetMapping("/submissions/{submissionId}")
+    public Result<SubmissionVO> getSubmissionDetail(@PathVariable Integer submissionId) {
+        SubmissionVO vo = submissionService.getSubmissionDetail(submissionId);
+        return Result.success(vo);
+    }
+
+    /**
+     * 创建作品（自动触发异步评审）
+     */
+    @RequirePermission("SUBMISSION_MANAGE")
+    @PostMapping("/submissions")
+    public Result<SubmissionVO> createSubmission(@RequestBody SubmissionDTO request, HttpServletRequest req) {
+        submissionParamValidator.validate(request);
+        Integer userId = (Integer) req.getAttribute("userId");
+        SubmissionVO vo = submissionService.createSubmission(request, userId);
+        return Result.success("作品提交成功，已加入评审队列", vo);
+    }
+
+    /**
+     * 重新评审作品
+     */
+    @RequirePermission("SUBMISSION_MANAGE")
+    @PostMapping("/submissions/{submissionId}/re-evaluate")
+    public Result<Void> reEvaluateSubmission(@PathVariable Integer submissionId) {
+        submissionService.reEvaluate(submissionId);
+        return Result.success("已重新提交评审");
+    }
+
+    /**
+     * 删除作品
+     */
+    @RequirePermission("SUBMISSION_MANAGE")
+    @DeleteMapping("/submissions/{submissionId}")
+    public Result<Void> deleteSubmission(@PathVariable Integer submissionId) {
+        submissionService.deleteSubmission(submissionId);
         return Result.success("删除成功");
     }
 

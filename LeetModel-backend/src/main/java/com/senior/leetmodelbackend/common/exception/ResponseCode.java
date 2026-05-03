@@ -52,9 +52,16 @@ public enum ResponseCode {
     FILE_NOT_FOUND(40203, "文件记录不存在"),
 
     /**
+     * 作品模块 (02扩展)
+     */
+    SUBMISSION_NOT_FOUND(40204, "作品不存在"),
+
+    /**
      * 第三方服务与AI模块 (06)
      */
-    EMAIL_SEND_FAILED(50601, "邮件发送失败，服务器异常或网络超时");
+    EMAIL_SEND_FAILED(50601, "邮件发送失败，服务器异常或网络超时"),
+    AI_REVIEW_PARSE_FAILED(40601, "AI评审响应解析失败"),
+    AI_REVIEW_CALL_FAILED(50602, "AI评审服务调用失败");
 
 
     private final Integer code;

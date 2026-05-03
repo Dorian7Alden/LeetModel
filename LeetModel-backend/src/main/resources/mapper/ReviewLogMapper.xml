@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.ReviewLogMapper">
+
+    <insert id="insertReviewLog" parameterType="com.senior.leetmodelbackend.pojo.entity.ReviewLog"
+            useGeneratedKeys="true" keyProperty="logId">
+        insert into review_log (submission_id, review_id, status, message, detail, create_time)
+        values (#{submissionId}, #{reviewId}, #{status}, #{message}, #{detail}, now())
+    </insert>
+
+</mapper>

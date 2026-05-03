@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.ReviewMapper">
+
+    <select id="getReviewsBySubmissionId" resultType="com.senior.leetmodelbackend.pojo.entity.Review">
+        select * from review where submission_id = #{submissionId}
+    </select>
+
+    <insert id="insertReview" parameterType="com.senior.leetmodelbackend.pojo.entity.Review"
+            useGeneratedKeys="true" keyProperty="reviewId">
+        insert into review (submission_id, dimension_code, dimension_name, score, weight, feedback, status, retry_count, start_time, create_time, update_time)
+        values (#{submissionId}, #{dimensionCode}, #{dimensionName}, #{score}, #{weight}, #{feedback}, #{status}, #{retryCount}, now(), now(), now())
+    </insert>
+
+    <update id="updateReviewResult">
+        update review
+        set score = #{score}, feedback = #{feedback}, status = #{status}, end_time = now(), update_time = now()
+        where review_id = #{reviewId}
+    </update>
+
+    <update id="updateReviewStatus">
+        update review
+        set status = #{status}, retry_count = #{retryCount}, update_time = now()
+        <if test="status == 'RUNNING'">
+            , start_time = now()
+        </if>
+        <if test="status == 'FAILED' or status == 'COMPLETED'">
+            , end_time = now()
+        </if>
+        where review_id = #{reviewId}
+    </update>
+
+    <update id="updateReviewStart">
+        update review
+        set status = #{status}, start_time = now(), update_time = now()
+        where review_id = #{reviewId}
+    </update>
+
+</mapper>
