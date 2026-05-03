@@ -55,7 +55,9 @@
       "Bash(Select-Object Name)",
       "PowerShell(New-Item *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
-      "Bash(curl -s -o NUL -w \"%{http_code}\" http://localhost:5173)"
+      "Bash(curl -s -o NUL -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(git commit *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\" -Recurse -Depth 2)"
     ]
   }
 }
