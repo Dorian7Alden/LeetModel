@@ -1,65 +1,113 @@
 <template>
   <div class="user-card">
-    <div class="card-banner"></div>
-    <div class="card-body">
-      <div class="avatar-ring">
-        <div class="avatar-inner">{{ profile.username.charAt(0) }}</div>
+    <div class="user-avatar" @click="triggerUpload">
+      <img v-if="profile.avatarUrl" :src="profile.avatarUrl" class="avatar-img" />
+      <span v-else>{{ (profile.username || '').charAt(0) || '?' }}</span>
+      <div class="avatar-overlay">
+        <el-icon :size="16"><Camera /></el-icon>
       </div>
-      <h3 class="username">{{ profile.username }}</h3>
-      <p class="school">{{ profile.school }}</p>
-
-      <div class="stats-row">
-        <div class="stats-item">
-          <span class="stats-value">{{ formatNum(profile.ranking) }}</span>
-          <span class="stats-label">排名</span>
-        </div>
-        <div class="stats-item">
-          <span class="stats-value">{{ profile.totalSolved }}</span>
-          <span class="stats-label">解题</span>
-        </div>
-        <div class="stats-item">
-          <span class="stats-value">{{ profile.followers }}</span>
-          <span class="stats-label">粉丝</span>
-        </div>
-        <div class="stats-item">
-          <span class="stats-value">{{ profile.following }}</span>
-          <span class="stats-label">关注</span>
-        </div>
-      </div>
-
-      <div class="progress-section">
-        <div class="progress-header">
-          <span>完成率</span>
-          <span>{{ completionPercent }}%</span>
-        </div>
-        <el-progress :percentage="completionPercent" :stroke-width="8" :color="'#2563eb'" />
-      </div>
-
-      <el-button class="edit-btn" @click="$router.push('/profile/settings')" round>
-        <el-icon><EditPen /></el-icon>
-        编辑资料
-      </el-button>
+      <input ref="fileInput" type="file" accept="image/*" class="file-hidden" @change="handleFileChange" />
     </div>
+
+    <div class="user-info">
+      <div class="info-top">
+        <h3 class="username">{{ profile.username || '未设置用户名' }}</h3>
+      </div>
+      <div class="info-details">
+        <div class="detail-item">
+          <el-icon :size="15" class="detail-icon"><Message /></el-icon>
+          <span class="detail-label">邮箱</span>
+          <span class="detail-value">{{ profile.email || '未填写' }}</span>
+        </div>
+        <div class="detail-item">
+          <el-icon :size="15" class="detail-icon"><School /></el-icon>
+          <span class="detail-label">学校</span>
+          <span class="detail-value">{{ profile.school || '未填写' }}</span>
+        </div>
+        <div class="detail-item">
+          <el-icon :size="15" class="detail-icon"><Phone /></el-icon>
+          <span class="detail-label">手机</span>
+          <span class="detail-value">{{ maskPhone(profile.phone) }}</span>
+        </div>
+        <div class="detail-item">
+          <el-icon :size="15" class="detail-icon"><Clock /></el-icon>
+          <span class="detail-label">注册于</span>
+          <span class="detail-value">{{ profile.createTime || '未知' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <el-button class="edit-btn" @click="$router.push('/profile/settings')" round>
+      <el-icon><EditPen /></el-icon>
+      编辑资料
+    </el-button>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { EditPen } from '@element-plus/icons-vue'
-import { mockUserProfile } from '@/mock/data.js'
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { EditPen, Message, School, Phone, Clock, Camera } from '@element-plus/icons-vue'
+import request from '@/api/request'
+import { uploadAvatar } from '@/api/user'
+import { useUserStore } from '@/store/user'
 
-const profile = mockUserProfile
+const userId = localStorage.getItem('userId')
+const userStore = useUserStore()
 
-const completionPercent = computed(() => {
-  const max = 100
-  return Math.round((profile.totalSolved / max) * 100)
+const fileInput = ref(null)
+
+const profile = ref({
+  username: '',
+  email: '',
+  school: '',
+  phone: '',
+  createTime: '',
+  avatarUrl: '',
 })
 
-function formatNum(n) {
-  if (n >= 10000) return (n / 10000).toFixed(1) + 'w'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
-  return String(n)
+async function loadProfile() {
+  try {
+    const res = await request.get(`/users/${userId}`)
+    const user = res.data
+    profile.value.username = user.username ?? ''
+    profile.value.email = user.email ?? ''
+    profile.value.school = user.school ?? ''
+    profile.value.phone = user.phone ?? ''
+    profile.value.createTime = user.createTime ?? ''
+    profile.value.avatarUrl = user.avatarUrl ?? ''
+  } catch {
+    // keep defaults on error
+  }
 }
+
+function maskPhone(phone) {
+  if (!phone) return '未填写'
+  return phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
+}
+
+function triggerUpload() {
+  fileInput.value?.click()
+}
+
+async function handleFileChange(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const res = await uploadAvatar(userId, file)
+    profile.value.avatarUrl = res.data.fileUrl
+    userStore.updateProfile({ avatarUrl: res.data.fileUrl })
+    ElMessage.success('头像更新成功')
+  } catch {
+    ElMessage.error('头像上传失败')
+  } finally {
+    e.target.value = ''
+  }
+}
+
+onMounted(() => {
+  loadProfile()
+})
 </script>
 
 <style scoped>
@@ -67,76 +115,111 @@ function formatNum(n) {
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius-lg);
-  overflow: hidden;
-  text-align: center;
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
-.card-banner {
-  height: 80px;
-  background: linear-gradient(135deg, #2563eb, #60a5fa);
-}
-
-.card-body {
-  padding: 0 20px 24px;
-  position: relative;
-}
-
-.avatar-ring {
-  width: 90px; height: 90px;
-  border-radius: 50%;
-  background: var(--lm-surface);
-  border: 4px solid var(--lm-surface);
-  box-shadow: var(--lm-shadow);
-  margin: -45px auto 12px;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.avatar-inner {
-  width: 76px; height: 76px;
+.user-avatar {
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #fff;
-  font-size: 28px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.user-avatar:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.file-hidden {
+  display: none;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-top {
+  margin-bottom: 10px;
 }
 
 .username {
-  font-size: 18px; font-weight: 700; color: var(--lm-text-primary); margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lm-text-primary);
+  margin: 0;
 }
 
-.school {
-  font-size: 13px; color: var(--lm-text-secondary); margin: 4px 0 16px;
+.info-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
 }
 
-.stats-row {
-  display: flex; justify-content: space-around;
-  padding: 16px 0; border-top: 1px solid var(--lm-border-light); border-bottom: 1px solid var(--lm-border-light);
-  margin-bottom: 16px;
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
 }
 
-.stats-item {
-  display: flex; flex-direction: column; align-items: center;
+.detail-icon {
+  color: var(--lm-text-muted);
+  flex-shrink: 0;
 }
 
-.stats-value {
-  font-size: 18px; font-weight: 700; color: var(--lm-text-primary);
+.detail-label {
+  font-size: 12px;
+  color: var(--lm-text-muted);
+  flex-shrink: 0;
 }
 
-.stats-label {
-  font-size: 11px; color: var(--lm-text-muted); margin-top: 2px;
+.detail-label::after {
+  content: ':';
+  margin-left: 1px;
 }
 
-.progress-section {
-  margin-bottom: 16px;
-}
-
-.progress-header {
-  display: flex; justify-content: space-between;
-  font-size: 12px; color: var(--lm-text-secondary); margin-bottom: 8px;
+.detail-value {
+  font-size: 13px;
+  color: var(--lm-text-secondary);
+  margin-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .edit-btn {
-  width: 100%;
+  flex-shrink: 0;
   font-weight: 500;
 }
 </style>

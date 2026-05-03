@@ -76,8 +76,8 @@
 
           <el-dropdown trigger="click">
             <span class="user-dropdown">
-              <el-avatar :size="32" class="user-avatar">
-                <el-icon :size="18"><UserFilled /></el-icon>
+              <el-avatar :size="32" class="user-avatar" :src="userStore.avatarUrl || undefined">
+                {{ (userStore.username || '管').charAt(0) }}
               </el-avatar>
               <span class="user-name">{{ userStore.username || '管理员' }}</span>
               <el-icon :size="14" class="arrow-icon"><ArrowDown /></el-icon>

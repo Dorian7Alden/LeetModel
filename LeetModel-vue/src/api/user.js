@@ -22,6 +22,17 @@ export function register(data) {
 export function updateUser(userId, data) {
   return request.put(`/users/${userId}`, data);
 }
+// 上传用户头像
+export function uploadAvatar(userId, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request({
+    url: `/users/${userId}/avatar`,
+    method: "post",
+    data: formData,
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
 // 删除用户
 export function deleteUser(userId) {
   return request.delete(`/users/${userId}`);

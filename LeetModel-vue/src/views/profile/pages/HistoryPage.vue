@@ -26,98 +26,81 @@
           <el-option label="评审中" value="EVALUATING" />
         </el-select>
       </div>
+      <router-link to="/profile" class="back-link">
+        <el-icon :size="16"><ArrowLeft /></el-icon>
+        <span>返回</span>
+      </router-link>
     </div>
 
-    <div class="table-card">
-      <el-table
-        :data="filteredList"
-        stripe
-        style="width: 100%"
-        v-loading="loading"
-        empty-text="暂无提交记录"
+    <div class="card-grid" v-if="visibleList.length > 0">
+      <div
+        v-for="item in visibleList"
+        :key="item.submissionId"
+        class="submission-card"
       >
-        <el-table-column prop="title" label="题目名称" min-width="180">
-          <template #default="{ row }">
-            <span class="problem-link">{{ row.title }}</span>
-          </template>
-        </el-table-column>
+        <h3 class="card-problem-title">{{ item.problemTitle || '题目 #' + item.problemId }}</h3>
+        <p class="card-submission-title">{{ item.title }}</p>
 
-        <el-table-column prop="userName" label="提交者" width="130" />
-
-        <el-table-column prop="submitTime" label="提交时间" width="140" sortable>
-          <template #default="{ row }">
-            <span class="time-text">{{ row.submitTime }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="totalScore" label="得分" width="100" sortable align="center">
-          <template #default="{ row }">
-            <span v-if="row.totalScore !== null" :class="scoreClass(row.totalScore)">
-              {{ row.totalScore.toFixed(1) }}
-            </span>
-            <el-tag v-else type="info" size="small">评审中</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="status" label="状态" width="110" align="center">
-          <template #default="{ row }">
+        <div class="card-footer">
+          <span class="card-time">{{ item.submitTime }}</span>
+          <div class="card-right">
             <el-tag
-              :type="row.status === 'COMPLETED' ? 'success' : 'warning'"
+              :type="item.status === 'COMPLETED' ? 'success' : 'warning'"
               size="small"
               effect="plain"
             >
-              {{ row.status === 'COMPLETED' ? '已完成' : '评审中' }}
+              {{ item.status === 'COMPLETED' ? '已完成' : '评审中' }}
             </el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
+            <span
+              v-if="item.totalScore !== null"
+              class="card-score"
+              :class="scoreClass(item.totalScore)"
+            >
+              {{ item.totalScore.toFixed(1) }} 分
+            </span>
+            <span v-else class="card-score evaluating">-- 分</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 分页 -->
-    <div class="pagination-wrap" v-if="totalPages > 1">
-      <el-pagination
-        v-model:current-page="currentPage"
-        :page-size="pageSize"
-        :total="filteredTotal"
-        layout="prev, pager, next, total"
-        background
-      />
+    <div v-else-if="filteredAll.length === 0" class="empty-state">
+      <el-empty description="暂无提交记录" />
+    </div>
+
+    <div
+      v-if="hasMore"
+      ref="loadMoreRef"
+      class="load-more"
+      v-loading="loadingMore"
+    >
+      <span v-if="!loadingMore">下拉加载更多</span>
+    </div>
+
+    <div v-else-if="visibleList.length > 0" class="load-more done">
+      已加载全部记录
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { mockSubmissions } from '@/mock/data.js'
 
-const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(5)
+const BATCH_SIZE = 8
+
 const dateRange = ref(null)
 const statusFilter = ref('')
+const loadingMore = ref(false)
+const loadMoreRef = ref(null)
 
-const submissions = ref([...mockSubmissions])
+const submissions = ref([...mockSubmissions].sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime)))
 
-const filteredList = computed(() => {
-  let list = submissions.value
+const displayCount = ref(BATCH_SIZE)
+let observer = null
 
-  // 状态筛选
-  if (statusFilter.value) {
-    list = list.filter((s) => s.status === statusFilter.value)
-  }
-
-  // 日期筛选
-  if (dateRange.value && dateRange.value.length === 2) {
-    const [start, end] = dateRange.value
-    list = list.filter((s) => s.submitTime >= start && s.submitTime <= end)
-  }
-
-  // 分页
-  const start = (currentPage.value - 1) * pageSize.value
-  return list.slice(start, start + pageSize.value)
-})
-
-const filteredTotal = computed(() => {
+const filteredAll = computed(() => {
   let list = submissions.value
   if (statusFilter.value) {
     list = list.filter((s) => s.status === statusFilter.value)
@@ -126,10 +109,41 @@ const filteredTotal = computed(() => {
     const [start, end] = dateRange.value
     list = list.filter((s) => s.submitTime >= start && s.submitTime <= end)
   }
-  return list.length
+  return list
 })
 
-const totalPages = computed(() => Math.ceil(filteredTotal.value / pageSize.value))
+const visibleList = computed(() => filteredAll.value.slice(0, displayCount.value))
+
+const hasMore = computed(() => displayCount.value < filteredAll.value.length)
+
+function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  setTimeout(() => {
+    displayCount.value = Math.min(displayCount.value + BATCH_SIZE, filteredAll.value.length)
+    loadingMore.value = false
+  }, 400)
+}
+
+watch([dateRange, statusFilter], () => {
+  displayCount.value = BATCH_SIZE
+})
+
+onMounted(async () => {
+  await nextTick()
+  if (loadMoreRef.value) {
+    observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore.value) {
+        loadMore()
+      }
+    }, { threshold: 0.1 })
+    observer.observe(loadMoreRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (observer) observer.disconnect()
+})
 
 function scoreClass(score) {
   if (score >= 90) return 'score-high'
@@ -149,7 +163,24 @@ function scoreClass(score) {
   align-items: center;
   flex-wrap: wrap;
   gap: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.back-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--lm-text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: var(--lm-radius-sm);
+  transition: color var(--lm-transition), background var(--lm-transition);
+}
+
+.back-link:hover {
+  color: var(--lm-primary);
+  background: var(--lm-primary-bg);
 }
 
 .page-title {
@@ -173,54 +204,116 @@ function scoreClass(score) {
   width: 130px;
 }
 
-.table-card {
+/* ===== Card Grid ===== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.submission-card {
   background: var(--lm-surface, #fff);
   border: 1px solid var(--lm-border, #e8ecf1);
-  border-radius: 12px;
+  border-radius: var(--lm-radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform var(--lm-transition), box-shadow var(--lm-transition);
+}
+
+.submission-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lm-shadow-lg);
+}
+
+.card-problem-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lm-primary);
+  margin: 0;
+}
+
+.card-submission-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lm-text-primary);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.problem-link {
-  color: var(--lm-primary, #409eff);
-  cursor: pointer;
+/* ===== Card Footer ===== */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--lm-border-light);
+}
+
+.card-time {
+  font-size: 12px;
+  color: var(--lm-text-muted);
+}
+
+.card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-score {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.score-high { color: #67c23a; }
+.score-mid { color: var(--lm-primary, #409eff); }
+.score-low { color: #f56c6c; }
+
+.evaluating {
+  font-size: 12px;
+  color: var(--lm-text-muted);
   font-weight: 500;
-  font-size: 14px;
 }
 
-.problem-link:hover {
-  text-decoration: underline;
+/* ===== Empty ===== */
+.empty-state {
+  padding: 60px 0;
 }
 
-.time-text {
-  font-size: 13px;
-  color: var(--lm-text-secondary, #666);
-}
-
-.score-high {
-  font-weight: 700;
-  color: #67c23a;
-  font-size: 15px;
-}
-
-.score-mid {
-  font-weight: 700;
-  color: var(--lm-primary, #409eff);
-  font-size: 15px;
-}
-
-.score-low {
-  font-weight: 700;
-  color: #f56c6c;
-  font-size: 15px;
-}
-
-.pagination-wrap {
+/* ===== Load More ===== */
+.load-more {
   display: flex;
   justify-content: center;
-  margin-top: 24px;
+  padding: 28px 0 8px;
+  font-size: 13px;
+  color: var(--lm-text-muted);
+}
+
+.load-more.done {
+  color: var(--lm-text-muted);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1400px) {
+  .card-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 1000px) {
+  .card-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
+  .history-page {
+    padding: 16px 20px 32px;
+  }
+
   .page-header-row {
     flex-direction: column;
     align-items: flex-start;
@@ -231,12 +324,11 @@ function scoreClass(score) {
     width: 100%;
   }
 
-  .date-picker {
-    width: 100%;
-  }
-
+  .date-picker,
   .status-select {
     width: 100%;
   }
+
+  .card-grid { grid-template-columns: 1fr; }
 }
 </style>

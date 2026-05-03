@@ -49,13 +49,15 @@
           <!-- 已登录 -->
           <el-dropdown v-else trigger="click">
             <div class="user-box">
-              <img class="avatar" src="../../assets/vue.svg" />
+              <img v-if="userStore.avatarUrl" class="avatar" :src="userStore.avatarUrl" />
+              <span v-else class="avatar avatar-text">{{ (userStore.username || '?').charAt(0) }}</span>
             </div>
 
             <template #dropdown>
               <el-dropdown-menu class="user-card">
                 <div class="user-header">
-                  <img class="avatar-big" src="../../assets/vue.svg" />
+                  <img v-if="userStore.avatarUrl" class="avatar-big" :src="userStore.avatarUrl" />
+                  <span v-else class="avatar-big avatar-text-big">{{ (userStore.username || '?').charAt(0) }}</span>
                   <div class="info">
                     <div class="name">{{ userStore.username || '用户' }}</div>
                     <div class="desc">{{ userStore.email }}</div>
@@ -356,10 +358,21 @@ function isActive(path) {
   border: 2px solid var(--lm-border, #e0e0e0);
   transition: border-color 0.2s;
   cursor: pointer;
+  object-fit: cover;
 }
 
 .avatar:hover {
   border-color: var(--lm-primary, #409eff);
+}
+
+.avatar-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 /* ========== Dropdown ========== */
@@ -385,6 +398,18 @@ function isActive(path) {
   border-radius: 50%;
   border: 2px solid #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatar-text-big {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .info .name {

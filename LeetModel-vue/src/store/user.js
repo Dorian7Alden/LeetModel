@@ -4,8 +4,9 @@ import { logout as logoutApi } from "@/api/user";
 export const useUserStore = defineStore("user", {
   state: () => ({
     token: localStorage.getItem("token") || "",
-    username: "",
-    email: "",
+    username: localStorage.getItem("username") || "",
+    email: localStorage.getItem("email") || "",
+    avatarUrl: localStorage.getItem("avatarUrl") || "",
     role: localStorage.getItem("role") || "",
   }),
 
@@ -15,14 +16,29 @@ export const useUserStore = defineStore("user", {
   },
 
   actions: {
-    login(token, username, email, role) {
+    login(token, username, email, role, avatarUrl) {
       this.token = token;
       this.username = username;
       this.email = email;
       this.role = role;
+      this.avatarUrl = avatarUrl || "";
 
       localStorage.setItem("token", token);
       localStorage.setItem("role", role);
+      localStorage.setItem("username", username);
+      localStorage.setItem("email", email);
+      if (avatarUrl) localStorage.setItem("avatarUrl", avatarUrl);
+    },
+
+    updateProfile({ username, avatarUrl }) {
+      if (username) {
+        this.username = username;
+        localStorage.setItem("username", username);
+      }
+      if (avatarUrl !== undefined) {
+        this.avatarUrl = avatarUrl;
+        localStorage.setItem("avatarUrl", avatarUrl || "");
+      }
     },
 
     async logout() {
@@ -39,6 +55,9 @@ export const useUserStore = defineStore("user", {
         localStorage.removeItem("token");
         localStorage.removeItem("role");
         localStorage.removeItem("userId");
+        localStorage.removeItem("username");
+        localStorage.removeItem("email");
+        localStorage.removeItem("avatarUrl");
       }
     },
   },

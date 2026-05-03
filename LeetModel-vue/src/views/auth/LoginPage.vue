@@ -100,6 +100,7 @@ import { login } from "@/api/user";
 import { ElMessage } from "element-plus";
 import { Message, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
+import request from "@/api/request";
 
 const userStore = useUserStore();
 const router = useRouter();
@@ -139,6 +140,13 @@ async function handleLogin() {
         data.role || "MEMBER"
       );
       localStorage.setItem("userId", data.id);
+
+      // Fetch full profile for avatar
+      try {
+        const profile = await request.get(`/users/${data.id}`);
+        userStore.updateProfile({ avatarUrl: profile.data.avatarUrl || "" });
+      } catch { /* ignore */ }
+
       ElMessage.success("登录成功");
       router.push("/");
     } else {
