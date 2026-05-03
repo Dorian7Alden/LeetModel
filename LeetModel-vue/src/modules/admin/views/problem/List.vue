@@ -169,7 +169,6 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
-import request from '@/api/request';
 
 const searchQuery = ref('');
 const createDialogVisible = ref(false);
@@ -214,26 +213,7 @@ const rules = {
 };
 
 const loadTags = async () => {
-  try {
-    const fetchTagList = async (categoryId) => {
-      const res = await request.get(`/tags/category/${categoryId}`);
-      return Array.isArray(res) ? res : res.data || [];
-    };
-
-    const compsRes = await request.get('/competitions');
-    competitions.value = compsRes.data || [];
-
-    difficulties.value = await fetchTagList(1);
-    const yearsData = await fetchTagList(4);
-    years.value = yearsData.sort((a, b) => b.name.localeCompare(a.name));
-    problemTypesOptions.value = await fetchTagList(5);
-    modelsOptions.value = await fetchTagList(6);
-    industries.value = await fetchTagList(7);
-    dataFeatures.value = await fetchTagList(8);
-  } catch (error) {
-    console.error('获取标签失败', error);
-    ElMessage.error('获取下拉数据失败，请检查网络');
-  }
+  console.log('题目管理功能正在开发中');
 };
 
 const openCreateDialog = async () => {

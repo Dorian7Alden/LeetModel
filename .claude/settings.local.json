@@ -30,7 +30,11 @@
       "Bash(Get-ChildItem -Path \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\\\\src\\\\main\\\\java\\\\com\\\\senior\\\\leetmodelbackend\" -Recurse -Depth 5)",
       "Bash(Format-Table -AutoSize)",
       "Bash(Get-ChildItem -Path \"D:\\\\repositories\\\\leet-model-test\" -Depth 1)",
-      "Bash(Select-Object Name, PSIsContainer)"
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Get-ChildItem -Recurse -Depth 5 -Name)",
+      "Bash(Select-Object -First 150)",
+      "Bash(git log *)",
+      "Bash(Get-ChildItem -Recurse -Depth 2 \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\")"
     ]
   }
 }

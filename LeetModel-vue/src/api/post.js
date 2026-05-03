@@ -1,10 +1,8 @@
-import request from "./request";
+function notify() {
+  console.log('帖子功能正在开发中')
+}
 
-// 帖子列表查询
-export function getPostList(params) {
-  return request({
-    url: "/posts",
-    method: "get",
-    params, // 注意这里是 params（GET）
-  });
+export function getPostList() {
+  notify()
+  return Promise.resolve({ records: [], total: 0 })
 }

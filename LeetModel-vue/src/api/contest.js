@@ -1,14 +1,13 @@
-import request from "./request";
+function notify() {
+  console.log('竞赛功能正在开发中')
+}
 
 export function getLatestContest() {
-  return request({
-    url: "/competitions/competition/latest3",
-    method: "get",
-  });
+  notify()
+  return Promise.resolve([])
 }
-export function getContestDetail(id) {
-  return request({
-    url: `/contest/${id}`,
-    method: "get",
-  });
+
+export function getContestDetail() {
+  notify()
+  return Promise.resolve(null)
 }
