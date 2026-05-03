@@ -3,7 +3,7 @@
     <!-- Sidebar -->
     <el-aside :width="isCollapse ? '64px' : '220px'" class="aside">
       <div class="logo" :class="{ collapsed: isCollapse }">
-        <el-icon :size="26" class="logo-icon"><DataAnalysis /></el-icon>
+        <img src="@/assets/images/logo.png" alt="LeetModel" class="logo-img" />
         <span v-show="!isCollapse" class="logo-text">LeetModel</span>
       </div>
       <el-menu

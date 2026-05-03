@@ -39,10 +39,6 @@
             {{ formatCount(contest.participantCount) }} 人报名
           </span>
         </div>
-        <div v-if="contest.status === '报名中' || contest.status === '即将开始'" class="countdown-bar">
-          <el-icon :size="14"><Clock /></el-icon>
-          <span>{{ getCountdownText(contest) }}</span>
-        </div>
       </div>
     </div>
 
@@ -53,22 +49,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Trophy, ArrowRight, Calendar, User, Clock } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
+import { Trophy, ArrowRight, Calendar, User } from '@element-plus/icons-vue'
 import { mockContests } from '@/mock/data.js'
 
-const contests = ref([])
-const now = ref(Date.now())
-let timer = null
-
-onMounted(() => {
-  contests.value = mockContests
-  timer = setInterval(() => { now.value = Date.now() }, 1000)
-})
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
+const contests = ref(mockContests)
 
 const activeCount = computed(() => contests.value.filter(c => c.status === '报名中' || c.status === '进行中').length)
 
@@ -96,18 +81,6 @@ function formatCount(n) {
   return String(n)
 }
 
-function getCountdownText(contest) {
-  const target = contest.status === '报名中'
-    ? new Date(contest.signUpEndTime)
-    : new Date(contest.startTime)
-  const diff = target - now.value
-  if (diff <= 0) return '即将开始'
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  if (days > 0) return `距${contest.status === '报名中' ? '报名截止' : '开始'}还有 ${days} 天 ${hours} 小时`
-  const mins = Math.floor((diff % 3600000) / 60000)
-  return `距${contest.status === '报名中' ? '报名截止' : '开始'}还有 ${hours} 小时 ${mins} 分钟`
-}
 </script>
 
 <style scoped>
@@ -226,18 +199,6 @@ function getCountdownText(contest) {
   color: var(--lm-text-secondary);
 }
 
-.countdown-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 8px 10px;
-  background: var(--lm-warning-bg);
-  border-radius: var(--lm-radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--lm-warning);
-}
 
 @media (max-width: 900px) {
   .contest-grid {

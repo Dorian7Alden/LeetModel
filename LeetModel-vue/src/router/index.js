@@ -22,10 +22,11 @@ const routes = [
       ...communityRoutes,
       ...teamRoutes,
       ...profileRoutes,
-      ...authRoutes,
       ...aboutRoutes,
     ],
   },
+
+  ...authRoutes,
 
   {
     path: "/:pathMatch(.*)*",

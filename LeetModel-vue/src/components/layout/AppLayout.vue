@@ -2,7 +2,7 @@
   <div class="layout">
     <!-- 顶部栏 -->
     <header class="topbar">
-      <div :class="['topbar-inner', isHome ? 'home-inner' : 'default-inner']">
+      <div class="topbar-inner">
         <!-- 左侧：系统名 + 导航 -->
         <div class="left-area">
           <nav class="navbar">
@@ -63,15 +63,15 @@
                 </div>
 
                 <div class="menu-group">
-                  <el-dropdown-item class="menu-item">
+                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
                     <el-icon class="menu-icon"><Collection /></el-icon>
                     我的题单
                   </el-dropdown-item>
-                  <el-dropdown-item class="menu-item">
+                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
                     <el-icon class="menu-icon"><StarFilled /></el-icon>
                     我的收藏
                   </el-dropdown-item>
-                  <el-dropdown-item class="menu-item">
+                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
                     <el-icon class="menu-icon"><Document /></el-icon>
                     我的笔记
                   </el-dropdown-item>
@@ -110,7 +110,7 @@
     <footer class="footer">
       <div class="footer-content">
         <div class="footer-brand">
-          <span class="footer-logo">LeetModel</span>
+          <img src="@/assets/images/logo-en.png" alt="LeetModel" class="footer-logo-img" />
           <p class="footer-tagline">以模型会友，以算法相知</p>
         </div>
 
@@ -138,8 +138,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
 import {
@@ -154,7 +155,6 @@ const route = useRoute()
 const userStore = useUserStore()
 const { handleLogout } = useAuth()
 
-const isHome = computed(() => route.path === '/')
 const keyword = ref('')
 
 const navItems = [
@@ -163,6 +163,10 @@ const navItems = [
   { label: '社区', path: '/community' },
   { label: '组队', path: '/team' },
 ]
+
+function onFeatureWip() {
+  ElMessage.info("该功能正在开发中，敬请期待")
+}
 
 function isActive(path) {
   if (path === '/admin') return route.path.startsWith('/admin')
@@ -207,16 +211,10 @@ function isActive(path) {
 
 .topbar-inner {
   width: 100%;
+  max-width: 1200px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.home-inner {
-  max-width: 1200px;
-}
-
-.default-inner {
   padding: 0 40px;
 }
 
@@ -472,11 +470,9 @@ function isActive(path) {
   max-width: 240px;
 }
 
-.footer-logo {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--lm-text-primary, #1a1a2e);
-  letter-spacing: 1px;
+.footer-logo-img {
+  height: 22px;
+  width: auto;
 }
 
 .footer-tagline {

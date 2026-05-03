@@ -5,6 +5,29 @@
   justify-content: center;
   background: var(--lm-bg);
   padding: 20px;
+  position: relative;
+}
+
+/* ===== Back Link ===== */
+.auth-back-link {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--lm-text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--lm-radius-sm);
+  transition: all var(--lm-transition);
+  z-index: 1;
+}
+
+.auth-back-link:hover {
+  color: var(--lm-primary);
+  background: var(--lm-primary-bg);
 }
 
 .auth-container {
@@ -16,6 +39,7 @@
   border-radius: var(--lm-radius-xl);
   box-shadow: var(--lm-shadow-xl);
   overflow: hidden;
+  position: relative;
 }
 
 /* ===== Decorative Side ===== */
@@ -46,22 +70,17 @@
 }
 
 .decor-logo {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
+  width: 180px;
+  height: auto;
+  margin: 0 auto 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(10px);
 }
 
-.decor-title {
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-bottom: 8px;
+.decor-logo img {
+  width: 100%;
+  height: auto;
 }
 
 .decor-tagline {
@@ -237,52 +256,6 @@
 
 .forgot-link:hover {
   color: var(--lm-primary-light);
-}
-
-/* ===== Social Login ===== */
-.social-login {
-  margin-top: 24px;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--lm-border);
-}
-
-.divider span {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  white-space: nowrap;
-}
-
-.social-btns {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-}
-
-.social-btn {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--lm-border);
-  color: var(--lm-text-secondary);
-  transition: all var(--lm-transition);
-}
-
-.social-btn:hover {
-  border-color: var(--lm-primary);
-  color: var(--lm-primary);
-  background: var(--lm-primary-bg);
 }
 
 /* ===== Switch Link ===== */

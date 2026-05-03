@@ -1,13 +1,16 @@
 <template>
   <div class="auth-page">
     <div class="auth-container">
+      <router-link to="/" class="auth-back-link">
+        <el-icon :size="14"><ArrowLeft /></el-icon>
+        <span>返回首页</span>
+      </router-link>
       <!-- Decorative side -->
       <div class="auth-decor">
         <div class="decor-content">
           <div class="decor-logo">
-            <el-icon :size="48" color="#fff"><Key /></el-icon>
+            <img src="@/assets/images/logo-with-en.png" alt="LeetModel" />
           </div>
-          <h1 class="decor-title">找回密码</h1>
           <p class="decor-tagline">我们帮您重置账号密码</p>
           <div class="decor-features">
             <div class="feature-item">
@@ -182,7 +185,7 @@ import { ref, reactive, onBeforeUnmount } from "vue";
 import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
 import { sendCode, resetPassword } from "@/api/user";
-import { Message, Lock, Key, CircleCheck } from "@element-plus/icons-vue";
+import { Message, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 
 const router = useRouter();
 

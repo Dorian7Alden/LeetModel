@@ -1,12 +1,11 @@
 <template>
-  <div class="dashboard">
+  <div class="dashboard" v-loading="loading">
     <!-- Row 1: Stat cards -->
     <el-row :gutter="20" class="stat-row">
       <el-col :xs="24" :sm="12" :lg="6" v-for="item in stats" :key="item.title">
         <el-card shadow="never" class="stat-card-wrapper">
           <StatCard :title="item.title" :value="item.value" :icon="item.icon" :color="item.color"
-            :bg-color="item.bgColor" :trend="item.trend" :trend-up="item.trendUp" :subtitle="item.subtitle"
-            :hover="true" />
+            :bg-color="item.bgColor" :hover="true" />
         </el-card>
       </el-col>
     </el-row>
@@ -35,10 +34,10 @@
               <el-button text type="primary" size="small">查看全部</el-button>
             </div>
           </template>
-          <el-table :data="recentSubmissions" size="default" stripe class="submission-table">
-            <el-table-column prop="userName" label="用户" min-width="100">
+          <el-table :data="recentSubmissions" size="default" stripe class="submission-table" empty-text="暂无提交">
+            <el-table-column prop="username" label="用户" min-width="100">
               <template #default="{ row }">
-                <span class="table-user">{{ row.userName }}</span>
+                <span class="table-user">{{ row.username }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="title" label="作品标题" min-width="180" show-overflow-tooltip />
@@ -78,24 +77,29 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import * as echarts from "echarts";
+import { ElMessage } from "element-plus";
 import StatCard from "@/components/common/StatCard.vue";
-import {
-  mockDashboardStats,
-  mockSubmissionTrend,
-  mockProblemStatusDist,
-  mockSubmissions,
-} from "@/mock/data.js";
+import { getDashboard } from "@/api/dashboard";
 
-// --- Stats ---
-const stats = ref(mockDashboardStats);
+const statusColorMap = {
+  "已发布": "#16a34a",
+  "草稿": "#d97706",
+  "已下线": "#64748b",
+  "已归档": "#dc2626",
+};
 
-// --- Recent submissions (last 5) ---
-const recentSubmissions = ref(
-  mockSubmissions
-    .slice()
-    .sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime))
-    .slice(0, 5)
-);
+const cardConfigs = [
+  { key: "totalProblems", title: "总题目数", icon: "DocumentCopy", color: "#2563eb", bgColor: "#eff6ff" },
+  { key: "totalSubmissions", title: "总作品数", icon: "DataLine", color: "#16a34a", bgColor: "#f0fdf4" },
+  { key: "todaySubmissions", title: "今日提交", icon: "Upload", color: "#d97706", bgColor: "#fffbeb" },
+  { key: "pendingReviews", title: "待审核", icon: "Warning", color: "#dc2626", bgColor: "#fef2f2" },
+];
+
+const loading = ref(true);
+const stats = ref([]);
+const recentSubmissions = ref([]);
+const submissionTrendData = ref([]);
+const problemStatusDistData = ref([]);
 
 function statusType(status) {
   const map = { COMPLETED: "success", EVALUATING: "warning", PENDING: "info", FAILED: "danger" };
@@ -107,16 +111,48 @@ function statusLabel(status) {
   return map[status] || status;
 }
 
+async function fetchDashboard() {
+  try {
+    const res = await getDashboard();
+    if (res.code === 20000) {
+      const data = res.data;
+      stats.value = cardConfigs.map((c) => ({
+        ...c,
+        value: data.stats[c.key],
+      }));
+      recentSubmissions.value = data.recentSubmissions || [];
+      submissionTrendData.value = data.submissionTrend || [];
+      problemStatusDistData.value = (data.problemStatusDist || []).map((item) => ({
+        ...item,
+        color: statusColorMap[item.name] || "#64748b",
+      }));
+      await nextTick();
+      initTrendChart();
+      initPieChart();
+    } else {
+      ElMessage.error(res.msg || "获取概览数据失败");
+    }
+  } catch {
+    ElMessage.error("获取概览数据失败，请检查网络");
+  } finally {
+    loading.value = false;
+  }
+}
+
 // --- ECharts: Submission Trend (line chart) ---
 const trendChartRef = ref(null);
 let trendChartInstance = null;
 
 function initTrendChart() {
   if (!trendChartRef.value) return;
+  if (trendChartInstance) {
+    trendChartInstance.dispose();
+    trendChartInstance = null;
+  }
   trendChartInstance = echarts.init(trendChartRef.value);
 
-  const dates = mockSubmissionTrend.map((d) => d.date);
-  const values = mockSubmissionTrend.map((d) => d.count);
+  const dates = submissionTrendData.value.map((d) => d.date);
+  const values = submissionTrendData.value.map((d) => d.count);
 
   trendChartInstance.setOption({
     tooltip: {
@@ -143,6 +179,7 @@ function initTrendChart() {
       type: "value",
       splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
       axisLabel: { color: "#94a3b8", fontSize: 12 },
+      minInterval: 1,
     },
     series: [
       {
@@ -174,6 +211,10 @@ let pieChartInstance = null;
 
 function initPieChart() {
   if (!pieChartRef.value) return;
+  if (pieChartInstance) {
+    pieChartInstance.dispose();
+    pieChartInstance = null;
+  }
   pieChartInstance = echarts.init(pieChartRef.value);
 
   pieChartInstance.setOption({
@@ -205,7 +246,7 @@ function initPieChart() {
             fontWeight: "bold",
           },
         },
-        data: mockProblemStatusDist.map((item) => ({
+        data: problemStatusDistData.value.map((item) => ({
           name: item.name,
           value: item.value,
           itemStyle: { color: item.color },
@@ -215,12 +256,8 @@ function initPieChart() {
   });
 }
 
-// --- Lifecycle ---
-onMounted(async () => {
-  await nextTick();
-  initTrendChart();
-  await nextTick();
-  initPieChart();
+onMounted(() => {
+  fetchDashboard();
 });
 
 onBeforeUnmount(() => {

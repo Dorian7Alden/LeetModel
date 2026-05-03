@@ -1,13 +1,16 @@
 <template>
   <div class="auth-page">
     <div class="auth-container">
+      <router-link to="/" class="auth-back-link">
+        <el-icon :size="14"><ArrowLeft /></el-icon>
+        <span>返回首页</span>
+      </router-link>
       <!-- Decorative side -->
       <div class="auth-decor">
         <div class="decor-content">
           <div class="decor-logo">
-            <el-icon :size="48" color="#fff"><UserFilled /></el-icon>
+            <img src="@/assets/images/logo-with-en.png" alt="LeetModel" />
           </div>
-          <h1 class="decor-title">加入我们</h1>
           <p class="decor-tagline">开启您的数学建模之旅</p>
           <div class="decor-features">
             <div class="feature-item">
@@ -131,7 +134,7 @@ import { ref, reactive } from "vue";
 import { sendCode, register } from "@/api/user";
 import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
-import { User, Message, Lock, Key, UserFilled, CircleCheck } from "@element-plus/icons-vue";
+import { User, Message, Lock, Key, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const formRef = ref(null);

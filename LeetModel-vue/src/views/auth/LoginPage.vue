@@ -1,13 +1,16 @@
 <template>
   <div class="auth-page">
     <div class="auth-container">
+      <router-link to="/" class="auth-back-link">
+        <el-icon :size="14"><ArrowLeft /></el-icon>
+        <span>返回首页</span>
+      </router-link>
       <!-- Decorative side -->
       <div class="auth-decor">
         <div class="decor-content">
           <div class="decor-logo">
-            <el-icon :size="48" color="#fff"><DataAnalysis /></el-icon>
+            <img src="@/assets/images/logo-with-en.png" alt="LeetModel" />
           </div>
-          <h1 class="decor-title">LeetModel</h1>
           <p class="decor-tagline">数学建模学习与竞赛平台</p>
           <div class="decor-features">
             <div class="feature-item">
@@ -31,7 +34,7 @@
       <div class="auth-form-wrapper">
         <div class="auth-form-card">
           <h2 class="form-title">欢迎回来</h2>
-          <p class="form-subtitle">登录您的账号以继续</p>
+          <p class="form-subtitle">使用注册时的邮箱登录您的账号以继续</p>
 
           <el-form
             ref="formRef"
@@ -81,23 +84,6 @@
             </el-form-item>
           </el-form>
 
-          <div class="social-login">
-            <div class="divider">
-              <span>其他方式登录</span>
-            </div>
-            <div class="social-btns">
-              <el-button class="social-btn" circle>
-                <el-icon :size="20"><ChatDotSquare /></el-icon>
-              </el-button>
-              <el-button class="social-btn" circle>
-                <el-icon :size="20"><UserFilled /></el-icon>
-              </el-button>
-              <el-button class="social-btn" circle>
-                <el-icon :size="20"><Message /></el-icon>
-              </el-button>
-            </div>
-          </div>
-
           <div class="switch-link">
             还没有账号？<router-link to="/register">立即注册</router-link>
           </div>
@@ -112,7 +98,7 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { login } from "@/api/user";
 import { ElMessage } from "element-plus";
-import { Message, Lock, CircleCheck, ChatDotSquare, UserFilled } from "@element-plus/icons-vue";
+import { Message, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
 
 const userStore = useUserStore();
