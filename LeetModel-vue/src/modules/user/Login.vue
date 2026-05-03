@@ -50,7 +50,7 @@ async function handleLogin() {
   try {
     const res = await login(form.value);
 
-    if (res.code === 200) {
+    if (res.code === 20000) {
       const data = res.data;
 
       const token = data.token;

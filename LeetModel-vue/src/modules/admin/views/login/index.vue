@@ -79,7 +79,7 @@ const handleLogin = async () => {
         const data = await res.json();
         
         // 参照 LeetModel-vue 处理逻辑
-        if (data.code === 200) {
+        if (data.code === 20000) {
           const token = data.data.token;
           const userId = data.data.id;
           

@@ -26,19 +26,19 @@ public class Result<T> {
     }
 
     public static <T> Result<T> success(T data) {
-        return new Result<>(200, "success", data);
+        return new Result<>(ResponseCode.SUCCESS.getCode(), "success", data);
     }
 
     public static <T> Result<T> success() {
-        return new Result<>(200, "success", null);
+        return new Result<>(ResponseCode.SUCCESS.getCode(), "success", null);
     }
 
     public static <T> Result<T> success(String msg) {
-        return new Result<>(200, msg, null);
+        return new Result<>(ResponseCode.SUCCESS.getCode(), msg, null);
     }
 
     public static <T> Result<T> success(String msg, T data) {
-        return new Result<>(200, msg, data);
+        return new Result<>(ResponseCode.SUCCESS.getCode(), msg, data);
     }
 
     public static <T> Result<T> error(int code, String msg) {

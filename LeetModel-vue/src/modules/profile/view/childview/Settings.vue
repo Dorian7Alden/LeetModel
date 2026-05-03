@@ -19,11 +19,6 @@
           <el-input v-model="form.school" />
         </el-form-item>
 
-        <!-- 角色 -->
-        <el-form-item label="角色">
-          <el-input v-model="form.trainerType" />
-        </el-form-item>
-
         <!-- 创建时间（只读） -->
         <el-form-item label="账号创建时间">
           <el-input v-model="form.createTime" disabled />
@@ -55,7 +50,6 @@ const form = reactive({
   username: "",
   email: "",
   createTime: "",
-  trainerType: "",
   school: "",
 });
 
@@ -69,7 +63,6 @@ async function loadUser() {
         username: user.username ?? "",
         email: user.email ?? "",
         createTime: user.createTime ?? "",
-        trainerType: user.trainerType ?? "",
         school: user.school ?? "",
       };
     }
@@ -87,7 +80,7 @@ onMounted(() => {
 // 提交
 async function handleSubmit() {
   try {
-    await updateUser(userId, form);
+    await updateUser(userId, { username: form.username, school: form.school });
 
     ElMessage.success("修改成功");
   } catch (e) {

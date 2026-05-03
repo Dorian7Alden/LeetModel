@@ -12,7 +12,8 @@ public interface UserMapper {
     @Select("select * from user where email = #{email}")
     User getUserByEmail(String email);
 
-    @Insert("insert into user (user_id, username, email, password, create_time, update_time) values (#{userId}, #{username}, #{email}, #{password}, NOW(), NOW())")
+    @Insert("insert into user (username, email, password, create_time, update_time) values (#{username}, #{email}, #{password}, NOW(), NOW())")
+    @Options(useGeneratedKeys = true, keyProperty = "userId")
     void insertUser(User user);
 
     @Select("select * from user where user_id = #{userId}")
@@ -20,9 +21,6 @@ public interface UserMapper {
 
     @Delete("delete from user where user_id = #{userId}")
     void deleteUserById(Long userId);
-
-    @Select("select MAX(user_id) from user")
-    Integer getMaxUserId();
 
     void updateUserById(User user);
 

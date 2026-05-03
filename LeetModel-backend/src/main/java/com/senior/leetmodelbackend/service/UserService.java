@@ -3,12 +3,14 @@ package com.senior.leetmodelbackend.service;
 import com.senior.leetmodelbackend.common.exception.BusinessException;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.common.utils.Md5Util;
+import com.senior.leetmodelbackend.mapper.RoleMapper;
 import com.senior.leetmodelbackend.mapper.UserMapper;
 import com.senior.leetmodelbackend.pojo.dto.RegisterDTO;
+import com.senior.leetmodelbackend.pojo.dto.UserUpdateDTO;
 import com.senior.leetmodelbackend.pojo.entity.Role;
 import com.senior.leetmodelbackend.pojo.entity.User;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +18,11 @@ import java.util.List;
 
 @Slf4j
 @Service
+@AllArgsConstructor
 public class UserService {
 
-    @Autowired
-    private UserMapper userMapper;
+    private final UserMapper userMapper;
+    private final RoleMapper roleMapper;
 
     /**
      * 根据邮箱查询用户，不存在则抛出 USER_NOT_FOUND
@@ -83,16 +86,18 @@ public class UserService {
         }
 
         User newUser = new User();
-        newUser.setUserId((long) (userMapper.getMaxUserId() + 1));
         newUser.setEmail(request.getEmail());
         newUser.setPassword(Md5Util.encode(request.getPassword()));
-        newUser.setUsername("user_" + newUser.getUserId());
+        newUser.setUsername("user_" + Long.toHexString(System.nanoTime()));
 
         log.info("insertUser: {}", newUser);
         userMapper.insertUser(newUser);
 
-        // 分配默认角色 MEMBER (role_id = 1)
-        userMapper.insertUserRole(newUser.getUserId(), 1L);
+        Role memberRole = roleMapper.getRoleByCode("MEMBER");
+        if (memberRole == null) {
+            throw new BusinessException(ResponseCode.SYSTEM_INTERNAL_ERROR, "系统未找到默认角色 MEMBER");
+        }
+        userMapper.insertUserRole(newUser.getUserId(), memberRole.getRoleId());
     }
 
     /**
@@ -109,22 +114,26 @@ public class UserService {
     /**
      * 更新用户信息，不存在则抛出 USER_NOT_FOUND
      */
-    public void updateUserById(User user) {
-        log.info("更新用户信息: {}", user);
-        if (userMapper.getUserById(user.getUserId()) == null) {
-            throw new BusinessException(ResponseCode.USER_NOT_FOUND, "更新失败，没有找到 id 为 " + user.getUserId() + " 的用户");
+    public void updateUserById(Long userId, UserUpdateDTO dto) {
+        if (userMapper.getUserById(userId) == null) {
+            throw new BusinessException(ResponseCode.USER_NOT_FOUND, "更新失败，没有找到 id 为 " + userId + " 的用户");
         }
+        User user = new User();
+        user.setUserId(userId);
+        user.setUsername(dto.getUsername());
+        user.setSchool(dto.getSchool());
+        user.setAvatarFileId(dto.getAvatarFileId());
         userMapper.updateUserById(user);
     }
 
     /**
      * 重置密码，用户不存在时抛出 USER_NOT_FOUND
      */
-    public void resetPassword(String email, String password) {
+    public void resetPassword(String email, String rawPassword) {
         if (userMapper.getUserByEmail(email) == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "没有找到邮箱为 " + email + " 的用户");
         }
-        userMapper.updateUserPassword(email, password);
+        userMapper.updateUserPassword(email, Md5Util.encode(rawPassword));
         log.info("重置密码成功: {}", email);
     }
 

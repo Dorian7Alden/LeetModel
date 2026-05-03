@@ -2,13 +2,14 @@ package com.senior.leetmodelbackend.common.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
-import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.common.utils.JwtUtil;
+import com.senior.leetmodelbackend.pojo.entity.Result;
+import com.senior.leetmodelbackend.service.TokenService;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -20,24 +21,21 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @AllArgsConstructor
 public class TokenInterceptor implements HandlerInterceptor {
 
-    private final RedisTemplate<String, String> redisTemplate;
+    private final TokenService tokenService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
 
-        // 解决返回数据乱码问题，统一设置为 UTF-8 编码
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json;charset=UTF-8");
 
-        // 获取当前的请求 uri
         String requestURI = request.getRequestURI();
         log.info("请求通过拦截器: {}", requestURI);
 
         String token = request.getHeader("token");
         ObjectMapper mapper = new ObjectMapper();
 
-        // token 为空
         if (token == null || token.isEmpty()) {
             log.info("令牌为空，请求头中缺少token");
             response.setStatus(HttpServletResponse.SC_OK);
@@ -46,8 +44,7 @@ public class TokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 检查 token 是否在黑名单中
-        if (redisTemplate.hasKey("token:blacklist:" + token)) {
+        if (tokenService.isBlacklisted(token)) {
             log.info("令牌已被加入黑名单: {}", token);
             response.setStatus(HttpServletResponse.SC_OK);
             response.getWriter()
@@ -55,9 +52,12 @@ public class TokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 校验 token
         try {
-            JwtUtil.parseToken(token); // TODO: 这里应该是校验令牌，而不是解析令牌
+            Claims claims = JwtUtil.parseToken(token);
+            request.setAttribute("userId", claims.get("userId"));
+            request.setAttribute("email", claims.get("email"));
+            request.setAttribute("username", claims.get("username"));
+            request.setAttribute("role", claims.get("role"));
         } catch (Exception e) {
             log.info("令牌解析失败");
             response.setStatus(HttpServletResponse.SC_OK);

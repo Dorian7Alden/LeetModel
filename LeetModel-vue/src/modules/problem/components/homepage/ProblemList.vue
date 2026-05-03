@@ -66,7 +66,7 @@ const fetchProblems = async () => {
 
     console.log("题目列表:", res);
 
-    if (res && res.code === 200) {
+    if (res && res.code === 20000) {
       list.value = res.data.list || [];
       total.value = res.data.total || 0;
     } else {

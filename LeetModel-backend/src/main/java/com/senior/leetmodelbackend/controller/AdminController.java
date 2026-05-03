@@ -1,7 +1,5 @@
 package com.senior.leetmodelbackend.controller;
 
-import com.senior.leetmodelbackend.common.exception.BusinessException;
-import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.common.utils.OssUtils;
 import com.senior.leetmodelbackend.pojo.dto.admin.AssignIdsDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
@@ -19,6 +17,7 @@ import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.validator.admin.AssignIdsParamValidator;
 import com.senior.leetmodelbackend.validator.admin.PermissionParamValidator;
 import com.senior.leetmodelbackend.validator.admin.RoleParamValidator;
+import com.senior.leetmodelbackend.validator.user.UserIdParamValidator;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -46,6 +44,7 @@ public class AdminController {
     private final PermissionService permissionService;
     private final OssUtils ossUtils;
 
+    private final UserIdParamValidator userIdParamValidator;
     private final RoleParamValidator roleParamValidator;
     private final PermissionParamValidator permissionParamValidator;
     private final AssignIdsParamValidator assignIdsParamValidator;
@@ -58,10 +57,7 @@ public class AdminController {
     @GetMapping("/users")
     public Result<List<UserVO>> getUserList() {
         List<User> users = userService.getAllUsers();
-        List<UserVO> voList = new ArrayList<>();
-        for (User user : users) {
-            voList.add(UserVO.createVO(user));
-        }
+        List<UserVO> voList = users.stream().map(UserVO::createVO).toList();
         return Result.success(voList);
     }
 
@@ -70,13 +66,11 @@ public class AdminController {
      */
     @GetMapping("/users/{userId}/roles")
     public Result<List<RoleVO>> getUserRoles(@PathVariable Long userId) {
+        userIdParamValidator.validate(userId);
         List<Role> roles = userService.getUserRoles(userId);
-        List<RoleVO> voList = new ArrayList<>();
-        if (roles != null) {
-            for (Role role : roles) {
-                voList.add(RoleVO.createVO(role));
-            }
-        }
+        List<RoleVO> voList = roles != null
+                ? roles.stream().map(RoleVO::createVO).toList()
+                : List.of();
         return Result.success(voList);
     }
 
@@ -85,6 +79,7 @@ public class AdminController {
      */
     @PutMapping("/users/{userId}/roles")
     public Result<Void> assignUserRoles(@PathVariable Long userId, @RequestBody AssignIdsDTO request) {
+        userIdParamValidator.validate(userId);
         assignIdsParamValidator.validate(request);
         userService.assignUserRoles(userId, request.getIds());
         return Result.success("分配成功");
@@ -98,10 +93,7 @@ public class AdminController {
     @GetMapping("/roles")
     public Result<List<RoleVO>> getRoleList() {
         List<Role> roles = roleService.getRoleList();
-        List<RoleVO> voList = new ArrayList<>();
-        for (Role role : roles) {
-            voList.add(RoleVO.createVO(role));
-        }
+        List<RoleVO> voList = roles.stream().map(RoleVO::createVO).toList();
         return Result.success(voList);
     }
 
@@ -149,10 +141,7 @@ public class AdminController {
     @GetMapping("/roles/{roleId}/permissions")
     public Result<List<PermissionVO>> getRolePermissions(@PathVariable Long roleId) {
         List<Permission> permissions = roleService.getRolePermissions(roleId);
-        List<PermissionVO> voList = new ArrayList<>();
-        for (Permission permission : permissions) {
-            voList.add(PermissionVO.createVO(permission));
-        }
+        List<PermissionVO> voList = permissions.stream().map(PermissionVO::createVO).toList();
         return Result.success(voList);
     }
 
@@ -165,7 +154,7 @@ public class AdminController {
         roleService.assignRolePermissions(roleId, request.getIds());
         return Result.success("分配成功");
     }
-
+    
     // ==================== Permission Management ====================
 
     /**
@@ -174,10 +163,7 @@ public class AdminController {
     @GetMapping("/permissions")
     public Result<List<PermissionVO>> getPermissionList() {
         List<Permission> permissions = permissionService.getPermissionList();
-        List<PermissionVO> voList = new ArrayList<>();
-        for (Permission permission : permissions) {
-            voList.add(PermissionVO.createVO(permission));
-        }
+        List<PermissionVO> voList = permissions.stream().map(PermissionVO::createVO).toList();
         return Result.success(voList);
     }
 
@@ -226,9 +212,6 @@ public class AdminController {
      */
     @PostMapping("/upload")
     public Result<String> uploadFile2Oss(@RequestParam MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ResponseCode.PARAM_VALIDATION_ERROR, "上传文件不能为空");
-        }
         String url = ossUtils.uploadFile(file);
         return Result.success(url);
     }

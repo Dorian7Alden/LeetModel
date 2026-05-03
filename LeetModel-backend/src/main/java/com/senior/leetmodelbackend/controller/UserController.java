@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller;
 
+import com.senior.leetmodelbackend.pojo.dto.UserUpdateDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.pojo.vo.UserVO;
@@ -26,35 +27,31 @@ public class UserController {
     private final UserIdParamValidator userIdParamValidator;
     private final UserEmailParamValidator userEmailParamValidator;
 
-    @GetMapping("/{user_id}")
-    public Result<UserVO> getUserById(@PathVariable("user_id") Long userId) {
+    @GetMapping("/{userId}")
+    public Result<UserVO> getUserById(@PathVariable Long userId) {
         userIdParamValidator.validate(userId);
         User user = userService.getUserById(userId);
-        return Result.success("成功通过用户 id 查询到用户", UserVO.createVO(user));
+        return Result.success(UserVO.createVO(user));
     }
 
     @GetMapping("/email/{email}")
     public Result<UserVO> getUserByEmail(@PathVariable String email) {
         userEmailParamValidator.validate(email);
         User user = userService.getUserByEmail(email);
-        return Result.success("成功通过邮箱查询到用户", UserVO.createVO(user));
+        return Result.success(UserVO.createVO(user));
     }
 
-    @DeleteMapping("/{user_id}")
-    public Result<String> deleteUserById(@PathVariable("user_id") Long userId) {
+    @DeleteMapping("/{userId}")
+    public Result<Void> deleteUserById(@PathVariable Long userId) {
         userIdParamValidator.validate(userId);
         userService.deleteUserById(userId);
-        return Result.success("已经成功删除用户 id 为 " + userId + " 的用户");
+        return Result.success();
     }
 
-    @PutMapping("/{user_id}")
-    public Result<String> updateUserById(@PathVariable("user_id") Long userId, @RequestBody User user) {
-        log.info("接口捕获到用户: {}", user);
-
+    @PutMapping("/{userId}")
+    public Result<Void> updateUserById(@PathVariable Long userId, @RequestBody UserUpdateDTO dto) {
         userIdParamValidator.validate(userId);
-
-        user.setUserId(userId);
-        userService.updateUserById(user);
-        return Result.success("已经成功更新用户 id 为 " + userId + " 的用户");
+        userService.updateUserById(userId, dto);
+        return Result.success();
     }
 }

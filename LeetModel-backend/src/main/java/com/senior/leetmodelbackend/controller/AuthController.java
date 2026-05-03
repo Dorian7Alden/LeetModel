@@ -3,14 +3,15 @@ package com.senior.leetmodelbackend.controller;
 import com.senior.leetmodelbackend.common.exception.BusinessException;
 import com.senior.leetmodelbackend.common.exception.ResponseCode;
 import com.senior.leetmodelbackend.common.utils.JwtUtil;
-import com.senior.leetmodelbackend.common.utils.Md5Util;
 import com.senior.leetmodelbackend.pojo.dto.LoginRequestDTO;
+import com.senior.leetmodelbackend.pojo.dto.LogoutDTO;
 import com.senior.leetmodelbackend.pojo.dto.RegisterDTO;
 import com.senior.leetmodelbackend.pojo.dto.ResetPasswordDTO;
 import com.senior.leetmodelbackend.pojo.dto.SendEmailCodeDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.pojo.vo.LoginVO;
+import com.senior.leetmodelbackend.service.TokenService;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.service.VerificationCodeService;
 import com.senior.leetmodelbackend.validator.auth.LoginParamValidator;
@@ -19,13 +20,10 @@ import com.senior.leetmodelbackend.validator.auth.ResetPasswordParamValidator;
 import com.senior.leetmodelbackend.validator.auth.SendEmailCodeParamValidator;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -35,7 +33,7 @@ public class AuthController {
 
     private final UserService userService;
     private final VerificationCodeService verificationCodeService;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final TokenService tokenService;
 
     private final LoginParamValidator loginParamValidator;
     private final RegisterParamValidator registerParamValidator;
@@ -64,7 +62,7 @@ public class AuthController {
      * 邮箱验证码注册，默认分配 MEMBER 角色
      */
     @PostMapping("/register")
-    public Result<String> register(@RequestBody RegisterDTO request) {
+    public Result<Void> register(@RequestBody RegisterDTO request) {
         registerParamValidator.validate(request);
 
         if (!verificationCodeService.verifyCode(request.getEmail(), request.getCode())) {
@@ -79,21 +77,8 @@ public class AuthController {
      * 退出登录，将 token 加入 Redis 黑名单
      */
     @PostMapping("/logout")
-    public Result<Void> logout(@RequestBody Map<String, String> request) {
-        String token = request.get("token");
-        if (token == null || token.isEmpty()) {
-            throw new BusinessException(ResponseCode.UNAUTHORIZED_TOKEN_MISSING, "Token不能为空");
-        }
-
-        io.jsonwebtoken.Claims claims = JwtUtil.parseToken(token);
-        long remainingTime = claims.getExpiration().getTime() - System.currentTimeMillis();
-
-        if (remainingTime > 0) {
-            redisTemplate.opsForValue().set("token:blacklist:" + token, "1",
-                    java.time.Duration.ofMillis(remainingTime));
-            log.info("Token 已加入黑名单: {}", token);
-        }
-
+    public Result<Void> logout(@RequestBody LogoutDTO request) {
+        tokenService.blacklist(request.getToken());
         return Result.success("退出登录成功");
     }
 
@@ -108,7 +93,7 @@ public class AuthController {
             throw new BusinessException(ResponseCode.VERIFICATION_CODE_INCORRECT);
         }
 
-        userService.resetPassword(request.getEmail(), Md5Util.encode(request.getPassword()));
+        userService.resetPassword(request.getEmail(), request.getPassword());
 
         User user = userService.getUserByEmail(request.getEmail());
         String role = userService.determineRole(user.getUserId());

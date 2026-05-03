@@ -28,7 +28,7 @@ const fetchDetail = async () => {
 
   console.log("详情数据:", res);
 
-  if (res.code === 200) {
+  if (res.code === 20000) {
     problem.value = res.data;
   }
 };
