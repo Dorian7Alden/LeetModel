@@ -46,6 +46,12 @@ public enum ResponseCode {
     PERMISSION_CODE_DUPLICATE(40404, "权限编码已存在"),
 
     /**
+     * 题目模块 (02)
+     */
+    PROBLEM_NOT_FOUND(40201, "题目不存在"),
+    FILE_NOT_FOUND(40203, "文件记录不存在"),
+
+    /**
      * 第三方服务与AI模块 (06)
      */
     EMAIL_SEND_FAILED(50601, "邮件发送失败，服务器异常或网络超时");

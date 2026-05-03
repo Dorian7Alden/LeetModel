@@ -17,10 +17,10 @@ public interface UserMapper {
     void insertUser(User user);
 
     @Select("select * from user where user_id = #{userId}")
-    User getUserById(Long userId);
+    User getUserById(Integer userId);
 
     @Delete("delete from user where user_id = #{userId}")
-    void deleteUserById(Long userId);
+    void deleteUserById(Integer userId);
 
     void updateUserById(User user);
 
@@ -30,13 +30,13 @@ public interface UserMapper {
     @Select("select user_id, username, email, school, avatar_file_id, status, create_time, update_time from user order by user_id")
     List<User> getAllUsers();
 
-    List<Role> getRolesByUserId(Long userId);
+    List<Role> getRolesByUserId(Integer userId);
 
     @Insert("insert into user_role (user_id, role_id, create_time, update_time) values (#{userId}, #{roleId}, now(), now())")
-    void insertUserRole(Long userId, Long roleId);
+    void insertUserRole(Integer userId, Integer roleId);
 
     @Delete("delete from user_role where user_id = #{userId}")
-    void deleteUserRolesByUserId(Long userId);
+    void deleteUserRolesByUserId(Integer userId);
 
-    List<String> getUserPermissionCodes(@Param("userId") Long userId);
+    List<String> getUserPermissionCodes(@Param("userId") Integer userId);
 }

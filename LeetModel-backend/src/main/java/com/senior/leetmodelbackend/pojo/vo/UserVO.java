@@ -8,11 +8,11 @@ import java.time.LocalDateTime;
 @Data
 public class UserVO {
 
-    private Long id;
+    private Integer id;
     private String username;
     private String email;
     private String school;
-    private Long avatarFileId;
+    private Integer avatarFileId;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

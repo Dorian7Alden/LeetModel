@@ -30,7 +30,7 @@ public class UserController {
 
     @RequirePermission(value = "USER_VIEW", selfAccess = true)
     @GetMapping("/{userId}")
-    public Result<UserVO> getUserById(@PathVariable Long userId) {
+    public Result<UserVO> getUserById(@PathVariable Integer userId) {
         userIdParamValidator.validate(userId);
         User user = userService.getUserById(userId);
         return Result.success(UserVO.createVO(user));
@@ -46,7 +46,7 @@ public class UserController {
 
     @RequirePermission("USER_DELETE")
     @DeleteMapping("/{userId}")
-    public Result<Void> deleteUserById(@PathVariable Long userId) {
+    public Result<Void> deleteUserById(@PathVariable Integer userId) {
         userIdParamValidator.validate(userId);
         userService.deleteUserById(userId);
         return Result.success();
@@ -54,7 +54,7 @@ public class UserController {
 
     @RequirePermission(value = "USER_UPDATE", selfAccess = true)
     @PutMapping("/{userId}")
-    public Result<Void> updateUserById(@PathVariable Long userId, @RequestBody UserUpdateDTO dto) {
+    public Result<Void> updateUserById(@PathVariable Integer userId, @RequestBody UserUpdateDTO dto) {
         userIdParamValidator.validate(userId);
         userService.updateUserById(userId, dto);
         return Result.success();

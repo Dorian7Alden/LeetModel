@@ -8,158 +8,92 @@
           style="width: 300px"
           prefix-icon="Search"
           clearable
+          @clear="fetchList"
+          @keyup.enter="fetchList"
         />
         <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon> 新增题目
         </el-button>
       </div>
 
-      <el-table :data="tableData" style="width: 100%" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="title" label="题目名称" min-width="200" />
-        <el-table-column prop="difficulty" label="难度" width="100">
+      <el-table :data="tableData" style="width: 100%" stripe v-loading="tableLoading">
+        <el-table-column prop="problemId" label="ID" width="80" />
+        <el-table-column prop="problemTitle" label="题目名称" min-width="200" />
+        <el-table-column prop="problemStatus" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getDifficultyType(scope.row.difficulty)">
-              {{ getDifficultyLabel(scope.row.difficulty) }}
+            <el-tag :type="getStatusType(scope.row.problemStatus)">
+              {{ getStatusLabel(scope.row.problemStatus) }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="createTime" label="创建时间" width="180" />
         <el-table-column prop="updateTime" label="更新时间" width="180" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column label="操作" width="160" fixed="right">
           <template #default="scope">
-            <el-switch v-model="scope.row.status" active-color="#13ce66" />
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="scope">
-            <el-button size="small" type="primary" link>编辑</el-button>
-            <el-button size="small" type="danger" link>删除</el-button>
+            <el-button size="small" type="primary" link @click="openEditDialog(scope.row)">编辑</el-button>
+            <el-button size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div class="pagination-container">
         <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
           background
           layout="prev, pager, next, total"
-          :total="12"
+          :total="total"
+          @current-change="fetchList"
+          @size-change="fetchList"
         />
       </div>
     </el-card>
 
     <el-dialog
-      v-model="createDialogVisible"
-      title="新增题目"
-      width="760px"
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑题目' : '新增题目'"
+      width="600px"
       destroy-on-close
+      @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="题目标题" prop="problem_title">
-          <el-input v-model="form.problem_title" placeholder="请输入题目标题" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+        <el-form-item label="题目标题" prop="problemTitle">
+          <el-input v-model="form.problemTitle" placeholder="请输入题目标题" />
         </el-form-item>
 
-        <el-form-item label="题目简介" prop="intro_file">
-          <el-upload
-            action=""
-            :auto-upload="false"
-            :limit="1"
-            :on-change="handleIntroChange"
-            accept=".md"
-          >
-            <el-button type="primary" plain>选择简介文件 (.md)</el-button>
-          </el-upload>
+        <el-form-item label="题目内容文件" prop="contentFileId">
+          <div class="upload-area">
+            <el-upload
+              ref="uploadRef"
+              :auto-upload="false"
+              :limit="1"
+              :on-change="handleFileChange"
+              :on-remove="handleFileRemove"
+              :file-list="fileList"
+              accept=".md"
+            >
+              <el-button type="primary" plain :loading="uploading">
+                {{ uploading ? '上传中...' : '选择 .md 文件' }}
+              </el-button>
+            </el-upload>
+            <span v-if="form.contentFileId" class="upload-tip">
+              文件已上传 (ID: {{ form.contentFileId }})
+            </span>
+          </div>
         </el-form-item>
 
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="所属赛事" prop="competition_id">
-              <el-select v-model="form.competition_id" placeholder="请选择赛事" style="width: 100%">
-                <el-option
-                  v-for="comp in competitions"
-                  :key="comp.competitionId"
-                  :label="comp.title"
-                  :value="comp.competitionId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="年份" prop="year">
-              <el-select v-model="form.year" placeholder="请选择年份" style="width: 100%">
-                <el-option
-                  v-for="item in years"
-                  :key="item.tagId"
-                  :label="item.name"
-                  :value="item.tagId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="14">
-          <el-col :span="12">
-            <el-form-item label="难度" prop="difficulty">
-              <el-select v-model="form.difficulty" placeholder="请选择难度" style="width: 100%">
-                <el-option
-                  v-for="item in difficulties"
-                  :key="item.tagId"
-                  :label="item.name"
-                  :value="item.tagId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="数据特征" prop="data_feature">
-              <el-select v-model="form.data_feature" placeholder="请选择数据特征" style="width: 100%">
-                <el-option
-                  v-for="item in dataFeatures"
-                  :key="item.tagId"
-                  :label="item.name"
-                  :value="item.tagId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-form-item label="行业领域" prop="industry">
-          <el-select v-model="form.industry" placeholder="请选择行业领域" style="width: 100%">
-            <el-option
-              v-for="item in industries"
-              :key="item.tagId"
-              :label="item.name"
-              :value="item.tagId"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="涉及模型" prop="models">
-          <el-select v-model="form.models" multiple filterable placeholder="请选择模型" style="width: 100%">
-            <el-option
-              v-for="item in modelsOptions"
-              :key="item.tagId"
-              :label="item.name"
-              :value="item.tagId"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="题型" prop="problem_types">
-          <el-select v-model="form.problem_types" multiple filterable placeholder="请选择题型" style="width: 100%">
-            <el-option
-              v-for="item in problemTypesOptions"
-              :key="item.tagId"
-              :label="item.name"
-              :value="item.tagId"
-            />
+        <el-form-item label="题目状态" prop="problemStatus">
+          <el-select v-model="form.problemStatus" placeholder="请选择状态" style="width: 100%">
+            <el-option label="草稿" :value="0" />
+            <el-option label="已发布" :value="1" />
+            <el-option label="已下线" :value="2" />
+            <el-option label="已归档" :value="3" />
           </el-select>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitLoading" @click="onSubmit">保存</el-button>
       </template>
     </el-dialog>
@@ -168,133 +102,171 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { getProblemList, getProblemDetail, createProblem, updateProblem, deleteProblem } from '@/api/problem';
+import { uploadFile } from '@/api/file';
 
 const searchQuery = ref('');
-const createDialogVisible = ref(false);
+const tableData = ref([]);
+const tableLoading = ref(false);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const editId = ref(null);
 const submitLoading = ref(false);
+const uploading = ref(false);
+const fileList = ref([]);
 const formRef = ref();
-
-const tableData = ref([
-  { id: 1, title: '2023高教社杯A题 定日镜场的优化设计', difficulty: 'hard', updateTime: '2023-09-08 10:00:00', status: true },
-  { id: 2, title: '投资的收益和风险', difficulty: 'medium', updateTime: '2023-10-12 14:20:00', status: true },
-  { id: 3, title: '最优路径规划问题', difficulty: 'easy', updateTime: '2023-11-05 09:15:00', status: false },
-  { id: 4, title: '传染病模型与预测', difficulty: 'medium', updateTime: '2024-01-20 16:45:00', status: true },
-  { id: 5, title: '车间调度问题研究', difficulty: 'hard', updateTime: '2024-02-18 11:30:00', status: true }
-]);
-
-const competitions = ref([]);
-const difficulties = ref([]);
-const years = ref([]);
-const dataFeatures = ref([]);
-const industries = ref([]);
-const modelsOptions = ref([]);
-const problemTypesOptions = ref([]);
+const uploadRef = ref();
 
 const form = reactive({
-  problem_title: '',
-  intro_file: null,
-  competition_id: '',
-  year: '',
-  difficulty: '',
-  data_feature: '',
-  industry: '',
-  models: [],
-  problem_types: []
+  problemTitle: '',
+  contentFileId: null,
+  problemStatus: 0
 });
 
 const rules = {
-  problem_title: [{ required: true, message: '请输入题目标题', trigger: 'blur' }],
-  competition_id: [{ required: true, message: '请选择所属赛事', trigger: 'change' }],
-  year: [{ required: true, message: '请选择年份', trigger: 'change' }],
-  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
-  data_feature: [{ required: true, message: '请选择数据特征', trigger: 'change' }],
-  industry: [{ required: true, message: '请选择行业领域', trigger: 'change' }]
+  problemTitle: [{ required: true, message: '请输入题目标题', trigger: 'blur' }],
+  contentFileId: [{ required: true, message: '请上传题目内容文件', trigger: 'change' }]
 };
 
-const loadTags = async () => {
-  console.log('题目管理功能正在开发中');
+const statusMap = {
+  0: { label: '草稿', type: 'info' },
+  1: { label: '已发布', type: 'success' },
+  2: { label: '已下线', type: 'warning' },
+  3: { label: '已归档', type: '' }
 };
 
-const openCreateDialog = async () => {
-  createDialogVisible.value = true;
-  if (!competitions.value.length) {
-    await loadTags();
+const getStatusLabel = (status) => statusMap[status]?.label || '未知';
+const getStatusType = (status) => statusMap[status]?.type || 'info';
+
+const fetchList = async () => {
+  tableLoading.value = true;
+  try {
+    const res = await getProblemList({ page: currentPage.value, pageSize: pageSize.value });
+    if (res.code === 20000 && res.data) {
+      tableData.value = res.data.records || [];
+      total.value = res.data.total || 0;
+    }
+  } catch (error) {
+    console.error('获取题目列表失败', error);
+  } finally {
+    tableLoading.value = false;
   }
+};
+
+const handleFileChange = async (uploadFileItem) => {
+  const file = uploadFileItem.raw;
+  if (!file) return;
+  uploading.value = true;
+  try {
+    const res = await uploadFile(file);
+    if (res.code === 20000) {
+      form.contentFileId = res.data.fileId;
+      ElMessage.success('文件上传成功');
+    } else {
+      ElMessage.error(res.msg || '文件上传失败');
+      uploadRef.value.clearFiles();
+    }
+  } catch (error) {
+    console.error('文件上传失败', error);
+    ElMessage.error('文件上传失败');
+    uploadRef.value.clearFiles();
+  } finally {
+    uploading.value = false;
+  }
+};
+
+const handleFileRemove = () => {
+  form.contentFileId = null;
+};
+
+const openCreateDialog = () => {
+  isEdit.value = false;
+  editId.value = null;
+  dialogVisible.value = true;
+};
+
+const openEditDialog = async (row) => {
+  isEdit.value = true;
+  editId.value = row.problemId;
+  try {
+    const res = await getProblemDetail(row.problemId);
+    if (res.code === 20000 && res.data) {
+      const d = res.data;
+      form.problemTitle = d.problemTitle;
+      form.contentFileId = d.contentFileId;
+      form.problemStatus = d.problemStatus;
+      if (d.contentFileId) {
+        fileList.value = [{ name: d.contentFileUrl || '已上传文件', id: d.contentFileId }];
+      }
+    }
+  } catch (error) {
+    console.error('获取题目详情失败', error);
+    ElMessage.error('获取题目详情失败');
+    return;
+  }
+  dialogVisible.value = true;
+};
+
+const handleDelete = (row) => {
+  ElMessageBox.confirm(`确定要删除题目「${row.problemTitle}」吗？`, '确认删除', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await deleteProblem(row.problemId);
+      ElMessage.success('删除成功');
+      fetchList();
+    } catch (error) {
+      console.error('删除题目失败', error);
+    }
+  }).catch(() => {});
 };
 
 const resetForm = () => {
-  form.problem_title = '';
-  form.intro_file = null;
-  form.competition_id = '';
-  form.year = '';
-  form.difficulty = '';
-  form.data_feature = '';
-  form.industry = '';
-  form.models = [];
-  form.problem_types = [];
-};
-
-const handleIntroChange = (file) => {
-  form.intro_file = file.raw;
-};
-
-const getDifficultyType = (level) => {
-  const map = { easy: 'success', medium: 'warning', hard: 'danger' };
-  return map[level] || 'info';
-};
-
-const getDifficultyLabel = (level) => {
-  const map = { easy: '简单', medium: '中等', hard: '困难' };
-  return map[level] || level;
-};
-
-const resolveDifficultyCode = (difficultyTagId) => {
-  const selected = difficulties.value.find((item) => item.tagId === difficultyTagId);
-  const name = selected?.name || '';
-
-  if (name.includes('简')) {
-    return 'easy';
-  }
-  if (name.includes('难')) {
-    return 'hard';
-  }
-  return 'medium';
+  form.problemTitle = '';
+  form.contentFileId = null;
+  form.problemStatus = 0;
+  fileList.value = [];
+  formRef.value?.resetFields();
 };
 
 const onSubmit = async () => {
-  if (!formRef.value) {
-    return;
-  }
-
+  if (!formRef.value) return;
   const valid = await formRef.value.validate().catch(() => false);
-  if (!valid) {
-    return;
-  }
+  if (!valid) return;
 
   submitLoading.value = true;
   try {
-    tableData.value.unshift({
-      id: tableData.value.length + 1,
-      title: form.problem_title,
-      difficulty: resolveDifficultyCode(form.difficulty),
-      updateTime: new Date().toLocaleString('zh-CN', { hour12: false }),
-      status: true
-    });
-
-    ElMessage.success('新增题目成功');
-    createDialogVisible.value = false;
-    resetForm();
+    const payload = {
+      problemTitle: form.problemTitle,
+      contentFileId: form.contentFileId,
+      problemStatus: form.problemStatus
+    };
+    if (isEdit.value) {
+      await updateProblem(editId.value, payload);
+      ElMessage.success('更新成功');
+    } else {
+      await createProblem(payload);
+      ElMessage.success('创建成功');
+    }
+    dialogVisible.value = false;
+    fetchList();
   } catch (error) {
-    console.error('新增题目失败', error);
-    ElMessage.error('新增题目失败，请稍后重试');
+    console.error('保存题目失败', error);
   } finally {
     submitLoading.value = false;
   }
 };
 
 onMounted(() => {
-  loadTags();
+  fetchList();
 });
 </script>
 
@@ -308,5 +280,14 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+.upload-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.upload-tip {
+  color: #67c23a;
+  font-size: 13px;
 }
 </style>

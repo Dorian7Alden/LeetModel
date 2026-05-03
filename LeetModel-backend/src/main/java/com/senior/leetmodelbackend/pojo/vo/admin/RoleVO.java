@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 public class RoleVO {
 
-    private Long roleId;
+    private Integer roleId;
     private String name;
     private String code;
     private String description;

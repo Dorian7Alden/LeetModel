@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.senior.leetmodelbackend.mapper.ProblemMapper">
+
+    <resultMap id="ProblemVOMap" type="com.senior.leetmodelbackend.pojo.vo.admin.ProblemVO">
+        <id property="problemId" column="problem_id"/>
+        <result property="problemTitle" column="problem_title"/>
+        <result property="contentFileId" column="content_file_id"/>
+        <result property="contentFileUrl" column="file_url"/>
+        <result property="aveScore" column="ave_score"/>
+        <result property="problemStatus" column="problem_status"/>
+        <result property="creatorId" column="creator_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="getProblemList" resultMap="ProblemVOMap">
+        select p.*, f.file_url
+        from problem p
+        left join oss_file f on p.content_file_id = f.file_id
+        order by p.create_time desc
+    </select>
+
+    <select id="getProblemById" resultType="com.senior.leetmodelbackend.pojo.entity.Problem">
+        select * from problem where problem_id = #{problemId}
+    </select>
+
+    <insert id="insertProblem" parameterType="com.senior.leetmodelbackend.pojo.entity.Problem"
+            useGeneratedKeys="true" keyProperty="problemId">
+        insert into problem (problem_title, content_file_id, ave_score, problem_status, creator_id, create_time, update_time)
+        values (#{problemTitle}, #{contentFileId}, #{aveScore}, #{problemStatus}, #{creatorId}, now(), now())
+    </insert>
+
+    <update id="updateProblem">
+        update problem
+        <set>
+            <if test="problemTitle != null and problemTitle != ''">problem_title = #{problemTitle},</if>
+            <if test="contentFileId != null">content_file_id = #{contentFileId},</if>
+            <if test="aveScore != null">ave_score = #{aveScore},</if>
+            <if test="problemStatus != null">problem_status = #{problemStatus},</if>
+            update_time = now(),
+        </set>
+        where problem_id = #{problemId}
+    </update>
+
+</mapper>

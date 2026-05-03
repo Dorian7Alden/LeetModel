@@ -14,7 +14,7 @@ public interface PermissionMapper {
     List<Permission> getAllPermissions();
 
     @Select("select * from permission where permission_id = #{permissionId}")
-    Permission getPermissionById(Long permissionId);
+    Permission getPermissionById(Integer permissionId);
 
     @Select("select * from permission where code = #{code}")
     Permission getPermissionByCode(String code);
@@ -24,5 +24,5 @@ public interface PermissionMapper {
     void updatePermission(Permission permission);
 
     @Delete("delete from permission where permission_id = #{permissionId}")
-    void deletePermission(Long permissionId);
+    void deletePermission(Integer permissionId);
 }

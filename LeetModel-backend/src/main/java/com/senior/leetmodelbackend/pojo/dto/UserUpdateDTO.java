@@ -6,5 +6,5 @@ import lombok.Data;
 public class UserUpdateDTO {
     private String username;
     private String school;
-    private Long avatarFileId;
+    private Integer avatarFileId;
 }

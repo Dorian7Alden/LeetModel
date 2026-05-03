@@ -55,7 +55,7 @@ public class JwtUtil {
      * @param role 角色编码
      * @return 生成的JWT Token字符串
      */
-    public static String generateToken(Long userId, String email, String username, String role) {
+    public static String generateToken(Integer userId, String email, String username, String role) {
         if (userId == null) {
             throw new IllegalArgumentException("用户ID不能为空");
         }

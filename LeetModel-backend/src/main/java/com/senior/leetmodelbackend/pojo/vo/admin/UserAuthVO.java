@@ -6,7 +6,7 @@ import java.util.List;
 
 @Data
 public class UserAuthVO {
-    private Long userId;
+    private Integer userId;
     private String username;
     private String email;
     private List<Role> roles;

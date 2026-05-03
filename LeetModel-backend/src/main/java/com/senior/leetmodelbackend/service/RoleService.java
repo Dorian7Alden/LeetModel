@@ -30,7 +30,7 @@ public class RoleService {
     /**
      * 根据 ID 查询角色，不存在则抛出 ROLE_NOT_FOUND
      */
-    public Role getRoleById(Long roleId) {
+    public Role getRoleById(Integer roleId) {
         Role role = roleMapper.getRoleById(roleId);
         if (role == null) {
             throw new BusinessException(ResponseCode.ROLE_NOT_FOUND);
@@ -58,7 +58,7 @@ public class RoleService {
     /**
      * 更新角色，不存在则抛出 ROLE_NOT_FOUND，code 冲突则抛出 ROLE_CODE_DUPLICATE
      */
-    public void updateRole(Long roleId, RoleDTO dto) {
+    public void updateRole(Integer roleId, RoleDTO dto) {
         getRoleById(roleId);
         Role existing = roleMapper.getRoleByCode(dto.getCode());
         if (existing != null && !existing.getRoleId().equals(roleId)) {
@@ -77,7 +77,7 @@ public class RoleService {
     /**
      * 删除角色，不存在则抛出 ROLE_NOT_FOUND
      */
-    public void deleteRole(Long roleId) {
+    public void deleteRole(Integer roleId) {
         getRoleById(roleId);
         roleMapper.deleteRole(roleId);
         log.info("删除角色: {}", roleId);
@@ -86,7 +86,7 @@ public class RoleService {
     /**
      * 查询角色持有的权限列表，角色不存在则抛出 ROLE_NOT_FOUND
      */
-    public List<Permission> getRolePermissions(Long roleId) {
+    public List<Permission> getRolePermissions(Integer roleId) {
         getRoleById(roleId);
         return roleMapper.getPermissionsByRoleId(roleId);
     }
@@ -95,11 +95,11 @@ public class RoleService {
      * 分配角色权限（先删后增），角色不存在则抛出 ROLE_NOT_FOUND
      */
     @Transactional
-    public void assignRolePermissions(Long roleId, List<Long> permissionIds) {
+    public void assignRolePermissions(Integer roleId, List<Integer> permissionIds) {
         getRoleById(roleId);
         roleMapper.deleteRolePermissionsByRoleId(roleId);
         if (permissionIds != null && !permissionIds.isEmpty()) {
-            for (Long permissionId : permissionIds) {
+            for (Integer permissionId : permissionIds) {
                 roleMapper.insertRolePermission(roleId, permissionId);
             }
         }

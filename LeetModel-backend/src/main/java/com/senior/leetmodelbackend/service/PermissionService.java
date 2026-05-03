@@ -28,7 +28,7 @@ public class PermissionService {
     /**
      * 根据 ID 查询权限，不存在则抛出 PERMISSION_NOT_FOUND
      */
-    public Permission getPermissionById(Long permissionId) {
+    public Permission getPermissionById(Integer permissionId) {
         Permission permission = permissionMapper.getPermissionById(permissionId);
         if (permission == null) {
             throw new BusinessException(ResponseCode.PERMISSION_NOT_FOUND);
@@ -56,7 +56,7 @@ public class PermissionService {
     /**
      * 更新权限，不存在则抛出 PERMISSION_NOT_FOUND，code 冲突则抛出 PERMISSION_CODE_DUPLICATE
      */
-    public void updatePermission(Long permissionId, PermissionDTO dto) {
+    public void updatePermission(Integer permissionId, PermissionDTO dto) {
         getPermissionById(permissionId);
         Permission existing = permissionMapper.getPermissionByCode(dto.getCode());
         if (existing != null && !existing.getPermissionId().equals(permissionId)) {
@@ -75,7 +75,7 @@ public class PermissionService {
     /**
      * 删除权限，不存在则抛出 PERMISSION_NOT_FOUND
      */
-    public void deletePermission(Long permissionId) {
+    public void deletePermission(Integer permissionId) {
         getPermissionById(permissionId);
         permissionMapper.deletePermission(permissionId);
         log.info("删除权限: {}", permissionId);

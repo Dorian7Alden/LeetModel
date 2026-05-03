@@ -16,7 +16,7 @@ public interface RoleMapper {
     List<Role> getAllRoles();
 
     @Select("select * from role where role_id = #{roleId}")
-    Role getRoleById(Long roleId);
+    Role getRoleById(Integer roleId);
 
     @Select("select * from role where code = #{code}")
     Role getRoleByCode(String code);
@@ -26,13 +26,13 @@ public interface RoleMapper {
     void updateRole(Role role);
 
     @Delete("delete from role where role_id = #{roleId}")
-    void deleteRole(Long roleId);
+    void deleteRole(Integer roleId);
 
-    List<Permission> getPermissionsByRoleId(Long roleId);
+    List<Permission> getPermissionsByRoleId(Integer roleId);
 
     @Insert("insert into role_permission (role_id, permission_id, create_time, update_time) values (#{roleId}, #{permissionId}, now(), now())")
-    void insertRolePermission(Long roleId, Long permissionId);
+    void insertRolePermission(Integer roleId, Integer permissionId);
 
     @Delete("delete from role_permission where role_id = #{roleId}")
-    void deleteRolePermissionsByRoleId(Long roleId);
+    void deleteRolePermissionsByRoleId(Integer roleId);
 }

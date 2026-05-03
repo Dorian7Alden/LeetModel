@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class Role {
-    private Long roleId;
+    private Integer roleId;
     private String name;
     private String code;
     private String description;

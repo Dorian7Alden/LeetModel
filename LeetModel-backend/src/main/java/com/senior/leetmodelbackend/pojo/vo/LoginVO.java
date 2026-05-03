@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 public class LoginVO {
 
     private String token;
-    private Long id;
+    private Integer id;
     private String email;
     private String username;
     private String role;

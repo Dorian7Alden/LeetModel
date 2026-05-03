@@ -1,18 +1,21 @@
-function notify() {
-  console.log('题目功能正在开发中')
+import request from "./request";
+
+export function getProblemList(params) {
+  return request({ url: "/admin/problems", method: "get", params });
 }
 
-export function getProblemList() {
-  notify()
-  return Promise.resolve({ records: [], total: 0 })
+export function getProblemDetail(problemId) {
+  return request({ url: `/admin/problems/${problemId}`, method: "get" });
 }
 
-export function getProblemDetail() {
-  notify()
-  return Promise.resolve(null)
+export function createProblem(data) {
+  return request({ url: "/admin/problems", method: "post", data });
 }
 
-export function uploadProblem() {
-  notify()
-  return Promise.resolve({ code: 20000 })
+export function updateProblem(problemId, data) {
+  return request({ url: `/admin/problems/${problemId}`, method: "put", data });
+}
+
+export function deleteProblem(problemId) {
+  return request({ url: `/admin/problems/${problemId}`, method: "delete" });
 }

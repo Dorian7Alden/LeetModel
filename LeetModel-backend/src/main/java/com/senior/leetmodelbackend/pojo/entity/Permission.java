@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 
 @Data
 public class Permission {
-    private Long permissionId;
+    private Integer permissionId;
     private String name;
     private String code;
     private String description;

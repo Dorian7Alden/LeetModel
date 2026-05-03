@@ -42,7 +42,7 @@ public class UserService {
     /**
      * 根据 ID 查询用户，不存在则抛出 USER_NOT_FOUND
      */
-    public User getUserById(Long userId) {
+    public User getUserById(Integer userId) {
         log.info("getUserById: {}", userId);
         User user = userMapper.getUserById(userId);
         if (user == null) {
@@ -66,7 +66,7 @@ public class UserService {
     /**
      * 获取用户最高角色标识（SUPER_ADMIN > ADMIN > MEMBER），用于 JWT 签发
      */
-    public String determineRole(Long userId) {
+    public String determineRole(Integer userId) {
         List<Role> roles = userMapper.getRolesByUserId(userId);
         if (roles != null && !roles.isEmpty()) {
             boolean isSuperAdmin = roles.stream().anyMatch(r -> "SUPER_ADMIN".equals(r.getCode()));
@@ -106,7 +106,7 @@ public class UserService {
     /**
      * 删除用户，不存在则抛出 USER_NOT_FOUND
      */
-    public void deleteUserById(Long userId) {
+    public void deleteUserById(Integer userId) {
         log.info("deleteUserById: {}", userId);
         if (userMapper.getUserById(userId) == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "删除失败，没有找到 id 为 " + userId + " 的用户");
@@ -117,7 +117,7 @@ public class UserService {
     /**
      * 更新用户信息，不存在则抛出 USER_NOT_FOUND
      */
-    public void updateUserById(Long userId, UserUpdateDTO dto) {
+    public void updateUserById(Integer userId, UserUpdateDTO dto) {
         if (userMapper.getUserById(userId) == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "更新失败，没有找到 id 为 " + userId + " 的用户");
         }
@@ -150,7 +150,7 @@ public class UserService {
     /**
      * 查询用户持有的角色列表
      */
-    public List<Role> getUserRoles(Long userId) {
+    public List<Role> getUserRoles(Integer userId) {
         return userMapper.getRolesByUserId(userId);
     }
 
@@ -158,25 +158,25 @@ public class UserService {
      * 分配用户角色（先删后增），userId 不存在时抛出 USER_NOT_FOUND
      */
     @Transactional
-    public void assignUserRoles(Long userId, List<Long> roleIds) {
+    public void assignUserRoles(Integer userId, List<Integer> roleIds) {
         if (userMapper.getUserById(userId) == null) {
             throw new BusinessException(ResponseCode.USER_NOT_FOUND, "分配角色失败，没有找到 id 为 " + userId + " 的用户");
         }
         userMapper.deleteUserRolesByUserId(userId);
         if (roleIds != null && !roleIds.isEmpty()) {
-            for (Long roleId : roleIds) {
+            for (Integer roleId : roleIds) {
                 userMapper.insertUserRole(userId, roleId);
             }
         }
         log.info("分配用户角色: userId={}, roleIds={}", userId, roleIds);
     }
 
-    public Set<String> getUserPermissionCodes(Long userId) {
+    public Set<String> getUserPermissionCodes(Integer userId) {
         List<String> codes = userMapper.getUserPermissionCodes(userId);
         return codes != null ? new HashSet<>(codes) : Collections.emptySet();
     }
 
-    public boolean hasPermission(Long userId, String permissionCode) {
+    public boolean hasPermission(Integer userId, String permissionCode) {
         return getUserPermissionCodes(userId).contains(permissionCode);
     }
 }

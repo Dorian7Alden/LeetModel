@@ -35,14 +35,14 @@ public class PermissionAspect {
         }
         HttpServletRequest request = attributes.getRequest();
 
-        Long userId = (Long) request.getAttribute("userId");
+        Integer userId = (Integer) request.getAttribute("userId");
         if (userId == null) {
             log.warn("权限校验失败：请求属性中缺少 userId");
             throw new BusinessException(ResponseCode.FORBIDDEN);
         }
 
         if (requirePermission.selfAccess()) {
-            Long targetUserId = extractTargetUserId(joinPoint);
+            Integer targetUserId = extractTargetUserId(joinPoint);
             if (targetUserId != null && targetUserId.equals(userId)) {
                 return joinPoint.proceed();
             }
@@ -67,14 +67,14 @@ public class PermissionAspect {
         return joinPoint.proceed();
     }
 
-    private Long extractTargetUserId(ProceedingJoinPoint joinPoint) {
+    private Integer extractTargetUserId(ProceedingJoinPoint joinPoint) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         String[] paramNames = signature.getParameterNames();
         Object[] paramValues = joinPoint.getArgs();
 
         for (int i = 0; i < paramNames.length; i++) {
-            if ("userId".equals(paramNames[i]) && paramValues[i] instanceof Long) {
-                return (Long) paramValues[i];
+            if ("userId".equals(paramNames[i]) && paramValues[i] instanceof Integer) {
+                return (Integer) paramValues[i];
             }
         }
         return null;

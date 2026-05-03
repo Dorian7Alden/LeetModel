@@ -5,5 +5,5 @@ import java.util.List;
 
 @Data
 public class AssignIdsDTO {
-    private List<Long> ids;
+    private List<Integer> ids;
 }

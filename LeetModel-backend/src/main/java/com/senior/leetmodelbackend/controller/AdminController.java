@@ -2,23 +2,32 @@ package com.senior.leetmodelbackend.controller;
 
 import com.senior.leetmodelbackend.common.annotation.RequirePermission;
 import com.senior.leetmodelbackend.common.utils.OssUtils;
+import com.senior.leetmodelbackend.mapper.OssFileMapper;
 import com.senior.leetmodelbackend.pojo.dto.admin.AssignIdsDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
+import com.senior.leetmodelbackend.pojo.dto.admin.ProblemDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.RoleDTO;
+import com.senior.leetmodelbackend.pojo.entity.PageResult;
+import com.senior.leetmodelbackend.pojo.entity.OssFile;
 import com.senior.leetmodelbackend.pojo.entity.Permission;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.Role;
 import com.senior.leetmodelbackend.pojo.entity.User;
 import com.senior.leetmodelbackend.pojo.vo.UserVO;
+import com.senior.leetmodelbackend.pojo.vo.admin.FileUploadVO;
 import com.senior.leetmodelbackend.pojo.vo.admin.PermissionVO;
+import com.senior.leetmodelbackend.pojo.vo.admin.ProblemVO;
 import com.senior.leetmodelbackend.pojo.vo.admin.RoleVO;
 import com.senior.leetmodelbackend.service.PermissionService;
+import com.senior.leetmodelbackend.service.ProblemService;
 import com.senior.leetmodelbackend.service.RoleService;
 import com.senior.leetmodelbackend.service.UserService;
 import com.senior.leetmodelbackend.validator.admin.AssignIdsParamValidator;
 import com.senior.leetmodelbackend.validator.admin.PermissionParamValidator;
+import com.senior.leetmodelbackend.validator.admin.ProblemParamValidator;
 import com.senior.leetmodelbackend.validator.admin.RoleParamValidator;
 import com.senior.leetmodelbackend.validator.user.UserIdParamValidator;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -43,11 +52,14 @@ public class AdminController {
     private final UserService userService;
     private final RoleService roleService;
     private final PermissionService permissionService;
+    private final ProblemService problemService;
     private final OssUtils ossUtils;
+    private final OssFileMapper ossFileMapper;
 
     private final UserIdParamValidator userIdParamValidator;
     private final RoleParamValidator roleParamValidator;
     private final PermissionParamValidator permissionParamValidator;
+    private final ProblemParamValidator problemParamValidator;
     private final AssignIdsParamValidator assignIdsParamValidator;
 
     // ==================== User Management ====================
@@ -68,7 +80,7 @@ public class AdminController {
      */
     @RequirePermission("USER_VIEW")
     @GetMapping("/users/{userId}/roles")
-    public Result<List<RoleVO>> getUserRoles(@PathVariable Long userId) {
+    public Result<List<RoleVO>> getUserRoles(@PathVariable Integer userId) {
         userIdParamValidator.validate(userId);
         List<Role> roles = userService.getUserRoles(userId);
         List<RoleVO> voList = roles != null
@@ -82,7 +94,7 @@ public class AdminController {
      */
     @RequirePermission("AUTH_MANAGE")
     @PutMapping("/users/{userId}/roles")
-    public Result<Void> assignUserRoles(@PathVariable Long userId, @RequestBody AssignIdsDTO request) {
+    public Result<Void> assignUserRoles(@PathVariable Integer userId, @RequestBody AssignIdsDTO request) {
         userIdParamValidator.validate(userId);
         assignIdsParamValidator.validate(request);
         userService.assignUserRoles(userId, request.getIds());
@@ -107,7 +119,7 @@ public class AdminController {
      */
     @RequirePermission("ROLE_VIEW")
     @GetMapping("/roles/{roleId}")
-    public Result<RoleVO> getRoleDetail(@PathVariable Long roleId) {
+    public Result<RoleVO> getRoleDetail(@PathVariable Integer roleId) {
         Role role = roleService.getRoleById(roleId);
         return Result.success(RoleVO.createVO(role));
     }
@@ -128,7 +140,7 @@ public class AdminController {
      */
     @RequirePermission("ROLE_MANAGE")
     @PutMapping("/roles/{roleId}")
-    public Result<Void> updateRole(@PathVariable Long roleId, @RequestBody RoleDTO request) {
+    public Result<Void> updateRole(@PathVariable Integer roleId, @RequestBody RoleDTO request) {
         roleParamValidator.validate(request);
         roleService.updateRole(roleId, request);
         return Result.success("更新成功");
@@ -139,7 +151,7 @@ public class AdminController {
      */
     @RequirePermission("ROLE_MANAGE")
     @DeleteMapping("/roles/{roleId}")
-    public Result<Void> deleteRole(@PathVariable Long roleId) {
+    public Result<Void> deleteRole(@PathVariable Integer roleId) {
         roleService.deleteRole(roleId);
         return Result.success("删除成功");
     }
@@ -149,7 +161,7 @@ public class AdminController {
      */
     @RequirePermission("ROLE_VIEW")
     @GetMapping("/roles/{roleId}/permissions")
-    public Result<List<PermissionVO>> getRolePermissions(@PathVariable Long roleId) {
+    public Result<List<PermissionVO>> getRolePermissions(@PathVariable Integer roleId) {
         List<Permission> permissions = roleService.getRolePermissions(roleId);
         List<PermissionVO> voList = permissions.stream().map(PermissionVO::createVO).toList();
         return Result.success(voList);
@@ -160,7 +172,7 @@ public class AdminController {
      */
     @RequirePermission("AUTH_MANAGE")
     @PutMapping("/roles/{roleId}/permissions")
-    public Result<Void> assignRolePermissions(@PathVariable Long roleId, @RequestBody AssignIdsDTO request) {
+    public Result<Void> assignRolePermissions(@PathVariable Integer roleId, @RequestBody AssignIdsDTO request) {
         assignIdsParamValidator.validate(request);
         roleService.assignRolePermissions(roleId, request.getIds());
         return Result.success("分配成功");
@@ -184,7 +196,7 @@ public class AdminController {
      */
     @RequirePermission("PERMISSION_VIEW")
     @GetMapping("/permissions/{permissionId}")
-    public Result<PermissionVO> getPermissionById(@PathVariable Long permissionId) {
+    public Result<PermissionVO> getPermissionById(@PathVariable Integer permissionId) {
         Permission permission = permissionService.getPermissionById(permissionId);
         return Result.success(PermissionVO.createVO(permission));
     }
@@ -205,7 +217,7 @@ public class AdminController {
      */
     @RequirePermission("PERMISSION_MANAGE")
     @PutMapping("/permissions/{permissionId}")
-    public Result<Void> updatePermission(@PathVariable Long permissionId, @RequestBody PermissionDTO request) {
+    public Result<Void> updatePermission(@PathVariable Integer permissionId, @RequestBody PermissionDTO request) {
         permissionParamValidator.validate(request);
         permissionService.updatePermission(permissionId, request);
         return Result.success("更新成功");
@@ -216,20 +228,96 @@ public class AdminController {
      */
     @RequirePermission("PERMISSION_MANAGE")
     @DeleteMapping("/permissions/{permissionId}")
-    public Result<Void> deletePermission(@PathVariable Long permissionId) {
+    public Result<Void> deletePermission(@PathVariable Integer permissionId) {
         permissionService.deletePermission(permissionId);
+        return Result.success("删除成功");
+    }
+
+    // ==================== Problem Management ====================
+
+    /**
+     * 获取题目分页列表
+     */
+    @RequirePermission("PROBLEM_VIEW")
+    @GetMapping("/problems")
+    public Result<PageResult<ProblemVO>> getProblemList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        PageResult<ProblemVO> pageResult = problemService.getProblemList(page, pageSize);
+        return Result.success(pageResult);
+    }
+
+    /**
+     * 获取题目详情
+     */
+    @RequirePermission("PROBLEM_VIEW")
+    @GetMapping("/problems/{problemId}")
+    public Result<ProblemVO> getProblemDetail(@PathVariable Integer problemId) {
+        var problem = problemService.getProblemById(problemId);
+        ProblemVO vo = ProblemVO.createVO(problem);
+        var ossFile = ossFileMapper.getOssFileById(problem.getContentFileId());
+        if (ossFile != null) {
+            vo.setContentFileUrl(ossFile.getFileUrl());
+        }
+        return Result.success(vo);
+    }
+
+    /**
+     * 创建题目
+     */
+    @RequirePermission("PROBLEM_MANAGE")
+    @PostMapping("/problems")
+    public Result<Void> createProblem(@RequestBody ProblemDTO request, HttpServletRequest req) {
+        problemParamValidator.validate(request);
+        Integer userId = (Integer) req.getAttribute("userId");
+        problemService.createProblem(request, userId);
+        return Result.success("创建成功");
+    }
+
+    /**
+     * 更新题目
+     */
+    @RequirePermission("PROBLEM_MANAGE")
+    @PutMapping("/problems/{problemId}")
+    public Result<Void> updateProblem(@PathVariable Integer problemId, @RequestBody ProblemDTO request) {
+        problemParamValidator.validate(request);
+        problemService.updateProblem(problemId, request);
+        return Result.success("更新成功");
+    }
+
+    /**
+     * 删除题目
+     */
+    @RequirePermission("PROBLEM_MANAGE")
+    @DeleteMapping("/problems/{problemId}")
+    public Result<Void> deleteProblem(@PathVariable Integer problemId) {
+        problemService.deleteProblem(problemId);
         return Result.success("删除成功");
     }
 
     // ==================== File Upload ====================
 
     /**
-     * 上传文件到 OSS
+     * 上传文件到 OSS 并保存记录
      */
     @RequirePermission("FILE_UPLOAD")
     @PostMapping("/upload")
-    public Result<String> uploadFile2Oss(@RequestParam MultipartFile file) {
+    public Result<FileUploadVO> uploadFile2Oss(@RequestParam MultipartFile file, HttpServletRequest req) {
+        Integer userId = (Integer) req.getAttribute("userId");
         String url = ossUtils.uploadFile(file);
-        return Result.success(url);
+        OssFile ossFile = new OssFile();
+        ossFile.setFileName(file.getOriginalFilename());
+        ossFile.setFileUrl(url);
+        String suffix = "";
+        String name = file.getOriginalFilename();
+        if (name != null && name.contains(".")) {
+            suffix = name.substring(name.lastIndexOf(".")).toLowerCase();
+        }
+        ossFile.setFileSuffix(suffix);
+        ossFile.setContentType(file.getContentType());
+        ossFile.setFileSize(file.getSize());
+        ossFile.setUploaderId(userId);
+        ossFileMapper.insertOssFile(ossFile);
+        return Result.success(new FileUploadVO(ossFile.getFileId(), url));
     }
 }
