@@ -176,6 +176,53 @@ CREATE TABLE `problem_tag`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 35 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '题目-标签关联表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
+-- Table structure for post
+-- ----------------------------
+DROP TABLE IF EXISTS `post`;
+CREATE TABLE `post`  (
+  `post_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '帖子表主键ID',
+  `publisher_id` bigint(20) NOT NULL COMMENT '发帖用户ID（关联user.user_id）',
+  `type` varchar(20) NOT NULL COMMENT '帖子类型：experience-经验分享 skill-技巧教程 discuss-讨论交流',
+  `title` varchar(255) NOT NULL COMMENT '帖子标题',
+  `content` longtext NULL COMMENT '帖子正文（Markdown 格式）',
+  `like_cnt` int(10) unsigned NOT NULL DEFAULT 0 COMMENT '点赞数',
+  `comment_cnt` int(10) unsigned NOT NULL DEFAULT 0 COMMENT '评论数',
+  `view_cnt` int(10) unsigned NOT NULL DEFAULT 0 COMMENT '浏览数',
+  `heat` int(10) unsigned NOT NULL DEFAULT 0 COMMENT '热度值',
+  `is_top` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否置顶：0-否 1-是',
+  `status` varchar(20) NOT NULL DEFAULT 'unreviewed' COMMENT '帖子状态：unreviewed-待审核 published-已发布 rejected-已驳回',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '帖子记录创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '帖子记录更新时间',
+  PRIMARY KEY (`post_id`) USING BTREE,
+  INDEX `idx_publisher_id`(`publisher_id`) USING BTREE,
+  INDEX `idx_type_status`(`type`, `status`) USING BTREE,
+  CONSTRAINT `fk_post_publisher` FOREIGN KEY (`publisher_id`) REFERENCES `user` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '帖子表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for comment
+-- ----------------------------
+DROP TABLE IF EXISTS `comment`;
+CREATE TABLE `comment`  (
+  `comment_id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '评论表主键ID',
+  `post_id` bigint(20) NOT NULL COMMENT '所属帖子ID（关联post.post_id）',
+  `user_id` bigint(20) NOT NULL COMMENT '评论用户ID（关联user.user_id）',
+  `parent_id` bigint(20) NULL DEFAULT NULL COMMENT '父评论ID（关联comment.comment_id，NULL表示顶级评论）',
+  `content` text NOT NULL COMMENT '评论内容',
+  `like_cnt` int(10) unsigned NOT NULL DEFAULT 0 COMMENT '点赞数',
+  `status` varchar(20) NOT NULL DEFAULT 'normal' COMMENT '评论状态：normal-正常 deleted-已删除',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '评论记录创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '评论记录更新时间',
+  PRIMARY KEY (`comment_id`) USING BTREE,
+  INDEX `idx_post_id`(`post_id`) USING BTREE,
+  INDEX `idx_user_id`(`user_id`) USING BTREE,
+  INDEX `idx_parent_id`(`parent_id`) USING BTREE,
+  CONSTRAINT `fk_comment_post` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_comment_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_comment_parent` FOREIGN KEY (`parent_id`) REFERENCES `comment` (`comment_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '评论表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for role
 -- ----------------------------
 DROP TABLE IF EXISTS `role`;

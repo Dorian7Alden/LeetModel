@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/senio/Desktop/**)",
+      "Read(//d/repositories/**)",
+      "PowerShell(if \\($?\\) { \"Found SQL files\" } else { \"No SQL files on Desktop\" })",
+      "PowerShell(if \\($?\\) { \"Found leet files\" } else { \"No leet files on Desktop\" })"
+    ]
+  }
+}

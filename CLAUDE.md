@@ -1,13 +1,3 @@
-## 参数校验规范
-
-本项目严格执行 `/project:spring-validator` 中定义的参数校验规范：
-- 每个接口对应一个独立的 `XxxParamValidator` 类，Controller 只负责调用
-- 校验逻辑封装在 `validator/{domain}/` 包下，内部使用 `ParameterValidator` 链式完成
-- Request DTO 禁止使用任何 Bean Validation 注解
-- 详细规则见 `.claude/skills/spring-validator/SKILL.md`
-
-
-
 ## 同步开发信息
 
 开发前，应先逐层浏览项目的目录结构，而不是一次性遍历所有目录。逐层了解后，根据任务目标，选择性地阅读必要的内容，再着手完成任务。
@@ -39,24 +29,46 @@
 | 权限 | code | 说明 |
 |------|------|------|
 | 首页概览 | `DASHBOARD_VIEW` | 查看管理端首页 |
-| 题目管理 | `PROBLEM_MANAGE` | 题目 CRUD |
-| 作品管理 | `SUBMISSION_MANAGE` | 作品/提交 CRUD |
-| 标签管理 | `TAG_MANAGE` | 标签 CRUD |
-| 角色管理 | `ROLE_MANAGE` | 角色 CRUD |
-| 权限管理 | `PERMISSION_MANAGE` | 权限 CRUD |
+| 查看用户 | `USER_VIEW` | 查看用户列表与详情 |
+| 修改用户 | `USER_UPDATE` | 修改用户信息 |
+| 删除用户 | `USER_DELETE` | 删除用户 |
+| 查看题目 | `PROBLEM_VIEW` | 查看题目列表与详情 |
+| 管理题目 | `PROBLEM_MANAGE` | 题目 CRUD |
+| 查看作品 | `SUBMISSION_VIEW` | 查看作品列表 |
+| 管理作品 | `SUBMISSION_MANAGE` | 作品 CRUD |
+| 查看标签 | `TAG_VIEW` | 查看标签分类与标签 |
+| 管理标签 | `TAG_MANAGE` | 标签 CRUD |
+| 查看帖子 | `POST_VIEW` | 查看帖子列表 |
+| 查看赛事 | `CONTEST_VIEW` | 查看赛事列表 |
+| 查看角色 | `ROLE_VIEW` | 查看角色列表与关联权限 |
+| 管理角色 | `ROLE_MANAGE` | 角色 CRUD |
+| 查看权限 | `PERMISSION_VIEW` | 查看权限列表 |
+| 管理权限 | `PERMISSION_MANAGE` | 权限 CRUD |
 | 授权管理 | `AUTH_MANAGE` | 用户-角色、角色-权限关联 |
+| 文件上传 | `FILE_UPLOAD` | 上传文件到 OSS |
 
 ### 权限矩阵
 
 | 权限 | 成员 | 普通管理员 | 系统管理员 |
 |------|:----:|:----------:|:----------:|
-| DASHBOARD_VIEW | ✓ | ✓ | ✓ |
+| DASHBOARD_VIEW | - | ✓ | ✓ |
+| USER_VIEW | - | ✓ | ✓ |
+| USER_UPDATE | - | - | ✓ |
+| USER_DELETE | - | - | ✓ |
+| PROBLEM_VIEW | - | ✓ | ✓ |
 | PROBLEM_MANAGE | - | ✓ | ✓ |
+| SUBMISSION_VIEW | - | ✓ | ✓ |
 | SUBMISSION_MANAGE | - | ✓ | ✓ |
+| TAG_VIEW | - | ✓ | ✓ |
 | TAG_MANAGE | - | ✓ | ✓ |
+| POST_VIEW | - | ✓ | ✓ |
+| CONTEST_VIEW | - | ✓ | ✓ |
+| ROLE_VIEW | - | - | ✓ |
 | ROLE_MANAGE | - | - | ✓ |
+| PERMISSION_VIEW | - | - | ✓ |
 | PERMISSION_MANAGE | - | - | ✓ |
 | AUTH_MANAGE | - | - | ✓ |
+| FILE_UPLOAD | - | ✓ | ✓ |
 
 ### 技术实现
 

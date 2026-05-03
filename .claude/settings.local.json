@@ -26,7 +26,11 @@
       "PowerShell(Get-ChildItem \"d:\\\\repositories\\\\leet-model-test\\\\.claude\\\\skills\" -Directory | ForEach-Object { $_.FullName })",
       "Bash(Get-ChildItem -Recurse -Directory \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel\\\\src\\\\main\\\\java\\\\com\\\\leetmodel\")",
       "Bash(Get-ChildItem -Recurse -Depth 5 -Name \"d:\\\\repositories\\\\leet-model-test\\\\LeetModel-vue\\\\src\\\\modules\\\\admin\")",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Bash(Get-ChildItem -Path \"D:\\\\repositories\\\\leet-model-test\\\\LeetModel-backend\\\\src\\\\main\\\\java\\\\com\\\\senior\\\\leetmodelbackend\" -Recurse -Depth 5)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Get-ChildItem -Path \"D:\\\\repositories\\\\leet-model-test\" -Depth 1)",
+      "Bash(Select-Object Name, PSIsContainer)"
     ]
   }
 }
