@@ -248,18 +248,6 @@ const routes = [
         ]
       },
       {
-        path: 'tag',
-        meta: { title: '标签管理', icon: 'CollectionTag' },
-        children: [
-          {
-            path: 'list',
-            name: 'AdminTagList',
-            component: () => import('../modules/admin/views/tag/List.vue'),
-            meta: { title: '标签管理' }
-          }
-        ]
-      },
-      {
         path: 'role',
         meta: { title: '角色管理', icon: 'UserFilled' },
         children: [
