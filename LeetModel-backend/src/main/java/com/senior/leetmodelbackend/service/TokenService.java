@@ -19,7 +19,14 @@ public class TokenService {
     private final StringRedisTemplate redisTemplate;
 
     public void blacklist(String token) {
-        Claims claims = JwtUtil.parseToken(token);
+        Claims claims;
+        try {
+            claims = JwtUtil.parseToken(token);
+        } catch (Exception e) {
+            log.debug("Token 解析失败，跳过黑名单: {}", e.getMessage());
+            return;
+        }
+
         long remainingTime = claims.getExpiration().getTime() - System.currentTimeMillis();
 
         if (remainingTime > 0) {
