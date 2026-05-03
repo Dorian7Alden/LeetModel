@@ -37,4 +37,6 @@ public interface UserMapper {
 
     @Delete("delete from user_role where user_id = #{userId}")
     void deleteUserRolesByUserId(Long userId);
+
+    List<String> getUserPermissionCodes(@Param("userId") Long userId);
 }

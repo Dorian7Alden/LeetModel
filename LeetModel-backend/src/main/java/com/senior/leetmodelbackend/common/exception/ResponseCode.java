@@ -10,6 +10,7 @@ public enum ResponseCode {
      */
     SUCCESS(20000, "操作成功"),
     SYSTEM_INTERNAL_ERROR(50000, "服务器内部异常，请稍后重试"),
+    FORBIDDEN(40300, "权限不足，无法访问该资源"),
     PARAM_VALIDATION_ERROR(40001, "参数校验不通过"),
 
     /**

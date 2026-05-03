@@ -14,7 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -166,5 +169,14 @@ public class UserService {
             }
         }
         log.info("分配用户角色: userId={}, roleIds={}", userId, roleIds);
+    }
+
+    public Set<String> getUserPermissionCodes(Long userId) {
+        List<String> codes = userMapper.getUserPermissionCodes(userId);
+        return codes != null ? new HashSet<>(codes) : Collections.emptySet();
+    }
+
+    public boolean hasPermission(Long userId, String permissionCode) {
+        return getUserPermissionCodes(userId).contains(permissionCode);
     }
 }

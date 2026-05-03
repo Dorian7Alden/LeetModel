@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller;
 
+import com.senior.leetmodelbackend.common.annotation.RequirePermission;
 import com.senior.leetmodelbackend.pojo.dto.UserUpdateDTO;
 import com.senior.leetmodelbackend.pojo.entity.Result;
 import com.senior.leetmodelbackend.pojo.entity.User;
@@ -27,6 +28,7 @@ public class UserController {
     private final UserIdParamValidator userIdParamValidator;
     private final UserEmailParamValidator userEmailParamValidator;
 
+    @RequirePermission(value = "USER_VIEW", selfAccess = true)
     @GetMapping("/{userId}")
     public Result<UserVO> getUserById(@PathVariable Long userId) {
         userIdParamValidator.validate(userId);
@@ -34,6 +36,7 @@ public class UserController {
         return Result.success(UserVO.createVO(user));
     }
 
+    @RequirePermission("USER_VIEW")
     @GetMapping("/email/{email}")
     public Result<UserVO> getUserByEmail(@PathVariable String email) {
         userEmailParamValidator.validate(email);
@@ -41,6 +44,7 @@ public class UserController {
         return Result.success(UserVO.createVO(user));
     }
 
+    @RequirePermission("USER_DELETE")
     @DeleteMapping("/{userId}")
     public Result<Void> deleteUserById(@PathVariable Long userId) {
         userIdParamValidator.validate(userId);
@@ -48,6 +52,7 @@ public class UserController {
         return Result.success();
     }
 
+    @RequirePermission(value = "USER_UPDATE", selfAccess = true)
     @PutMapping("/{userId}")
     public Result<Void> updateUserById(@PathVariable Long userId, @RequestBody UserUpdateDTO dto) {
         userIdParamValidator.validate(userId);

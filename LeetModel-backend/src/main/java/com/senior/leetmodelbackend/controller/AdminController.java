@@ -1,5 +1,6 @@
 package com.senior.leetmodelbackend.controller;
 
+import com.senior.leetmodelbackend.common.annotation.RequirePermission;
 import com.senior.leetmodelbackend.common.utils.OssUtils;
 import com.senior.leetmodelbackend.pojo.dto.admin.AssignIdsDTO;
 import com.senior.leetmodelbackend.pojo.dto.admin.PermissionDTO;
@@ -54,6 +55,7 @@ public class AdminController {
     /**
      * 获取全部用户列表
      */
+    @RequirePermission("USER_VIEW")
     @GetMapping("/users")
     public Result<List<UserVO>> getUserList() {
         List<User> users = userService.getAllUsers();
@@ -64,6 +66,7 @@ public class AdminController {
     /**
      * 查看用户持有的角色
      */
+    @RequirePermission("USER_VIEW")
     @GetMapping("/users/{userId}/roles")
     public Result<List<RoleVO>> getUserRoles(@PathVariable Long userId) {
         userIdParamValidator.validate(userId);
@@ -77,6 +80,7 @@ public class AdminController {
     /**
      * 分配用户角色（全量替换）
      */
+    @RequirePermission("AUTH_MANAGE")
     @PutMapping("/users/{userId}/roles")
     public Result<Void> assignUserRoles(@PathVariable Long userId, @RequestBody AssignIdsDTO request) {
         userIdParamValidator.validate(userId);
@@ -90,6 +94,7 @@ public class AdminController {
     /**
      * 获取全部角色列表
      */
+    @RequirePermission("ROLE_VIEW")
     @GetMapping("/roles")
     public Result<List<RoleVO>> getRoleList() {
         List<Role> roles = roleService.getRoleList();
@@ -100,6 +105,7 @@ public class AdminController {
     /**
      * 获取角色详情
      */
+    @RequirePermission("ROLE_VIEW")
     @GetMapping("/roles/{roleId}")
     public Result<RoleVO> getRoleDetail(@PathVariable Long roleId) {
         Role role = roleService.getRoleById(roleId);
@@ -109,6 +115,7 @@ public class AdminController {
     /**
      * 创建角色
      */
+    @RequirePermission("ROLE_MANAGE")
     @PostMapping("/roles")
     public Result<Void> createRole(@RequestBody RoleDTO request) {
         roleParamValidator.validate(request);
@@ -119,6 +126,7 @@ public class AdminController {
     /**
      * 更新角色
      */
+    @RequirePermission("ROLE_MANAGE")
     @PutMapping("/roles/{roleId}")
     public Result<Void> updateRole(@PathVariable Long roleId, @RequestBody RoleDTO request) {
         roleParamValidator.validate(request);
@@ -129,6 +137,7 @@ public class AdminController {
     /**
      * 删除角色
      */
+    @RequirePermission("ROLE_MANAGE")
     @DeleteMapping("/roles/{roleId}")
     public Result<Void> deleteRole(@PathVariable Long roleId) {
         roleService.deleteRole(roleId);
@@ -138,6 +147,7 @@ public class AdminController {
     /**
      * 查看角色持有的权限
      */
+    @RequirePermission("ROLE_VIEW")
     @GetMapping("/roles/{roleId}/permissions")
     public Result<List<PermissionVO>> getRolePermissions(@PathVariable Long roleId) {
         List<Permission> permissions = roleService.getRolePermissions(roleId);
@@ -148,18 +158,20 @@ public class AdminController {
     /**
      * 分配角色权限（全量替换）
      */
+    @RequirePermission("AUTH_MANAGE")
     @PutMapping("/roles/{roleId}/permissions")
     public Result<Void> assignRolePermissions(@PathVariable Long roleId, @RequestBody AssignIdsDTO request) {
         assignIdsParamValidator.validate(request);
         roleService.assignRolePermissions(roleId, request.getIds());
         return Result.success("分配成功");
     }
-    
+
     // ==================== Permission Management ====================
 
     /**
      * 获取全部权限列表
      */
+    @RequirePermission("PERMISSION_VIEW")
     @GetMapping("/permissions")
     public Result<List<PermissionVO>> getPermissionList() {
         List<Permission> permissions = permissionService.getPermissionList();
@@ -170,6 +182,7 @@ public class AdminController {
     /**
      * 获取权限详情
      */
+    @RequirePermission("PERMISSION_VIEW")
     @GetMapping("/permissions/{permissionId}")
     public Result<PermissionVO> getPermissionById(@PathVariable Long permissionId) {
         Permission permission = permissionService.getPermissionById(permissionId);
@@ -179,6 +192,7 @@ public class AdminController {
     /**
      * 创建权限
      */
+    @RequirePermission("PERMISSION_MANAGE")
     @PostMapping("/permissions")
     public Result<Void> createPermission(@RequestBody PermissionDTO request) {
         permissionParamValidator.validate(request);
@@ -189,6 +203,7 @@ public class AdminController {
     /**
      * 更新权限
      */
+    @RequirePermission("PERMISSION_MANAGE")
     @PutMapping("/permissions/{permissionId}")
     public Result<Void> updatePermission(@PathVariable Long permissionId, @RequestBody PermissionDTO request) {
         permissionParamValidator.validate(request);
@@ -199,6 +214,7 @@ public class AdminController {
     /**
      * 删除权限
      */
+    @RequirePermission("PERMISSION_MANAGE")
     @DeleteMapping("/permissions/{permissionId}")
     public Result<Void> deletePermission(@PathVariable Long permissionId) {
         permissionService.deletePermission(permissionId);
@@ -210,6 +226,7 @@ public class AdminController {
     /**
      * 上传文件到 OSS
      */
+    @RequirePermission("FILE_UPLOAD")
     @PostMapping("/upload")
     public Result<String> uploadFile2Oss(@RequestParam MultipartFile file) {
         String url = ossUtils.uploadFile(file);
