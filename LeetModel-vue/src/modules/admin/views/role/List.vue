@@ -108,7 +108,11 @@ const fetchRoles = async () => {
   loading.value = true;
   try {
     const res = await getRoleList();
-    roles.value = Array.isArray(res.data) ? res.data : [];
+    if (res.code === 20000) {
+      roles.value = Array.isArray(res.data) ? res.data : [];
+    } else {
+      ElMessage.error(res.msg || '加载角色失败');
+    }
   } catch (error) {
     console.error("加载角色失败", error);
     ElMessage.error("加载角色失败");

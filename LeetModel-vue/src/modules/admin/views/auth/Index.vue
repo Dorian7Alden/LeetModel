@@ -125,7 +125,9 @@ const selectUser = async (row) => {
   selectedUser.value = row;
   try {
     const res = await getUserRoles(row.userId);
-    checkedRoles.value = (Array.isArray(res.data) ? res.data : []).map((r) => r.roleId);
+    if (res.code === 20000) {
+      checkedRoles.value = (Array.isArray(res.data) ? res.data : []).map((r) => r.roleId);
+    }
   } catch {
     checkedRoles.value = [];
   }
@@ -181,7 +183,9 @@ const selectRole = async (roleId) => {
   }
   try {
     const res = await getRolePermissions(roleId);
-    checkedPermissions.value = (Array.isArray(res.data) ? res.data : []).map((p) => p.permissionId);
+    if (res.code === 20000) {
+      checkedPermissions.value = (Array.isArray(res.data) ? res.data : []).map((p) => p.permissionId);
+    }
   } catch {
     checkedPermissions.value = [];
   }
@@ -218,6 +222,10 @@ onMounted(async () => {
       getRoleList(),
       getPermissionList(),
     ]);
+    if (userRes.code !== 20000 || roleRes.code !== 20000 || permRes.code !== 20000) {
+      ElMessage.error('加载数据失败，请刷新重试');
+      return;
+    }
     users.value = Array.isArray(userRes.data) ? userRes.data : [];
     allRoles.value = Array.isArray(roleRes.data) ? roleRes.data : [];
     allPermissions.value = Array.isArray(permRes.data) ? permRes.data : [];

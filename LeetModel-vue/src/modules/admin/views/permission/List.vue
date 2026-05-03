@@ -108,7 +108,11 @@ const fetchPermissions = async () => {
   loading.value = true;
   try {
     const res = await getPermissionList();
-    permissions.value = Array.isArray(res.data) ? res.data : [];
+    if (res.code === 20000) {
+      permissions.value = Array.isArray(res.data) ? res.data : [];
+    } else {
+      ElMessage.error(res.msg || '加载权限失败');
+    }
   } catch (error) {
     console.error("加载权限失败", error);
     ElMessage.error("加载权限失败");

@@ -172,6 +172,8 @@ const fetchList = async () => {
     if (res.code === 20000 && res.data) {
       tableData.value = res.data.records || [];
       total.value = res.data.total || 0;
+    } else {
+      ElMessage.error(res.msg || '获取题目列表失败');
     }
   } catch (error) {
     console.error('获取题目列表失败', error);
@@ -226,6 +228,9 @@ const openEditDialog = async (row) => {
       if (d.contentFileId) {
         fileList.value = [{ name: d.contentFileUrl || '已上传文件', id: d.contentFileId }];
       }
+    } else {
+      ElMessage.error(res.msg || '获取题目详情失败');
+      return;
     }
   } catch (error) {
     console.error('获取题目详情失败', error);

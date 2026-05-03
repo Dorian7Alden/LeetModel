@@ -225,6 +225,8 @@ const loadProblems = async () => {
     const res = await getProblemList({ page: 1, pageSize: 200 });
     if (res.code === 20000 && res.data) {
       problemList.value = res.data.records || [];
+    } else {
+      ElMessage.error(res.msg || '获取题目列表失败');
     }
   } catch (error) {
     console.error('获取题目列表失败', error);

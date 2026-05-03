@@ -45,8 +45,10 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
+import { useUserStore } from '@/store/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const formRef = ref()
 const loading = ref(false)
 
@@ -62,12 +64,11 @@ const rules = {
 
 const handleLogin = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
       try {
-        // 参考 LeetModel-vue 项目的接口地址，走 HTTP 代理或直接请求后端
         const res = await fetch('http://localhost:8080/api/v1/auth/login', {
           method: 'POST',
           headers: {
@@ -75,17 +76,13 @@ const handleLogin = async () => {
           },
           body: JSON.stringify(form)
         });
-        
+
         const data = await res.json();
-        
-        // 参照 LeetModel-vue 处理逻辑
+
         if (data.code === 20000) {
-          const token = data.data.token;
-          const userId = data.data.id;
-          
-          localStorage.setItem('token', token);
-          localStorage.setItem('userId', userId);
-          
+          const { token, id, username, email, role } = data.data;
+          userStore.login(token, username || email, email, role || 'MEMBER');
+          localStorage.setItem('userId', id);
           ElMessage.success('登录成功');
           router.push('/');
         } else {

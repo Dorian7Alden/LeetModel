@@ -18,9 +18,27 @@ service.interceptors.request.use((config) => {
   return config;
 });
 
-// ⭐ 响应拦截（核心修复点）
+// ⭐ 响应拦截
 service.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    const data = response.data;
+    const userStore = useUserStore();
+
+    // 后端始终返回 HTTP 200，通过 body.code 标识错误
+    if (data && (data.code === 40100 || data.code === 40101)) {
+      console.warn("token 已失效: " + data.msg);
+      userStore.logout();
+      router.push("/login");
+      return Promise.reject(new Error(data.msg || "登录已过期，请重新登录"));
+    }
+
+    if (data && data.code === 40300) {
+      console.warn("权限不足: " + data.msg);
+      return Promise.reject(new Error(data.msg || "权限不足，无法访问该资源"));
+    }
+
+    return data;
+  },
 
   (error) => {
     const userStore = useUserStore();
@@ -28,17 +46,10 @@ service.interceptors.response.use(
     if (error.response) {
       const status = error.response.status;
 
-      // ⭐ token 失效
       if (status === 401) {
-        console.warn("token 已过期");
-
-        // 清空登录状态
+        console.warn("HTTP 401 token 已过期");
         userStore.logout();
-
-        // 跳转登录页
         router.push("/login");
-
-        alert("登录已过期，请重新登录");
       }
     }
 
