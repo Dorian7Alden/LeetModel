@@ -39,7 +39,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { List, TrendCharts, StarFilled, Reading, Aim, DArrowLeft, DArrowRight, ArrowDown } from '@element-plus/icons-vue'
+import { List, StarFilled, Reading, Aim, DArrowLeft, DArrowRight, ArrowDown } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,12 +47,11 @@ const route = useRoute()
 const isCollapsed = ref(false)
 const activeKey = ref('all')
 
-const iconMap = { all: List, hot: TrendCharts, top: StarFilled, leetbook: Reading, training: Aim }
+const iconMap = { all: List, top: StarFilled, leetbook: Reading, training: Aim }
 
 const menuList = ref([
   { key: 'all', label: '全部题目', path: '/problem/problemListPage' },
-  { key: 'hot', label: '热题 HOT 100', path: '/problem/hot' },
-  { key: 'top', label: '精选 TOP 200', path: '/problem/top' },
+  { key: 'top', label: '精选 TOP 10', path: '/problem/top' },
   { key: 'leetbook', label: 'LeetBook', path: '/problem/leetbook' },
   {
     key: 'training', label: '专项训练', open: false, children: [

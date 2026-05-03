@@ -79,7 +79,7 @@ const displayContests = computed(() => {
       const order = { '进行中': 0, '报名中': 1, '即将开始': 2, '未开始': 3 }
       return (order[a.status] ?? 4) - (order[b.status] ?? 4)
     })
-    .slice(0, 4)
+    .slice(0, 3)
 })
 
 function formatDateRange(start, end) {
@@ -166,7 +166,7 @@ function getCountdownText(contest) {
 
 .contest-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -239,7 +239,13 @@ function getCountdownText(contest) {
   color: var(--lm-warning);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .contest-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
   .contest-grid {
     grid-template-columns: 1fr;
   }
