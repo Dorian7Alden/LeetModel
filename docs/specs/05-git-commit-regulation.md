@@ -79,4 +79,4 @@ release: 发布版本
 
 - 本文档约束 Git commit 描述信息的写法。
 - 开发流程与提交粒度遵循 `04-development-workflow.md`。
-- 文档格式与排版遵循 `01-document-regulations.md`。
+- 文档格式与排版遵循 `01-document-spec.md`。

@@ -43,5 +43,5 @@
 
 - 本文档约束开发流程与提交粒度。
 - Git commit 描述格式遵循 `05-git-commit-regulation.md`。
-- 文档格式与排版遵循 `01-document-regulations.md`。
+- 文档格式与排版遵循 `01-document-spec.md`。
 - 版本目录与版本号管理遵循 `03-version-regulation.md`。
