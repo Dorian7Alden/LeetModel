@@ -10,6 +10,7 @@
     </parent>
 
     <artifactId>LeetModel-problem</artifactId>
+    <packaging>jar</packaging>
     <name>LeetModel-problem</name>
     <description>LeetModel-problem</description>
 
