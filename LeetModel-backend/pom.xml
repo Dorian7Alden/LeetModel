@@ -30,6 +30,9 @@
         4. gateway
         5. user → team → problem → assistant → submission → review → suggestion → ranking → admin
         -->
+        <module>LeetModel-common/common-core</module>
+        <module>LeetModel-common/common-api</module>
+        <module>LeetModel-common/common-security</module>
         <module>LeetModel-user</module>
         <module>LeetModel-problem</module>
     </modules>
@@ -184,6 +187,11 @@
             <dependency>
                 <groupId>com.leetmodel</groupId>
                 <artifactId>common-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.leetmodel</groupId>
+                <artifactId>common-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
