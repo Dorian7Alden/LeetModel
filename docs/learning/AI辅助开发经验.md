@@ -12,6 +12,7 @@
 - **重复 Plan 拦截**：进入 plan 模式后，如果未执行或退出，后续不能再用 `/plan` 开头发起指令。Claude Code 底层没有对重复 plan 模式做兜底检测——一旦进入 plan 模式，对话可以长交流，但不允许再次以 `/plan` 开头，会被直接拦截。
 - **长 Plan 的 Review 痛点**：Claude Code 的 plan 输出可能非常长，每次需要翻到最上面从上往下 review，翻页操作非常麻烦，尤其是 plan 需要多次调整时。
 - **长会话下 Plan 内容错乱**：在一个会话中进行大量对话 + 多次 plan 任务时，上下文堆积可能导致新 plan 的内容残留上一个 plan 的结果。只在单会话大量对话时触发过。
+  ![image-20260726232100745](https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/image-20260726232100745.png)
 
 ### 环境变量缓存
 
