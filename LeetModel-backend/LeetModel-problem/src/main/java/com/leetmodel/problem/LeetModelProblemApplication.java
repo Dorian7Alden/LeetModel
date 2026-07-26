@@ -1,10 +1,10 @@
-package com.leetmodel.leetmodelproblem;
+package com.leetmodel.problem;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.leetmodel")
 @EnableDiscoveryClient
 public class LeetModelProblemApplication {
 
