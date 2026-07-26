@@ -80,3 +80,8 @@ LeetModel-team/src/main/resources/db/migration/
 连接池为什么用这个不用那个？
 
 能用 mermaid 画架构图的，绝对不用纯文本，纯文本太消耗 token 了，尤其是用文本来排版。
+
+
+
+
+搭建项目时，遇到 nacos 版本不对的问题。 SpringCloudAlibaba 中指定的是 2.3.2 的版本，但是我从官网下载的是最新版3.2.1，导致启动 nacos-discover 报错了

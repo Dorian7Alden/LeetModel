@@ -1,0 +1,18 @@
+# ==================== LeetModel-user 测试环境配置 ====================
+
+server:
+  port: 8081
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8080}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:005523}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
