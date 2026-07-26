@@ -1,0 +1,7 @@
+# ==================== LeetModel-gateway 公共配置 ====================
+
+spring:
+  application:
+    name: leetmodel-gateway
+  profiles:
+    active: dev

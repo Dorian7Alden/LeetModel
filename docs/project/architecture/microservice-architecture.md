@@ -50,7 +50,7 @@ LeetModel/
 │   │   ├── common-api/  ✅ ← Feign 接口声明
 │   │   ├── common-security/  ✅  ← 认证鉴权
 │   │   └── common-ai/  📋 计划中        ← LLM调用 · RAG检索 · Prompt模板
-│   ├── LeetModel-gateway/  📋 计划中    ← API 网关（唯一对外入口）
+│   ├── LeetModel-gateway/  ✅       ← API 网关（路由转发 + JWT 鉴权 + 跨域）
 │   ├── LeetModel-user/  ✅       ← 用户服务（注册登录、RBAC）
 │   ├── LeetModel-team/  📋 计划中       ← 团队服务（组队、解散）
 │   ├── LeetModel-problem/  🔨 骨架（仅启动类，无业务代码）    ← 题目服务（CRUD、全文搜索）
@@ -70,7 +70,7 @@ LeetModel/
 
 | 服务 | 端口 | 职责 | 对外接口 | 消息队列 | 状态 |
 |------|------|------|----------------|---------|
-| **gateway** | 8080 | 路由转发 + 认证鉴权 | - | - | 📋 计划中 |
+| **gateway** | 8080 | 路由转发 + 认证鉴权 | - | - | ✅ 已实现 |
 | **user** | 8081 | 注册登录、RBAC 权限管理 | 根据ID查用户信息、权限校验 | - | ✅ 已实现 |
 | **team** | 8082 | 组队、成员管理、解散留存 | 查团队成员列表、队伍是否有效 | - | 📋 计划中 |
 | **problem** | 8083 | 题目 CRUD、分类标签、搜索 | 查题目详情 | - | 🔨 骨架 |

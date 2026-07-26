@@ -1,0 +1,50 @@
+# ==================== LeetModel-gateway 开发环境配置 ====================
+
+server:
+  port: 8080
+
+spring:
+  main:
+    web-application-type: reactive
+  autoconfigure:
+    # Gateway 不连接数据库，禁用 DataSource 自动配置
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  cloud:
+    # Nacos 服务发现
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+    # === 路由规则 ===
+    # lb:// 前缀 = 从 Nacos 按服务名拉取实例列表 + 负载均衡
+    gateway:
+      routes:
+        # ---- user 服务（8081）----
+        - id: user-auth
+          uri: lb://leetmodel-user
+          predicates:
+            - Path=/api/auth/**
+        - id: user-internal
+          uri: lb://leetmodel-user
+          predicates:
+            - Path=/api/user/**
+
+        # ---- team 服务（8082，待上线）----
+        # - id: team-service
+        #   uri: lb://leetmodel-team
+        #   predicates:
+        #     - Path=/api/teams/**
+
+        # ---- problem 服务（8083，待上线）----
+        # - id: problem-service
+        #   uri: lb://leetmodel-problem
+        #   predicates:
+        #     - Path=/api/problems/**
+
+# JWT 密钥（与 user 服务保持一致，否则校验签名失败）
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+
+# 鉴权白名单在 SaTokenConfig.java 中通过 .addExclude() 配置，此处不重复声明
