@@ -1,15 +1,27 @@
 # ==================== LeetModel-problem 开发环境配置 ====================
-
-server:
-  port: 8082
-
 spring:
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  datasource:
+    url: jdbc:mysql://localhost:3306/lm_problem?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:
       discovery:
-        server-addr: 127.0.0.1:8848   # Nacos 2.3.2 默认端口
+        server-addr: 127.0.0.1:8848
 
-# 暴露 Actuator 端点，便于健康检查
+server:
+  port: 8083
+
+# Knife4j API 文档
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# 暴露 Actuator 端点
 management:
   endpoints:
     web:
