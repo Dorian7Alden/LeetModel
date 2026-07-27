@@ -20,7 +20,7 @@ Unsupported character encoding 'utf8mb4'
 
 JDBC URL 配置：
 ```yaml
-url: jdbc:mysql://localhost:3306/leetmodel_user?characterEncoding=utf8mb4&...
+url: jdbc:mysql://localhost:3306/lm_user?characterEncoding=utf8mb4&...
 ```
 
 ## 根因
@@ -39,10 +39,10 @@ url: jdbc:mysql://localhost:3306/leetmodel_user?characterEncoding=utf8mb4&...
 
 ```yaml
 # ❌ 错误
-url: jdbc:mysql://localhost:3306/leetmodel_user?characterEncoding=utf8mb4
+url: jdbc:mysql://localhost:3306/lm_user?characterEncoding=utf8mb4
 
 # ✅ 正确
-url: jdbc:mysql://localhost:3306/leetmodel_user?characterEncoding=UTF-8
+url: jdbc:mysql://localhost:3306/lm_user?characterEncoding=UTF-8
 ```
 
 数据存储层面仍然使用 `utf8mb4`（DDL 中已指定），JDBC 连接只需要 `UTF-8`。

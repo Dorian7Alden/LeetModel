@@ -13,4 +13,4 @@
 | [common-security-design.md](common-security-design.md) | 安全模块：认证鉴权、Sa-Token + JWT 集成方案 | 处理登录/权限相关功能时参考 |
 | [user-service-design.md](user-service-design.md) | 用户服务：注册、登录、用户信息管理 | 开发用户模块功能时参考 |
 | [gateway-design.md](gateway-design.md) | API 网关：路由转发、JWT 鉴权、跨域处理 | 了解网关的职责和路由规则 |
-| [problem-service-design.md](problem-service-design.md) | 题目服务：题目 CRUD、分类标签、全文搜索 | 开发题目模块功能时参考 |
+| [problem-service-design.md](problem-service-design.md) | 题目服务：4 表 CRUD、标签管理、外部链接、分页筛选（端口 8083） | 开发题目模块功能时参考 |
