@@ -25,6 +25,9 @@ public final class TraceIdUtil {
 
     private static final String TRACE_ID_KEY = "traceId";
 
+    /** HTTP Header 名称，用于跨服务透传 TraceId。 */
+    public static final String TRACE_ID_HEADER = "X-Trace-Id";
+
     private TraceIdUtil() {
         // 工具类禁止实例化
     }
