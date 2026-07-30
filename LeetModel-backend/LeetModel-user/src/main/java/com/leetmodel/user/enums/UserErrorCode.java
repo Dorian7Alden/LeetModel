@@ -28,6 +28,9 @@ public enum UserErrorCode implements ErrorCode {
     PASSWORD_INVALID(40203, "密码错误"),
     TOKEN_EXPIRED(40204, "登录已过期，请重新登录"),
     ACCOUNT_DISABLED(40205, "账号已被禁用"),
+    PASSWORD_OLD_INVALID(40206, "旧密码错误"),
+    PASSWORD_SAME_AS_OLD(40207, "新密码不能与旧密码相同"),
+    STORAGE_NOT_ENABLED(40208, "对象存储未启用，无法上传文件"),
     ;
 
     private final int code;
