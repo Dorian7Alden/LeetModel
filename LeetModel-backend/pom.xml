@@ -35,6 +35,7 @@
         <module>LeetModel-common/common-security</module>
         <module>LeetModel-user</module>
         <module>LeetModel-problem</module>
+        <module>LeetModel-team</module>
         <module>LeetModel-gateway</module>
     </modules>
 

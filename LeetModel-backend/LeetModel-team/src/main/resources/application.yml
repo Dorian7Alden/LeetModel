@@ -1,0 +1,22 @@
+# ==================== LeetModel-team 公共配置 ====================
+
+spring:
+  application:
+    name: leetmodel-team
+  profiles:
+    active: dev
+  config:
+    import:
+      - optional:nacos:leetmodel-team-${spring.profiles.active}.yml
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yml
+        group: DEFAULT_GROUP
+
+server:
+  shutdown: graceful
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s

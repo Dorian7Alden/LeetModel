@@ -30,11 +30,11 @@ spring:
           predicates:
             - Path=/api/users/**
 
-        # ---- team 服务（8082，待上线）----
-        # - id: team-service
-        #   uri: lb://leetmodel-team
-        #   predicates:
-        #     - Path=/api/teams/**
+        # ---- team 服务（8082）----
+        - id: team-service
+          uri: lb://leetmodel-team
+          predicates:
+            - Path=/api/teams/**
 
         # ---- problem 服务（8083）----
         - id: problem-service
