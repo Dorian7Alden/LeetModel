@@ -11,6 +11,19 @@ spring:
         username: ${NACOS_USERNAME:nacos}
         password: ${NACOS_PASSWORD:005523}
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'leetmodel-user'
+      display-name: '用户服务'
+      paths-to-match: '/**'
+      packages-to-scan: com.leetmodel.user.controller
+
 management:
   endpoints:
     web:

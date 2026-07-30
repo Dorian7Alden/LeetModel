@@ -22,6 +22,15 @@ server:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'leetmodel-problem'
+      display-name: '题目服务'
+      paths-to-match: '/**'
+      packages-to-scan: com.leetmodel.problem.controller
 
 management:
   endpoints:

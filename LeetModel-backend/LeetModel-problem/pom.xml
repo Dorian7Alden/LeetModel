@@ -21,6 +21,12 @@
             <artifactId>common-core</artifactId>
         </dependency>
 
+        <!-- common-security：Sa-Token JWT 鉴权 + @SaCheckRole/@SaCheckPermission 注解 -->
+        <dependency>
+            <groupId>com.leetmodel</groupId>
+            <artifactId>common-security</artifactId>
+        </dependency>
+
         <!-- REST 服务基础 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

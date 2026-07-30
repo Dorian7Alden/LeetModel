@@ -150,6 +150,13 @@
                 <version>${knife4j.version}</version>
             </dependency>
 
+            <!-- Knife4j Gateway 聚合（将下游服务的 OpenAPI 文档聚合到网关统一展示） -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-gateway-spring-boot-starter</artifactId>
+                <version>${knife4j.version}</version>
+            </dependency>
+
             <!-- MapStruct（必须 1.5.5+ 以支持 Java 17 Record） -->
             <dependency>
                 <groupId>org.mapstruct</groupId>
