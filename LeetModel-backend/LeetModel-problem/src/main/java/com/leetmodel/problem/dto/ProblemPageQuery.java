@@ -1,10 +1,11 @@
 package com.leetmodel.problem.dto;
 
+import com.leetmodel.common.core.dto.BasePageQuery;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 /**
@@ -15,18 +16,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProblemPageQuery {
-
-    /** 页码（从 1 开始） */
-    @NotNull(message = "页码不能为空")
-    @Min(value = 1, message = "页码最小为 1")
-    private Integer page;
-
-    /** 每页条数 */
-    @NotNull(message = "每页条数不能为空")
-    @Min(value = 1, message = "每页条数最小为 1")
-    @Max(value = 100, message = "每页条数最大为 100")
-    private Integer pageSize;
+@EqualsAndHashCode(callSuper = true)
+public class ProblemPageQuery extends BasePageQuery {
 
     /** 赛事类型筛选（可选） */
     private String contestType;
