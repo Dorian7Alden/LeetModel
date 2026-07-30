@@ -40,6 +40,13 @@
             <artifactId>jakarta.servlet-api</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <!-- MinIO 对象存储客户端 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 
     <!-- 公共 jar 模块不启用 spring-boot-maven-plugin -->
