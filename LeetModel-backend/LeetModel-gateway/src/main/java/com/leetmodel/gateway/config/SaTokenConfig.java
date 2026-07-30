@@ -66,10 +66,18 @@ public class SaTokenConfig {
         return new SaReactorFilter()
                 // 拦截所有路径
                 .addInclude("/**")
-                // 白名单：登录和注册不校验 Token
+                // 白名单：登录、注册、Knife4j 文档无需 Token
                 .addExclude(
                         "/api/auth/login",
-                        "/api/auth/register"
+                        "/api/auth/register",
+                        // 公开题目浏览无需认证
+                        "/api/public/problems/**",
+                        // Knife4j 聚合文档页面与 API 规范端点
+                        "/doc.html",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
+                        "/swagger-resources/**",
+                        "/favicon.ico"
                 )
                 // 鉴权规则：其余路径必须登录
                 .setAuth(obj -> StpUtil.checkLogin())

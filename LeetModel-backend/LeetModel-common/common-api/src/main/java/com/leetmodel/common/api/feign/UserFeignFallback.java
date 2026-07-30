@@ -22,7 +22,7 @@ public class UserFeignFallback implements FallbackFactory<UserFeignClient> {
         return new UserFeignClient() {
             @Override
             public Result<UserRoleDTO> getUserRoles(Long userId) {
-                UserRoleDTO dto = new UserRoleDTO(userId, List.of("user"), List.of());
+                UserRoleDTO dto = new UserRoleDTO(userId, List.of(), List.of());
                 return Result.ok(dto);
             }
         };

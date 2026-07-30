@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @author LeetModel
  */
 @RestController
-@RequestMapping("/public/problems")
+@RequestMapping("/api/public/problems")
 @RequiredArgsConstructor
 @Tag(name = "题目浏览")
 public class PublicProblemController {

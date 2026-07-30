@@ -1,8 +1,10 @@
 package com.leetmodel.problem.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.result.PageResult;
+import com.leetmodel.common.security.context.UserContext;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
@@ -22,13 +24,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 题目管理接口（需要 PROBLEM_VIEW / PROBLEM_MANAGE 权限）。
+ * 题目管理接口（需要 admin 角色）。
  *
  * @author LeetModel
  */
 @RestController
-@RequestMapping("/problems")
+@RequestMapping("/api/problems")
 @RequiredArgsConstructor
+@SaCheckRole("admin")
 @Tag(name = "题目管理")
 public class ProblemController {
 
@@ -51,8 +54,7 @@ public class ProblemController {
     @PostMapping
     @Operation(summary = "创建题目")
     public Result<ProblemVO> create(@Valid @RequestBody ProblemCreateRequest request) {
-        // TODO: 从当前登录用户获取 creatorId
-        Long creatorId = 1L;
+        Long creatorId = UserContext.getUserId();
         ProblemVO vo = problemService.createProblem(request, creatorId);
         return Result.ok(vo);
     }

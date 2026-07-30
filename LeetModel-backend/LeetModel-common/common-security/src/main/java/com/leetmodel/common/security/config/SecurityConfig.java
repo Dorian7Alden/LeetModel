@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/public/problems/**",
                                 "/doc.html",
                                 "/webjars/**",
                                 "/v3/api-docs/**",
