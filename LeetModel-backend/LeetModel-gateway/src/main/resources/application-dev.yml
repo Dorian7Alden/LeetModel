@@ -54,6 +54,12 @@ spring:
           predicates:
             - Path=/api/tags/**
 
+        # ---- 管理后台 - 仪表盘 ----
+        - id: admin-dashboard
+          uri: lb://leetmodel-admin
+          predicates:
+            - Path=/api/admin/dashboard/**
+
         # ---- 管理后台 - 用户管理 ----
         - id: admin-user
           uri: lb://leetmodel-user

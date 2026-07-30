@@ -29,4 +29,7 @@ public interface UserFeignClient {
      */
     @GetMapping("/{userId}/roles")
     Result<UserRoleDTO> getUserRoles(@PathVariable("userId") Long userId);
+
+    @GetMapping("/count")
+    Result<Long> getUserCount();
 }

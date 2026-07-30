@@ -25,6 +25,11 @@ public class UserFeignFallback implements FallbackFactory<UserFeignClient> {
                 UserRoleDTO dto = new UserRoleDTO(userId, List.of(), List.of());
                 return Result.ok(dto);
             }
+
+            @Override
+            public Result<Long> getUserCount() {
+                return Result.ok(0L);
+            }
         };
     }
 }

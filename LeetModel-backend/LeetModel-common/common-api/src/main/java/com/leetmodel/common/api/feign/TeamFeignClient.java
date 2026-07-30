@@ -36,4 +36,7 @@ public interface TeamFeignClient {
      */
     @GetMapping("/internal/teams/{teamId}/members")
     Result<List<Long>> getMemberIds(@PathVariable Long teamId);
+
+    @GetMapping("/internal/teams/count")
+    Result<Long> getActiveTeamCount();
 }

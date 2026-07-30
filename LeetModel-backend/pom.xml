@@ -37,6 +37,7 @@
         <module>LeetModel-problem</module>
         <module>LeetModel-team</module>
         <module>LeetModel-gateway</module>
+        <module>LeetModel-admin</module>
     </modules>
 
     <!-- ==================== 集中版本管理 ==================== -->

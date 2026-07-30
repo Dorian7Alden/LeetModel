@@ -1,0 +1,22 @@
+package com.leetmodel.common.api.feign;
+
+import com.leetmodel.common.core.result.Result;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.openfeign.FallbackFactory;
+import org.springframework.stereotype.Component;
+
+/**
+ * 题目服务 Feign 降级工厂。
+ *
+ * @author LeetModel
+ */
+@Slf4j
+@Component
+public class ProblemFeignFallback implements FallbackFactory<ProblemFeignClient> {
+
+    @Override
+    public ProblemFeignClient create(Throwable cause) {
+        log.error("ProblemFeignClient 调用失败", cause);
+        return () -> Result.ok(0L);
+    }
+}

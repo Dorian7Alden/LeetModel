@@ -30,6 +30,11 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
             public Result<List<Long>> getMemberIds(Long teamId) {
                 return Result.fail(50001, "团队服务暂不可用");
             }
+
+            @Override
+            public Result<Long> getActiveTeamCount() {
+                return Result.ok(0L);
+            }
         };
     }
 }

@@ -1,0 +1,29 @@
+# ==================== LeetModel-admin 开发环境配置 ====================
+
+server:
+  port: 8084
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# JWT
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
