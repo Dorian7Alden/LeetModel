@@ -67,3 +67,10 @@
 - 日期统一格式：`yyyy-MM-dd HH:mm:ss`（`LocalDateTime`）/ `yyyy-MM-dd`（`LocalDate`）/ `HH:mm:ss`（`LocalTime`）
 - 时区统一 `Asia/Shanghai`
 - 通过 `Jackson2ObjectMapperBuilderCustomizer` 追加配置（而非替换 `ObjectMapper`），保留 Spring Boot 其他自动配置
+
+### 2.9 对象存储 — MinIO 客户端
+
+- **MinioProperties**：`@ConfigurationProperties(prefix = "minio")`，配置 endpoint、accessKey、secretKey、bucket
+- **MinioConfig**：`@ConditionalOnProperty(prefix = "minio", name = "enabled", havingValue = "true")` 条件装配，不连接 MinIO 的服务无需配置即可跳过
+- **StorageService**：接口抽象上传/下载/获取URL/删除四个操作，业务代码不依赖具体存储实现
+- **MinioStorageServiceImpl**：MinIO 实现，文件名校验（UUID + 扩展名）、按前缀目录存储、预签名 URL 生成

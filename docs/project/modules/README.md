@@ -8,12 +8,11 @@
 
 | 文档 | 内容摘要 | 查看场景 |
 |------|---------|---------|
-| [common-core-design.md](common-core-design.md) | 公共基础模块：统一响应体、异常体系、分页封装、基类 | 开发任何服务前了解公共能力 |
+| [common-core-design.md](common-core-design.md) | 公共基础模块：统一响应体、异常体系、分页封装、基类、MinIO 对象存储 | 开发任何服务前了解公共能力 |
 | [common-api-design.md](common-api-design.md) | Feign 接口声明模块：跨服务调用契约与降级策略 | 新增服务间调用时参考 |
 | [common-security-design.md](common-security-design.md) | 安全模块：认证鉴权、Sa-Token + JWT 集成方案 | 处理登录/权限相关功能时参考 |
-| [user-service-design.md](user-service-design.md) | 用户服务：注册、登录、用户信息管理 | 开发用户模块功能时参考 |
+| [user-service-design.md](user-service-design.md) | 用户服务：注册、登录、用户信息管理、RBAC 权限管理 | 开发用户模块功能时参考 |
 | [gateway-design.md](gateway-design.md) | API 网关：路由转发、JWT 鉴权、跨域处理、API 文档聚合 | 了解网关的职责、路由规则和统一文档入口 |
 | [problem-service-design.md](problem-service-design.md) | 题目服务：4 表 CRUD、标签管理、外部链接、分页筛选（端口 8083） | 开发题目模块功能时参考 |
-| 公共存储（common-core） | MinIO 对象存储：上传/下载/预签名 URL、条件装配 | 需要文件上传功能时参考 |
-| 团队服务 | 团队模块：创建/解散、成员管理、权限控制（端口 8082） | 开发团队功能时参考 |
-| 管理后台服务 | 管理后台：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
+| [team-service-design.md](team-service-design.md) | 团队服务：创建/解散、成员管理、权限控制（端口 8082） | 开发团队功能时参考 |
+| [admin-service-design.md](admin-service-design.md) | 管理后台服务：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
