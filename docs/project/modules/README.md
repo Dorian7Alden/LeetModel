@@ -14,3 +14,6 @@
 | [user-service-design.md](user-service-design.md) | 用户服务：注册、登录、用户信息管理 | 开发用户模块功能时参考 |
 | [gateway-design.md](gateway-design.md) | API 网关：路由转发、JWT 鉴权、跨域处理、API 文档聚合 | 了解网关的职责、路由规则和统一文档入口 |
 | [problem-service-design.md](problem-service-design.md) | 题目服务：4 表 CRUD、标签管理、外部链接、分页筛选（端口 8083） | 开发题目模块功能时参考 |
+| 公共存储（common-core） | MinIO 对象存储：上传/下载/预签名 URL、条件装配 | 需要文件上传功能时参考 |
+| 团队服务 | 团队模块：创建/解散、成员管理、权限控制（端口 8082） | 开发团队功能时参考 |
+| 管理后台服务 | 管理后台：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
