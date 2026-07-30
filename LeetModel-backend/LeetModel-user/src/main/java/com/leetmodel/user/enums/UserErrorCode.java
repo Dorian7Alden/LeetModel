@@ -31,6 +31,8 @@ public enum UserErrorCode implements ErrorCode {
     PASSWORD_OLD_INVALID(40206, "旧密码错误"),
     PASSWORD_SAME_AS_OLD(40207, "新密码不能与旧密码相同"),
     STORAGE_NOT_ENABLED(40208, "对象存储未启用，无法上传文件"),
+    ROLE_NOT_FOUND(40209, "角色不存在"),
+    ROLE_CODE_DUPLICATE(40210, "角色编码已存在"),
     ;
 
     private final int code;
