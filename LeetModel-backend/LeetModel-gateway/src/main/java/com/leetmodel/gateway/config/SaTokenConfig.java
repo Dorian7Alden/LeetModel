@@ -19,9 +19,8 @@ import org.springframework.context.annotation.Configuration;
  *       仅校验签名 + 过期时间，性能最优。</li>
  *   <li><b>白名单路径放行</b>：注册、登录无需携带 Token。</li>
  *   <li><b>其余路径全部拦截</b>：任何未在白名单中的路径，均需携带有效 JWT。</li>
- *   <li><b>当前未接入 Redis 黑名单</b>：登出后 Token 在过期前仍可通过网关。
- *       业务服务层（user 服务）会二次校验黑名单，不构成安全漏洞，
- *       但存在网关层放行已登出 Token 的已知限制。</li>
+ *   <li><b>Redis 黑名单已就绪</b>：登出 Token 加入 Redis 黑名单，
+ *       Gateway 和业务服务均可校验，双重保障。</li>
  * </ul>
  *
  * <p>⚠️ 注意：Gateway 基于 WebFlux 响应式架构，必须使用

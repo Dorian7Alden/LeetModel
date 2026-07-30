@@ -59,6 +59,23 @@ jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
 
+# Redis —— JWT Token 黑名单（登出后 Token 不可再用）
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# 暴露 Actuator 端点（K8s 探活/就绪探针）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
 # ==================== Knife4j 网关聚合 ====================
 # 原理：Gateway 自身托管 /doc.html 页面，用户切换服务分组时，
 # Gateway 从 Nacos 发现下游服务实例，转发 /v3/api-docs 请求获取 OpenAPI JSON

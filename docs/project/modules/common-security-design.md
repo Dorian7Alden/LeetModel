@@ -54,3 +54,10 @@
 - 类名 `SaTokenForJwt` 已移除，改用 `StpLogicJwtForStateless(String secretKey)`
 - 行为配置通过 `cn.dev33.satoken.config.SaTokenConfig` 对象注入
 - 避免与库内置类冲突，配置类命名为 `SecuritySaTokenConfig`
+
+### 4.5 Redis 缓存基础设施
+
+- `RedisCacheConfig` 配置 `RedisCacheManager`，使 `@Cacheable` / `@CacheEvict` 等 Spring Cache 注解可用
+- Key 使用 String 序列化（可读性好），Value 使用 Jackson JSON 序列化
+- 序列化时写入类型信息（`activateDefaultTyping`），解决泛型反序列化问题（`List<User>` → `List<LinkedHashMap>`）
+- 默认 TTL 30 分钟，TTL 加随机 10% 偏移防缓存雪崩

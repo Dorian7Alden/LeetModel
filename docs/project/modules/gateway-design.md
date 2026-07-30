@@ -38,7 +38,8 @@ JWT 密钥必须与 user 服务保持一致，否则 user 服务签发的 Token 
 
 - **Sa-Token 响应式变体**：Gateway 基于 WebFlux，必须使用 `sa-token-reactor-spring-boot3-starter`，servlet 版无法启动。
 - **依赖排除**：`common-core` 传递了 `spring-boot-starter-web` 和 `mybatis-plus-spring-boot3-starter`，Gateway 必须排除这两个依赖并禁用 DataSource 自动配置。
-- **当前未接入 Redis 黑名单**：登出后 Token 在过期前仍可通过网关。业务服务层做二次校验，后续可接入 Redis 完善。
+- **全局异常处理**：`JsonExceptionHandler` 实现 `ErrorWebExceptionHandler`，将路由失败、下游宕机、超时等异常统一转换为 `Result` JSON。WebFlux 不能用 `@RestControllerAdvice`，必须用响应式异常处理器（`@Order(-2)` 覆盖默认处理器）。
+- **Redis 黑名单已就绪**：Gateway 已接入 Redis Reactive，登出 Token 加入黑名单后，Gateway 和业务服务均可校验。
 
 ## 六、API 文档聚合
 

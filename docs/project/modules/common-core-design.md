@@ -56,3 +56,14 @@
 
 - **TraceIdUtil**：封装 MDC 读写，网关写入 → 各服务透传 → 日志自动带 traceId
 - **AssertUtil**：参数校验语法糖，`notNull` / `isTrue` / `notBlank`，一行断言代替 if-throw
+
+### 2.7 MybatisPlusConfig — 分页插件 + 自动填充
+
+- **MybatisPlusInterceptor**：注册 `PaginationInnerInterceptor(DbType.MYSQL)`，拦截 Executor#query 动态追加 LIMIT 方言
+- **MetaObjectHandler**：insert 时自动填充 `createTime` + `updateTime`，update 时自动填充 `updateTime`（仅当字段未手动设置时生效）
+
+### 2.8 JacksonConfig — 全局序列化配置
+
+- 日期统一格式：`yyyy-MM-dd HH:mm:ss`（`LocalDateTime`）/ `yyyy-MM-dd`（`LocalDate`）/ `HH:mm:ss`（`LocalTime`）
+- 时区统一 `Asia/Shanghai`
+- 通过 `Jackson2ObjectMapperBuilderCustomizer` 追加配置（而非替换 `ObjectMapper`），保留 Spring Boot 其他自动配置

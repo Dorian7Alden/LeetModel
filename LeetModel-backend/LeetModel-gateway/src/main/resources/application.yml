@@ -5,3 +5,20 @@ spring:
     name: leetmodel-gateway
   profiles:
     active: dev
+  config:
+    import:
+      # Nacos 配置中心（optional: Nacos 不可用时回退到本地 yml）
+      - optional:nacos:leetmodel-gateway-${spring.profiles.active}.yml
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yml
+        group: DEFAULT_GROUP
+
+# ==================== 优雅关闭 ====================
+server:
+  shutdown: graceful
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s

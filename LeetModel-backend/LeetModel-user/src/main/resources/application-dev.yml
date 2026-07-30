@@ -38,3 +38,13 @@ springdoc:
       display-name: '用户服务'
       paths-to-match: '/**'
       packages-to-scan: com.leetmodel.user.controller
+
+# 暴露 Actuator 端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
