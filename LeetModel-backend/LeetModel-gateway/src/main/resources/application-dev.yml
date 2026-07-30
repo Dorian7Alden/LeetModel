@@ -25,10 +25,10 @@ spring:
           uri: lb://leetmodel-user
           predicates:
             - Path=/api/auth/**
-        - id: user-internal
+        - id: user-service
           uri: lb://leetmodel-user
           predicates:
-            - Path=/api/user/**
+            - Path=/api/users/**
 
         # ---- team 服务（8082，待上线）----
         # - id: team-service
@@ -53,6 +53,12 @@ spring:
           uri: lb://leetmodel-problem
           predicates:
             - Path=/api/tags/**
+
+        # ---- 管理后台 - 用户管理 ----
+        - id: admin-user
+          uri: lb://leetmodel-user
+          predicates:
+            - Path=/api/admin/users/**,/api/admin/roles/**,/api/admin/permissions/**
 
 # JWT 密钥（与 user 服务保持一致，否则校验签名失败）
 jwt:
