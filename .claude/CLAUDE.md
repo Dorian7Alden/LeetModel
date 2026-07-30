@@ -257,7 +257,10 @@ Context Explorer Agent 完成上下文探索后，将上下文摘要传递给主
 
 1. **上下文加载不可跳过**：执行任何操作（包括探索代码、设计方案、进入 Plan 模式）之前，先按第 3.1 节派发 Context Explorer Agent 完成 Map → Select → Deep-read → Curate → Output 五阶段上下文加载。不加载上下文就动手是最高级别的违规。加载以实际目录内容为准，不依赖索引的完整性。
 
-2. **禁止自动 Git Commit**：不执行任何自动 `git commit`、`git push` 等版本控制操作。所有版本控制操作由用户手动执行。
+2. **Git 操作权限**（不可覆盖）：
+   - **读操作始终允许**：`git log`、`git diff`、`git status`、`git show` 等只读命令无需授权，可按需执行。
+   - **写操作需逐次授权**：`git commit`、`git push`、`git add`、`git reset`、`git tag`、`git branch` 等修改性命令禁止自动执行，仅在用户本次会话中明确口头同意后方可执行。
+   - **此规则不可被覆盖**：优先级高于 `.claude/memory/` 或任何其他文档中的冲突声明，不可被纠正或削弱。
 
 3. **禁用 Skill 机制**：不创建、不调用、不维护任何自定义 Skill。上下文获取必须通过第 3 节描述的流程自主读取 `docs/` 目录来完成。
 
