@@ -17,8 +17,9 @@ API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JW
 | `/api/auth/login` | user 服务 (`lb://leetmodel-user`) | 白名单 |
 | `/api/auth/register` | user 服务 (`lb://leetmodel-user`) | 白名单 |
 | `/api/user/**` | user 服务 (`lb://leetmodel-user`) | 需登录 |
+| `/api/problems/**` | problem 服务 (`lb://leetmodel-problem`) | 需登录 |
 
-后续服务（team、problem 等）上线后，追加对应路由规则。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP:端口硬编码。
+后续服务（team 等）上线后，追加对应路由规则。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP:端口硬编码。
 
 
 ## 三、鉴权架构
@@ -38,3 +39,13 @@ JWT 密钥必须与 user 服务保持一致，否则 user 服务签发的 Token 
 - **Sa-Token 响应式变体**：Gateway 基于 WebFlux，必须使用 `sa-token-reactor-spring-boot3-starter`，servlet 版无法启动。
 - **依赖排除**：`common-core` 传递了 `spring-boot-starter-web` 和 `mybatis-plus-spring-boot3-starter`，Gateway 必须排除这两个依赖并禁用 DataSource 自动配置。
 - **当前未接入 Redis 黑名单**：登出后 Token 在过期前仍可通过网关。业务服务层做二次校验，后续可接入 Redis 完善。
+
+## 六、API 文档聚合
+
+采用 Knife4j Gateway 聚合模式：Gateway 自身托管 `/doc.html` 页面，利用 Nacos 服务发现自动聚合所有下游服务的 OpenAPI v3 文档。用户访问 `http://localhost:8080/doc.html` 即可在一个页面上切换查看所有微服务的 API。
+
+关键设计点：
+- 使用 `knife4j-gateway-spring-boot-starter`，与 Gateway 的 WebFlux 架构兼容，不引入 MVC 依赖
+- 聚合策略为 `discover` 模式，从 Nacos 自动发现下游服务，无需手动枚举
+- 下游服务通过 `springdoc.group-configs` 配置分组名和 `packages-to-scan`，供聚合页面显示中文分组标签
+- 文档相关路径（`/doc.html`、`/v3/api-docs/**`、`/webjars/**`）加入 SaToken 白名单，无需登录即可访问
