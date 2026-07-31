@@ -16,3 +16,4 @@
 | [Gateway异常处理器编译报AnnotatedConnectException私有的.md](Gateway异常处理器编译报AnnotatedConnectException私有的.md) | JsonExceptionHandler 编译报 AnnotatedConnectException 私有 | Netty 私有内部类不能出现在 catch/instanceof 中 |
 | [微服务启动报YAML配置重复键.md](微服务启动报YAML配置重复键.md) | 启动报 DuplicateKeyException: found duplicate key spring | 6 个配置文件把 spring 配置拆成重复的顶层块 |
 | [admin服务启动报MybatisPlusConfig条件装配失败.md](admin服务启动报MybatisPlusConfig条件装配失败.md) | admin 排除 mybatis 后报 Failed to introspect MybatisPlusConfig | 公共模块配置类缺 @ConditionalOnClass 保护 + 未排除 DataSource |
+| [team服务启动报Unknown database.md](team服务启动报Unknown database.md) | Flyway 连接报 Unknown database 'leetmodel_team' (1049) | 库名违反 lm_ 规范 + URL 缺 createDatabaseIfNotExist；修复后暴露启动类缺 @EnableFeignClients |
