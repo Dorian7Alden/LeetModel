@@ -4,12 +4,15 @@ server:
   port: 8082
 
 spring:
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   cloud:
     nacos:
       discovery:
         server-addr: localhost:8848
   datasource:
-    url: jdbc:mysql://localhost:3306/leetmodel_team?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/lm_team?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
