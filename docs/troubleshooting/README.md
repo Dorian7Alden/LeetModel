@@ -12,5 +12,7 @@
 | [Feign调用缺少LoadBalancer依赖.md](Feign调用缺少LoadBalancer依赖.md) | UserFeignClient Bean 创建失败，提示缺少 loadbalancer | Feign 按服务名调用需要 LoadBalancer 解析地址 |
 | [SaToken登录报JWT秘钥未配置.md](SaToken登录报JWT秘钥未配置.md) | 登录接口报 "请配置jwt秘钥" | SaTokenConfig 遗漏 setJwtSecretKey() |
 | [Problem服务编译报Lombok注解未生效.md](Problem服务编译报Lombok注解未生效.md) | mvn compile 报所有 Lombok getter/setter/builder 找不到 | 父 POM pluginManagement 中的编译插件未被子模块继承 |
-| [Problem服务启动报UserFeignClient Bean缺失.md](Problem服务启动报UserFeignClient%20Bean缺失.md) | 启动报 StpInterfaceImpl 需要 UserFeignClient Bean | common-security 依赖不需要被非鉴权服务引入 |
+| [Problem服务启动报UserFeignClient Bean缺失.md](Problem服务启动报UserFeignClient Bean缺失.md) | 启动报 StpInterfaceImpl 需要 UserFeignClient Bean | common-security 依赖不需要被非鉴权服务引入 |
 | [Gateway异常处理器编译报AnnotatedConnectException私有的.md](Gateway异常处理器编译报AnnotatedConnectException私有的.md) | JsonExceptionHandler 编译报 AnnotatedConnectException 私有 | Netty 私有内部类不能出现在 catch/instanceof 中 |
+| [微服务启动报YAML配置重复键.md](微服务启动报YAML配置重复键.md) | 启动报 DuplicateKeyException: found duplicate key spring | 6 个配置文件把 spring 配置拆成重复的顶层块 |
+| [admin服务启动报MybatisPlusConfig条件装配失败.md](admin服务启动报MybatisPlusConfig条件装配失败.md) | admin 排除 mybatis 后报 Failed to introspect MybatisPlusConfig | 公共模块配置类缺 @ConditionalOnClass 保护 + 未排除 DataSource |

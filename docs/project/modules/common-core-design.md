@@ -61,6 +61,7 @@
 
 - **MybatisPlusInterceptor**：注册 `PaginationInnerInterceptor(DbType.MYSQL)`，拦截 Executor#query 动态追加 LIMIT 方言
 - **MetaObjectHandler**：insert 时自动填充 `createTime` + `updateTime`，update 时自动填充 `updateTime`（仅当字段未手动设置时生效）
+- **`@ConditionalOnClass(MybatisPlusInterceptor.class)` 条件装配**：类路径无 mybatis-plus 依赖的服务（gateway/admin 等无数据库服务）自动跳过，避免配置类引用缺失类导致 introspect 失败。公共模块配置类一律要求条件装配保护（同 2.9 节 MinioConfig 的 `@ConditionalOnProperty`）
 
 ### 2.8 JacksonConfig — 全局序列化配置
 
