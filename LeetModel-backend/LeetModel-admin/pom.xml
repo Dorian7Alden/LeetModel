@@ -20,6 +20,13 @@
         <dependency>
             <groupId>com.leetmodel</groupId>
             <artifactId>common-core</artifactId>
+            <exclusions>
+                <!-- admin 为纯聚合层，不连数据库，排除 MyBatis-Plus 及其传递的 JDBC（同 Gateway 处理方式） -->
+                <exclusion>
+                    <groupId>com.baomidou</groupId>
+                    <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.leetmodel</groupId>
