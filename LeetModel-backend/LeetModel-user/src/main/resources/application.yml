@@ -15,10 +15,10 @@ spring:
         server-addr: ${NACOS_ADDR:localhost:8848}
         file-extension: yml
         group: DEFAULT_GROUP
+  # 优雅关闭：单阶段等待时间上限（配合下方 server.shutdown: graceful）
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 # ==================== 优雅关闭 ====================
 server:
   shutdown: graceful
-spring:
-  lifecycle:
-    timeout-per-shutdown-phase: 30s

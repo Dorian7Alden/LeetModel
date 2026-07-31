@@ -65,18 +65,16 @@ spring:
           uri: lb://leetmodel-user
           predicates:
             - Path=/api/admin/users/**,/api/admin/roles/**,/api/admin/permissions/**
+  # Redis —— JWT Token 黑名单（登出后 Token 不可再用）
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 # JWT 密钥（与 user 服务保持一致，否则校验签名失败）
 jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
-
-# Redis —— JWT Token 黑名单（登出后 Token 不可再用）
-spring:
-  data:
-    redis:
-      host: localhost
-      port: 6379
 
 # 暴露 Actuator 端点（K8s 探活/就绪探针）
 management:
