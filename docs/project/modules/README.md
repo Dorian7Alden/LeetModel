@@ -17,3 +17,4 @@
 | [team-service-design.md](team-service-design.md) | 团队服务：创建/解散、成员管理、权限控制（端口 8082） | 开发团队功能时参考 |
 | [submission-service-design.md](submission-service-design.md) | 提交服务：PDF 分片上传、提交归属、上传权限模型、决策记录（端口 8085） | 开发论文提交功能时参考 |
 | [admin-service-design.md](admin-service-design.md) | 管理后台服务：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
+| [pdf-parsing-design.md](pdf-parsing-design.md) | PDF 解析：多模态 LLM + PDFBox 解析路线、解析产物 schema 契约、失败表达与决策记录 | 开发解析功能或消费解析产物时参考 |
