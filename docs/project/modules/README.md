@@ -15,4 +15,5 @@
 | [gateway-design.md](gateway-design.md) | API 网关：路由转发、JWT 鉴权、跨域处理、API 文档聚合 | 了解网关的职责、路由规则和统一文档入口 |
 | [problem-service-design.md](problem-service-design.md) | 题目服务：4 表 CRUD、标签管理、外部链接、分页筛选（端口 8083） | 开发题目模块功能时参考 |
 | [team-service-design.md](team-service-design.md) | 团队服务：创建/解散、成员管理、权限控制（端口 8082） | 开发团队功能时参考 |
+| [submission-service-design.md](submission-service-design.md) | 提交服务：PDF 分片上传、提交归属、上传权限模型、决策记录（端口 8085） | 开发论文提交功能时参考 |
 | [admin-service-design.md](admin-service-design.md) | 管理后台服务：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
