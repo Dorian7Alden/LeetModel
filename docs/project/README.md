@@ -9,5 +9,5 @@
 | 目录 | 定位 | 存放内容 |
 |------|------|---------|
 | [analysis/](analysis/) | 需求与用例分析 | 功能需求定义、用例识别过程、用例分析结论 |
-| [architecture/](architecture/) | 架构与技术选型 | 微服务架构设计、技术栈选型决策 |
+| [architecture/](architecture/) | 架构与技术选型 | 微服务架构设计、技术栈选型决策、RAG 知识库体系设计 |
 | [modules/](modules/) | 各模块功能设计 | common-core、common-security、user-service 等模块的方向性设计 |

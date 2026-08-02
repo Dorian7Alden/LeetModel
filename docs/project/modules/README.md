@@ -18,3 +18,6 @@
 | [submission-service-design.md](submission-service-design.md) | 提交服务：PDF 分片上传、提交归属、上传权限模型、决策记录（端口 8085） | 开发论文提交功能时参考 |
 | [admin-service-design.md](admin-service-design.md) | 管理后台服务：数据聚合、Feign 跨服务统计（端口 8084） | 开发管理功能时参考 |
 | [pdf-parsing-design.md](pdf-parsing-design.md) | PDF 解析：多模态 LLM + PDFBox 解析路线、解析产物 schema 契约、失败表达与决策记录 | 开发解析功能或消费解析产物时参考 |
+| [paper-lifecycle-design.md](paper-lifecycle-design.md) | 论文生命周期：提交到评审的状态机、事件流转表、非法流转防护、状态单一事实来源与决策记录 | 开发解析评审链路或消费提交状态时参考 |
+| [review-workflow-design.md](review-workflow-design.md) | 评审工作流：评审任务状态机、异步编排与断点恢复、多轮一致性、失败补偿、限流熔断、结果规范与决策记录（端口 8087） | 开发评审服务或消费评审结果时参考 |
+| [review-scoring-standard-design.md](review-scoring-standard-design.md) | 评审打分标准：美赛与国赛两套维度权重、档位锚点、硬性检查项与决策记录 | 调整评分标准或编写评审 prompt 时参考 |
