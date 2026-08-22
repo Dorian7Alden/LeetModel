@@ -3,7 +3,9 @@ package com.leetmodel.user.service;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.user.dto.ChangePasswordRequest;
 import com.leetmodel.user.dto.UserUpdateRequest;
+import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
+import com.leetmodel.user.entity.UserRole;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserMapper;
@@ -20,8 +22,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.*;
 
 /**
@@ -148,5 +153,39 @@ class UserServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> userService.changePassword(1L, request));
         assertEquals(UserErrorCode.PASSWORD_SAME_AS_OLD.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("更新用户角色成功并去重")
+    void updateRolesSuccessAndDeduplicate() {
+        Role admin = new Role();
+        admin.setId(1L);
+        Role userRole = new Role();
+        userRole.setId(3L);
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(roleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(admin, userRole));
+
+        userService.updateRoles(1L, List.of(1L, 3L, 1L));
+
+        verify(userRoleMapper).delete(any());
+        verify(userRoleMapper, times(2)).insert(any(UserRole.class));
+    }
+
+    @Test
+    @DisplayName("更新用户角色失败 —— 角色不存在")
+    void updateRolesRoleNotFound() {
+        Role admin = new Role();
+        admin.setId(1L);
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(roleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(admin));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> userService.updateRoles(1L, List.of(1L, 999L))
+        );
+
+        assertEquals(UserErrorCode.ROLE_NOT_FOUND.getCode(), exception.getCode());
+        verify(userRoleMapper, never()).delete(any());
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 }

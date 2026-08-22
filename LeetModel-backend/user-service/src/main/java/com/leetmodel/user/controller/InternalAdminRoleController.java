@@ -1,9 +1,12 @@
 package com.leetmodel.user.controller;
 
+import com.leetmodel.common.api.dto.PermissionRequest;
+import com.leetmodel.common.api.dto.RolePermissionsRequest;
 import com.leetmodel.common.api.dto.RoleRequest;
 import com.leetmodel.common.api.vo.PermissionVO;
 import com.leetmodel.common.api.vo.RoleVO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.user.service.PermissionService;
 import com.leetmodel.user.service.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +37,7 @@ import java.util.List;
 public class InternalAdminRoleController {
 
     private final RoleService roleService;
+    private final PermissionService permissionService;
 
     @Operation(summary = "获取角色列表")
     @GetMapping("/roles")
@@ -67,9 +71,49 @@ public class InternalAdminRoleController {
         return Result.ok();
     }
 
+    @Operation(summary = "获取角色权限")
+    @GetMapping("/roles/{roleId}/permissions")
+    public Result<List<PermissionVO>> getRolePermissions(@PathVariable Long roleId) {
+        return Result.ok(roleService.getRolePermissions(roleId));
+    }
+
+    @Operation(summary = "更新角色权限")
+    @PutMapping("/roles/{roleId}/permissions")
+    public Result<Void> updateRolePermissions(@PathVariable Long roleId,
+                                              @Valid @RequestBody RolePermissionsRequest request) {
+        roleService.updateRolePermissions(roleId, request.getPermissionIds());
+        return Result.ok();
+    }
+
     @Operation(summary = "获取权限列表")
     @GetMapping("/permissions")
     public Result<List<PermissionVO>> listPermissions() {
-        return Result.ok(roleService.listPermissions());
+        return Result.ok(permissionService.listPermissions());
+    }
+
+    @Operation(summary = "获取权限详情")
+    @GetMapping("/permissions/{permissionId}")
+    public Result<PermissionVO> getPermission(@PathVariable Long permissionId) {
+        return Result.ok(permissionService.getPermissionById(permissionId));
+    }
+
+    @Operation(summary = "创建权限")
+    @PostMapping("/permissions")
+    public Result<PermissionVO> createPermission(@Valid @RequestBody PermissionRequest request) {
+        return Result.ok(permissionService.createPermission(request));
+    }
+
+    @Operation(summary = "更新权限")
+    @PutMapping("/permissions/{permissionId}")
+    public Result<PermissionVO> updatePermission(@PathVariable Long permissionId,
+                                                 @Valid @RequestBody PermissionRequest request) {
+        return Result.ok(permissionService.updatePermission(permissionId, request));
+    }
+
+    @Operation(summary = "删除权限")
+    @DeleteMapping("/permissions/{permissionId}")
+    public Result<Void> deletePermission(@PathVariable Long permissionId) {
+        permissionService.deletePermission(permissionId);
+        return Result.ok();
     }
 }

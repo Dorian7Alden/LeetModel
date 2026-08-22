@@ -31,6 +31,11 @@ public enum UserErrorCode implements ErrorCode {
     STORAGE_NOT_ENABLED(40208, "对象存储未启用，无法上传文件"),
     ROLE_NOT_FOUND(40209, "角色不存在"),
     ROLE_CODE_DUPLICATE(40210, "角色编码已存在"),
+    PERMISSION_NOT_FOUND(40211, "权限不存在"),
+    PERMISSION_CODE_DUPLICATE(40212, "权限编码已存在"),
+    PERMISSION_IN_USE(40213, "权限已被角色使用，请先解除关联"),
+    SYSTEM_ROLE_PROTECTED(40214, "系统预设角色不允许删除或修改编码"),
+    DEFAULT_ROLE_NOT_FOUND(40215, "系统默认角色不存在"),
     ;
 
     private final int code;

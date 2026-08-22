@@ -1,5 +1,6 @@
 package com.leetmodel.user.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.security.util.TokenUtil;
 import com.leetmodel.user.dto.LoginRequest;
@@ -7,7 +8,9 @@ import com.leetmodel.user.dto.LoginResponse;
 import com.leetmodel.user.dto.RegisterRequest;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.entity.UserRole;
+import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.enums.UserErrorCode;
+import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
 import com.leetmodel.user.service.AuthService;
 import com.leetmodel.user.service.UserService;
@@ -25,9 +28,10 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserService userService;
     private final UserRoleMapper userRoleMapper;
+    private final RoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
 
-    private static final Long DEFAULT_ROLE_ID = 3L;
+    private static final String DEFAULT_ROLE_CODE = "user";
 
     /**
      * 注册用户并分配默认角色。
@@ -49,10 +53,16 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus(1);
         userService.save(user);
 
+        // 根据稳定编码获取默认角色
+        LambdaQueryWrapper<Role> roleWrapper = new LambdaQueryWrapper<>();
+        roleWrapper.eq(Role::getCode, DEFAULT_ROLE_CODE);
+        Role defaultRole = roleMapper.selectOne(roleWrapper);
+        BusinessException.throwIf(defaultRole == null, UserErrorCode.DEFAULT_ROLE_NOT_FOUND);
+
         // 分配默认角色
         UserRole userRole = new UserRole();
         userRole.setUserId(user.getId());
-        userRole.setRoleId(DEFAULT_ROLE_ID);
+        userRole.setRoleId(defaultRole.getId());
         userRoleMapper.insert(userRole);
 
         return user.getId();

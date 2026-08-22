@@ -21,7 +21,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +35,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RoleServiceImpl implements RoleService {
+
+    private static final Set<String> SYSTEM_ROLE_CODES = Set.of("admin", "vip", "user");
 
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
@@ -143,6 +147,10 @@ public class RoleServiceImpl implements RoleService {
 
         // 编码变更时校验唯一
         if (!role.getCode().equals(request.getCode())) {
+            BusinessException.throwIf(
+                    SYSTEM_ROLE_CODES.contains(role.getCode()),
+                    UserErrorCode.SYSTEM_ROLE_PROTECTED
+            );
             ensureRoleCodeUnique(request.getCode());
         }
 
@@ -165,6 +173,10 @@ public class RoleServiceImpl implements RoleService {
     public void deleteRole(Long roleId) {
         Role role = roleMapper.selectById(roleId);
         BusinessException.throwIf(role == null, UserErrorCode.ROLE_NOT_FOUND);
+        BusinessException.throwIf(
+                SYSTEM_ROLE_CODES.contains(role.getCode()),
+                UserErrorCode.SYSTEM_ROLE_PROTECTED
+        );
 
         // 删除角色权限关联
         LambdaQueryWrapper<RolePermission> rpWrapper = new LambdaQueryWrapper<>();
@@ -181,17 +193,69 @@ public class RoleServiceImpl implements RoleService {
         log.info("删除角色: {} ({})", role.getCode(), roleId);
     }
 
-    // ==================== 权限列表 ====================
+    // ==================== 角色权限绑定 ====================
 
     /**
-     * 获取权限列表。
+     * 获取角色拥有的权限。
+     * @param roleId 角色 ID
      * @return 权限列表
      */
     @Override
-    public List<PermissionVO> listPermissions() {
-        return permissionMapper.selectList(null).stream()
+    public List<PermissionVO> getRolePermissions(Long roleId) {
+        // 校验角色存在
+        BusinessException.throwIf(roleMapper.selectById(roleId) == null, UserErrorCode.ROLE_NOT_FOUND);
+
+        // 查询角色权限关联
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getRoleId, roleId);
+        List<Long> permissionIds = rolePermissionMapper.selectList(wrapper).stream()
+                .map(RolePermission::getPermissionId)
+                .distinct()
+                .toList();
+
+        // 没有权限时返回空列表
+        if (permissionIds.isEmpty()) return List.of();
+
+        return permissionMapper.selectBatchIds(permissionIds).stream()
                 .map(this::toPermissionVO)
                 .toList();
+    }
+
+    /**
+     * 全量更新角色权限。
+     * @param roleId 角色 ID
+     * @param permissionIds 权限 ID 列表
+     */
+    @Override
+    @Transactional
+    public void updateRolePermissions(Long roleId, List<Long> permissionIds) {
+        // 校验角色存在
+        BusinessException.throwIf(roleMapper.selectById(roleId) == null, UserErrorCode.ROLE_NOT_FOUND);
+
+        // 权限去重并校验全部存在
+        List<Long> distinctPermissionIds = new ArrayList<>(new LinkedHashSet<>(permissionIds));
+        if (!distinctPermissionIds.isEmpty()) {
+            List<Permission> permissions = permissionMapper.selectBatchIds(distinctPermissionIds);
+            BusinessException.throwIf(
+                    permissions.size() != distinctPermissionIds.size(),
+                    UserErrorCode.PERMISSION_NOT_FOUND
+            );
+        }
+
+        // 删除旧关联
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getRoleId, roleId);
+        rolePermissionMapper.delete(wrapper);
+
+        // 插入新关联
+        for (Long permissionId : distinctPermissionIds) {
+            RolePermission rolePermission = new RolePermission();
+            rolePermission.setRoleId(roleId);
+            rolePermission.setPermissionId(permissionId);
+            rolePermissionMapper.insert(rolePermission);
+        }
+
+        log.info("更新角色 {} 的权限: {}", roleId, distinctPermissionIds);
     }
 
     // ==================== 私有方法 ====================
@@ -221,7 +285,9 @@ public class RoleServiceImpl implements RoleService {
     }
 
     /**
-     * Permission 转换为 PermissionVO。
+     * 将权限实体转换为 VO。
+     * @param permission 权限实体
+     * @return 权限 VO
      */
     private PermissionVO toPermissionVO(Permission permission) {
         return PermissionVO.builder()
@@ -230,6 +296,8 @@ public class RoleServiceImpl implements RoleService {
                 .name(permission.getName())
                 .description(permission.getDescription())
                 .createTime(permission.getCreateTime())
+                .updateTime(permission.getUpdateTime())
                 .build();
     }
+
 }

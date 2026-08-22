@@ -1,5 +1,7 @@
 package com.leetmodel.common.api.feign;
 
+import com.leetmodel.common.api.dto.PermissionRequest;
+import com.leetmodel.common.api.dto.RolePermissionsRequest;
 import com.leetmodel.common.api.dto.RoleRequest;
 import com.leetmodel.common.api.vo.PermissionVO;
 import com.leetmodel.common.api.vo.RoleVO;
@@ -41,6 +43,26 @@ public interface RoleAdminFeignClient {
     @DeleteMapping("/roles/{roleId}")
     Result<Void> deleteRole(@PathVariable("roleId") Long roleId);
 
+    @GetMapping("/roles/{roleId}/permissions")
+    Result<List<PermissionVO>> getRolePermissions(@PathVariable("roleId") Long roleId);
+
+    @PutMapping("/roles/{roleId}/permissions")
+    Result<Void> updateRolePermissions(@PathVariable("roleId") Long roleId,
+                                       @RequestBody RolePermissionsRequest request);
+
     @GetMapping("/permissions")
     Result<List<PermissionVO>> listPermissions();
+
+    @GetMapping("/permissions/{permissionId}")
+    Result<PermissionVO> getPermission(@PathVariable("permissionId") Long permissionId);
+
+    @PostMapping("/permissions")
+    Result<PermissionVO> createPermission(@RequestBody PermissionRequest request);
+
+    @PutMapping("/permissions/{permissionId}")
+    Result<PermissionVO> updatePermission(@PathVariable("permissionId") Long permissionId,
+                                          @RequestBody PermissionRequest request);
+
+    @DeleteMapping("/permissions/{permissionId}")
+    Result<Void> deletePermission(@PathVariable("permissionId") Long permissionId);
 }

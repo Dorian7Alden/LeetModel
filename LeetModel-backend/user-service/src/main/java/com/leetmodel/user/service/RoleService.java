@@ -60,9 +60,17 @@ public interface RoleService {
     void deleteRole(Long roleId);
 
     /**
-     * 获取权限列表（只读）。
-     *
-     * @return 权限 VO 列表
+     * 获取角色拥有的权限。
+     * @param roleId 角色 ID
+     * @return 权限列表
      */
-    List<PermissionVO> listPermissions();
+    List<PermissionVO> getRolePermissions(Long roleId);
+
+    /**
+     * 全量更新角色权限。
+     * @param roleId 角色 ID
+     * @param permissionIds 权限 ID 列表
+     */
+    void updateRolePermissions(Long roleId, List<Long> permissionIds);
+
 }

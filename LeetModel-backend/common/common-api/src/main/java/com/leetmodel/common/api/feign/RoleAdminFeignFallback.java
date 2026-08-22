@@ -1,14 +1,16 @@
 package com.leetmodel.common.api.feign;
 
+import com.leetmodel.common.api.dto.PermissionRequest;
+import com.leetmodel.common.api.dto.RolePermissionsRequest;
 import com.leetmodel.common.api.dto.RoleRequest;
 import com.leetmodel.common.api.vo.PermissionVO;
 import com.leetmodel.common.api.vo.RoleVO;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,32 +26,62 @@ public class RoleAdminFeignFallback implements FallbackFactory<RoleAdminFeignCli
         return new RoleAdminFeignClient() {
             @Override
             public Result<List<RoleVO>> listRoles() {
-                return Result.ok(Collections.emptyList());
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<RoleVO> getRole(Long roleId) {
-                return Result.fail(50001, "用户服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<RoleVO> createRole(RoleRequest request) {
-                return Result.fail(50001, "用户服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<RoleVO> updateRole(Long roleId, RoleRequest request) {
-                return Result.fail(50001, "用户服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<Void> deleteRole(Long roleId) {
-                return Result.fail(50001, "用户服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<List<PermissionVO>> getRolePermissions(Long roleId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<Void> updateRolePermissions(Long roleId, RolePermissionsRequest request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<List<PermissionVO>> listPermissions() {
-                return Result.ok(Collections.emptyList());
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<PermissionVO> getPermission(Long permissionId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<PermissionVO> createPermission(PermissionRequest request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<PermissionVO> updatePermission(Long permissionId, PermissionRequest request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<Void> deletePermission(Long permissionId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
         };
     }

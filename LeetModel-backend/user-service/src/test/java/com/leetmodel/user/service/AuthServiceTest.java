@@ -3,9 +3,11 @@ package com.leetmodel.user.service;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.user.dto.LoginRequest;
 import com.leetmodel.user.dto.RegisterRequest;
+import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.entity.UserRole;
 import com.leetmodel.user.enums.UserErrorCode;
+import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
 import com.leetmodel.user.service.impl.AuthServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,9 @@ class AuthServiceTest {
     private UserRoleMapper userRoleMapper;
 
     @Mock
+    private RoleMapper roleMapper;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
@@ -63,9 +68,13 @@ class AuthServiceTest {
     @Test
     @DisplayName("注册成功")
     void registerSuccess() {
+        Role defaultRole = new Role();
+        defaultRole.setId(3L);
+        defaultRole.setCode("user");
         when(userService.findByUsername("testuser")).thenReturn(null);
         when(passwordEncoder.encode("password123")).thenReturn("$2a$encoded");
         when(userService.save(any(User.class))).thenReturn(true);
+        when(roleMapper.selectOne(any())).thenReturn(defaultRole);
         when(userRoleMapper.insert(any(UserRole.class))).thenReturn(1);
 
         Long userId = authService.register(registerRequest);
@@ -73,6 +82,23 @@ class AuthServiceTest {
         // 在 mock 环境下 ID 由 MyBatis-Plus 雪花算法生成，此处仅验证调用链正确
         verify(userService).save(any(User.class));
         verify(userRoleMapper).insert(any(UserRole.class));
+    }
+
+    @Test
+    @DisplayName("注册失败 —— 系统默认角色不存在")
+    void registerDefaultRoleNotFound() {
+        when(userService.findByUsername("testuser")).thenReturn(null);
+        when(passwordEncoder.encode("password123")).thenReturn("$2a$encoded");
+        when(userService.save(any(User.class))).thenReturn(true);
+        when(roleMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> authService.register(registerRequest)
+        );
+
+        assertEquals(UserErrorCode.DEFAULT_ROLE_NOT_FOUND.getCode(), exception.getCode());
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 
     @Test

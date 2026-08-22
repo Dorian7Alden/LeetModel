@@ -1,6 +1,6 @@
 package com.leetmodel.admin.controller;
 
-import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.common.api.dto.UserRolesRequest;
 import com.leetmodel.common.api.dto.UserStatusRequest;
@@ -29,24 +29,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
-@SaCheckRole("admin")
 public class AdminUserController {
 
     private final UserAdminFeignClient userAdminFeignClient;
 
     @Operation(summary = "分页查询用户列表")
+    @SaCheckPermission("user:read")
     @GetMapping
     public Result<PageResult<UserAdminVO>> list(@Valid UserPageQuery query) {
         return userAdminFeignClient.page(query);
     }
 
     @Operation(summary = "查看用户详情")
+    @SaCheckPermission("user:read")
     @GetMapping("/{userId}")
     public Result<UserAdminVO> detail(@PathVariable Long userId) {
         return userAdminFeignClient.detail(userId);
     }
 
     @Operation(summary = "启用或禁用用户")
+    @SaCheckPermission("user:update")
     @PutMapping("/{userId}/status")
     public Result<Void> updateStatus(@PathVariable Long userId,
                                      @Valid @RequestBody UserStatusRequest request) {
@@ -54,6 +56,7 @@ public class AdminUserController {
     }
 
     @Operation(summary = "更新用户角色")
+    @SaCheckPermission("user:update")
     @PutMapping("/{userId}/roles")
     public Result<Void> updateRoles(@PathVariable Long userId,
                                     @Valid @RequestBody UserRolesRequest request) {

@@ -1,8 +1,10 @@
 package com.leetmodel.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import com.leetmodel.common.api.dto.RolePermissionsRequest;
 import com.leetmodel.common.api.dto.RoleRequest;
 import com.leetmodel.common.api.feign.RoleAdminFeignClient;
+import com.leetmodel.common.api.vo.PermissionVO;
 import com.leetmodel.common.api.vo.RoleVO;
 import com.leetmodel.common.core.result.Result;
 import io.swagger.v3.oas.annotations.Operation;
@@ -64,5 +66,18 @@ public class AdminRoleController {
     @DeleteMapping("/{roleId}")
     public Result<Void> delete(@PathVariable Long roleId) {
         return roleAdminFeignClient.deleteRole(roleId);
+    }
+
+    @Operation(summary = "获取角色权限")
+    @GetMapping("/{roleId}/permissions")
+    public Result<List<PermissionVO>> getPermissions(@PathVariable Long roleId) {
+        return roleAdminFeignClient.getRolePermissions(roleId);
+    }
+
+    @Operation(summary = "更新角色权限")
+    @PutMapping("/{roleId}/permissions")
+    public Result<Void> updatePermissions(@PathVariable Long roleId,
+                                          @Valid @RequestBody RolePermissionsRequest request) {
+        return roleAdminFeignClient.updateRolePermissions(roleId, request);
     }
 }

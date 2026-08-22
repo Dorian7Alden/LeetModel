@@ -18,5 +18,5 @@ public class UserRolesRequest {
 
     @NotNull(message = "角色列表不能为空")
     @Size(min = 1, message = "至少分配一个角色")
-    private List<Long> roleIds;
+    private List<@NotNull(message = "角色 ID 不能为空") Long> roleIds;
 }

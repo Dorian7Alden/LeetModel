@@ -28,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -239,7 +240,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     @Transactional
     public void updateRoles(Long userId, List<Long> roleIds) {
+        // 校验用户存在
         BusinessException.throwIf(getById(userId) == null, UserErrorCode.USER_NOT_FOUND);
+
+        // 角色去重并校验全部存在
+        List<Long> distinctRoleIds = new ArrayList<>(new LinkedHashSet<>(roleIds));
+        List<Role> roles = roleMapper.selectBatchIds(distinctRoleIds);
+        BusinessException.throwIf(
+                roles.size() != distinctRoleIds.size(),
+                UserErrorCode.ROLE_NOT_FOUND
+        );
 
         // 删除旧关联
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
@@ -247,14 +257,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         userRoleMapper.delete(wrapper);
 
         // 插入新关联
-        for (Long roleId : roleIds) {
+        for (Long roleId : distinctRoleIds) {
             UserRole userRole = new UserRole();
             userRole.setUserId(userId);
             userRole.setRoleId(roleId);
             userRoleMapper.insert(userRole);
         }
 
-        log.info("管理员更新用户 {} 的角色: {}", userId, roleIds);
+        log.info("管理员更新用户 {} 的角色: {}", userId, distinctRoleIds);
     }
 
     // ==================== 私有方法 ====================

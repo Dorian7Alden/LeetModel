@@ -21,4 +21,5 @@ public class PermissionVO {
     private String name;
     private String description;
     private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 }
