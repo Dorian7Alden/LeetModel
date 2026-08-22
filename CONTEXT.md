@@ -22,6 +22,7 @@
 | `docs/` | 项目全部文档；先读各级 README.md 建立索引，再按任务深入 |
 | `docs/standards/` | 强制规范；开发前读与任务相关的规范 |
 | `LeetModel-backend/` | 微服务后端代码，当前主要开发区域 |
+| `LeetModel-mock/` | mock 数据 API 服务，按需启动并调用基础数据接口 |
 | `knowledge-base/` | 论文评审 RAG 知识库内容 |
 | `legacy/` | 默认不读，除非用户明确要求 |
 | `LeetModel-frontend/` | 不维护、不修改 |
