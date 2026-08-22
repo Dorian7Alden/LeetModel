@@ -70,6 +70,16 @@ A - BB - CC
 | PASSWORD_INVALID | 40203 | 密码错误 |
 | TOKEN_EXPIRED | 40204 | 登录已过期 |
 | ACCOUNT_DISABLED | 40205 | 账号已被禁用 |
+| PASSWORD_OLD_INVALID | 40206 | 旧密码错误 |
+| PASSWORD_SAME_AS_OLD | 40207 | 新密码不能与旧密码相同 |
+| STORAGE_NOT_ENABLED | 40208 | 对象存储未启用 |
+| ROLE_NOT_FOUND | 40209 | 角色不存在 |
+| ROLE_CODE_DUPLICATE | 40210 | 角色编码已存在 |
+| PERMISSION_NOT_FOUND | 40211 | 权限不存在 |
+| PERMISSION_CODE_DUPLICATE | 40212 | 权限编码已存在 |
+| PERMISSION_IN_USE | 40213 | 权限仍被角色使用 |
+| SYSTEM_ROLE_PROTECTED | 40214 | 系统预设角色受保护 |
+| DEFAULT_ROLE_NOT_FOUND | 40215 | 系统默认角色不存在 |
 
 ---
 

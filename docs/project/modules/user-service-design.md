@@ -41,6 +41,13 @@ user (1) ── (N) user_role (N) ── (1) role (1) ── (N) role_permission
 | POST | `/api/auth/login` | 登录 → 返回 JWT | 无需 |
 | POST | `/api/auth/logout` | 登出 → Token 加入黑名单 | 需登录 |
 | GET | `/internal/users/{userId}/roles` | 查询角色权限（内部 Feign） | 内部 |
+| GET | `/internal/admin/permissions` | 查询权限列表 | 内部 |
+| GET | `/internal/admin/permissions/{permissionId}` | 查询权限详情 | 内部 |
+| POST | `/internal/admin/permissions` | 创建权限 | 内部 |
+| PUT | `/internal/admin/permissions/{permissionId}` | 更新权限 | 内部 |
+| DELETE | `/internal/admin/permissions/{permissionId}` | 删除权限 | 内部 |
+| GET | `/internal/admin/roles/{roleId}/permissions` | 查询角色权限 | 内部 |
+| PUT | `/internal/admin/roles/{roleId}/permissions` | 全量更新角色权限 | 内部 |
 
 ---
 
@@ -50,3 +57,26 @@ user (1) ── (N) user_role (N) ── (1) role (1) ── (N) role_permission
 - **BCrypt**：密码加密，Spring Security 内置
 - **注册时自动分配 user 角色**：user_role 表插入 `(userId, 3)`
 - **common-security 依赖 common-api 声明接口，user 服务实现接口**：`InternalUserController` 路径匹配 `UserFeignClient` 的声明
+
+---
+
+## 六、RBAC 职责边界
+
+- user-service 拥有 RBAC 五表，负责角色权限数据、业务校验和本地事务。
+- admin-service 提供管理端入口并执行管理员鉴权，不直接访问 RBAC 数据库。
+- common-api 只定义跨服务请求、响应和 Feign 契约。
+- common-security 消费用户角色权限数据并执行鉴权，不负责授权数据管理。
+
+---
+
+## 七、权限管理决策
+
+- 权限编码采用 `资源:动作` 格式并保持全局唯一。
+- 已被角色引用的权限禁止直接删除，管理员必须先解除角色权限关联。
+- 删除保护用于避免误操作造成多个角色同时失去权限。
+- 权限数据当前不使用业务缓存，优先保证变更后的鉴权结果一致。
+- 角色权限更新采用全量替换语义，在 user-service 本地事务中完成。
+- 用户角色和角色权限写入前必须去重并验证所有目标 ID 存在。
+- `admin`、`vip`、`user` 是系统预设角色，不允许删除或修改编码。
+- 注册通过 `user` 编码获取默认角色，不依赖固定数据库 ID。
+- 用户管理查询使用 `user:read`，用户状态和角色修改使用 `user:update`。
