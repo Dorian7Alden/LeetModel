@@ -17,6 +17,8 @@
 | 07 | [07-version-spec.md](07-version-spec.md) | 版本号规范：版本编号规则 | 发布版本或打 tag 时参照 |
 | 08 | [08-database-spec.md](08-database-spec.md) | 数据库设计规范：命名、独立数据库、表结构、迁移策略 | 设计数据库表结构或新增微服务数据库时 |
 | 09 | [09-knife4j-annotation-spec.md](09-knife4j-annotation-spec.md) | Knife4j 接口注解规范：必须写 @Operation 且置于请求映射注解之前 | 编写 Controller 接口时 |
+| 10 | [10-exception-handling-spec.md](10-exception-handling-spec.md) | 统一项目异常处理规范：BusinessException、throwIf、全局异常处理器、Feign 降级 | 编写 Service 或 Controller 异常逻辑时 |
+| 11 | [11-code-style-spec.md](11-code-style-spec.md) | 后端 Java 代码风格规范：小方法、步骤注释、早返回、Stream 与集合组装 | 编写或调整 Java 代码时 |
 
 ---
 
