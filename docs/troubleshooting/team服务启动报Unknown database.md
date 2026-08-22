@@ -27,7 +27,7 @@ Error Code : 1049
 
 ## 修复方案
 
-修改 `LeetModel-team/src/main/resources/application-dev.yml` 的 datasource 配置，与 user/problem 完全对齐：
+修改 `team-service/src/main/resources/application-dev.yml` 的 datasource 配置，与 user/problem 完全对齐：
 
 ```yaml
 spring:

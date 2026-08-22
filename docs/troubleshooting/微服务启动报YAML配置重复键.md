@@ -37,8 +37,8 @@ spring:                 # ← 重复键：与第一个 spring 块冲突
 
 涉及文件（5 个服务的 application.yml + gateway 的 application-dev.yml，共 6 个）：
 
-- `LeetModel-user / -admin / -team / -gateway / -problem` 的 `application.yml`：`lifecycle` 独立成块
-- `LeetModel-gateway/application-dev.yml`：`spring.data.redis` 独立成块
+- `user-service / admin-service / team-service / gateway-service / problem-service` 的 `application.yml`：`lifecycle` 独立成块
+- `gateway-service/application-dev.yml`：`spring.data.redis` 独立成块
 
 ## 修复
 
@@ -85,7 +85,7 @@ StrictLoader.add_constructor(
 
 ## 踩坑记录
 
-**Maven 多模块下 `spring-boot:run -pl <module>` 不会重新构建公共模块**：修改 `LeetModel-common/*` 源码后，直接跑 `-pl LeetModel-admin` 用的仍是本地仓库里的旧 jar。必须先 `mvn install -pl <module> -am`（-am 连带构建依赖模块），修改才生效。判断依据：改动源码后报错栈完全不变，检查本地仓库 jar 时间戳或直接重新 install。
+**Maven 多模块下 `spring-boot:run -pl <module>` 不会重新构建公共模块**：修改 `common/*` 源码后，直接跑 `-pl admin-service` 用的仍是本地仓库里的旧 jar。必须先 `mvn install -pl <module> -am`（-am 连带构建依赖模块），修改才生效。判断依据：改动源码后报错栈完全不变，检查本地仓库 jar 时间戳或直接重新 install。
 
 ## 面试考点
 

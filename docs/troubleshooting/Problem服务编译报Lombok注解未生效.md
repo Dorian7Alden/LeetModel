@@ -13,7 +13,7 @@
   location: class ProblemVO
 ```
 
-执行 `mvn clean compile -pl LeetModel-problem -am` 后，所有 Lombok 生成的 getter、setter、builder 方法全部报 `cannot find symbol`。
+执行 `mvn clean compile -pl problem-service -am` 后，所有 Lombok 生成的 getter、setter、builder 方法全部报 `cannot find symbol`。
 
 ---
 

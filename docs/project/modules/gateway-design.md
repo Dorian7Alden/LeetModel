@@ -14,10 +14,10 @@ API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JW
 
 | 匹配路径 | 转发目标 | 鉴权 |
 |---------|---------|------|
-| `/api/auth/login` | user 服务 (`lb://leetmodel-user`) | 白名单 |
-| `/api/auth/register` | user 服务 (`lb://leetmodel-user`) | 白名单 |
-| `/api/user/**` | user 服务 (`lb://leetmodel-user`) | 需登录 |
-| `/api/problems/**` | problem 服务 (`lb://leetmodel-problem`) | 需登录 |
+| `/api/auth/login` | user 服务 (`lb://user-service`) | 白名单 |
+| `/api/auth/register` | user 服务 (`lb://user-service`) | 白名单 |
+| `/api/user/**` | user 服务 (`lb://user-service`) | 需登录 |
+| `/api/problems/**` | problem 服务 (`lb://problem-service`) | 需登录 |
 
 后续服务（team 等）上线后，追加对应路由规则。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP:端口硬编码。
 

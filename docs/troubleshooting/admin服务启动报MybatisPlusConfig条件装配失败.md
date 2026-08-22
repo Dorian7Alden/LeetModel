@@ -59,7 +59,7 @@ spring:
 
 ## 验证
 
-`mvn spring-boot:run -pl LeetModel-admin` 越过配置阶段、Tomcat 在 8084 端口启动、`Started LeetModelAdminApplication` 日志出现即为通过。
+`mvn spring-boot:run -pl admin-service` 越过配置阶段、Tomcat 在 8084 端口启动、`Started LeetModelAdminApplication` 日志出现即为通过。
 
 ## 面试考点
 

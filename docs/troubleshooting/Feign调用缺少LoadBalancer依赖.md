@@ -19,7 +19,7 @@ Did you forget to include spring-cloud-starter-loadbalancer?
 ## 复现场景
 
 1. `StpInterfaceImpl` 中注入 `UserFeignClient`
-2. `UserFeignClient` 用 `@FeignClient(name = "leetmodel-user")` 通过**服务名**调用
+2. `UserFeignClient` 用 `@FeignClient(name = "user-service")` 通过**服务名**调用
 3. user 服务启动时，Spring 尝试创建 Feign 代理 → 无法解析服务名 → 报错
 
 ## 根因
@@ -31,7 +31,7 @@ OpenFeign 通过服务名调用时，需要 **LoadBalancer** 将服务名解析�
 ## 修复
 
 ```xml
-<!-- common-security/pom.xml 和 LeetModel-user/pom.xml -->
+<!-- common-security/pom.xml 和 user-service/pom.xml -->
 <dependency>
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-starter-loadbalancer</artifactId>

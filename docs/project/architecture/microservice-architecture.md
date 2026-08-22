@@ -45,21 +45,21 @@ LeetModel/
 ├── LeetModel-frontend/          ← 前端
 ├── LeetModel-backend/           ← 后端微服务（Maven 多模块）
 │   ├── pom.xml                  ← 父 POM，统一依赖版本管理
-│   ├── LeetModel-common/        ← 公共模块（jar 依赖，非独立服务）<!-- ✅ 已实现 -->
+│   ├── common/        ← 公共模块（jar 依赖，非独立服务）<!-- ✅ 已实现 -->
 │   │   ├── common-core/  ✅      ← 统一响应体、异常、工具类、分页
 │   │   ├── common-api/  ✅ ← Feign 接口声明
 │   │   ├── common-security/  ✅  ← 认证鉴权
 │   │   └── common-ai/  📋 计划中        ← LLM调用 · RAG检索 · Prompt模板
-│   ├── LeetModel-gateway/  ✅       ← API 网关（路由转发 + JWT 鉴权 + 跨域）
-│   ├── LeetModel-user/  ✅       ← 用户服务（注册登录、RBAC）
-│   ├── LeetModel-team/  ✅  ← 团队服务（组队、解散）
-│   ├── LeetModel-problem/  ✅    ← 题目服务（CRUD、分类标签、分页筛选）
-│   ├── LeetModel-assistant/  📋 计划中  ← AI 智能客服（对话交互，功能可拓展）
-│   ├── LeetModel-submission/  📋 计划中 ← 作品提交与管理服务
-│   ├── LeetModel-review/  📋 计划中     ← 评审打分服务（多维度评分）
-│   ├── LeetModel-suggestion/  📋 计划中 ← 改进建议服务（可选VIP）
-│   ├── LeetModel-ranking/  📋 计划中    ← 排行榜服务（每题独立排名）
-│   └── LeetModel-admin/  ✅      ← 管理后台服务（统计聚合、操作日志）
+│   ├── gateway-service/  ✅       ← API 网关（路由转发 + JWT 鉴权 + 跨域）
+│   ├── user-service/  ✅       ← 用户服务（注册登录、RBAC）
+│   ├── team-service/  ✅  ← 团队服务（组队、解散）
+│   ├── problem-service/  ✅    ← 题目服务（CRUD、分类标签、分页筛选）
+│   ├── assistant-service/  📋 计划中  ← AI 智能客服（对话交互，功能可拓展）
+│   ├── submission-service/  📋 计划中 ← 作品提交与管理服务
+│   ├── review-service/  📋 计划中     ← 评审打分服务（多维度评分）
+│   ├── suggestion-service/  📋 计划中 ← 改进建议服务（可选VIP）
+│   ├── ranking-service/  📋 计划中    ← 排行榜服务（每题独立排名）
+│   └── admin-service/  ✅      ← 管理后台服务（统计聚合、操作日志）
 │
 └── docs/                        ← 所有文档
 ```

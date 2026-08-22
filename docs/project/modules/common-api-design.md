@@ -19,7 +19,7 @@
 
 ### 2.2 UserFeignClient — 用户服务 Feign 接口
 
-声明 `@FeignClient("leetmodel-user")` 调用用户服务的内部端点，获取角色权限信息。
+声明 `@FeignClient("user-service")` 调用用户服务的内部端点，获取角色权限信息。
 
 ### 2.3 UserFeignFallback — 降级策略
 
