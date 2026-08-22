@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 认证服务实现 —— 注册、登录、登出。
+ * 认证服务实现，处理注册、登录、登出。
  */
 @Service
 @RequiredArgsConstructor
@@ -27,16 +27,21 @@ public class AuthServiceImpl implements AuthService {
     private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
 
-    private static final Long DEFAULT_ROLE_ID = 3L; // user 角色
+    private static final Long DEFAULT_ROLE_ID = 3L;
 
+    /**
+     * 注册用户并分配默认角色。
+     * @param request 注册请求
+     * @return 新用户 ID
+     */
     @Override
     @Transactional
     public Long register(RegisterRequest request) {
-        // 1. 校验用户名是否已存在
+        // 校验用户名是否已存在
         User existing = userService.findByUsername(request.getUsername());
         BusinessException.throwIf(existing != null, UserErrorCode.USERNAME_DUPLICATE);
 
-        // 2. 创建用户
+        // 创建用户
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -44,7 +49,7 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus(1);
         userService.save(user);
 
-        // 3. 分配默认角色（user）
+        // 分配默认角色
         UserRole userRole = new UserRole();
         userRole.setUserId(user.getId());
         userRole.setRoleId(DEFAULT_ROLE_ID);
@@ -53,27 +58,35 @@ public class AuthServiceImpl implements AuthService {
         return user.getId();
     }
 
+    /**
+     * 用户登录，校验密码与账号状态后签发 Token。
+     * @param request 登录请求
+     * @return Token 与用户基础信息
+     */
     @Override
     public LoginResponse login(LoginRequest request) {
-        // 1. 查用户
+        // 查询用户
         User user = userService.findByUsername(request.getUsername());
         BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
 
-        // 2. 校验密码
+        // 校验密码
         BusinessException.throwIf(
                 !passwordEncoder.matches(request.getPassword(), user.getPassword()),
                 UserErrorCode.PASSWORD_INVALID
         );
 
-        // 3. 校验账号状态
+        // 校验账号状态
         BusinessException.throwIf(user.getStatus() == 0, UserErrorCode.ACCOUNT_DISABLED);
 
-        // 4. 签发 Token
+        // 签发 Token
         String token = TokenUtil.login(user.getId());
 
         return new LoginResponse(token, user.getId(), user.getUsername());
     }
 
+    /**
+     * 用户登出。
+     */
     @Override
     public void logout() {
         TokenUtil.logout();
