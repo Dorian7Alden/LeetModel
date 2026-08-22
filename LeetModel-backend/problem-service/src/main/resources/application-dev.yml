@@ -1,0 +1,43 @@
+# ==================== problem-service 开发环境配置 ====================
+spring:
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  datasource:
+    url: jdbc:mysql://localhost:3306/lm_problem?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+
+server:
+  port: 8083
+
+# Knife4j API 文档
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'problem-service'
+      display-name: '题目服务'
+      paths-to-match: '/**'
+      packages-to-scan: com.leetmodel.problem.controller
+
+# JWT 密钥（与 gateway + user 服务保持一致，否则校验签名失败）
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+
+# 暴露 Actuator 端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

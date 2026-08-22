@@ -1,0 +1,22 @@
+# ==================== team-service 公共配置 ====================
+
+spring:
+  application:
+    name: team-service
+  profiles:
+    active: dev
+  config:
+    import:
+      - optional:nacos:team-service-${spring.profiles.active}.yml
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        file-extension: yml
+        group: DEFAULT_GROUP
+  # 优雅关闭：单阶段等待时间上限（配合下方 server.shutdown: graceful）
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  shutdown: graceful

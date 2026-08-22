@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.leetmodel</groupId>
+        <artifactId>LeetModel-backend</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>common-api</artifactId>
+    <packaging>jar</packaging>
+    <description>公共 API 模块：Feign 接口声明、跨服务 DTO 定义，不含任何业务实现</description>
+
+    <dependencies>
+        <!-- common-core：Result、BusinessException 等基础类型 -->
+        <dependency>
+            <groupId>com.leetmodel</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+
+        <!-- OpenFeign：声明式 HTTP 客户端 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+    </dependencies>
+
+    <!-- 公共 jar 模块不启用 spring-boot-maven-plugin -->
+
+</project>

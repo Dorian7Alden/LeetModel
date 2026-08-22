@@ -22,22 +22,14 @@
 
     <!-- ==================== 子模块列表（按需逐个添加） ==================== -->
     <modules>
-        <!--
-        模块逐步添加：
-        1. common-core
-        2. common-security
-        3. common-ai
-        4. gateway
-        5. user → team → problem → assistant → submission → review → suggestion → ranking → admin
-        -->
-        <module>LeetModel-common/common-core</module>
-        <module>LeetModel-common/common-api</module>
-        <module>LeetModel-common/common-security</module>
-        <module>LeetModel-user</module>
-        <module>LeetModel-problem</module>
-        <module>LeetModel-team</module>
-        <module>LeetModel-gateway</module>
-        <module>LeetModel-admin</module>
+        <module>common/common-core</module>
+        <module>common/common-api</module>
+        <module>common/common-security</module>
+        <module>user-service</module>
+        <module>problem-service</module>
+        <module>team-service</module>
+        <module>gateway-service</module>
+        <module>admin-service</module>
     </modules>
 
     <!-- ==================== 集中版本管理 ==================== -->
