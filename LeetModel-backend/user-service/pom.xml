@@ -30,6 +30,10 @@
             <groupId>com.leetmodel</groupId>
             <artifactId>common-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+        </dependency>
 
         <!-- REST 服务 -->
         <dependency>

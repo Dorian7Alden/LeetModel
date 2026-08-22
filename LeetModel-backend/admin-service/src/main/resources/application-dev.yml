@@ -32,4 +32,4 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
   api-docs:
-    path: /api/admin/dashboard/v3/api-docs
+    path: /api/admin/v3/api-docs

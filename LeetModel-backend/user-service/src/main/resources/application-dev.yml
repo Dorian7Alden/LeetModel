@@ -48,3 +48,11 @@ management:
   endpoint:
     health:
       show-details: always
+
+# MinIO 对象存储
+minio:
+  enabled: true
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: leetmodel

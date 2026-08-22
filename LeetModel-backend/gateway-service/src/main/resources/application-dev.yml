@@ -54,17 +54,11 @@ spring:
           predicates:
             - Path=/api/tags/**
 
-        # ---- 管理后台 - 仪表盘 ----
-        - id: admin-dashboard
+        # ---- 管理后台 ----
+        - id: admin-service
           uri: lb://admin-service
           predicates:
-            - Path=/api/admin/dashboard/**
-
-        # ---- 管理后台 - 用户管理 ----
-        - id: admin-user
-          uri: lb://user-service
-          predicates:
-            - Path=/api/admin/users/**,/api/admin/roles/**,/api/admin/permissions/**
+            - Path=/api/admin/**
   # Redis —— JWT Token 黑名单（登出后 Token 不可再用）
   data:
     redis:
@@ -88,15 +82,28 @@ management:
 
 # ==================== Knife4j 网关聚合 ====================
 # 原理：Gateway 自身托管 /doc.html 页面，用户切换服务分组时，
-# Gateway 从 Nacos 发现下游服务实例，转发 /v3/api-docs 请求获取 OpenAPI JSON
+# Gateway 转发 /v3/api-docs 请求获取 OpenAPI JSON
+# 使用 manual 模式并显式指定 context-path，避免 UI 将路由前缀再拼到接口路径上造成 /api/xxx/api/xxx
 knife4j:
   gateway:
-    enabled: true                # 启用网关聚合
-    strategy: discover           # 基于 Nacos 服务发现自动聚合
-    discover:
-      enabled: true
-      version: openapi3          # 下游服务使用 OpenAPI 3 规范（knife4j-openapi3-jakarta）
-      # 排除网关自身，避免聚合空的文档分组
-      excluded-services: gateway-service
+    enabled: true
+    strategy: manual
+    routes:
+      - name: user-service
+        service-name: user-service
+        url: /api/auth/v3/api-docs
+        context-path: /
+      - name: problem-service
+        service-name: problem-service
+        url: /api/problems/v3/api-docs
+        context-path: /
+      - name: team-service
+        service-name: team-service
+        url: /api/teams/v3/api-docs
+        context-path: /
+      - name: admin-service
+        service-name: admin-service
+        url: /api/admin/v3/api-docs
+        context-path: /
 
 # 鉴权白名单在 SaTokenConfig.java 中通过 .addExclude() 配置，此处不重复声明
