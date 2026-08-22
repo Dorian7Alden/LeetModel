@@ -18,3 +18,4 @@
 | [admin服务启动报MybatisPlusConfig条件装配失败.md](admin服务启动报MybatisPlusConfig条件装配失败.md) | admin 排除 mybatis 后报 Failed to introspect MybatisPlusConfig | 公共模块配置类缺 @ConditionalOnClass 保护 + 未排除 DataSource |
 | [team服务启动报Unknown database.md](team服务启动报Unknown database.md) | Flyway 连接报 Unknown database 'leetmodel_team' (1049) | 库名违反 lm_ 规范 + URL 缺 createDatabaseIfNotExist；修复后暴露启动类缺 @EnableFeignClients |
 | [bash环境下Windows反斜杠路径写出字面量文件名.md](bash环境下Windows反斜杠路径写出字面量文件名.md) | 批量写知识库文件时根目录多出 C: 字面量目录，README 互相覆盖 | bash 不解析反斜杠路径分隔符，整段 Windows 路径退化为单个字面量文件名 |
+| [Knife4j网关聚合文档加载失败.md](Knife4j网关聚合文档加载失败.md) | /doc.html 能打开，但分组文档加载失败，请求 /api/**/v3/api-docs 返回 40100 或 404/500 | 网关路由未剥离前缀，下游服务未在带前缀路径暴露 OpenAPI 文档，且网关与 Security 均未放行该路径 |
