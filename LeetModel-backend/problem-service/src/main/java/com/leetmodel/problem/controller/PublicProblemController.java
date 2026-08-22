@@ -16,8 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 题目公开接口（无需认证，仅返回已发布题目）。
- *
- * @author LeetModel
  */
 @RestController
 @RequestMapping("/api/public/problems")

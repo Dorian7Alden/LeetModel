@@ -22,8 +22,6 @@ import org.springframework.context.annotation.Configuration;
  *   <li><b>预签名 URL</b>：MinIO 支持生成预签名 URL（Presigned URL），前端可直接
  *       通过该 URL 上传/下载文件，绕过业务服务中转，减轻带宽压力。</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Configuration
 @EnableConfigurationProperties(MinioProperties.class)

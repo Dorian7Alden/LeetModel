@@ -18,8 +18,6 @@ import java.util.List;
  *
  * <p>通过 Feign 调用 user 服务查询 RBAC 数据，
  * user 服务不可用时走 Feign 降级。</p>
- *
- * @author LeetModel
  */
 @Component
 @RequiredArgsConstructor

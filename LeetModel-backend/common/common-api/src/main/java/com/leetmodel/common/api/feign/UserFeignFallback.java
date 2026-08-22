@@ -11,8 +11,6 @@ import java.util.List;
  * UserFeignClient 降级工厂。
  *
  * <p>当 user 服务不可用时，返回默认的 user 角色以保证核心功能不中断。</p>
- *
- * @author LeetModel
  */
 @Component
 public class UserFeignFallback implements FallbackFactory<UserFeignClient> {

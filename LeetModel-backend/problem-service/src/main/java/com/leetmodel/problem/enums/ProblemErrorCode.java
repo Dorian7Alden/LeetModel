@@ -9,8 +9,6 @@ import lombok.Getter;
  * <p>
  * 号段 BB=04（题目管理），CC 从 01 递增。
  * </p>
- *
- * @author LeetModel
  */
 @Getter
 @AllArgsConstructor

@@ -10,8 +10,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 题目分页查询参数。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

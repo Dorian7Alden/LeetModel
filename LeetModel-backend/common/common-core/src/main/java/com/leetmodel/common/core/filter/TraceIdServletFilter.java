@@ -29,8 +29,6 @@ import java.io.IOException;
  *   <li>{@code finally} 块保证 MDC 一定被清理，防止线程池复用时串扰</li>
  *   <li>响应头中也注入 {@code X-Trace-Id}，方便调试时从浏览器/前端日志定位</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

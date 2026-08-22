@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 团队服务 Feign 客户端 —— 供其他微服务调用。
- *
- * @author LeetModel
  */
 @FeignClient(
         name = "team-service",

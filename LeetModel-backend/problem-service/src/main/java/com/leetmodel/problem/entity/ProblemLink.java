@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 题目外部链接实体（1:N 归属题目）。
- *
- * @author LeetModel
  */
 @Data
 @TableName("problem_link")

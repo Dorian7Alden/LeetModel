@@ -46,8 +46,6 @@ import java.util.concurrent.TimeoutException;
  *       前者返回 Mono&lt;Void&gt; 表示写入完成信号（数据可能还在 OS 缓冲区），
  *       后者返回 Flux 支持流式写入。单个 JSON body 用前者即可。</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Configuration
 @Order(-2)

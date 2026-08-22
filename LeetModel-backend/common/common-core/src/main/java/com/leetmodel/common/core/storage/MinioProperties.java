@@ -16,8 +16,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   bucket: leetmodel
  * }</pre>
  * </p>
- *
- * @author LeetModel
  */
 @Data
 @ConfigurationProperties(prefix = "minio")

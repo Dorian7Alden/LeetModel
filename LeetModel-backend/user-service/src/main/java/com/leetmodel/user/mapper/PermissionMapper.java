@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 权限 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface PermissionMapper extends BaseMapper<Permission> {

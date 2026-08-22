@@ -6,8 +6,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 /**
  * 题目服务 Feign 客户端 —— 供其他微服务调用。
- *
- * @author LeetModel
  */
 @FeignClient(
         name = "problem-service",

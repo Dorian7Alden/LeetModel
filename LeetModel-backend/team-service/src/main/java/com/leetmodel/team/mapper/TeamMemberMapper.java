@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 团队成员 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface TeamMemberMapper extends BaseMapper<TeamMember> {

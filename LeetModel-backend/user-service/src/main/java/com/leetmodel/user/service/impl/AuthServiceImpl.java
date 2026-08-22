@@ -18,8 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 认证服务实现 —— 注册、登录、登出。
- *
- * @author LeetModel
  */
 @Service
 @RequiredArgsConstructor

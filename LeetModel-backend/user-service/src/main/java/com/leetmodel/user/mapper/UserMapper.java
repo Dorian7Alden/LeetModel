@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 用户 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface UserMapper extends BaseMapper<User> {

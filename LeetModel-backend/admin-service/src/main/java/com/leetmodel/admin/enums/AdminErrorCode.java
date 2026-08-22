@@ -6,8 +6,6 @@ import lombok.Getter;
 
 /**
  * 管理后台模块错误码 —— BB=05。
- *
- * @author LeetModel
  */
 @Getter
 @AllArgsConstructor

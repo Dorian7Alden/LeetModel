@@ -7,8 +7,6 @@ import lombok.EqualsAndHashCode;
 
 /**
  * 用户实体。
- *
- * @author LeetModel
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

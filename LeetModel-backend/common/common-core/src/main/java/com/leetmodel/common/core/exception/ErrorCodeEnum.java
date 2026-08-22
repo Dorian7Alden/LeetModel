@@ -16,8 +16,6 @@ import lombok.Getter;
  *
  * <p>各业务模块定义自己的 ErrorCode 枚举实现 {@link ErrorCode} 接口，使用对应号段：
  * 01=认证鉴权 02=用户 03=团队 04=题目...</p>
- *
- * @author LeetModel
  * @see ErrorCode
  */
 @Getter

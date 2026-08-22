@@ -22,8 +22,6 @@ import java.time.LocalDateTime;
  * </p>
  *
  * <p>实现 {@link Serializable} 以支持分布式缓存场景下的对象序列化。</p>
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

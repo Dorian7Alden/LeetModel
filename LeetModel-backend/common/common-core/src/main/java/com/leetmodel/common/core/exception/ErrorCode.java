@@ -16,8 +16,6 @@ package com.leetmodel.common.core.exception;
  *     ...      后续模块递增
  * </pre>
  * </p>
- *
- * @author LeetModel
  * @see ErrorCodeEnum
  * @see BusinessException
  */

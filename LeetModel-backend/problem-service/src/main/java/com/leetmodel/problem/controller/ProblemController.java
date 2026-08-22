@@ -25,8 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 题目管理接口（需要 admin 角色）。
- *
- * @author LeetModel
  */
 @RestController
 @RequestMapping("/api/problems")

@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
-import com.leetmodel.user.dto.UserPageQuery;
+import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
@@ -17,11 +17,10 @@ import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
 import com.leetmodel.user.service.UserService;
-import com.leetmodel.user.vo.UserAdminVO;
+import com.leetmodel.common.api.vo.UserAdminVO;
 import com.leetmodel.user.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,8 +32,6 @@ import java.util.stream.Collectors;
 
 /**
  * 用户服务实现。
- *
- * @author LeetModel
  */
 @Slf4j
 @Service
@@ -44,13 +41,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final PasswordEncoder passwordEncoder;
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
-
-    /**
-     * StorageService 为可选依赖 —— 未启用 MinIO 时此处为 null，
-     * 此时上传头像会抛出明确错误而非 NPE。
-     */
-    @Autowired(required = false)
-    private StorageService storageService;
+    private final StorageService storageService;
 
     @Override
     public User findByUsername(String username) {

@@ -10,8 +10,6 @@ import lombok.Getter;
  * </p>
  *
  * <p>注意：枚举不能使用 @AllArgsConstructor，需手写构造器。</p>
- *
- * @author LeetModel
  */
 @Getter
 public enum RoleEnum {

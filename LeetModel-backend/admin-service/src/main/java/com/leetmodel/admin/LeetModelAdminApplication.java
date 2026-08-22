@@ -8,8 +8,6 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  * LeetModel 管理后台服务启动类。
  *
  * <p>此服务通过 Feign 调用其他微服务获取数据，不连接业务数据库。</p>
- *
- * @author LeetModel
  */
 @SpringBootApplication(scanBasePackages = {
         "com.leetmodel.admin",

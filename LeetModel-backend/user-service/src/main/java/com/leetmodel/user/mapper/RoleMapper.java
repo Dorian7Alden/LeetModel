@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 角色 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface RoleMapper extends BaseMapper<Role> {

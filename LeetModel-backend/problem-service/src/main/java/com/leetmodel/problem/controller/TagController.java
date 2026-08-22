@@ -21,8 +21,6 @@ import java.util.List;
 
 /**
  * 标签管理接口（GET 需登录，POST/PUT/DELETE 需要 admin 角色）。
- *
- * @author LeetModel
  */
 @RestController
 @RequestMapping("/api/tags")

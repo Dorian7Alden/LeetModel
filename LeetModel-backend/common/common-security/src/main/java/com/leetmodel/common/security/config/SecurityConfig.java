@@ -18,8 +18,6 @@ import org.springframework.security.web.SecurityFilterChain;
  *   <li>SecurityConfig：关闭 CSRF + Session，放行公开资源（Knife4j 等）</li>
  * </ul>
  * </p>
- *
- * @author LeetModel
  */
 @Configuration
 @EnableWebSecurity
@@ -45,7 +43,7 @@ public class SecurityConfig {
                                 "/api/users/v3/api-docs",
                                 "/api/problems/v3/api-docs",
                                 "/api/teams/v3/api-docs",
-                                "/api/admin/dashboard/v3/api-docs",
+                                "/api/admin/v3/api-docs",
                                 "/doc.html",
                                 "/webjars/**",
                                 "/v3/api-docs/**",

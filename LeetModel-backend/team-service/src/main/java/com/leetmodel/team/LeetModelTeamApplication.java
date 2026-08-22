@@ -7,8 +7,6 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
  * LeetModel 团队服务启动类。
- *
- * @author LeetModel
  */
 @SpringBootApplication(scanBasePackages = {
         "com.leetmodel.team",

@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *
  * <p>与 common-core 的 {@code GlobalExceptionHandler} 互补：
  * common-core 处理业务异常，common-security 处理认证鉴权异常。</p>
- *
- * @author LeetModel
  */
 @RestControllerAdvice
 public class AuthExceptionHandler {

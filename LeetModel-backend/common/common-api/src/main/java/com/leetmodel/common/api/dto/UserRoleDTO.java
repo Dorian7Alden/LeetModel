@@ -8,8 +8,6 @@ import java.util.List;
 
 /**
  * 用户角色与权限 DTO —— user 服务通过 Feign 返回给 common-security。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

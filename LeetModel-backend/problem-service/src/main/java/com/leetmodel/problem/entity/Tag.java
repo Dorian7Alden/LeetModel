@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 标签实体（问题服务内聚，扁平化无分类层级）。
- *
- * @author LeetModel
  */
 @Data
 @TableName("tag")

@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 角色实体。
- *
- * @author LeetModel
  */
 @Data
 @TableName("role")

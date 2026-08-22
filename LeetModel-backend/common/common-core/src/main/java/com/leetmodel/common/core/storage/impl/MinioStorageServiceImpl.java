@@ -24,8 +24,6 @@ import java.util.UUID;
  *
  * <p>文件命名策略：{prefix}/{UUID}.{原始扩展名}，避免文件名冲突。
  * 预签名 URL 有效期通过配置文件控制，默认 7 天。</p>
- *
- * @author LeetModel
  */
 @Slf4j
 @Service

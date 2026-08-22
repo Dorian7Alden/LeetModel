@@ -36,8 +36,6 @@ import java.util.TimeZone;
  *   <li><b>@JsonFormat vs 全局配置</b>：全局配置是兜底，{@code @JsonFormat(pattern="...")}
  *       优先级更高，可用于特殊字段覆盖。</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Configuration
 public class JacksonConfig {

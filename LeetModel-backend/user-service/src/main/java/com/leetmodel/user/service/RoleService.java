@@ -1,16 +1,14 @@
 package com.leetmodel.user.service;
 
 import com.leetmodel.common.api.dto.UserRoleDTO;
-import com.leetmodel.user.dto.RoleRequest;
-import com.leetmodel.user.vo.PermissionVO;
-import com.leetmodel.user.vo.RoleVO;
+import com.leetmodel.common.api.dto.RoleRequest;
+import com.leetmodel.common.api.vo.PermissionVO;
+import com.leetmodel.common.api.vo.RoleVO;
 
 import java.util.List;
 
 /**
  * 角色权限服务接口。
- *
- * @author LeetModel
  */
 public interface RoleService {
 

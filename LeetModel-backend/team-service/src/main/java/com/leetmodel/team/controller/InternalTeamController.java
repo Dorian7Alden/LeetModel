@@ -19,8 +19,6 @@ import java.util.List;
 
 /**
  * 团队服务内部 Feign 接口实现。
- *
- * @author LeetModel
  */
 @Tag(name = "内部接口")
 @RestController

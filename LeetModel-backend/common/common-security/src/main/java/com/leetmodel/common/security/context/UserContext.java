@@ -12,8 +12,6 @@ import cn.dev33.satoken.stp.StpUtil;
  *   <li>Service 层根据角色做分支判断（不需要注解的场景）</li>
  * </ul>
  * </p>
- *
- * @author LeetModel
  */
 public final class UserContext {
 

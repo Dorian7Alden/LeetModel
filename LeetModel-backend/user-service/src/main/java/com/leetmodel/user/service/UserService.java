@@ -3,10 +3,10 @@ package com.leetmodel.user.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
-import com.leetmodel.user.dto.UserPageQuery;
+import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.User;
-import com.leetmodel.user.vo.UserAdminVO;
+import com.leetmodel.common.api.vo.UserAdminVO;
 import com.leetmodel.user.vo.UserVO;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,8 +14,6 @@ import java.util.List;
 
 /**
  * 用户服务接口。
- *
- * @author LeetModel
  */
 public interface UserService extends IService<User> {
 

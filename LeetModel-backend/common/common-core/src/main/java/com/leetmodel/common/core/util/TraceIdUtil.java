@@ -18,8 +18,6 @@ import org.slf4j.MDC;
  * <pre>{@code
  * 2026-07-26 10:30:15.123 [user-service,abc123def456] INFO  c.l.u.c.UserController - 用户登录成功
  * }</pre>
- *
- * @author LeetModel
  */
 public final class TraceIdUtil {
 

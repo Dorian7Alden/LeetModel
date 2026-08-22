@@ -24,8 +24,6 @@ import java.util.List;
 
 /**
  * 团队管理接口。
- *
- * @author LeetModel
  */
 @RestController
 @RequestMapping("/api/teams")

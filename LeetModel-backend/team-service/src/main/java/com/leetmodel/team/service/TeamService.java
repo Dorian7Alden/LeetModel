@@ -11,8 +11,6 @@ import java.util.List;
 
 /**
  * 团队服务接口。
- *
- * @author LeetModel
  */
 public interface TeamService extends IService<Team> {
 

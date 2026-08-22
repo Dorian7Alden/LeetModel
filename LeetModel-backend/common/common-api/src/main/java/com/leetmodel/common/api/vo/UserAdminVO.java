@@ -1,4 +1,4 @@
-package com.leetmodel.user.vo;
+package com.leetmodel.common.api.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 管理员视角用户详情 VO（含角色信息）。
- *
- * @author LeetModel
  */
 @Data
 @Builder

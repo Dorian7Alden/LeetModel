@@ -7,8 +7,6 @@ import cn.dev33.satoken.stp.StpUtil;
  *
  * <p>业务层通过此工具操作 Token，而非直接调用 StpUtil，
  * 方便统一管理 Token 生命周期，添加日志或埋点。</p>
- *
- * @author LeetModel
  */
 public final class TokenUtil {
 

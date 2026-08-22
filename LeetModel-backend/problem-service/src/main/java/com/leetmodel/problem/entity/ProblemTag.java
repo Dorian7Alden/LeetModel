@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 题目-标签关联实体。
- *
- * @author LeetModel
  */
 @Data
 @TableName("problem_tag")

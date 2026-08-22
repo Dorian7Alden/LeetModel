@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 更新题目请求（所有字段可选，只更新非空字段）。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

@@ -3,7 +3,7 @@ package com.leetmodel.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.user.dto.RoleRequest;
+import com.leetmodel.common.api.dto.RoleRequest;
 import com.leetmodel.user.entity.Permission;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.RolePermission;
@@ -14,8 +14,8 @@ import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.RolePermissionMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
 import com.leetmodel.user.service.RoleService;
-import com.leetmodel.user.vo.PermissionVO;
-import com.leetmodel.user.vo.RoleVO;
+import com.leetmodel.common.api.vo.PermissionVO;
+import com.leetmodel.common.api.vo.RoleVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,8 +28,6 @@ import java.util.stream.Collectors;
 
 /**
  * 角色权限服务实现 —— 通过五表联查获取用户的角色和权限列表。
- *
- * @author LeetModel
  */
 @Slf4j
 @Service

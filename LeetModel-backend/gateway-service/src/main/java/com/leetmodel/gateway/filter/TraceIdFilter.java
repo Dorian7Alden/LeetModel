@@ -34,8 +34,6 @@ import java.util.UUID;
  * MDC 本质是 ThreadLocal，线程切换后会丢失。
  * 解决方案：在启动类中调用 {@code Hooks.enableAutomaticContextPropagation()}，
  * 将 MDC 上下文自动复制到 Reactor Context 并在线程切换时恢复。</p>
- *
- * @author LeetModel
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

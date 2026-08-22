@@ -11,11 +11,10 @@ import org.springframework.web.bind.annotation.PathVariable;
  *
  * <p>由 common-security 的 {@code StpInterfaceImpl} 调用，
  * 获取当前用户的角色和权限列表，供 Sa-Token 注解鉴权使用。</p>
- *
- * @author LeetModel
  */
 @FeignClient(
         name = "user-service",
+        contextId = "userFeignClient",
         path = "/internal/users",
         fallbackFactory = UserFeignFallback.class
 )

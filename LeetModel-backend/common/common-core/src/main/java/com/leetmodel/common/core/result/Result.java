@@ -20,7 +20,6 @@ import lombok.NoArgsConstructor;
  * 各模块可定义自己的错误码并传入 {@code Result.fail()}。</p>
  *
  * @param <T> 响应数据的类型
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

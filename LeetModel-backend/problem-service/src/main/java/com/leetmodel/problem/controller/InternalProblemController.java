@@ -11,8 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 题目服务内部 Feign 接口实现。
- *
- * @author LeetModel
  */
 @Tag(name = "内部接口")
 @RestController

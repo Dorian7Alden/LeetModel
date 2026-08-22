@@ -14,8 +14,6 @@ import java.util.List;
  * <p>
  * 列表场景：不含 links；详情场景：含 links。
  * </p>
- *
- * @author LeetModel
  */
 @Data
 @Builder

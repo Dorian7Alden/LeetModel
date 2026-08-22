@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 题目 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface ProblemMapper extends BaseMapper<Problem> {

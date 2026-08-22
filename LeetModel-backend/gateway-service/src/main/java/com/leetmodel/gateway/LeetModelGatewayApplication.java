@@ -17,8 +17,6 @@ import reactor.core.publisher.Hooks;
  * </ul>
  *
  * <p>技术栈：Spring Cloud Gateway（Netty + WebFlux，非阻塞 I/O）。</p>
- *
- * @author LeetModel
  */
 @SpringBootApplication
 @EnableDiscoveryClient

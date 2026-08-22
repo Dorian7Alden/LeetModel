@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 修改密码请求。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

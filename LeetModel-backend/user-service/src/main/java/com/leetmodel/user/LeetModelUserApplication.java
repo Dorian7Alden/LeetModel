@@ -15,7 +15,6 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  *   <li>{@code @EnableFeignClients} — 扫描 common-api 中的 Feign 接口</li>
  * </ul>
  *
- * @author LeetModel Team
  * @since 0.0.1
  */
 @SpringBootApplication(scanBasePackages = "com.leetmodel")

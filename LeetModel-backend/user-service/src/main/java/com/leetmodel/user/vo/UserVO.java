@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 用户信息 VO（脱敏，不含密码）。
- *
- * @author LeetModel
  */
 @Data
 @Builder

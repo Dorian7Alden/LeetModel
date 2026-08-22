@@ -7,8 +7,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * 题目服务 Feign 降级工厂。
- *
- * @author LeetModel
  */
 @Slf4j
 @Component

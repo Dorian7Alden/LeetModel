@@ -13,8 +13,6 @@ import lombok.Getter;
  *   <li>直接传入 {@link ErrorCode} 实例，使用枚举中预定义的消息</li>
  *   <li>传入 ErrorCode + 自定义消息，用于需要附加上下文的场景（如 "用户名已被占用：dorian"）</li>
  * </ul>
- *
- * @author LeetModel
  * @see ErrorCode
  * @see ErrorCodeEnum
  */

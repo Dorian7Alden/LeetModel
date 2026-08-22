@@ -6,8 +6,6 @@ import com.leetmodel.user.dto.RegisterRequest;
 
 /**
  * 认证服务接口。
- *
- * @author LeetModel
  */
 public interface AuthService {
 

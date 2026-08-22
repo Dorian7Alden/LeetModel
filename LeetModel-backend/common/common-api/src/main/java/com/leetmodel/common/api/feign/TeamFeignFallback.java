@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 团队服务 Feign 降级工厂。
- *
- * @author LeetModel
  */
 @Slf4j
 @Component

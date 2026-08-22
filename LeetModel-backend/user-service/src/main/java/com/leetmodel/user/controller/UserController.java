@@ -21,14 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 用户个人信息管理接口（需要登录）。
+ * 客户端用户自助接口。
  *
- * @author LeetModel
+ * <p>面向客户端，仅操作当前登录用户自己的数据。用户 ID 从 Token 中
+ * 解析获得，不接收外部传入的用户 ID，防止越权。</p>
  */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@Tag(name = "用户管理")
+@Tag(name = "客户端-用户自助")
 public class UserController {
 
     private final UserService userService;

@@ -1,10 +1,10 @@
-package com.leetmodel.user.controller.admin;
+package com.leetmodel.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import com.leetmodel.common.api.dto.RoleRequest;
+import com.leetmodel.common.api.feign.RoleAdminFeignClient;
+import com.leetmodel.common.api.vo.RoleVO;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.user.dto.RoleRequest;
-import com.leetmodel.user.service.RoleService;
-import com.leetmodel.user.vo.RoleVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,51 +21,48 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 管理员角色管理接口。
+ * 管理端角色管理接口。
  *
- * @author LeetModel
+ * <p>面向客户端管理端页面，通过 RoleAdminFeignClient 调用 user-service
+ * 完成角色 CRUD。本服务不操作数据库。</p>
  */
+@Tag(name = "管理端-角色管理")
 @RestController
 @RequestMapping("/api/admin/roles")
 @RequiredArgsConstructor
 @SaCheckRole("admin")
-@Tag(name = "管理员-角色管理")
-public class RoleController {
+public class AdminRoleController {
 
-    private final RoleService roleService;
+    private final RoleAdminFeignClient roleAdminFeignClient;
 
     @Operation(summary = "获取角色列表")
     @GetMapping
     public Result<List<RoleVO>> list() {
-        List<RoleVO> roles = roleService.listRoles();
-        return Result.ok(roles);
+        return roleAdminFeignClient.listRoles();
     }
 
     @Operation(summary = "获取角色详情")
-    @GetMapping("/{id}")
-    public Result<RoleVO> detail(@PathVariable Long id) {
-        RoleVO vo = roleService.getRoleById(id);
-        return Result.ok(vo);
+    @GetMapping("/{roleId}")
+    public Result<RoleVO> detail(@PathVariable Long roleId) {
+        return roleAdminFeignClient.getRole(roleId);
     }
 
     @Operation(summary = "创建角色")
     @PostMapping
     public Result<RoleVO> create(@Valid @RequestBody RoleRequest request) {
-        RoleVO vo = roleService.createRole(request);
-        return Result.ok(vo);
+        return roleAdminFeignClient.createRole(request);
     }
 
     @Operation(summary = "更新角色")
-    @PutMapping("/{id}")
-    public Result<RoleVO> update(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
-        RoleVO vo = roleService.updateRole(id, request);
-        return Result.ok(vo);
+    @PutMapping("/{roleId}")
+    public Result<RoleVO> update(@PathVariable Long roleId,
+                                 @Valid @RequestBody RoleRequest request) {
+        return roleAdminFeignClient.updateRole(roleId, request);
     }
 
     @Operation(summary = "删除角色")
-    @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable Long id) {
-        roleService.deleteRole(id);
-        return Result.ok();
+    @DeleteMapping("/{roleId}")
+    public Result<Void> delete(@PathVariable Long roleId) {
+        return roleAdminFeignClient.deleteRole(roleId);
     }
 }

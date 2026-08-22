@@ -16,17 +16,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 管理后台仪表盘接口。
+ * 管理端仪表盘接口。
  *
- * <p>通过 Feign 聚合各服务统计数据，后续可替换为缓存或定时任务预计算。</p>
- *
- * @author LeetModel
+ * <p>面向客户端管理端页面，通过 Feign 聚合各微服务统计数据。admin-service
+ * 不持有业务数据，只做聚合展示。</p>
  */
 @RestController
 @RequestMapping("/api/admin/dashboard")
 @RequiredArgsConstructor
 @SaCheckRole("admin")
-@Tag(name = "管理后台-仪表盘")
+@Tag(name = "管理端-仪表盘")
 public class DashboardController {
 
     private final UserFeignClient userFeignClient;

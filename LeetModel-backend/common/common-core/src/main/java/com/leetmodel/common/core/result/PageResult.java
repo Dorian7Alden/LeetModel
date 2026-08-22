@@ -20,7 +20,6 @@ import java.util.List;
  * <p>页码采用 1-based（首页 = 1），与前端常用分页组件保持一致。</p>
  *
  * @param <T> 列表元素的类型
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

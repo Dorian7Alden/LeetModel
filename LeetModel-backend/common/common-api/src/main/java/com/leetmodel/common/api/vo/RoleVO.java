@@ -1,4 +1,4 @@
-package com.leetmodel.user.vo;
+package com.leetmodel.common.api.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 角色 VO。
- *
- * @author LeetModel
  */
 @Data
 @Builder

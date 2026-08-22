@@ -7,8 +7,6 @@ import lombok.Data;
 
 /**
  * 用户-角色关联实体。
- *
- * @author LeetModel
  */
 @Data
 @TableName("user_role")

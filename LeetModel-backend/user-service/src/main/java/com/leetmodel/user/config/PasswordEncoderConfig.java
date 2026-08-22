@@ -9,8 +9,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * 密码编码器配置。
  *
  * <p>使用 BCrypt 加密——Spring Security 推荐，自动加盐，抗彩虹表攻击。</p>
- *
- * @author LeetModel
  */
 @Configuration
 public class PasswordEncoderConfig {

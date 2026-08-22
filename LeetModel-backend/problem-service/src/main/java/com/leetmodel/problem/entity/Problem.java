@@ -9,8 +9,6 @@ import java.math.BigDecimal;
 
 /**
  * 题目实体。
- *
- * @author LeetModel
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

@@ -9,8 +9,6 @@ import java.io.InputStream;
  *
  * <p>当前实现：MinIO，通过 {@link com.leetmodel.common.core.storage.impl.MinioStorageServiceImpl}。
  * 后续如需切换为 OSS / S3 / 本地文件系统，只需替换实现类，业务代码无需改动。</p>
- *
- * @author LeetModel
  */
 public interface StorageService {
 

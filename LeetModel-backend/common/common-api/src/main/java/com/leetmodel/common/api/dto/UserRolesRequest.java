@@ -1,4 +1,4 @@
-package com.leetmodel.user.dto;
+package com.leetmodel.common.api.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 用户角色更新请求。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

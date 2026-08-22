@@ -18,8 +18,6 @@ import org.springframework.context.annotation.Configuration;
  * </p>
  *
  * <p>注意：类名加 Security 前缀避免与 cn.dev33.satoken.config.SaTokenConfig 冲突。</p>
- *
- * @author LeetModel
  */
 @Configuration
 public class SecuritySaTokenConfig {

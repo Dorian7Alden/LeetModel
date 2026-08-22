@@ -11,8 +11,6 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
  *
  * <p>⚠️ Gateway 必须用 {@link CorsWebFilter}（WebFlux 响应式），
  * 不能用 Spring MVC 的 {@code CorsConfigurationSource}，否则不生效。</p>
- *
- * @author LeetModel
  */
 @Configuration
 public class CorsConfig {

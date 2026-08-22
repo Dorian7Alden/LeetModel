@@ -1,4 +1,4 @@
-package com.leetmodel.user.dto;
+package com.leetmodel.common.api.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -9,8 +9,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 用户状态修改请求。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

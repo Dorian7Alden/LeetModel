@@ -15,11 +15,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 认证控制器 —— 注册、登录、登出。
+ * 客户端认证控制器。
  *
- * @author LeetModel
+ * <p>面向客户端，提供注册、登录、登出接口。用户未登录时通过网关
+ * SaTokenConfig 白名单访问，不需要登录态。</p>
  */
-@Tag(name = "认证")
+@Tag(name = "客户端-认证")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor

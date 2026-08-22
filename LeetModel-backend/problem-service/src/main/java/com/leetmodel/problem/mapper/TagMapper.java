@@ -6,8 +6,6 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 标签 Mapper。
- *
- * @author LeetModel
  */
 @Mapper
 public interface TagMapper extends BaseMapper<Tag> {

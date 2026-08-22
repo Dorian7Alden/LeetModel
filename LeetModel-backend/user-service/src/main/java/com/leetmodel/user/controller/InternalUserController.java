@@ -13,12 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 内部 Feign 接口实现 —— 为 common-security 的 {@code StpInterfaceImpl} 提供角色权限数据。
- * 路径匹配 common-api 的 {@code UserFeignClient} 声明。
+ * 内部用户查询接口。
  *
- * @author LeetModel
+ * <p>仅供微服务间通过 Feign 调用，不暴露给客户端。路径匹配 common-api
+ * 中的 UserFeignClient。为 common-security 提供鉴权角色权限数据，
+ * 为 admin-service 提供用户统计数量。</p>
  */
-@Tag(name = "内部接口")
+@Tag(name = "内部接口-用户查询")
 @RestController
 @RequestMapping("/internal/users")
 @RequiredArgsConstructor

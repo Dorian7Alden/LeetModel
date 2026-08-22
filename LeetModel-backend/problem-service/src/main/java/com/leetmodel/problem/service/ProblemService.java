@@ -10,8 +10,6 @@ import com.leetmodel.problem.vo.ProblemVO;
 
 /**
  * 题目服务接口。
- *
- * @author LeetModel
  */
 public interface ProblemService extends IService<Problem> {
 

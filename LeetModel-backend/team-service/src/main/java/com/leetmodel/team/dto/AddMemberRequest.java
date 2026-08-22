@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 添加成员请求。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

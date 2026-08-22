@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 团队成员 VO。
- *
- * @author LeetModel
  */
 @Data
 @Builder

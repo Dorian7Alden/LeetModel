@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 
 /**
  * 标签服务实现。
- *
- * @author LeetModel
  */
 @Slf4j
 @Service

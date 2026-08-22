@@ -17,8 +17,6 @@ import lombok.NoArgsConstructor;
  *     private Integer status;
  * }
  * }</pre>
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

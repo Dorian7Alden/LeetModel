@@ -16,8 +16,6 @@ import java.util.stream.Collectors;
  * <p>引入 common-core 的微服务自动获得全局异常处理能力，无需额外配置。</p>
  *
  * <p>处理优先级：按方法声明顺序匹配，先精确后模糊。</p>
- *
- * @author LeetModel
  */
 @Slf4j
 @RestControllerAdvice

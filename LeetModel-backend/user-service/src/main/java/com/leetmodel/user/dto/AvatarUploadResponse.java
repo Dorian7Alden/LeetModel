@@ -6,8 +6,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 头像上传响应。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

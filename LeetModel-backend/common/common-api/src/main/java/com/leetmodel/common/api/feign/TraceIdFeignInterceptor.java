@@ -17,8 +17,6 @@ import org.springframework.stereotype.Component;
  * <p>放在 common-api 而非 common-core 的原因是：
  * common-core 不依赖 Feign，引入 {@link RequestInterceptor}
  * 会增加不必要的传递依赖。</p>
- *
- * @author LeetModel
  */
 @Component
 public class TraceIdFeignInterceptor implements RequestInterceptor {

@@ -8,8 +8,6 @@ import java.time.LocalDateTime;
 
 /**
  * 团队成员实体（不使用 BaseEntity，用联合唯一索引代替自增 ID）。
- *
- * @author LeetModel
  */
 @Data
 @TableName("team_member")

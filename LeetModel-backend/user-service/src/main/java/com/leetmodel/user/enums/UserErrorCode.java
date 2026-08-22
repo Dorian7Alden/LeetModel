@@ -14,8 +14,6 @@ import lombok.Getter;
  *   <li>CC：具体错误序号，从 01 递增</li>
  * </ul>
  * </p>
- *
- * @author LeetModel
  */
 @Getter
 @AllArgsConstructor

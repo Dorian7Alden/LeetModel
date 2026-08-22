@@ -10,8 +10,6 @@ import java.util.List;
 
 /**
  * 团队详情 VO（含成员列表）。
- *
- * @author LeetModel
  */
 @Data
 @Builder

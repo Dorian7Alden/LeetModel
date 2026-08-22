@@ -6,8 +6,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * 团队远程调用 DTO（精简信息，供其他服务使用）。
- *
- * @author LeetModel
  */
 @Data
 @NoArgsConstructor

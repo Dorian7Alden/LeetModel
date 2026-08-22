@@ -5,8 +5,6 @@ import com.leetmodel.problem.entity.Tag;
 
 /**
  * 标签服务接口。
- *
- * @author LeetModel
  */
 public interface TagService extends IService<Tag> {
 

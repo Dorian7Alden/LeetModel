@@ -25,8 +25,6 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>⚠️ 注意：Gateway 基于 WebFlux 响应式架构，必须使用
  * {@code sa-token-reactor-spring-boot3-starter}，servlet 版无法启动。</p>
- *
- * @author LeetModel
  */
 @Configuration
 public class SaTokenConfig {
@@ -82,7 +80,7 @@ public class SaTokenConfig {
                         "/api/users/v3/api-docs",
                         "/api/problems/v3/api-docs",
                         "/api/teams/v3/api-docs",
-                        "/api/admin/dashboard/v3/api-docs"
+                        "/api/admin/v3/api-docs"
                 )
                 // 鉴权规则：其余路径必须登录
                 .setAuth(obj -> StpUtil.checkLogin())

@@ -24,8 +24,6 @@ import java.util.List;
 
 /**
  * 团队服务实现。
- *
- * @author LeetModel
  */
 @Slf4j
 @Service

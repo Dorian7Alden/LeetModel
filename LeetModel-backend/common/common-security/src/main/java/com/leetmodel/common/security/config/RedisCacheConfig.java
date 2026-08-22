@@ -39,8 +39,6 @@ import java.time.Duration;
  *   <li><b>缓存穿透/击穿/雪崩</b>：穿透=查不存在的数据（布隆过滤器/缓存空值），
  *       击穿=热点 key 过期（互斥锁/永不过期），雪崩=大量 key 同时过期（TTL 加随机偏移）。</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Configuration
 public class RedisCacheConfig {

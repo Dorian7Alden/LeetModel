@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 
 /**
  * 权限实体。
- *
- * @author LeetModel
  */
 @Data
 @TableName("permission")

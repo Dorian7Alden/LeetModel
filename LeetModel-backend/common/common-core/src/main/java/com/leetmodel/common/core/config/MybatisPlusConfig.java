@@ -27,8 +27,6 @@ import java.time.LocalDateTime;
  *   <li><b>多租户插件</b>：在 Interceptor 链中追加 {@code TenantLineInnerInterceptor}
  *       即可实现多租户数据隔离，与分页插件共享同一个 {@link MybatisPlusInterceptor} 实例。</li>
  * </ul>
- *
- * @author LeetModel
  */
 @Configuration
 @ConditionalOnClass(MybatisPlusInterceptor.class)
