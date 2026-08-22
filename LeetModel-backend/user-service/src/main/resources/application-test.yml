@@ -17,7 +17,7 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
   api-docs:
-    path: /v3/api-docs
+    path: /api/auth/v3/api-docs
   group-configs:
     - group: 'user-service'
       display-name: '用户服务'

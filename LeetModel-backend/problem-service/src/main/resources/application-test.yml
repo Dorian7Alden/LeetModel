@@ -25,7 +25,7 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
   api-docs:
-    path: /v3/api-docs
+    path: /api/problems/v3/api-docs
   group-configs:
     - group: 'problem-service'
       display-name: '题目服务'
