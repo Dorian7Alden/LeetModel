@@ -76,7 +76,13 @@ public class SaTokenConfig {
                         "/v3/api-docs/**",
                         "/webjars/**",
                         "/swagger-resources/**",
-                        "/favicon.ico"
+                        "/favicon.ico",
+                        // 各服务被网关路由前缀包裹后的 OpenAPI 端点
+                        "/api/auth/v3/api-docs",
+                        "/api/users/v3/api-docs",
+                        "/api/problems/v3/api-docs",
+                        "/api/teams/v3/api-docs",
+                        "/api/admin/dashboard/v3/api-docs"
                 )
                 // 鉴权规则：其余路径必须登录
                 .setAuth(obj -> StpUtil.checkLogin())

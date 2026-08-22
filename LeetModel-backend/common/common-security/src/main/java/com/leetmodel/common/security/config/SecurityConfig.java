@@ -41,6 +41,11 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/public/problems/**",
+                                "/api/auth/v3/api-docs",
+                                "/api/users/v3/api-docs",
+                                "/api/problems/v3/api-docs",
+                                "/api/teams/v3/api-docs",
+                                "/api/admin/dashboard/v3/api-docs",
                                 "/doc.html",
                                 "/webjars/**",
                                 "/v3/api-docs/**",
