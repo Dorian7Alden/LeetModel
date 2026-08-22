@@ -16,6 +16,7 @@
 | 06 | [06-git-commit-workflow.md](06-git-commit-workflow.md) | Git commit 提交工作流：提交的完整操作步骤 | 实际执行 git 操作时参照 |
 | 07 | [07-version-spec.md](07-version-spec.md) | 版本号规范：版本编号规则 | 发布版本或打 tag 时参照 |
 | 08 | [08-database-spec.md](08-database-spec.md) | 数据库设计规范：命名、独立数据库、表结构、迁移策略 | 设计数据库表结构或新增微服务数据库时 |
+| 09 | [09-knife4j-annotation-spec.md](09-knife4j-annotation-spec.md) | Knife4j 接口注解规范：必须写 @Operation 且置于请求映射注解之前 | 编写 Controller 接口时 |
 
 ---
 
