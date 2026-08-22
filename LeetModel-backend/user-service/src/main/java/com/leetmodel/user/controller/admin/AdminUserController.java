@@ -34,30 +34,30 @@ public class AdminUserController {
 
     private final UserService userService;
 
-    @GetMapping
     @Operation(summary = "分页查询用户列表")
+    @GetMapping
     public Result<PageResult<UserAdminVO>> list(@Valid UserPageQuery query) {
         IPage<UserAdminVO> page = userService.listUsers(query);
         return Result.ok(PageResult.from(page));
     }
 
-    @GetMapping("/{id}")
     @Operation(summary = "查看用户详情（含角色信息）")
+    @GetMapping("/{id}")
     public Result<UserAdminVO> detail(@PathVariable Long id) {
         UserAdminVO vo = userService.getUserDetail(id);
         return Result.ok(vo);
     }
 
-    @PutMapping("/{id}/status")
     @Operation(summary = "启用/禁用用户")
+    @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id,
                                      @Valid @RequestBody UserStatusRequest request) {
         userService.updateStatus(id, request.getStatus());
         return Result.ok();
     }
 
-    @PutMapping("/{id}/roles")
     @Operation(summary = "更新用户角色")
+    @PutMapping("/{id}/roles")
     public Result<Void> updateRoles(@PathVariable Long id,
                                     @Valid @RequestBody UserRolesRequest request) {
         userService.updateRoles(id, request.getRoleIds());

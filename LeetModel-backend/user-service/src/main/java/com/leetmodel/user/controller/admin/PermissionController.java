@@ -27,8 +27,8 @@ public class PermissionController {
 
     private final RoleService roleService;
 
-    @GetMapping
     @Operation(summary = "获取权限列表")
+    @GetMapping
     public Result<List<PermissionVO>> list() {
         List<PermissionVO> permissions = roleService.listPermissions();
         return Result.ok(permissions);

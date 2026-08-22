@@ -35,31 +35,31 @@ public class TeamController {
 
     private final TeamService teamService;
 
-    @PostMapping
     @Operation(summary = "创建团队")
+    @PostMapping
     public Result<TeamVO> create(@Valid @RequestBody TeamCreateRequest request) {
         Long userId = UserContext.getUserId();
         TeamVO vo = teamService.createTeam(request, userId);
         return Result.ok(vo);
     }
 
-    @GetMapping
     @Operation(summary = "我加入的团队列表")
+    @GetMapping
     public Result<List<TeamVO>> listMyTeams() {
         Long userId = UserContext.getUserId();
         List<TeamVO> teams = teamService.listMyTeams(userId);
         return Result.ok(teams);
     }
 
-    @GetMapping("/{id}")
     @Operation(summary = "获取团队详情")
+    @GetMapping("/{id}")
     public Result<TeamVO> detail(@PathVariable Long id) {
         TeamVO vo = teamService.getTeamDetail(id);
         return Result.ok(vo);
     }
 
-    @PutMapping("/{id}")
     @Operation(summary = "更新团队信息（队长）")
+    @PutMapping("/{id}")
     public Result<TeamVO> update(@PathVariable Long id,
                                   @Valid @RequestBody TeamUpdateRequest request) {
         Long userId = UserContext.getUserId();
@@ -67,16 +67,16 @@ public class TeamController {
         return Result.ok(vo);
     }
 
-    @DeleteMapping("/{id}")
     @Operation(summary = "解散团队（队长）")
+    @DeleteMapping("/{id}")
     public Result<Void> dissolve(@PathVariable Long id) {
         Long userId = UserContext.getUserId();
         teamService.dissolveTeam(id, userId);
         return Result.ok();
     }
 
-    @PostMapping("/{id}/members")
     @Operation(summary = "添加成员（队长）")
+    @PostMapping("/{id}/members")
     public Result<Void> addMember(@PathVariable Long id,
                                    @Valid @RequestBody AddMemberRequest request) {
         Long userId = UserContext.getUserId();
@@ -84,8 +84,8 @@ public class TeamController {
         return Result.ok();
     }
 
-    @DeleteMapping("/{id}/members/{memberId}")
     @Operation(summary = "移除成员（队长）")
+    @DeleteMapping("/{id}/members/{memberId}")
     public Result<Void> removeMember(@PathVariable Long id,
                                       @PathVariable Long memberId) {
         Long userId = UserContext.getUserId();
@@ -93,8 +93,8 @@ public class TeamController {
         return Result.ok();
     }
 
-    @DeleteMapping("/{id}/leave")
     @Operation(summary = "退出团队")
+    @DeleteMapping("/{id}/leave")
     public Result<Void> leave(@PathVariable Long id) {
         Long userId = UserContext.getUserId();
         teamService.leaveTeam(id, userId);

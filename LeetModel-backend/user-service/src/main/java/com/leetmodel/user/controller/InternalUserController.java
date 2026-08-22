@@ -4,6 +4,7 @@ import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.user.service.RoleService;
 import com.leetmodel.user.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,12 +27,14 @@ public class InternalUserController {
     private final RoleService roleService;
     private final UserService userService;
 
+    @Operation(summary = "获取用户角色数据")
     @GetMapping("/{userId}/roles")
     public Result<UserRoleDTO> getUserRoles(@PathVariable Long userId) {
         UserRoleDTO dto = roleService.getUserRoles(userId);
         return Result.ok(dto);
     }
 
+    @Operation(summary = "获取用户数量")
     @GetMapping("/count")
     public Result<Long> getUserCount() {
         long count = userService.count();

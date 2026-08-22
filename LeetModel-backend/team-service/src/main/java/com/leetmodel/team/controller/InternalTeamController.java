@@ -7,6 +7,7 @@ import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamMember;
 import com.leetmodel.team.mapper.TeamMemberMapper;
 import com.leetmodel.team.service.TeamService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,7 @@ public class InternalTeamController {
     private final TeamService teamService;
     private final TeamMemberMapper teamMemberMapper;
 
+    @Operation(summary = "获取团队信息")
     @GetMapping("/{teamId}")
     public Result<TeamDTO> getTeamInfo(@PathVariable Long teamId) {
         Team team = teamService.getById(teamId);
@@ -43,6 +45,7 @@ public class InternalTeamController {
                 team.getStatus(), (int) memberCount));
     }
 
+    @Operation(summary = "获取团队成员用户 ID 列表")
     @GetMapping("/{teamId}/members")
     public Result<List<Long>> getMemberIds(@PathVariable Long teamId) {
         Team team = teamService.getById(teamId);
@@ -55,6 +58,7 @@ public class InternalTeamController {
         return Result.ok(memberIds);
     }
 
+    @Operation(summary = "获取活跃团队数量")
     @GetMapping("/count")
     public Result<Long> getActiveTeamCount() {
         long count = teamService.count(

@@ -34,36 +34,36 @@ public class RoleController {
 
     private final RoleService roleService;
 
-    @GetMapping
     @Operation(summary = "获取角色列表")
+    @GetMapping
     public Result<List<RoleVO>> list() {
         List<RoleVO> roles = roleService.listRoles();
         return Result.ok(roles);
     }
 
-    @GetMapping("/{id}")
     @Operation(summary = "获取角色详情")
+    @GetMapping("/{id}")
     public Result<RoleVO> detail(@PathVariable Long id) {
         RoleVO vo = roleService.getRoleById(id);
         return Result.ok(vo);
     }
 
-    @PostMapping
     @Operation(summary = "创建角色")
+    @PostMapping
     public Result<RoleVO> create(@Valid @RequestBody RoleRequest request) {
         RoleVO vo = roleService.createRole(request);
         return Result.ok(vo);
     }
 
-    @PutMapping("/{id}")
     @Operation(summary = "更新角色")
+    @PutMapping("/{id}")
     public Result<RoleVO> update(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
         RoleVO vo = roleService.updateRole(id, request);
         return Result.ok(vo);
     }
 
-    @DeleteMapping("/{id}")
     @Operation(summary = "删除角色")
+    @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         roleService.deleteRole(id);
         return Result.ok();

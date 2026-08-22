@@ -32,33 +32,33 @@ public class TagController {
 
     private final TagService tagService;
 
-    @GetMapping
     @Operation(summary = "查询所有标签")
+    @GetMapping
     public Result<List<Tag>> list() {
         List<Tag> tags = tagService.list();
         return Result.ok(tags);
     }
 
-    @PostMapping
-    @SaCheckRole("admin")
     @Operation(summary = "创建标签")
+    @SaCheckRole("admin")
+    @PostMapping
     public Result<Tag> create(@Valid @RequestBody TagRequest request) {
         Tag tag = tagService.createTag(request.getName());
         return Result.ok(tag);
     }
 
-    @PutMapping("/{id}")
-    @SaCheckRole("admin")
     @Operation(summary = "更新标签")
+    @SaCheckRole("admin")
+    @PutMapping("/{id}")
     public Result<Tag> update(@PathVariable Long id,
                                @Valid @RequestBody TagRequest request) {
         Tag tag = tagService.updateTag(id, request.getName());
         return Result.ok(tag);
     }
 
-    @DeleteMapping("/{id}")
-    @SaCheckRole("admin")
     @Operation(summary = "删除标签")
+    @SaCheckRole("admin")
+    @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         tagService.removeById(id);
         return Result.ok();

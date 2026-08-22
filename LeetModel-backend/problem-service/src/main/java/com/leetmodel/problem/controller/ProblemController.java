@@ -37,38 +37,38 @@ public class ProblemController {
 
     private final ProblemService problemService;
 
-    @GetMapping
     @Operation(summary = "分页查询题目")
+    @GetMapping
     public Result<PageResult<ProblemVO>> page(@Valid ProblemPageQuery query) {
         IPage<ProblemVO> page = problemService.pageProblems(query);
         return Result.ok(PageResult.from(page));
     }
 
-    @GetMapping("/{id}")
     @Operation(summary = "查询题目详情")
+    @GetMapping("/{id}")
     public Result<ProblemVO> detail(@PathVariable Long id) {
         ProblemVO vo = problemService.getProblemDetail(id);
         return Result.ok(vo);
     }
 
-    @PostMapping
     @Operation(summary = "创建题目")
+    @PostMapping
     public Result<ProblemVO> create(@Valid @RequestBody ProblemCreateRequest request) {
         Long creatorId = UserContext.getUserId();
         ProblemVO vo = problemService.createProblem(request, creatorId);
         return Result.ok(vo);
     }
 
-    @PutMapping("/{id}")
     @Operation(summary = "更新题目")
+    @PutMapping("/{id}")
     public Result<ProblemVO> update(@PathVariable Long id,
                                      @Valid @RequestBody ProblemUpdateRequest request) {
         ProblemVO vo = problemService.updateProblem(id, request);
         return Result.ok(vo);
     }
 
-    @DeleteMapping("/{id}")
     @Operation(summary = "删除题目（逻辑删除）")
+    @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         problemService.removeById(id);
         return Result.ok();

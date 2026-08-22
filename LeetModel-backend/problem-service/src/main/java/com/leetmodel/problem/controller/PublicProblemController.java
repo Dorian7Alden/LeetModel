@@ -27,16 +27,16 @@ public class PublicProblemController {
 
     private final ProblemService problemService;
 
-    @GetMapping
     @Operation(summary = "分页浏览已发布题目")
+    @GetMapping
     public Result<PageResult<ProblemVO>> page(@Valid ProblemPageQuery query) {
         // 公开接口强制只查询已发布题目
         query.setStatus(1);
         return Result.ok(PageResult.from(problemService.pageProblems(query)));
     }
 
-    @GetMapping("/{id}")
     @Operation(summary = "浏览题目详情")
+    @GetMapping("/{id}")
     public Result<ProblemVO> detail(@PathVariable Long id) {
         ProblemVO vo = problemService.getProblemDetail(id);
         return Result.ok(vo);

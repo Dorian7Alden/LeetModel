@@ -33,32 +33,32 @@ public class UserController {
 
     private final UserService userService;
 
-    @GetMapping("/me")
     @Operation(summary = "获取当前用户信息")
+    @GetMapping("/me")
     public Result<UserVO> profile() {
         Long userId = UserContext.getUserId();
         UserVO vo = userService.getProfile(userId);
         return Result.ok(vo);
     }
 
-    @PutMapping("/me")
     @Operation(summary = "更新个人信息（昵称、邮箱）")
+    @PutMapping("/me")
     public Result<UserVO> updateProfile(@Valid @RequestBody UserUpdateRequest request) {
         Long userId = UserContext.getUserId();
         UserVO vo = userService.updateProfile(userId, request);
         return Result.ok(vo);
     }
 
-    @PutMapping("/me/password")
     @Operation(summary = "修改密码")
+    @PutMapping("/me/password")
     public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         Long userId = UserContext.getUserId();
         userService.changePassword(userId, request);
         return Result.ok();
     }
 
-    @PostMapping("/me/avatar")
     @Operation(summary = "上传头像")
+    @PostMapping("/me/avatar")
     public Result<AvatarUploadResponse> uploadAvatar(@RequestParam("file") MultipartFile file) {
         Long userId = UserContext.getUserId();
         String avatarUrl = userService.updateAvatar(userId, file);

@@ -33,8 +33,8 @@ public class DashboardController {
     private final TeamFeignClient teamFeignClient;
     private final ProblemFeignClient problemFeignClient;
 
-    @GetMapping("/stats")
     @Operation(summary = "获取汇总统计数据")
+    @GetMapping("/stats")
     public Result<Map<String, Object>> stats() {
         Map<String, Object> result = new LinkedHashMap<>();
 
