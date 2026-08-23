@@ -15,8 +15,9 @@ API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JW
 |---------|---------|------|
 | `/api/auth/login` | user 服务 (`lb://user-service`) | 白名单 |
 | `/api/auth/register` | user 服务 (`lb://user-service`) | 白名单 |
-| `/api/user/**` | user 服务 (`lb://user-service`) | 需登录 |
+| `/api/users/**` | user 服务 (`lb://user-service`) | 需登录 |
 | `/api/problems/**` | problem 服务 (`lb://problem-service`) | 需登录 |
+| `/actuator/health` | Gateway 健康检查 | 白名单 |
 
 每个对外服务都需要配置对应路由。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP 和端口硬编码。
 
@@ -26,6 +27,10 @@ API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JW
 采用 Sa-Token JWT 无状态模式：Gateway 校验 JWT 签名和过期时间，不查 Redis Session。白名单路径在 `SaReactorFilter.addExclude()` 中声明。校验失败返回统一 JSON 格式 `{code: 40100, message: "未登录或 Token 已失效"}`。
 
 JWT 密钥必须与 user 服务保持一致，否则 user 服务签发的 Token 会被网关拒绝。
+
+Gateway 是外部请求认证的唯一入口。下游业务服务不再使用 Spring Security 建立独立登录态，只使用 Sa-Token 注解完成细粒度鉴权，避免同一请求被两套认证体系重复拦截。
+
+浏览器的 CORS OPTIONS 预检请求不携带登录态，Gateway 必须直接放行预检，由 `CorsWebFilter` 返回跨域响应头。放行只作用于 OPTIONS，随后发出的实际业务请求仍执行 Sa-Token 登录校验。
 
 
 ### 四、跨域处理

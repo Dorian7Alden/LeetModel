@@ -20,3 +20,4 @@
 | [bash环境下Windows反斜杠路径写出字面量文件名.md](bash环境下Windows反斜杠路径写出字面量文件名.md) | 批量写知识库文件时根目录多出 C: 字面量目录，README 互相覆盖 | bash 不解析反斜杠路径分隔符，整段 Windows 路径退化为单个字面量文件名 |
 | [Knife4j网关聚合文档加载失败.md](Knife4j网关聚合文档加载失败.md) | /doc.html 能打开，但分组文档加载失败，请求 /api/**/v3/api-docs 返回 40100 或 404/500 | 网关路由未剥离前缀，下游服务未在带前缀路径暴露 OpenAPI 文档，且网关与 Security 均未放行该路径 |
 | [Mockito匹配MyBatisPlus重载方法时编译歧义.md](Mockito匹配MyBatisPlus重载方法时编译歧义.md) | 测试编译提示 insert 或 updateById 方法匹配不明确 | 无类型 any 无法区分 MyBatis-Plus 的单实体与集合重载 |
+| [SpringSecurity与SaToken重复认证导致空403.md](SpringSecurity与SaToken重复认证导致空403.md) | 登录成功后业务接口仍返回空响应体 403 | Gateway 与业务服务使用两套未打通的认证状态 |
