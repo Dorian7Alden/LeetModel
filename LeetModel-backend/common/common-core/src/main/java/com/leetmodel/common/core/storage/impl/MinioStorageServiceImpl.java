@@ -4,7 +4,9 @@ import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.storage.MinioProperties;
 import com.leetmodel.common.core.storage.StorageService;
+import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -58,7 +60,10 @@ public class MinioStorageServiceImpl implements StorageService {
         String extension = getExtension(originalFilename);
         String objectName = prefix + "/" + UUID.randomUUID() + extension;
 
-        // 3. 上传到 MinIO
+        // 3. 确保 Bucket 存在
+        ensureBucketExists();
+
+        // 4. 上传到 MinIO
         try (InputStream inputStream = file.getInputStream()) {
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -71,7 +76,7 @@ public class MinioStorageServiceImpl implements StorageService {
             log.info("文件上传成功: {} (size={}bytes)", objectName, file.getSize());
         } catch (Exception e) {
             log.error("文件上传失败: {}", objectName, e);
-            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件上传失败: " + e.getMessage());
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件上传失败");
         }
 
         return objectName;
@@ -88,7 +93,7 @@ public class MinioStorageServiceImpl implements StorageService {
             );
         } catch (Exception e) {
             log.error("文件下载失败: {}", objectName, e);
-            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件下载失败: " + e.getMessage());
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件下载失败");
         }
     }
 
@@ -121,11 +126,35 @@ public class MinioStorageServiceImpl implements StorageService {
             log.info("文件删除成功: {}", objectName);
         } catch (Exception e) {
             log.error("文件删除失败: {}", objectName, e);
-            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件删除失败: " + e.getMessage());
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件删除失败");
         }
     }
 
     // ==================== 私有方法 ====================
+
+    /**
+     * 确保配置的 Bucket 已创建。
+     */
+    private void ensureBucketExists() {
+        try {
+            boolean exists = minioClient.bucketExists(
+                    BucketExistsArgs.builder()
+                            .bucket(properties.getBucket())
+                            .build()
+            );
+            if (exists) return;
+
+            minioClient.makeBucket(
+                    MakeBucketArgs.builder()
+                            .bucket(properties.getBucket())
+                            .build()
+            );
+            log.info("创建 MinIO Bucket: {}", properties.getBucket());
+        } catch (Exception e) {
+            log.error("初始化 MinIO Bucket 失败: {}", properties.getBucket(), e);
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "对象存储暂不可用");
+        }
+    }
 
     /**
      * 校验上传文件：非空、大小、类型。

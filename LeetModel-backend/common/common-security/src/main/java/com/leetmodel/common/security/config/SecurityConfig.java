@@ -9,13 +9,13 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Spring Security 配置 —— 与 Sa-Token 协同工作。
+ * Spring Security 基础配置。
  *
  * <p>职责分工：
  * <ul>
- *   <li>gateway 网关：认证（JWT 验签 + Redis 黑名单校验）</li>
- *   <li>业务服务 + common-security：鉴权（@SaCheckRole / @SaCheckPermission）</li>
- *   <li>SecurityConfig：关闭 CSRF + Session，放行公开资源（Knife4j 等）</li>
+ *   <li>Gateway 使用 Sa-Token 完成 JWT 登录认证</li>
+ *   <li>业务服务使用 Sa-Token 注解完成角色和权限鉴权</li>
+ *   <li>Spring Security 仅关闭不需要的默认机制，不重复维护认证状态</li>
  * </ul>
  * </p>
  */
@@ -34,22 +34,9 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
 
-                // 放行公开接口（登录注册、API 文档）
+                // Sa-Token 负责认证鉴权，Spring Security 不重复拦截请求
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/**",
-                                "/api/public/problems/**",
-                                "/api/auth/v3/api-docs",
-                                "/api/users/v3/api-docs",
-                                "/api/problems/v3/api-docs",
-                                "/api/teams/v3/api-docs",
-                                "/api/admin/v3/api-docs",
-                                "/doc.html",
-                                "/webjars/**",
-                                "/v3/api-docs/**",
-                                "/swagger-resources/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
 
                 // 无状态会话，每个请求独立认证

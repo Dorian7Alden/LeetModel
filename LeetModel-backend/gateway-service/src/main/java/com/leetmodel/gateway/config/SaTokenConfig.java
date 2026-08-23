@@ -1,11 +1,14 @@
 package com.leetmodel.gateway.config;
 
 import cn.dev33.satoken.jwt.StpLogicJwtForStateless;
+import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.reactor.filter.SaReactorFilter;
-import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.core.result.Result;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +30,10 @@ import org.springframework.context.annotation.Configuration;
  * {@code sa-token-reactor-spring-boot3-starter}，servlet 版无法启动。</p>
  */
 @Configuration
+@RequiredArgsConstructor
 public class SaTokenConfig {
+
+    private final ObjectMapper objectMapper;
 
     @Value("${jwt.secret-key}")
     private String jwtSecretKey;
@@ -67,6 +73,10 @@ public class SaTokenConfig {
                 .addExclude(
                         "/api/auth/login",
                         "/api/auth/register",
+                        // Gateway 自身健康检查无需登录
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/actuator/info",
                         // 公开题目浏览无需认证
                         "/api/public/problems/**",
                         // Knife4j 聚合文档页面与 API 规范端点
@@ -82,9 +92,24 @@ public class SaTokenConfig {
                         "/api/teams/v3/api-docs",
                         "/api/admin/v3/api-docs"
                 )
-                // 鉴权规则：其余路径必须登录
-                .setAuth(obj -> StpUtil.checkLogin())
+                // 浏览器 CORS 预检不携带登录态，实际业务请求仍必须登录
+                .setAuth(obj -> {
+                    if (!"OPTIONS".equalsIgnoreCase(SaHolder.getRequest().getMethod())) {
+                        StpUtil.checkLogin();
+                    }
+                })
                 // 鉴权失败返回统一格式 JSON
-                .setError(e -> Result.fail(40100, "未登录或 Token 已失效，请重新登录"));
+                .setError(e -> buildUnauthorizedResponse());
+    }
+
+    private String buildUnauthorizedResponse() {
+        SaHolder.getResponse().setHeader("Content-Type", "application/json;charset=UTF-8");
+        try {
+            return objectMapper.writeValueAsString(
+                    Result.fail(40100, "未登录或 Token 已失效，请重新登录")
+            );
+        } catch (JsonProcessingException e) {
+            return "{\"code\":40100,\"message\":\"未登录或 Token 已失效，请重新登录\",\"data\":null}";
+        }
     }
 }

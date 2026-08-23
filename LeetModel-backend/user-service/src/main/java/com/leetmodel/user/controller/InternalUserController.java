@@ -1,7 +1,9 @@
 package com.leetmodel.user.controller;
 
 import com.leetmodel.common.api.dto.UserRoleDTO;
+import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.service.RoleService;
 import com.leetmodel.user.service.UserService;
@@ -11,7 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 内部用户查询接口。
@@ -28,6 +34,7 @@ public class InternalUserController {
 
     private final RoleService roleService;
     private final UserService userService;
+    private final StorageService storageService;
 
     @Operation(summary = "获取用户角色数据")
     @GetMapping("/{userId}/roles")
@@ -44,10 +51,41 @@ public class InternalUserController {
         return Result.ok(available);
     }
 
+    @Operation(summary = "批量获取用户公开摘要")
+    @GetMapping("/public-summaries")
+    public Result<List<UserPublicSummaryDTO>> getPublicSummaries(
+            @RequestParam(required = false) List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Result.ok(List.of());
+        }
+        List<User> users = userService.listByIds(userIds);
+        List<UserPublicSummaryDTO> summaries = new ArrayList<>();
+        for (User user : users) {
+            summaries.add(new UserPublicSummaryDTO(
+                    user.getId(),
+                    user.getNickname(),
+                    resolveAvatarUrl(user.getAvatarPath())
+            ));
+        }
+        return Result.ok(summaries);
+    }
+
     @Operation(summary = "获取用户数量")
     @GetMapping("/count")
     public Result<Long> getUserCount() {
         long count = userService.count();
         return Result.ok(count);
+    }
+
+    /**
+     * 将头像对象路径转换为访问地址。
+     *
+     * @param avatarPath 头像对象路径
+     * @return 头像访问地址
+     */
+    private String resolveAvatarUrl(String avatarPath) {
+        if (avatarPath == null || avatarPath.isBlank()) return null;
+        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) return avatarPath;
+        return storageService.getUrl(avatarPath);
     }
 }

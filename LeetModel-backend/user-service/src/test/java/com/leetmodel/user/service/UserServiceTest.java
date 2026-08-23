@@ -1,6 +1,7 @@
 package com.leetmodel.user.service;
 
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.Role;
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 
@@ -50,6 +52,9 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private StorageService storageService;
+
     @InjectMocks
     private UserServiceImpl userService;
 
@@ -67,7 +72,7 @@ class UserServiceTest {
         user.setPassword("$2a$encoded");
         user.setNickname("Test");
         user.setEmail("test@example.com");
-        user.setAvatarUrl(null);
+        user.setAvatarPath(null);
         user.setStatus(1);
     }
 
@@ -108,6 +113,23 @@ class UserServiceTest {
         assertNotNull(vo);
         assertEquals("NewName", vo.getNickname());
         assertEquals("new@example.com", vo.getEmail());
+    }
+
+    @Test
+    @DisplayName("上传头像时只保存对象路径")
+    void updateAvatarStoresObjectPath() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "avatar.png", "image/png", "image-data".getBytes()
+        );
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(userMapper.updateById(any(User.class))).thenReturn(1);
+        when(storageService.upload(file, "avatars")).thenReturn("avatars/avatar.png");
+        when(storageService.getUrl("avatars/avatar.png")).thenReturn("http://storage/avatar.png");
+
+        String avatarUrl = userService.updateAvatar(1L, file);
+
+        assertEquals("avatars/avatar.png", user.getAvatarPath());
+        assertEquals("http://storage/avatar.png", avatarUrl);
     }
 
     @Test

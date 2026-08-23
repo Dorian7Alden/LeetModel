@@ -142,16 +142,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User user = getById(userId);
         BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
 
-        // 上传文件，获取头像URL
-        String objectName = storageService.upload(file, "avatars");
-        String avatarUrl = storageService.getUrl(objectName);
-
-        // 更新用户头像URL
-        user.setAvatarUrl(avatarUrl);
+        // 数据库只保存与域名无关的对象路径
+        String avatarPath = storageService.upload(file, "avatars");
+        user.setAvatarPath(avatarPath);
         updateById(user);
-        log.info("用户 {} 更新头像: {}", userId, objectName);
+        log.info("用户 {} 更新头像: {}", userId, avatarPath);
 
-        return avatarUrl;
+        return storageService.getUrl(avatarPath);
     }
 
     // ==================== 管理员方法 ====================
@@ -278,7 +275,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .username(user.getUsername())
                 .nickname(user.getNickname())
                 .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(resolveAvatarUrl(user.getAvatarPath()))
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())
                 .build();
@@ -293,12 +290,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .username(user.getUsername())
                 .nickname(user.getNickname())
                 .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl(resolveAvatarUrl(user.getAvatarPath()))
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
                 .roles(roles)
                 .build();
+    }
+
+    /**
+     * 将数据库中的头像路径转换为访问地址。
+     * 兼容迁移前已经保存的完整外部头像地址。
+     */
+    private String resolveAvatarUrl(String avatarPath) {
+        if (avatarPath == null || avatarPath.isBlank()) return null;
+        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
+            return avatarPath;
+        }
+        return storageService.getUrl(avatarPath);
     }
 
     /**

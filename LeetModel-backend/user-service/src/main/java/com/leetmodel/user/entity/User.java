@@ -25,8 +25,8 @@ public class User extends BaseEntity {
     /** 邮箱 */
     private String email;
 
-    /** 头像 URL */
-    private String avatarUrl;
+    /** 头像在对象存储中的路径 */
+    private String avatarPath;
 
     /** 账号状态：1=正常 0=禁用 */
     private Integer status;

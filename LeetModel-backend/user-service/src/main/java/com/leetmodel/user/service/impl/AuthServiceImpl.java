@@ -1,6 +1,7 @@
 package com.leetmodel.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.security.util.TokenUtil;
 import com.leetmodel.user.dto.LoginRequest;
@@ -13,6 +14,7 @@ import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
 import com.leetmodel.user.service.AuthService;
+import com.leetmodel.user.service.RoleService;
 import com.leetmodel.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
+    private final RoleService roleService;
 
     private static final String DEFAULT_ROLE_CODE = "user";
 
@@ -91,7 +94,15 @@ public class AuthServiceImpl implements AuthService {
         // 签发 Token
         String token = TokenUtil.login(user.getId());
 
-        return new LoginResponse(token, user.getId(), user.getUsername());
+        // 查询用户角色和权限，供客户端初始化菜单和路由
+        UserRoleDTO authorization = roleService.getUserRoles(user.getId());
+        return new LoginResponse(
+                token,
+                user.getId(),
+                user.getUsername(),
+                authorization.getRoles(),
+                authorization.getPermissions()
+        );
     }
 
     /**

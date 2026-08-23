@@ -1,10 +1,13 @@
 package com.leetmodel.user.controller;
 
+import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
 import com.leetmodel.user.dto.AvatarUploadResponse;
 import com.leetmodel.user.dto.ChangePasswordRequest;
 import com.leetmodel.user.dto.UserUpdateRequest;
+import com.leetmodel.user.dto.UserAuthorizationResponse;
+import com.leetmodel.user.service.RoleService;
 import com.leetmodel.user.service.UserService;
 import com.leetmodel.user.vo.UserVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
 
     private final UserService userService;
+    private final RoleService roleService;
 
     @Operation(summary = "获取当前用户信息")
     @GetMapping("/me")
@@ -40,6 +44,18 @@ public class UserController {
         Long userId = UserContext.getUserId();
         UserVO vo = userService.getProfile(userId);
         return Result.ok(vo);
+    }
+
+    @Operation(summary = "获取当前用户角色和权限")
+    @GetMapping("/me/authorization")
+    public Result<UserAuthorizationResponse> authorization() {
+        Long userId = UserContext.getUserId();
+        UserRoleDTO authorization = roleService.getUserRoles(userId);
+        UserAuthorizationResponse response = new UserAuthorizationResponse(
+                authorization.getRoles(),
+                authorization.getPermissions()
+        );
+        return Result.ok(response);
     }
 
     @Operation(summary = "更新个人信息（昵称、邮箱）")

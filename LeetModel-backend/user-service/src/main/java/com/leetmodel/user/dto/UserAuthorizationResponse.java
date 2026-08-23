@@ -7,25 +7,13 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 登录响应 DTO。
+ * 当前用户角色和权限响应。
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginResponse {
+public class UserAuthorizationResponse {
 
-    /** JWT Token */
-    private String token;
-
-    /** 用户 ID */
-    private Long userId;
-
-    /** 用户名 */
-    private String username;
-
-    /** 用户角色编码 */
     private List<String> roles;
-
-    /** 用户权限编码 */
     private List<String> permissions;
 }

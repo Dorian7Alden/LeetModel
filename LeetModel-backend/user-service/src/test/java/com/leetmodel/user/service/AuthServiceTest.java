@@ -1,7 +1,10 @@
 package com.leetmodel.user.service;
 
+import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.security.util.TokenUtil;
 import com.leetmodel.user.dto.LoginRequest;
+import com.leetmodel.user.dto.LoginResponse;
 import com.leetmodel.user.dto.RegisterRequest;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
@@ -16,8 +19,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +49,9 @@ class AuthServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private RoleService roleService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -145,5 +154,27 @@ class AuthServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> authService.login(request));
         assertEquals(UserErrorCode.ACCOUNT_DISABLED.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("登录成功返回角色和权限")
+    void loginReturnsAuthorization() {
+        when(userService.findByUsername("testuser")).thenReturn(user);
+        when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
+        when(roleService.getUserRoles(1L)).thenReturn(new UserRoleDTO(
+                1L,
+                List.of("admin"),
+                List.of("user:read", "user:update")
+        ));
+
+        try (MockedStatic<TokenUtil> tokenUtil = mockStatic(TokenUtil.class)) {
+            tokenUtil.when(() -> TokenUtil.login(1L)).thenReturn("jwt-token");
+
+            LoginResponse response = authService.login(new LoginRequest("testuser", "password123"));
+
+            assertEquals("jwt-token", response.getToken());
+            assertEquals(List.of("admin"), response.getRoles());
+            assertEquals(List.of("user:read", "user:update"), response.getPermissions());
+        }
     }
 }

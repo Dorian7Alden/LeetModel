@@ -1,5 +1,6 @@
 package com.leetmodel.common.core.result;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.leetmodel.common.core.exception.ErrorCode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -93,6 +94,7 @@ public class Result<T> {
      * 判断是否为成功响应。
      * 2xxxx = 成功响应。
      */
+    @JsonIgnore
     public boolean isSuccess() {
         return this.code >= 20000 && this.code < 30000;
     }

@@ -2,7 +2,10 @@ package com.leetmodel.common.core.storage.impl;
 
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.MinioProperties;
+import io.minio.BucketExistsArgs;
+import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * MinIO 存储服务单元测试。
@@ -79,5 +85,23 @@ class MinioStorageServiceTest {
                 "text/plain", content);
 
         assertThrows(BusinessException.class, () -> storageService.upload(largeFile));
+    }
+
+    @Test
+    @DisplayName("首次上传时自动创建 Bucket")
+    void uploadCreatesMissingBucket() throws Exception {
+        MultipartFile file = new MockMultipartFile(
+                "file",
+                "avatar.png",
+                "image/png",
+                "image-data".getBytes()
+        );
+        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(false);
+
+        String objectName = storageService.upload(file, "avatars");
+
+        assertTrue(objectName.startsWith("avatars/"));
+        verify(minioClient).makeBucket(any(MakeBucketArgs.class));
+        verify(minioClient).putObject(any(PutObjectArgs.class));
     }
 }
