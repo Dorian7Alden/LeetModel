@@ -15,18 +15,6 @@ import java.time.LocalDateTime;
  * MyBatis-Plus 全局配置 —— 分页插件 + 自动填充。
  *
  * <p>引入 common-core 的微服务自动获得分页和自动填充能力，无需额外配置。</p>
- *
- * <h3>面试考点</h3>
- * <ul>
- *   <li><b>分页原理</b>：MyBatis-Plus 通过 {@link PaginationInnerInterceptor} 拦截
- *       Executor#query，在 SQL 执行前动态追加方言特定的 LIMIT 子句。
- *       不注册此插件时，{@code IPage} 退化为全量查询 + 内存截断。</li>
- *   <li><b>自动填充原理</b>：{@link MetaObjectHandler} 在 MyBatis 执行 insert/update
- *       前回调，通过反射设置实体字段值。与数据库 DEFAULT 值的区别：前者是代码层保证，
- *       后者依赖 DDL，代码层更可控。</li>
- *   <li><b>多租户插件</b>：在 Interceptor 链中追加 {@code TenantLineInnerInterceptor}
- *       即可实现多租户数据隔离，与分页插件共享同一个 {@link MybatisPlusInterceptor} 实例。</li>
- * </ul>
  */
 @Configuration
 @ConditionalOnClass(MybatisPlusInterceptor.class)

@@ -25,17 +25,6 @@ import java.util.TimeZone;
  *
  * <p>通过 {@link Jackson2ObjectMapperBuilderCustomizer} 而非直接覆盖 {@link ObjectMapper}，
  * 保留 Spring Boot 的其他自动配置（如 HttpMessageConverter），仅追加自定义规则。</p>
- *
- * <h3>面试考点</h3>
- * <ul>
- *   <li><b>为什么用 BuilderCustomizer 而非直接返回 ObjectMapper？</b>
- *       直接返回 ObjectMapper Bean 会替换 Spring Boot 的默认配置，可能破坏其他自动配置。
- *       Customizer 是追加式配置，更安全。</li>
- *   <li><b>Java 8 时间 API 序列化</b>：默认 Jackson 将 {@code LocalDateTime} 序列化为数组
- *       {@code [2026,7,30,10,0,0]}，因为缺少 JSR-310 模块。{@code JavaTimeModule} 解决此问题。</li>
- *   <li><b>@JsonFormat vs 全局配置</b>：全局配置是兜底，{@code @JsonFormat(pattern="...")}
- *       优先级更高，可用于特殊字段覆盖。</li>
- * </ul>
  */
 @Configuration
 public class JacksonConfig {

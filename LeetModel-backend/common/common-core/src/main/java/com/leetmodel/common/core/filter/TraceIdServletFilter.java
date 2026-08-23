@@ -39,10 +39,12 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
     static final String TRACE_ID_HEADER = TraceIdUtil.TRACE_ID_HEADER;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+
         String traceId = request.getHeader(TRACE_ID_HEADER);
         if (traceId != null && !traceId.isBlank()) {
             TraceIdUtil.setTraceId(traceId);
