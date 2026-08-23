@@ -34,7 +34,7 @@
       <div class="auth-form-wrapper">
         <div class="auth-form-card">
           <h2 class="form-title">欢迎回来</h2>
-          <p class="form-subtitle">使用注册时的邮箱登录您的账号以继续</p>
+          <p class="form-subtitle">使用用户名登录您的账号以继续</p>
 
           <el-form
             ref="formRef"
@@ -44,12 +44,12 @@
             class="auth-form"
             @submit.prevent="handleLogin"
           >
-            <el-form-item prop="email">
+            <el-form-item prop="username">
               <el-input
-                v-model="form.email"
-                placeholder="请输入邮箱"
+                v-model="form.username"
+                placeholder="请输入用户名"
                 size="large"
-                :prefix-icon="Message"
+                :prefix-icon="User"
                 clearable
               />
             </el-form-item>
@@ -65,11 +65,6 @@
                 @keyup.enter="handleLogin"
               />
             </el-form-item>
-
-            <div class="form-extra">
-              <el-checkbox v-model="rememberMe" label="记住我" />
-              <router-link to="/forgot-password" class="forgot-link">忘记密码？</router-link>
-            </div>
 
             <el-form-item>
               <el-button
@@ -96,27 +91,24 @@
 <script setup>
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
-import { login } from "@/api/user";
+import { getCurrentUser, login } from "@/api/user";
 import { ElMessage } from "element-plus";
-import { Message, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
+import { User, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
-import request from "@/api/request";
 
 const userStore = useUserStore();
 const router = useRouter();
 const formRef = ref(null);
 const loading = ref(false);
-const rememberMe = ref(false);
 
 const form = reactive({
-  email: "",
+  username: "",
   password: "",
 });
 
 const rules = {
-  email: [
-    { required: true, message: "请输入邮箱", trigger: "blur" },
-    { type: "email", message: "请输入有效的邮箱地址", trigger: ["blur", "change"] },
+  username: [
+    { required: true, message: "请输入用户名", trigger: "blur" },
   ],
   password: [
     { required: true, message: "请输入密码", trigger: "blur" },
@@ -133,34 +125,22 @@ async function handleLogin() {
     const res = await login(form);
     if (res.code === 20000) {
       const data = res.data;
-      userStore.login(
-        data.token,
-        data.username || data.email,
-        data.email,
-        data.role || "MEMBER"
-      );
-      localStorage.setItem("userId", data.id);
+      userStore.login(data);
 
-      // Fetch full profile for avatar
       try {
-        const profile = await request.get(`/users/${data.id}`);
-        userStore.updateProfile({ avatarUrl: profile.data.avatarUrl || "" });
-      } catch { /* ignore */ }
+        const profileRes = await getCurrentUser();
+        userStore.updateProfile(profileRes.data);
+      } catch (error) {
+        console.warn("登录成功，但用户资料加载失败", error);
+      }
 
       ElMessage.success("登录成功");
       router.push("/");
     } else {
-      ElMessage.error(res.msg || "登录失败");
+      ElMessage.error(res.message || "登录失败");
     }
   } catch (error) {
-    console.warn("后端未连接，使用离线模式登录");
-    // Mock login for development without backend
-    const mockToken = "dev-token-" + Date.now();
-    const role = form.email.includes("admin") ? "SUPER_ADMIN" : "MEMBER";
-    userStore.login(mockToken, form.email.split("@")[0], form.email, role);
-    localStorage.setItem("userId", "1001");
-    ElMessage.success("离线模式登录成功（Role: " + role + "）");
-    router.push("/");
+    ElMessage.error(error?.response?.data?.message || error.message || "登录失败");
   } finally {
     loading.value = false;
   }

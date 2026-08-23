@@ -14,9 +14,10 @@
         :key="idx"
         class="avatar-circle"
         :style="{ backgroundColor: avatarColors[idx % avatarColors.length] }"
-        :title="member"
+        :title="member.nickname || `用户 ${member.userId}`"
       >
-        {{ member.charAt(0) }}
+        <img v-if="member.avatarUrl" :src="member.avatarUrl" class="avatar-image" />
+        <template v-else>{{ (member.nickname || String(member.userId)).charAt(0) }}</template>
       </div>
       <!-- 空位 -->
       <div
@@ -28,16 +29,14 @@
       </div>
     </div>
 
-    <!-- 缺失角色标签 -->
-    <div class="missing-roles" v-if="team.missingRoles.length > 0">
-      <span class="missing-label">急招：</span>
-      <span v-for="role in team.missingRoles" :key="role" class="role-tag">
+    <div class="missing-roles" v-if="recruitmentRoles.length > 0">
+      <span class="missing-label">招募：</span>
+      <span v-for="role in recruitmentRoles" :key="role" class="role-tag">
         {{ role }}
       </span>
     </div>
     <div class="missing-roles full-team" v-else>
-      <el-icon><CircleCheck /></el-icon>
-      <span>队伍已满员</span>
+      <span>{{ team.recruiting ? '招募中，暂未指定角色' : '暂停招募' }}</span>
     </div>
   </div>
 </template>
@@ -45,7 +44,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, CircleCheck } from '@element-plus/icons-vue'
+import { User } from '@element-plus/icons-vue'
 
 const props = defineProps({
   team: { type: Object, required: true },
@@ -56,11 +55,19 @@ const router = useRouter()
 const avatarColors = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#8b5cf6', '#0891b2']
 
 const emptySlots = computed(() => {
-  return Math.max(0, props.team.maxMembers - props.team.memberCount)
+  return props.team.remainingSlots
+})
+
+const recruitmentRoles = computed(() => {
+  const roles = []
+  if (props.team.needModeler) roles.push('建模手')
+  if (props.team.needProgrammer) roles.push('编程手')
+  if (props.team.needWriter) roles.push('论文手')
+  return roles
 })
 
 function goDetail() {
-  router.push({ name: 'TeamDetail', params: { id: props.team.teamId } })
+  router.push({ name: 'TeamDetail', params: { id: props.team.id } })
 }
 </script>
 
@@ -146,6 +153,8 @@ function goDetail() {
   border: 2px dashed var(--lm-border, #d9dce1);
   box-shadow: none;
 }
+
+.avatar-image { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
 .missing-roles {
   display: flex;

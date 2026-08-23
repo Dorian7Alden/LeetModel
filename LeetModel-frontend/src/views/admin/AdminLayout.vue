@@ -138,8 +138,7 @@ const greeting = computed(() => {
 });
 
 const roleLabel = computed(() => {
-  const map = { SUPER_ADMIN: "系统管理员", ADMIN: "普通管理员", MEMBER: "成员" };
-  return map[userStore.role] || "用户";
+  return userStore.roleLabel;
 });
 
 function generateBreadcrumbs() {

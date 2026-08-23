@@ -54,35 +54,14 @@
               />
             </el-form-item>
 
-            <el-form-item prop="email">
+            <el-form-item prop="nickname">
               <el-input
-                v-model="form.email"
-                placeholder="请输入邮箱"
+                v-model="form.nickname"
+                placeholder="请输入昵称（选填）"
                 size="large"
-                :prefix-icon="Message"
+                :prefix-icon="UserFilled"
                 clearable
               />
-            </el-form-item>
-
-            <el-form-item prop="code">
-              <div class="code-row">
-                <el-input
-                  v-model="form.code"
-                  placeholder="验证码"
-                  size="large"
-                  :prefix-icon="Key"
-                  class="code-input"
-                />
-                <el-button
-                  type="primary"
-                  class="code-btn"
-                  :disabled="countdown > 0 || codeSending"
-                  :loading="codeSending"
-                  @click="getCode"
-                >
-                  {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
-                </el-button>
-              </div>
             </el-form-item>
 
             <el-form-item prop="password">
@@ -131,20 +110,18 @@
 
 <script setup>
 import { ref, reactive } from "vue";
-import { sendCode, register } from "@/api/user";
+import { register } from "@/api/user";
 import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
-import { User, Message, Lock, Key, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
+import { User, UserFilled, Lock, CircleCheck, ArrowLeft } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const formRef = ref(null);
 const registering = ref(false);
-const codeSending = ref(false);
 
 const form = reactive({
   username: "",
-  email: "",
-  code: "",
+  nickname: "",
   password: "",
   confirmPassword: "",
 });
@@ -162,14 +139,10 @@ const validateConfirmPassword = (_rule, value, callback) => {
 const rules = {
   username: [
     { required: true, message: "请输入用户名", trigger: "blur" },
-    { min: 2, max: 20, message: "用户名长度为2-20个字符", trigger: "blur" },
+    { min: 4, max: 32, message: "用户名长度为4-32个字符", trigger: "blur" },
   ],
-  email: [
-    { required: true, message: "请输入邮箱", trigger: "blur" },
-    { type: "email", message: "请输入有效的邮箱地址", trigger: ["blur", "change"] },
-  ],
-  code: [
-    { required: true, message: "请输入验证码", trigger: "blur" },
+  nickname: [
+    { max: 32, message: "昵称最多32个字符", trigger: "blur" },
   ],
   password: [
     { required: true, message: "请输入密码", trigger: "blur" },
@@ -180,40 +153,6 @@ const rules = {
   ],
 };
 
-const countdown = ref(0);
-let timer = null;
-
-const getCode = async () => {
-  if (!form.email) {
-    ElMessage.warning("请先输入邮箱");
-    return;
-  }
-  // Validate email format before sending
-  try {
-    await formRef.value.validateField("email");
-  } catch {
-    return;
-  }
-
-  codeSending.value = true;
-  try {
-    await sendCode(form.email);
-    ElMessage.success("验证码已发送，请查收邮件");
-    countdown.value = 60;
-    timer = setInterval(() => {
-      countdown.value--;
-      if (countdown.value <= 0) {
-        clearInterval(timer);
-        timer = null;
-      }
-    }, 1000);
-  } catch (err) {
-    ElMessage.error("验证码发送失败，请稍后重试");
-  } finally {
-    codeSending.value = false;
-  }
-};
-
 const doRegister = async () => {
   const valid = await formRef.value.validate().catch(() => false);
   if (!valid) return;
@@ -222,16 +161,15 @@ const doRegister = async () => {
   try {
     const res = await register({
       username: form.username,
-      email: form.email,
       password: form.password,
-      code: form.code,
+      nickname: form.nickname || null,
     });
-    ElMessage.success(res.msg || "注册成功");
+    ElMessage.success(res.message || "注册成功");
     setTimeout(() => {
       router.push("/login");
     }, 1200);
   } catch (err) {
-    const msg = err?.response?.data?.msg || err?.response?.msg || "注册失败";
+    const msg = err?.response?.data?.message || err.message || "注册失败";
     ElMessage.error(msg);
   } finally {
     registering.value = false;

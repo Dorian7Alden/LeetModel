@@ -1,99 +1,91 @@
 <template>
   <div class="team-page">
-    <PageHeader title="组队广场" description="寻找志同道合的队友，组建你的建模团队">
-      <template #actions>
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索队伍名称..."
-          class="search-input"
-          clearable
-          :prefix-icon="Search"
-        />
-        <el-button type="primary" @click="showCreateDialog = true">
-          <el-icon><Plus /></el-icon>
-          创建队伍
-        </el-button>
-      </template>
+    <PageHeader title="组队中心" description="浏览公开队伍，或管理我创建和加入的队伍">
+      <template #actions><el-button type="primary" @click="showCreateDialog = true"><el-icon><Plus /></el-icon>创建队伍</el-button></template>
     </PageHeader>
 
-    <div class="teams-grid">
-      <TeamCard v-for="team in filteredTeams" :key="team.teamId" :team="team" />
-    </div>
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane label="我的队伍" name="mine" />
+      <el-tab-pane label="组队广场" name="public">
+        <div class="team-filters">
+          <el-input v-model="query.keyword" placeholder="搜索名称或简介" clearable :prefix-icon="Search" @keyup.enter="loadPublicTeams" />
+          <el-checkbox v-model="query.availableOnly">只看未满员</el-checkbox>
+          <el-checkbox v-model="query.recruitingOnly">只看招募中</el-checkbox>
+          <el-checkbox v-model="query.needModeler">建模手</el-checkbox>
+          <el-checkbox v-model="query.needProgrammer">编程手</el-checkbox>
+          <el-checkbox v-model="query.needWriter">论文手</el-checkbox>
+          <el-select v-model="query.sortBy"><el-option label="最新创建" value="createTime" /><el-option label="剩余名额" value="remainingSlots" /></el-select>
+          <el-button type="primary" @click="handleSearch">筛选</el-button>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
 
-    <div v-if="filteredTeams.length === 0" class="empty-state">
-      <el-empty description="暂无匹配的队伍" />
+    <div v-loading="loading" class="teams-grid">
+      <TeamCard v-for="team in teams" :key="team.id" :team="team" />
     </div>
+    <el-empty v-if="!loading && teams.length === 0" description="暂无符合条件的队伍" />
+    <el-pagination v-if="activeTab === 'public' && total > query.pageSize" v-model:current-page="query.page" :page-size="query.pageSize" :total="total" layout="prev, pager, next, total" @current-change="loadPublicTeams" />
 
-    <!-- 创建队伍弹窗 -->
-    <el-dialog v-model="showCreateDialog" title="创建队伍" width="520px" :close-on-click-modal="false">
+    <el-dialog v-model="showCreateDialog" title="创建队伍" width="520px">
       <el-form :model="createForm" label-width="80px">
-        <el-form-item label="队伍名称" required>
-          <el-input v-model="createForm.name" placeholder="给你的队伍起个名字" maxlength="30" show-word-limit />
-        </el-form-item>
-        <el-form-item label="队伍简介">
-          <el-input v-model="createForm.description" type="textarea" :rows="3" placeholder="介绍一下队伍的方向和目标" maxlength="200" show-word-limit />
-        </el-form-item>
-        <el-form-item label="最大人数">
-          <el-input-number v-model="createForm.maxMembers" :min="3" :max="5" />
-        </el-form-item>
+        <el-form-item label="队伍名称" required><el-input v-model="createForm.name" maxlength="64" show-word-limit /></el-form-item>
+        <el-form-item label="队伍简介"><el-input v-model="createForm.description" type="textarea" :rows="3" maxlength="256" show-word-limit /></el-form-item>
+        <el-form-item label="最大人数"><el-input-number v-model="createForm.maxMembers" :min="1" :max="3" /></el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate">确认创建</el-button>
-      </template>
+      <template #footer><el-button @click="showCreateDialog = false">取消</el-button><el-button type="primary" @click="handleCreate">确认创建</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
-import { mockTeams } from '@/mock/data.js'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { createTeam, getMyTeams, getPublicTeams } from '@/api/team'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TeamCard from './components/TeamCard.vue'
 
-const searchKeyword = ref('')
+const activeTab = ref('mine')
+const teams = ref([])
+const total = ref(0)
+const loading = ref(false)
 const showCreateDialog = ref(false)
+const query = reactive({ page: 1, pageSize: 9, keyword: '', availableOnly: false, recruitingOnly: false, needModeler: false, needProgrammer: false, needWriter: false, sortBy: 'createTime' })
+const createForm = reactive({ name: '', description: '', maxMembers: 3 })
 
-const teams = ref([...mockTeams])
-
-const filteredTeams = computed(() => {
-  if (!searchKeyword.value) return teams.value
-  const keyword = searchKeyword.value.toLowerCase()
-  return teams.value.filter(
-    (t) =>
-      t.name.toLowerCase().includes(keyword) ||
-      t.description.toLowerCase().includes(keyword)
-  )
-})
-
-const createForm = ref({
-  name: '',
-  description: '',
-  maxMembers: 3,
-})
-
-function handleCreate() {
-  if (!createForm.value.name.trim()) {
-    ElMessage.warning('请输入队伍名称')
-    return
-  }
-  const newTeam = {
-    teamId: Date.now(),
-    name: createForm.value.name.trim(),
-    description: createForm.value.description.trim(),
-    memberCount: 1,
-    maxMembers: createForm.value.maxMembers,
-    members: ['我'],
-    missingRoles: ['建模', '编程', '写作'].slice(0, createForm.value.maxMembers - 1),
-    createTime: new Date().toISOString().split('T')[0],
-  }
-  teams.value.unshift(newTeam)
-  showCreateDialog.value = false
-  createForm.value = { name: '', description: '', maxMembers: 3 }
-  ElMessage.success('队伍创建成功')
+async function loadPublicTeams() {
+  loading.value = true
+  try {
+    const res = await getPublicTeams(query)
+    teams.value = res.data.rows || []
+    total.value = res.data.total || 0
+  } catch (error) { ElMessage.error(error.message || '公共队伍加载失败') }
+  finally { loading.value = false }
 }
+
+async function loadMyTeams() {
+  loading.value = true
+  try { teams.value = (await getMyTeams()).data || [] }
+  catch (error) { ElMessage.error(error.message || '我的队伍加载失败') }
+  finally { loading.value = false }
+}
+
+function handleSearch() { query.page = 1; loadPublicTeams() }
+function handleTabChange(name) { name === 'public' ? loadPublicTeams() : loadMyTeams() }
+
+async function handleCreate() {
+  if (!createForm.name.trim()) return ElMessage.warning('请输入队伍名称')
+  try {
+    const created = (await createTeam({ ...createForm, name: createForm.name.trim(), description: createForm.description.trim() || null })).data
+    Object.assign(createForm, { name: '', description: '', maxMembers: 3 })
+    showCreateDialog.value = false
+    activeTab.value = 'mine'
+    await loadMyTeams()
+    ElMessage.success(`队伍“${created.name}”创建成功`)
+  } catch (error) { ElMessage.error(error.message || '队伍创建失败') }
+}
+
+onMounted(loadMyTeams)
 </script>
 
 <style scoped>

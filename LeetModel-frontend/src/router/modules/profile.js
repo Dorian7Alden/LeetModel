@@ -3,6 +3,7 @@ export default [
     path: "profile",
     name: "Profile",
     component: () => import("@/views/profile/ProfilePage.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "profile/analysis",
@@ -23,6 +24,7 @@ export default [
     path: "profile/settings",
     name: "Settings",
     component: () => import("@/views/profile/pages/SettingsPage.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "submission/:id",

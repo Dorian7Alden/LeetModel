@@ -11,7 +11,10 @@
 
     <div class="user-info">
       <div class="info-top">
-        <h3 class="username">{{ profile.username || '未设置用户名' }}</h3>
+        <h3 class="username">{{ profile.nickname || profile.username || '未设置昵称' }}</h3>
+        <el-tag :type="roleTagType" size="small" effect="light">
+          {{ userStore.roleLabel }}
+        </el-tag>
       </div>
       <div class="info-details">
         <div class="detail-item">
@@ -45,20 +48,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { EditPen, Message, School, Phone, Clock, Camera } from '@element-plus/icons-vue'
-import request from '@/api/request'
-import { uploadAvatar } from '@/api/user'
+import { getCurrentUser, uploadCurrentAvatar } from '@/api/user'
 import { useUserStore } from '@/store/user'
 
-const userId = localStorage.getItem('userId')
 const userStore = useUserStore()
+const roleTagType = computed(() => {
+  if (userStore.primaryRole === 'admin') return 'danger'
+  if (userStore.primaryRole === 'vip') return 'warning'
+  return 'info'
+})
 
 const fileInput = ref(null)
 
 const profile = ref({
   username: '',
+  nickname: '',
   email: '',
   school: '',
   phone: '',
@@ -68,9 +75,10 @@ const profile = ref({
 
 async function loadProfile() {
   try {
-    const res = await request.get(`/users/${userId}`)
+    const res = await getCurrentUser()
     const user = res.data
     profile.value.username = user.username ?? ''
+    profile.value.nickname = user.nickname ?? ''
     profile.value.email = user.email ?? ''
     profile.value.school = user.school ?? ''
     profile.value.phone = user.phone ?? ''
@@ -94,9 +102,9 @@ async function handleFileChange(e) {
   const file = e.target.files?.[0]
   if (!file) return
   try {
-    const res = await uploadAvatar(userId, file)
-    profile.value.avatarUrl = res.data.fileUrl
-    userStore.updateProfile({ avatarUrl: res.data.fileUrl })
+    const res = await uploadCurrentAvatar(file)
+    profile.value.avatarUrl = res.data.avatarUrl
+    userStore.updateProfile({ avatarUrl: res.data.avatarUrl })
     ElMessage.success('头像更新成功')
   } catch {
     ElMessage.error('头像上传失败')
@@ -171,6 +179,9 @@ onMounted(() => {
 
 .info-top {
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .username {

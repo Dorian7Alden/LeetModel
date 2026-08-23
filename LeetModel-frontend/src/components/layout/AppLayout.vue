@@ -50,17 +50,25 @@
           <el-dropdown v-else trigger="click">
             <div class="user-box">
               <img v-if="userStore.avatarUrl" class="avatar" :src="userStore.avatarUrl" />
-              <span v-else class="avatar avatar-text">{{ (userStore.username || '?').charAt(0) }}</span>
+              <span v-else class="avatar avatar-text">{{ (userStore.nickname || userStore.username || '?').charAt(0) }}</span>
             </div>
 
             <template #dropdown>
               <el-dropdown-menu class="user-card">
                 <div class="user-header">
                   <img v-if="userStore.avatarUrl" class="avatar-big" :src="userStore.avatarUrl" />
-                  <span v-else class="avatar-big avatar-text-big">{{ (userStore.username || '?').charAt(0) }}</span>
+                  <span v-else class="avatar-big avatar-text-big">{{ (userStore.nickname || userStore.username || '?').charAt(0) }}</span>
                   <div class="info">
-                    <div class="name">{{ userStore.username || '用户' }}</div>
+                    <div class="name">{{ userStore.nickname || userStore.username || '用户' }}</div>
                     <div class="desc">{{ userStore.email }}</div>
+                    <el-tag
+                      class="role-tag"
+                      :type="roleTagType"
+                      size="small"
+                      effect="light"
+                    >
+                      {{ userStore.roleLabel }}
+                    </el-tag>
                   </div>
                 </div>
 
@@ -140,11 +148,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
+import { getCurrentAuthorization } from '@/api/user'
 import {
   Collection,
   StarFilled,
@@ -158,6 +167,11 @@ const userStore = useUserStore()
 const { handleLogout } = useAuth()
 
 const keyword = ref('')
+const roleTagType = computed(() => {
+  if (userStore.primaryRole === 'admin') return 'danger'
+  if (userStore.primaryRole === 'vip') return 'warning'
+  return 'info'
+})
 
 const navItems = [
   { label: '题库', path: '/problem' },
@@ -174,6 +188,17 @@ function isActive(path) {
   if (path === '/admin') return route.path.startsWith('/admin')
   return route.path === path
 }
+
+onMounted(async () => {
+  if (!userStore.isLogin || userStore.roles.length > 0) return
+
+  try {
+    const res = await getCurrentAuthorization()
+    userStore.updateAuthorization(res.data)
+  } catch (error) {
+    console.warn('用户身份信息加载失败', error)
+  }
+})
 </script>
 
 <style scoped>

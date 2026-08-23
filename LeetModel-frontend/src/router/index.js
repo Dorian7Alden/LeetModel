@@ -10,6 +10,7 @@ import profileRoutes from "./modules/profile";
 import authRoutes from "./modules/auth";
 import aboutRoutes from "./modules/about";
 import adminRoutes from "./modules/admin";
+import { useUserStore } from "@/store/user";
 
 const routes = [
   {
@@ -43,12 +44,11 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role") || "";
+  const userStore = useUserStore();
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !userStore.isLogin) {
     next("/login");
-  } else if (to.path.startsWith("/admin") && role !== "ADMIN" && role !== "SUPER_ADMIN") {
+  } else if (to.path.startsWith("/admin") && !userStore.isAdmin) {
     next("/");
   } else {
     next();
