@@ -95,6 +95,18 @@ A - BB - CC
 | TEAM_ALREADY_DISBANDED | 40308 | 团队已解散 |
 | USER_NOT_AVAILABLE | 40309 | 用户不存在或账号不可用 |
 
+### BB=04：题目模块
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| PROBLEM_NOT_FOUND | 40401 | 题目不存在 |
+| TAG_NOT_FOUND | 40402 | 标签不存在 |
+| TAG_NAME_DUPLICATE | 40403 | 标签名称已存在 |
+| INVALID_CONTEST_TYPE | 40404 | 赛事类型不合法 |
+| INVALID_DIFFICULTY | 40405 | 难度值不合法 |
+| INVALID_STATUS | 40406 | 题目状态不合法 |
+| TAG_IN_USE | 40407 | 标签仍被题目使用 |
+
 ---
 
 ## 三、新增模块错误码规范
