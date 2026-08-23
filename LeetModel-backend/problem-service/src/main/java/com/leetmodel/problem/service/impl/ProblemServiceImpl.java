@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -89,9 +90,24 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Override
     public ProblemVO getProblemDetail(Long id) {
         Problem problem = getById(id);
-        if (problem == null) {
-            throw new BusinessException(ProblemErrorCode.PROBLEM_NOT_FOUND);
-        }
+        BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        List<String> tagNames = getTagNames(id);
+        List<ProblemLink> links = getLinks(id);
+        return toVO(problem, tagNames, links);
+    }
+
+    /**
+     * 查询已发布题目详情。
+     * @param id 题目 ID
+     * @return 已发布题目详情
+     */
+    @Override
+    public ProblemVO getPublishedProblemDetail(Long id) {
+        Problem problem = getById(id);
+        BusinessException.throwIf(
+                problem == null || !Integer.valueOf(1).equals(problem.getStatus()),
+                ProblemErrorCode.PROBLEM_NOT_FOUND
+        );
         List<String> tagNames = getTagNames(id);
         List<ProblemLink> links = getLinks(id);
         return toVO(problem, tagNames, links);
@@ -133,9 +149,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Transactional
     public ProblemVO updateProblem(Long id, ProblemUpdateRequest request) {
         Problem problem = getById(id);
-        if (problem == null) {
-            throw new BusinessException(ProblemErrorCode.PROBLEM_NOT_FOUND);
-        }
+        BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
 
         if (request.getContestType() != null) {
             validateContestType(request.getContestType());
@@ -182,6 +196,31 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         log.info("更新题目: {}", id);
         return toVO(problem, tagNames, links);
+    }
+
+    /**
+     * 删除题目及其标签、链接关系。
+     * @param id 题目 ID
+     */
+    @Override
+    @Transactional
+    public void deleteProblem(Long id) {
+        // 校验题目存在
+        Problem problem = getById(id);
+        BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+
+        // 删除题目关联数据
+        LambdaQueryWrapper<ProblemTag> tagWrapper = new LambdaQueryWrapper<>();
+        tagWrapper.eq(ProblemTag::getProblemId, id);
+        problemTagMapper.delete(tagWrapper);
+
+        LambdaQueryWrapper<ProblemLink> linkWrapper = new LambdaQueryWrapper<>();
+        linkWrapper.eq(ProblemLink::getProblemId, id);
+        problemLinkMapper.delete(linkWrapper);
+
+        // 逻辑删除题目
+        removeById(id);
+        log.info("删除题目: {}", id);
     }
 
     // ==================== 标签名称查询 ====================
@@ -237,11 +276,18 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * 保存题目标签关联，返回标签名称列表。
      */
     private List<String> saveTags(Long problemId, List<Long> tagIds) {
-        if (tagIds == null || tagIds.isEmpty()) {
-            return List.of();
-        }
-        List<Tag> tags = tagMapper.selectBatchIds(tagIds);
-        for (Long tagId : tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) return List.of();
+
+        // 去重并校验标签全部存在
+        List<Long> uniqueTagIds = new ArrayList<>(new LinkedHashSet<>(tagIds));
+        List<Tag> tags = tagMapper.selectBatchIds(uniqueTagIds);
+        BusinessException.throwIf(
+                tags.size() != uniqueTagIds.size(),
+                ProblemErrorCode.TAG_NOT_FOUND
+        );
+
+        // 保存题目标签关系
+        for (Long tagId : uniqueTagIds) {
             ProblemTag pt = new ProblemTag();
             pt.setProblemId(problemId);
             pt.setTagId(tagId);
@@ -305,9 +351,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * 校验赛事类型合法性。
      */
     private void validateContestType(String contestType) {
-        if (!"MCM_ICM".equals(contestType) && !"CUMCM".equals(contestType)) {
-            throw new BusinessException(ProblemErrorCode.INVALID_CONTEST_TYPE);
-        }
+        BusinessException.throwIf(
+                !"MCM_ICM".equals(contestType) && !"CUMCM".equals(contestType),
+                ProblemErrorCode.INVALID_CONTEST_TYPE
+        );
     }
 
     /**

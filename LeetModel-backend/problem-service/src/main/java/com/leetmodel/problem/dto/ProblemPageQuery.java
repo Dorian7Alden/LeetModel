@@ -3,6 +3,9 @@ package com.leetmodel.problem.dto;
 import com.leetmodel.common.core.dto.BasePageQuery;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -18,6 +21,7 @@ import lombok.NoArgsConstructor;
 public class ProblemPageQuery extends BasePageQuery {
 
     /** 赛事类型筛选（可选） */
+    @Pattern(regexp = "MCM_ICM|CUMCM", message = "赛事类型只支持 MCM_ICM 或 CUMCM")
     private String contestType;
 
     /** 难度筛选（可选） */
@@ -31,8 +35,10 @@ public class ProblemPageQuery extends BasePageQuery {
     private Integer status;
 
     /** 标签 ID 筛选（可选） */
+    @Positive(message = "标签 ID 必须为正数")
     private Long tagId;
 
     /** 标题关键词搜索（可选） */
+    @Size(max = 100, message = "关键词不能超过 100 个字符")
     private String keyword;
 }

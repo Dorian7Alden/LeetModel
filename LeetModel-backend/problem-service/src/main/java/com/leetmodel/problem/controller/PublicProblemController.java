@@ -36,7 +36,7 @@ public class PublicProblemController {
     @Operation(summary = "浏览题目详情")
     @GetMapping("/{id}")
     public Result<ProblemVO> detail(@PathVariable Long id) {
-        ProblemVO vo = problemService.getProblemDetail(id);
+        ProblemVO vo = problemService.getPublishedProblemDetail(id);
         return Result.ok(vo);
     }
 }

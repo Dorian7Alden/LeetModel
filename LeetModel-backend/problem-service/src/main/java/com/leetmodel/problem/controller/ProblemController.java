@@ -68,7 +68,7 @@ public class ProblemController {
     @Operation(summary = "删除题目（逻辑删除）")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
-        problemService.removeById(id);
+        problemService.deleteProblem(id);
         return Result.ok();
     }
 }

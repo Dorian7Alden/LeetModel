@@ -58,7 +58,7 @@ public class TagController {
     @SaCheckRole("admin")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
-        tagService.removeById(id);
+        tagService.deleteTag(id);
         return Result.ok();
     }
 }

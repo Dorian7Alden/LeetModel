@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.problem.entity.Tag;
+import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
+import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.TagService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagService {
 
+    private final ProblemTagMapper problemTagMapper;
+
     @Override
     public Tag createTag(String name) {
         checkNameDuplicate(name, null);
@@ -32,14 +36,32 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
     @Override
     public Tag updateTag(Long id, String name) {
         Tag tag = getById(id);
-        if (tag == null) {
-            throw new BusinessException(ProblemErrorCode.TAG_NOT_FOUND);
-        }
+        BusinessException.throwIf(tag == null, ProblemErrorCode.TAG_NOT_FOUND);
         checkNameDuplicate(name, id);
         tag.setName(name);
         updateById(tag);
         log.info("更新标签: {} [ID: {}]", name, id);
         return tag;
+    }
+
+    /**
+     * 删除未被题目使用的标签。
+     * @param id 标签 ID
+     */
+    @Override
+    public void deleteTag(Long id) {
+        // 校验标签存在
+        Tag tag = getById(id);
+        BusinessException.throwIf(tag == null, ProblemErrorCode.TAG_NOT_FOUND);
+
+        // 校验标签没有题目引用
+        LambdaQueryWrapper<ProblemTag> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ProblemTag::getTagId, id);
+        BusinessException.throwIf(problemTagMapper.exists(wrapper), ProblemErrorCode.TAG_IN_USE);
+
+        // 删除标签
+        removeById(id);
+        log.info("删除标签: {} [ID: {}]", tag.getName(), id);
     }
 
     /**
@@ -51,8 +73,6 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         if (excludeId != null) {
             wrapper.ne(Tag::getId, excludeId);
         }
-        if (exists(wrapper)) {
-            throw new BusinessException(ProblemErrorCode.TAG_NAME_DUPLICATE);
-        }
+        BusinessException.throwIf(exists(wrapper), ProblemErrorCode.TAG_NAME_DUPLICATE);
     }
 }

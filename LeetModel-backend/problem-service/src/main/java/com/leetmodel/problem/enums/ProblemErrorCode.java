@@ -32,6 +32,9 @@ public enum ProblemErrorCode implements ErrorCode {
 
     /** 题目状态不合法 */
     INVALID_STATUS(40406, "题目状态不合法，只支持 0-3"),
+
+    /** 标签仍被题目使用 */
+    TAG_IN_USE(40407, "标签仍被题目使用，不能删除"),
     ;
 
     /** 错误码 */

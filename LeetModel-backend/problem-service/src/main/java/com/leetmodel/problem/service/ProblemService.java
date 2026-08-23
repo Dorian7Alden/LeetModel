@@ -24,6 +24,13 @@ public interface ProblemService extends IService<Problem> {
     ProblemVO getProblemDetail(Long id);
 
     /**
+     * 查询已发布题目详情。
+     * @param id 题目 ID
+     * @return 已发布题目详情
+     */
+    ProblemVO getPublishedProblemDetail(Long id);
+
+    /**
      * 创建题目（含标签和链接）。
      */
     ProblemVO createProblem(ProblemCreateRequest request, Long creatorId);
@@ -32,6 +39,12 @@ public interface ProblemService extends IService<Problem> {
      * 更新题目（含标签和链接替换）。
      */
     ProblemVO updateProblem(Long id, ProblemUpdateRequest request);
+
+    /**
+     * 删除题目及其标签、链接关系。
+     * @param id 题目 ID
+     */
+    void deleteProblem(Long id);
 
     /**
      * 获取标签名称列表。
