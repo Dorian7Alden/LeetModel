@@ -21,7 +21,8 @@ LeetModel-mock/
 │       ├── passwords.py         # 明文密码、BCrypt 哈希接口
 │       └── misc.py              # 头像、URL、手机号、布尔值接口
 ├── scripts/
-│   └── generate_user_service_demo.py  # 场景脚本：组装 user-service 演示数据
+│   ├── generate_user_service_demo.py  # 场景脚本：组装 user-service 演示数据
+│   └── generate_team_service_demo.py  # 场景脚本：组装 team-service 演示数据
 ├── requirements.txt
 └── README.md
 ```
@@ -136,6 +137,18 @@ LeetModel-backend/user-service/src/main/resources/db/migration/V3__insert_mock_u
 ```
 
 生成后启动 user-service，Flyway 会自动执行 V3 脚本插入演示数据。
+
+team-service 演示数据复用 user-service V3 中的正常用户：
+
+```bash
+python3 scripts/generate_team_service_demo.py
+```
+
+脚本生成满员团队、单人团队、专业角色多选团队和已解散历史团队，并输出：
+
+```text
+LeetModel-backend/team-service/src/main/resources/db/migration/V3__insert_mock_teams.sql
+```
 
 ## 演示账号
 

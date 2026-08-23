@@ -81,6 +81,20 @@ A - BB - CC
 | SYSTEM_ROLE_PROTECTED | 40214 | 系统预设角色受保护 |
 | DEFAULT_ROLE_NOT_FOUND | 40215 | 系统默认角色不存在 |
 
+### BB=03：团队模块
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| TEAM_NOT_FOUND | 40301 | 团队不存在 |
+| TEAM_FULL | 40302 | 团队已满 |
+| USER_ALREADY_IN_TEAM | 40303 | 用户已在该团队中 |
+| NOT_TEAM_MEMBER | 40304 | 用户不是该团队成员 |
+| NOT_TEAM_LEADER | 40305 | 操作者不是队长 |
+| CANNOT_REMOVE_LEADER | 40306 | 队长不能被移除 |
+| LEADER_CANNOT_LEAVE | 40307 | 队长不能退出团队 |
+| TEAM_ALREADY_DISBANDED | 40308 | 团队已解散 |
+| USER_NOT_AVAILABLE | 40309 | 用户不存在或账号不可用 |
+
 ---
 
 ## 三、新增模块错误码规范
