@@ -21,6 +21,13 @@ public enum TeamErrorCode implements ErrorCode {
     LEADER_CANNOT_LEAVE(40307, "队长不能退出团队，请先转让队长或解散团队"),
     TEAM_ALREADY_DISBANDED(40308, "团队已解散"),
     USER_NOT_AVAILABLE(40309, "用户不存在或账号不可用"),
+    TEAM_NOT_RECRUITING(40310, "团队当前未开放招募"),
+    APPLICATION_ALREADY_PENDING(40311, "已存在待处理的入队申请"),
+    APPLICATION_NOT_FOUND(40312, "入队申请不存在"),
+    APPLICATION_ALREADY_HANDLED(40313, "入队申请已处理"),
+    INVALID_APPLICATION_DECISION(40314, "审核决定只能是 approved 或 rejected"),
+    CANNOT_APPLY_OWN_TEAM(40315, "不能申请加入自己创建的团队"),
+    INVALID_TEAM_STATUS(40316, "团队状态只能是 0 或 1"),
 
     // ---- 5xxxx 服务端错误 ----
     ;

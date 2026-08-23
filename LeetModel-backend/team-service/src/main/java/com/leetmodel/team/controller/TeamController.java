@@ -1,13 +1,19 @@
 package com.leetmodel.team.controller;
 
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.security.context.UserContext;
 import com.leetmodel.team.dto.AddMemberRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
+import com.leetmodel.team.dto.JoinApplicationCreateRequest;
+import com.leetmodel.team.dto.JoinApplicationReviewRequest;
+import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
+import com.leetmodel.team.dto.TeamPublicPageQuery;
 import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.TeamMemberVO;
+import com.leetmodel.team.vo.JoinApplicationVO;
 import com.leetmodel.team.vo.TeamVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,18 +49,26 @@ public class TeamController {
         return Result.ok(vo);
     }
 
-    @Operation(summary = "我加入的团队列表")
-    @GetMapping
-    public Result<List<TeamVO>> listMyTeams() {
+    @Operation(summary = "分页查询公共队伍")
+    @GetMapping("/public")
+    public Result<PageResult<TeamVO>> pagePublicTeams(@Valid TeamPublicPageQuery query) {
         Long userId = UserContext.getUserId();
-        List<TeamVO> teams = teamService.listMyTeams(userId);
+        return Result.ok(teamService.pagePublicTeams(query, userId));
+    }
+
+    @Operation(summary = "查询我的队伍")
+    @GetMapping({"/mine", ""})
+    public Result<List<TeamVO>> listMyTeams(Integer status) {
+        Long userId = UserContext.getUserId();
+        List<TeamVO> teams = teamService.listMyTeams(userId, status);
         return Result.ok(teams);
     }
 
     @Operation(summary = "获取团队详情")
     @GetMapping("/{id}")
     public Result<TeamVO> detail(@PathVariable Long id) {
-        TeamVO vo = teamService.getTeamDetail(id);
+        Long userId = UserContext.getUserId();
+        TeamVO vo = teamService.getTeamDetail(id, userId);
         return Result.ok(vo);
     }
 
@@ -65,6 +79,14 @@ public class TeamController {
         Long userId = UserContext.getUserId();
         TeamVO vo = teamService.updateTeam(id, request, userId);
         return Result.ok(vo);
+    }
+
+    @Operation(summary = "更新队伍招募配置")
+    @PutMapping("/{id}/recruitment")
+    public Result<TeamVO> updateRecruitment(@PathVariable Long id,
+                                            @Valid @RequestBody RecruitmentUpdateRequest request) {
+        Long userId = UserContext.getUserId();
+        return Result.ok(teamService.updateRecruitment(id, request, userId));
     }
 
     @Operation(summary = "解散团队（队长）")
@@ -82,6 +104,40 @@ public class TeamController {
         Long userId = UserContext.getUserId();
         teamService.addMember(id, request, userId);
         return Result.ok();
+    }
+
+    @Operation(summary = "提交入队申请")
+    @PostMapping("/{id}/applications")
+    public Result<JoinApplicationVO> submitApplication(
+            @PathVariable Long id,
+            @Valid @RequestBody JoinApplicationCreateRequest request) {
+        Long userId = UserContext.getUserId();
+        return Result.ok(teamService.submitApplication(id, request, userId));
+    }
+
+    @Operation(summary = "取消本人入队申请")
+    @DeleteMapping("/{id}/applications/mine")
+    public Result<Void> cancelMyApplication(@PathVariable Long id) {
+        Long userId = UserContext.getUserId();
+        teamService.cancelMyApplication(id, userId);
+        return Result.ok();
+    }
+
+    @Operation(summary = "查询队伍入队申请")
+    @GetMapping("/{id}/applications")
+    public Result<List<JoinApplicationVO>> listApplications(@PathVariable Long id) {
+        Long userId = UserContext.getUserId();
+        return Result.ok(teamService.listApplications(id, userId));
+    }
+
+    @Operation(summary = "审核入队申请")
+    @PutMapping("/{id}/applications/{applicationId}")
+    public Result<JoinApplicationVO> reviewApplication(
+            @PathVariable Long id,
+            @PathVariable Long applicationId,
+            @Valid @RequestBody JoinApplicationReviewRequest request) {
+        Long userId = UserContext.getUserId();
+        return Result.ok(teamService.reviewApplication(id, applicationId, request, userId));
     }
 
     @Operation(summary = "移除成员（队长）")

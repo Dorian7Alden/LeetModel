@@ -1,6 +1,7 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.UserRoleDTO;
+import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FallbackFactory;
@@ -27,6 +28,11 @@ public class UserFeignFallback implements FallbackFactory<UserFeignClient> {
 
             @Override
             public Result<Boolean> isUserAvailable(Long userId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<List<UserPublicSummaryDTO>> getPublicSummaries(List<Long> userIds) {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 

@@ -1,10 +1,14 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.UserRoleDTO;
+import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.List;
 
 /**
  * user 服务的内部 API（Feign 声明）。
@@ -37,6 +41,15 @@ public interface UserFeignClient {
      */
     @GetMapping("/{userId}/available")
     Result<Boolean> isUserAvailable(@PathVariable("userId") Long userId);
+
+    /**
+     * 批量查询用户公开摘要。
+     *
+     * @param userIds 用户 ID 列表
+     * @return 用户公开摘要列表
+     */
+    @GetMapping("/public-summaries")
+    Result<List<UserPublicSummaryDTO>> getPublicSummaries(@RequestParam("userIds") List<Long> userIds);
 
     /**
      * 获取用户数量。
