@@ -27,6 +27,15 @@ public class TeamMember implements Serializable {
     /** 成员角色：leader / member */
     private String role;
 
+    /** 是否为建模手 */
+    private Boolean modeler;
+
+    /** 是否为编程手 */
+    private Boolean programmer;
+
+    /** 是否为论文手 */
+    private Boolean writer;
+
     /** 加入时间 */
     private LocalDateTime joinedAt;
 

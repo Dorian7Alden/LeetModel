@@ -2,10 +2,12 @@ package com.leetmodel.team.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamMember;
 import com.leetmodel.team.mapper.TeamMemberMapper;
+import com.leetmodel.team.enums.TeamErrorCode;
 import com.leetmodel.team.service.TeamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,9 +35,7 @@ public class InternalTeamController {
     @GetMapping("/{teamId}")
     public Result<TeamDTO> getTeamInfo(@PathVariable Long teamId) {
         Team team = teamService.getById(teamId);
-        if (team == null) {
-            return Result.fail(40401, "团队不存在");
-        }
+        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
         long memberCount = teamMemberMapper.selectCount(
                 new LambdaQueryWrapper<TeamMember>().eq(TeamMember::getTeamId, teamId)
         );
@@ -47,9 +47,7 @@ public class InternalTeamController {
     @GetMapping("/{teamId}/members")
     public Result<List<Long>> getMemberIds(@PathVariable Long teamId) {
         Team team = teamService.getById(teamId);
-        if (team == null) {
-            return Result.fail(40401, "团队不存在");
-        }
+        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
         List<Long> memberIds = teamMemberMapper.selectList(
                 new LambdaQueryWrapper<TeamMember>().eq(TeamMember::getTeamId, teamId)
         ).stream().map(TeamMember::getUserId).toList();

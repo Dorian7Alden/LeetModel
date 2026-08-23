@@ -1,6 +1,7 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
@@ -21,17 +22,17 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
         return new TeamFeignClient() {
             @Override
             public Result<TeamDTO> getTeamInfo(Long teamId) {
-                return Result.fail(50001, "团队服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<List<Long>> getMemberIds(Long teamId) {
-                return Result.fail(50001, "团队服务暂不可用");
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
             @Override
             public Result<Long> getActiveTeamCount() {
-                return Result.ok(0L);
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
         };
     }

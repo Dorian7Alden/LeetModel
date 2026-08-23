@@ -19,5 +19,8 @@ public class TeamMemberVO {
     private Long id;
     private Long userId;
     private String role;
+    private Boolean modeler;
+    private Boolean programmer;
+    private Boolean writer;
     private LocalDateTime joinedAt;
 }

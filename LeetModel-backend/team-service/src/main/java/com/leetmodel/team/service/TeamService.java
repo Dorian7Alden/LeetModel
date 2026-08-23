@@ -2,9 +2,11 @@ package com.leetmodel.team.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.team.dto.AddMemberRequest;
+import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.entity.Team;
+import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamVO;
 
 import java.util.List;
@@ -74,6 +76,18 @@ public interface TeamService extends IService<Team> {
      * @param operatorId 操作者 ID
      */
     void removeMember(Long teamId, Long memberId, Long operatorId);
+
+    /**
+     * 更新团队成员的专业角色。
+     *
+     * @param teamId 团队 ID
+     * @param memberId 成员用户 ID
+     * @param request 专业角色状态
+     * @param operatorId 操作者 ID
+     * @return 更新后的成员视图
+     */
+    TeamMemberVO updateMemberRoles(Long teamId, Long memberId,
+                                   MemberRolesUpdateRequest request, Long operatorId);
 
     /**
      * 退出团队（成员主动退出）。

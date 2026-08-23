@@ -3,9 +3,11 @@ package com.leetmodel.team.controller;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
 import com.leetmodel.team.dto.AddMemberRequest;
+import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.service.TeamService;
+import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -89,6 +91,17 @@ public class TeamController {
         Long userId = UserContext.getUserId();
         teamService.removeMember(id, memberId, userId);
         return Result.ok();
+    }
+
+    @Operation(summary = "设置成员专业角色")
+    @PutMapping("/{id}/members/{memberId}/roles")
+    public Result<TeamMemberVO> updateMemberRoles(
+            @PathVariable Long id,
+            @PathVariable Long memberId,
+            @Valid @RequestBody MemberRolesUpdateRequest request) {
+        Long userId = UserContext.getUserId();
+        TeamMemberVO member = teamService.updateMemberRoles(id, memberId, request, userId);
+        return Result.ok(member);
     }
 
     @Operation(summary = "退出团队")

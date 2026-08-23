@@ -29,6 +29,20 @@ public interface UserFeignClient {
     @GetMapping("/{userId}/roles")
     Result<UserRoleDTO> getUserRoles(@PathVariable("userId") Long userId);
 
+    /**
+     * 判断用户是否存在且可用。
+     *
+     * @param userId 用户 ID
+     * @return 用户是否存在且可用
+     */
+    @GetMapping("/{userId}/available")
+    Result<Boolean> isUserAvailable(@PathVariable("userId") Long userId);
+
+    /**
+     * 获取用户数量。
+     *
+     * @return 用户数量
+     */
     @GetMapping("/count")
     Result<Long> getUserCount();
 }

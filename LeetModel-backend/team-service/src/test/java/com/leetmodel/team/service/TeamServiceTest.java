@@ -1,6 +1,10 @@
 package com.leetmodel.team.service;
 
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.api.feign.UserFeignClient;
+import com.leetmodel.common.core.result.Result;
+import com.leetmodel.team.dto.AddMemberRequest;
+import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.entity.Team;
@@ -9,11 +13,13 @@ import com.leetmodel.team.enums.TeamErrorCode;
 import com.leetmodel.team.mapper.TeamMapper;
 import com.leetmodel.team.mapper.TeamMemberMapper;
 import com.leetmodel.team.service.impl.TeamServiceImpl;
+import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,6 +40,9 @@ class TeamServiceTest {
 
     @Mock
     private TeamMemberMapper teamMemberMapper;
+
+    @Mock
+    private UserFeignClient userFeignClient;
 
     @InjectMocks
     private TeamServiceImpl teamService;
@@ -109,5 +118,111 @@ class TeamServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> teamService.updateTeam(1L, request, 99L));
         assertEquals(TeamErrorCode.NOT_TEAM_LEADER.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("添加成员成功")
+    void addMemberSuccess() {
+        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(teamMemberMapper.exists(any())).thenReturn(false);
+        when(teamMemberMapper.selectCount(any())).thenReturn(1L);
+        when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
+
+        assertDoesNotThrow(() -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
+        ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
+        verify(teamMemberMapper).insert((TeamMember) memberCaptor.capture());
+        assertEquals(20L, memberCaptor.getValue().getUserId());
+        assertEquals("member", memberCaptor.getValue().getRole());
+    }
+
+    @Test
+    @DisplayName("添加成员失败 —— 用户不可用")
+    void addMemberUserUnavailable() {
+        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(false));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
+
+        assertEquals(TeamErrorCode.USER_NOT_AVAILABLE.getCode(), ex.getCode());
+        verify(teamMapper, never()).selectByIdForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("添加成员失败 —— 团队已满")
+    void addMemberTeamFull() {
+        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(teamMemberMapper.exists(any())).thenReturn(false);
+        when(teamMemberMapper.selectCount(any())).thenReturn(3L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
+
+        assertEquals(TeamErrorCode.TEAM_FULL.getCode(), ex.getCode());
+        verify(teamMemberMapper, never()).insert((TeamMember) any());
+    }
+
+    @Test
+    @DisplayName("移除成员失败 —— 目标不是团队成员")
+    void removeMemberNotInTeam() {
+        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMemberMapper.exists(any())).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.removeMember(1L, 20L, 10L));
+
+        assertEquals(TeamErrorCode.NOT_TEAM_MEMBER.getCode(), ex.getCode());
+        verify(teamMemberMapper, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("已解散团队不能继续更新")
+    void updateDisbandedTeam() {
+        team.setStatus(0);
+        when(teamMapper.selectById(1L)).thenReturn(team);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.updateTeam(1L, new TeamUpdateRequest("改名", null), 10L));
+
+        assertEquals(TeamErrorCode.TEAM_ALREADY_DISBANDED.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("更新成员专业角色成功 —— 支持多选")
+    void updateMemberRolesSuccess() {
+        TeamMember member = new TeamMember();
+        member.setId(100L);
+        member.setTeamId(1L);
+        member.setUserId(20L);
+        member.setRole("member");
+        member.setModeler(false);
+        member.setProgrammer(false);
+        member.setWriter(false);
+
+        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMemberMapper.selectOne(any())).thenReturn(member);
+        when(teamMemberMapper.updateById(any(TeamMember.class))).thenReturn(1);
+
+        MemberRolesUpdateRequest request = new MemberRolesUpdateRequest(true, true, false);
+        TeamMemberVO result = teamService.updateMemberRoles(1L, 20L, request, 10L);
+
+        assertTrue(result.getModeler());
+        assertTrue(result.getProgrammer());
+        assertFalse(result.getWriter());
+        verify(teamMemberMapper).updateById(member);
+    }
+
+    @Test
+    @DisplayName("更新成员专业角色失败 —— 非队长操作")
+    void updateMemberRolesNotLeader() {
+        when(teamMapper.selectById(1L)).thenReturn(team);
+
+        MemberRolesUpdateRequest request = new MemberRolesUpdateRequest(true, false, false);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.updateMemberRoles(1L, 20L, request, 99L));
+
+        assertEquals(TeamErrorCode.NOT_TEAM_LEADER.getCode(), ex.getCode());
+        verify(teamMemberMapper, never()).selectOne(any());
     }
 }
