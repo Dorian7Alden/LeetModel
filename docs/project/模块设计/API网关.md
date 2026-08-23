@@ -1,16 +1,15 @@
-# gateway 服务设计
+## API 网关
 
 
 > 创建日期：2026-07-26
-> 状态：已实现
 
 
-## 一、职责
+### 一、职责
 
 API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JWT 鉴权拦截、跨域处理。业务服务不直接暴露给前端。
 
 
-## 二、路由规则
+### 二、路由规则
 
 | 匹配路径 | 转发目标 | 鉴权 |
 |---------|---------|------|
@@ -19,29 +18,29 @@ API 网关（端口 8080）：系统唯一对外入口。统一路由转发、JW
 | `/api/user/**` | user 服务 (`lb://user-service`) | 需登录 |
 | `/api/problems/**` | problem 服务 (`lb://problem-service`) | 需登录 |
 
-后续服务（team 等）上线后，追加对应路由规则。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP:端口硬编码。
+每个对外服务都需要配置对应路由。路由使用 `lb://` 前缀从 Nacos 拉取实例列表，不做 IP 和端口硬编码。
 
 
-## 三、鉴权架构
+### 三、鉴权架构
 
 采用 Sa-Token JWT 无状态模式：Gateway 校验 JWT 签名和过期时间，不查 Redis Session。白名单路径在 `SaReactorFilter.addExclude()` 中声明。校验失败返回统一 JSON 格式 `{code: 40100, message: "未登录或 Token 已失效"}`。
 
 JWT 密钥必须与 user 服务保持一致，否则 user 服务签发的 Token 会被网关拒绝。
 
 
-## 四、跨域处理
+### 四、跨域处理
 
 通过 `CorsWebFilter` 全局处理 CORS。Gateway 基于 WebFlux 响应式架构，不能用 Spring MVC 的 `CorsConfigurationSource`。
 
 
-## 五、关键技术点
+### 五、关键技术点
 
 - **Sa-Token 响应式变体**：Gateway 基于 WebFlux，必须使用 `sa-token-reactor-spring-boot3-starter`，servlet 版无法启动。
 - **依赖排除**：`common-core` 传递了 `spring-boot-starter-web` 和 `mybatis-plus-spring-boot3-starter`，Gateway 必须排除这两个依赖并禁用 DataSource 自动配置。
 - **全局异常处理**：`JsonExceptionHandler` 实现 `ErrorWebExceptionHandler`，将路由失败、下游宕机、超时等异常统一转换为 `Result` JSON。WebFlux 不能用 `@RestControllerAdvice`，必须用响应式异常处理器（`@Order(-2)` 覆盖默认处理器）。
 - **Redis 黑名单已就绪**：Gateway 已接入 Redis Reactive，登出 Token 加入黑名单后，Gateway 和业务服务均可校验。
 
-## 六、API 文档聚合
+### 六、API 文档聚合
 
 采用 Knife4j Gateway 聚合模式：Gateway 自身托管 `/doc.html` 页面，利用 Nacos 服务发现自动聚合所有下游服务的 OpenAPI v3 文档。用户访问 `http://localhost:8080/doc.html` 即可在一个页面上切换查看所有微服务的 API。
 
