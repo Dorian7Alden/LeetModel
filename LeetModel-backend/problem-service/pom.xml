@@ -27,6 +27,11 @@
             <artifactId>common-security</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+        </dependency>
+
         <!-- REST 服务基础 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

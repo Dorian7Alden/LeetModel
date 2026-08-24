@@ -20,12 +20,12 @@ import reactor.core.publisher.Hooks;
  */
 @SpringBootApplication
 @EnableDiscoveryClient
-public class LeetModelGatewayApplication {
+public class GatewayApplication {
 
     public static void main(String[] args) {
         // 启用 Reactor 自动上下文传播，使 MDC 在 WebFlux 线程切换时自动传递
         // 必须在 SpringApplication.run() 之前调用，否则第一条请求可能丢失 TraceId
         Hooks.enableAutomaticContextPropagation();
-        SpringApplication.run(LeetModelGatewayApplication.class, args);
+        SpringApplication.run(GatewayApplication.class, args);
     }
 }

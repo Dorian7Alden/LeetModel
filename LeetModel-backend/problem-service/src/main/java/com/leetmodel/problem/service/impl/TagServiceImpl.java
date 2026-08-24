@@ -6,6 +6,7 @@ import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
+import com.leetmodel.problem.enums.TagType;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.TagService;
@@ -24,21 +25,31 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
     private final ProblemTagMapper problemTagMapper;
 
     @Override
-    public Tag createTag(String name) {
+    public Tag createTag(String name, TagType type) {
         checkNameDuplicate(name, null);
         Tag tag = new Tag();
         tag.setName(name);
+        tag.setType(type.name());
         save(tag);
         log.info("创建标签: {} [ID: {}]", name, tag.getId());
         return tag;
     }
 
     @Override
-    public Tag updateTag(Long id, String name) {
+    public Tag updateTag(Long id, String name, TagType type) {
         Tag tag = getById(id);
         BusinessException.throwIf(tag == null, ProblemErrorCode.TAG_NOT_FOUND);
+        if (!type.name().equals(tag.getType())) {
+            LambdaQueryWrapper<ProblemTag> relationWrapper = new LambdaQueryWrapper<>();
+            relationWrapper.eq(ProblemTag::getTagId, id);
+            BusinessException.throwIf(
+                    problemTagMapper.exists(relationWrapper),
+                    ProblemErrorCode.TAG_IN_USE
+            );
+        }
         checkNameDuplicate(name, id);
         tag.setName(name);
+        tag.setType(type.name());
         updateById(tag);
         log.info("更新标签: {} [ID: {}]", name, id);
         return tag;

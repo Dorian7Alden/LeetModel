@@ -11,5 +11,4 @@ import lombok.EqualsAndHashCode;
 public class Contest extends BaseEntity {
     private String code;
     private String name;
-    private Integer status;
 }

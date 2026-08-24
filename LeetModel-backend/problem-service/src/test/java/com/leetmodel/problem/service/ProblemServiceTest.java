@@ -3,17 +3,17 @@ package com.leetmodel.problem.service;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
-import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.entity.Contest;
-import com.leetmodel.problem.entity.ProblemLink;
-import com.leetmodel.problem.entity.ProblemTag;
+import com.leetmodel.problem.entity.Problem;
+import com.leetmodel.problem.entity.ProblemAttachment;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
-import com.leetmodel.problem.mapper.ProblemLinkMapper;
 import com.leetmodel.problem.mapper.ContestMapper;
+import com.leetmodel.problem.mapper.ProblemAttachmentMapper;
 import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
@@ -24,8 +24,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -33,12 +36,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,20 +50,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ProblemServiceTest {
 
-    @Mock
-    private ProblemMapper problemMapper;
-
-    @Mock
-    private ProblemTagMapper problemTagMapper;
-
-    @Mock
-    private TagMapper tagMapper;
-
-    @Mock
-    private ProblemLinkMapper problemLinkMapper;
-
-    @Mock
-    private ContestMapper contestMapper;
+    @Mock private ProblemMapper problemMapper;
+    @Mock private ProblemTagMapper problemTagMapper;
+    @Mock private TagMapper tagMapper;
+    @Mock private ProblemAttachmentMapper problemAttachmentMapper;
+    @Mock private ContestMapper contestMapper;
+    @Mock private ObjectProvider<StorageService> storageServiceProvider;
+    @Mock private StorageService storageService;
 
     @InjectMocks
     private ProblemServiceImpl problemService;
@@ -73,27 +68,29 @@ class ProblemServiceTest {
         ReflectionTestUtils.setField(problemService, "baseMapper", problemMapper);
         problem = new Problem();
         problem.setId(1L);
-        problem.setTitle("2026 年测试题目");
-        problem.setContestType("CUMCM");
+        problem.setTitle("测试题目");
+        problem.setContentMarkdown("## 题面");
+        problem.setContestId(10L);
+        problem.setYear(2026);
+        problem.setStatementLanguage("ZH");
+        problem.setDurationMinutes(4320);
         problem.setDifficulty(2);
         problem.setAverageScore(BigDecimal.ZERO);
         problem.setStatus(1);
-        problem.setCreatorId(10L);
+        problem.setCreatorId(100L);
         problem.setCreateTime(LocalDateTime.now());
         problem.setUpdateTime(LocalDateTime.now());
-        org.mockito.Mockito.lenient().when(contestMapper.selectById(any())).thenAnswer(invocation -> {
-            Long id = invocation.getArgument(0);
-            if (id == null || id == 999L) return null;
-            Contest contest = new Contest();
-            contest.setId(id); contest.setCode(id == 1L ? "MCM_ICM" : "CUMCM");
-            contest.setName("测试赛事"); contest.setStatus(1);
-            return contest;
-        });
+
+        Contest contest = new Contest();
+        contest.setId(10L);
+        contest.setCode("CUSTOM_CONTEST");
+        contest.setName("自定义赛事");
+        org.mockito.Mockito.lenient().when(contestMapper.selectById(10L)).thenReturn(contest);
     }
 
     @Test
-    @DisplayName("分页筛选题目并批量组装标签")
-    void pageProblemsSuccess() {
+    @DisplayName("分页查询不返回题面和附件")
+    void pageProblemsReturnsSummary() {
         when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
                 .thenAnswer(invocation -> {
                     IPage<Problem> page = invocation.getArgument(0);
@@ -101,57 +98,90 @@ class ProblemServiceTest {
                     page.setTotal(1);
                     return page;
                 });
-        when(problemTagMapper.selectList(any())).thenReturn(List.of(problemTag(1L, 100L)));
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(100L, "优化")));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
 
-        ProblemPageQuery query = new ProblemPageQuery();
-        query.setPage(1);
-        query.setPageSize(10);
-        query.setContestType("CUMCM");
-        query.setDifficulty(2);
-        query.setStatus(1);
-        query.setTagId(100L);
-        query.setKeyword("测试");
-
-        IPage<ProblemVO> result = problemService.pageProblems(query);
+        IPage<ProblemVO> result = problemService.pageProblems(new ProblemPageQuery());
 
         assertEquals(1, result.getTotal());
-        assertEquals("2026 年测试题目", result.getRecords().get(0).getTitle());
-        assertEquals(List.of("优化"), result.getRecords().get(0).getTagNames());
-        verify(problemMapper).selectPage(any(IPage.class), any(Wrapper.class));
+        assertNull(result.getRecords().get(0).getContentMarkdown());
+        assertNull(result.getRecords().get(0).getAttachments());
     }
 
     @Test
-    @DisplayName("查询题目详情成功并组装标签和链接")
-    void getProblemDetailSuccess() {
-        when(problemMapper.selectById(1L)).thenReturn(problem);
-        when(problemTagMapper.selectList(any())).thenReturn(List.of(problemTag(1L, 100L)));
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(100L, "预测")));
-        when(problemLinkMapper.selectList(any())).thenReturn(List.of(link(200L, 1L, "数据集")));
+    @DisplayName("不同类型标签使用 AND 条件组合筛选")
+    void pageProblemsCombinesDifferentTagTypesWithAnd() {
+        Tag domain = tag(6001L, "环境生态", "BACKGROUND_DOMAIN");
+        Tag problemType = tag(6101L, "预测", "PROBLEM_TYPE");
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(domain, problemType));
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setTagIds(List.of(6001L, 6101L));
 
-        ProblemVO result = problemService.getProblemDetail(1L);
+        problemService.pageProblems(query);
 
-        assertEquals(List.of("预测"), result.getTagNames());
-        assertEquals(1, result.getLinks().size());
-        assertEquals("数据集", result.getLinks().get(0).getTitle());
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("tag_id = 6001"));
+        assertTrue(sql.contains("tag_id = 6101"));
+        assertTrue(sql.contains("AND"));
     }
 
     @Test
-    @DisplayName("查询题目详情失败 —— 题目不存在")
-    void getProblemDetailNotFound() {
-        when(problemMapper.selectById(999L)).thenReturn(null);
+    @DisplayName("分页查询按平均分降序排列")
+    void pageProblemsSortsByAverageScoreDescending() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setSortBy("averageScore");
+        query.setSortOrder("desc");
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("average_score DESC"));
+    }
+
+    @Test
+    @DisplayName("分页查询拒绝反向历史分数区间")
+    void pageProblemsRejectsReversedScoreRange() {
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setMinAverageScore(new BigDecimal("90"));
+        query.setMaxAverageScore(new BigDecimal("80"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> problemService.getProblemDetail(999L)
+                () -> problemService.pageProblems(query)
         );
 
-        assertEquals(ProblemErrorCode.PROBLEM_NOT_FOUND.getCode(), exception.getCode());
-        verify(problemTagMapper, never()).selectList(any());
+        assertEquals(ProblemErrorCode.INVALID_SCORE_RANGE.getCode(), exception.getCode());
+        verify(problemMapper, never()).selectPage(any(IPage.class), any(Wrapper.class));
     }
 
     @Test
-    @DisplayName("公开详情拒绝访问未发布题目")
+    @DisplayName("题目详情返回 Markdown 和多个附件")
+    void getProblemDetailReturnsMarkdownAndAttachments() {
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+        when(problemAttachmentMapper.selectList(any())).thenReturn(List.of(
+                attachment(201L, "data.xlsx", "problems/1/data.xlsx"),
+                attachment(202L, "statement.pdf", "problems/1/statement.pdf")
+        ));
+        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
+        when(storageService.getUrl(any())).thenReturn("https://example.com/download");
+
+        ProblemVO result = problemService.getProblemDetail(1L);
+
+        assertEquals("## 题面", result.getContentMarkdown());
+        assertEquals(2, result.getAttachments().size());
+        assertEquals("data.xlsx", result.getAttachments().get(0).getFileName());
+    }
+
+    @Test
+    @DisplayName("公开详情拒绝未发布题目")
     void getPublishedProblemDetailRejectsDraft() {
         problem.setStatus(0);
         when(problemMapper.selectById(1L)).thenReturn(problem);
@@ -162,57 +192,37 @@ class ProblemServiceTest {
         );
 
         assertEquals(ProblemErrorCode.PROBLEM_NOT_FOUND.getCode(), exception.getCode());
-        verify(problemTagMapper, never()).selectList(any());
-        verify(problemLinkMapper, never()).selectList(any());
+        verify(problemAttachmentMapper, never()).selectList(any());
     }
 
     @Test
-    @DisplayName("创建题目成功并保存标签和链接")
-    void createProblemSuccess() {
+    @DisplayName("创建题目保存 Markdown 和自定义赛事")
+    void createProblemStoresMarkdownAndCustomContest() {
         when(problemMapper.insert(any(Problem.class))).thenAnswer(invocation -> {
             Problem entity = invocation.getArgument(0);
             entity.setId(1L);
             return 1;
         });
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(100L, "规划")));
-        when(problemTagMapper.insert(any(ProblemTag.class))).thenReturn(1);
-        when(problemLinkMapper.insert(any(ProblemLink.class))).thenAnswer(invocation -> {
-            ProblemLink entity = invocation.getArgument(0);
-            entity.setId(200L);
-            return 1;
-        });
+        ProblemCreateRequest request = validCreateRequest();
+        request.setContentMarkdown("# 新题面");
 
-        ProblemCreateRequest request = new ProblemCreateRequest();
-        request.setTitle("新题目");
-        request.setContestType("MCM_ICM");
-        request.setDifficulty(3);
-        request.setTagIds(List.of(100L));
-        request.setLinks(List.of(new ProblemCreateRequest.LinkItem(
-                "参考资料", "https://example.com", "说明", 1
-        )));
+        ProblemVO result = problemService.createProblem(request, 100L);
 
-        ProblemVO result = problemService.createProblem(request, 10L);
-
-        assertNotNull(result);
-        assertEquals("新题目", result.getTitle());
-        assertEquals(0, result.getStatus());
-        assertEquals(10L, result.getCreatorId());
-        assertEquals(List.of("规划"), result.getTagNames());
-        assertEquals(1, result.getLinks().size());
+        assertEquals("# 新题面", result.getContentMarkdown());
+        assertEquals("CUSTOM_CONTEST", result.getContestCode());
         verify(problemMapper).insert(any(Problem.class));
-        verify(problemTagMapper).insert(any(ProblemTag.class));
-        verify(problemLinkMapper).insert(any(ProblemLink.class));
     }
 
     @Test
-    @DisplayName("创建题目失败 —— 赛事类型不合法")
-    void createProblemInvalidContestType() {
-        ProblemCreateRequest request = new ProblemCreateRequest();
+    @DisplayName("创建题目拒绝不存在的自定义赛事")
+    void createProblemRejectsMissingContest() {
+        when(contestMapper.selectById(999L)).thenReturn(null);
+        ProblemCreateRequest request = validCreateRequest();
         request.setContestId(999L);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> problemService.createProblem(request, 10L)
+                () -> problemService.createProblem(request, 100L)
         );
 
         assertEquals(ProblemErrorCode.CONTEST_NOT_FOUND.getCode(), exception.getCode());
@@ -220,153 +230,124 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName("创建题目失败 —— 标签不存在")
-    void createProblemTagNotFound() {
-        when(problemMapper.insert(any(Problem.class))).thenAnswer(invocation -> {
-            Problem entity = invocation.getArgument(0);
-            entity.setId(1L);
-            return 1;
-        });
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(100L, "规划")));
-
-        ProblemCreateRequest request = new ProblemCreateRequest();
-        request.setTitle("新题目");
-        request.setContestType("CUMCM");
-        request.setDifficulty(2);
-        request.setTagIds(List.of(100L, 999L));
+    @DisplayName("创建题目拒绝同类型的多个标签")
+    void createProblemRejectsTagsOfSameType() {
+        Tag first = tag(6001L, "环境生态", "BACKGROUND_DOMAIN");
+        Tag second = tag(6002L, "交通物流", "BACKGROUND_DOMAIN");
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
+        ProblemCreateRequest request = validCreateRequest();
+        request.setTagIds(List.of(6001L, 6002L));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> problemService.createProblem(request, 10L)
+                () -> problemService.createProblem(request, 100L)
         );
 
-        assertEquals(ProblemErrorCode.TAG_NOT_FOUND.getCode(), exception.getCode());
-        verify(problemTagMapper, never()).insert(any(ProblemTag.class));
+        assertEquals(ProblemErrorCode.TAG_TYPE_CONFLICT.getCode(), exception.getCode());
     }
 
     @Test
-    @DisplayName("创建题目时自动去除重复标签")
-    void createProblemDeduplicatesTags() {
-        when(problemMapper.insert(any(Problem.class))).thenAnswer(invocation -> {
-            Problem entity = invocation.getArgument(0);
-            entity.setId(1L);
-            return 1;
-        });
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(100L, "规划")));
-        when(problemTagMapper.insert(any(ProblemTag.class))).thenReturn(1);
+    @DisplayName("创建题目允许关联多个模型算法标签")
+    void createProblemAcceptsMultipleModelAlgorithmTags() {
+        Tag first = tag(6201L, "回归分析", "MODEL_ALGORITHM");
+        Tag second = tag(6203L, "线性规划", "MODEL_ALGORITHM");
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
+        ProblemCreateRequest request = validCreateRequest();
+        request.setTagIds(List.of(6201L, 6203L));
 
-        ProblemCreateRequest request = new ProblemCreateRequest();
-        request.setTitle("新题目");
-        request.setContestType("CUMCM");
-        request.setDifficulty(2);
-        request.setTagIds(List.of(100L, 100L));
+        ProblemVO result = problemService.createProblem(request, 100L);
 
-        ProblemVO result = problemService.createProblem(request, 10L);
-
-        assertEquals(List.of("规划"), result.getTagNames());
-        verify(problemTagMapper, times(1)).insert(any(ProblemTag.class));
+        assertEquals(List.of("回归分析", "线性规划"), result.getTagNames());
     }
 
     @Test
-    @DisplayName("更新题目成功并替换标签和链接")
-    void updateProblemSuccess() {
+    @DisplayName("更新题目可清空 Markdown")
+    void updateProblemClearsMarkdown() {
         when(problemMapper.selectById(1L)).thenReturn(problem);
         when(problemMapper.updateById(any(Problem.class))).thenReturn(1);
         when(problemTagMapper.selectList(any())).thenReturn(List.of());
-        when(problemLinkMapper.selectList(any())).thenReturn(List.of());
-        when(problemTagMapper.delete(any())).thenReturn(1);
-        when(tagMapper.selectBatchIds(anyCollection())).thenReturn(List.of(tag(101L, "评价")));
-        when(problemTagMapper.insert(any(ProblemTag.class))).thenReturn(1);
-        when(problemLinkMapper.delete(any())).thenReturn(1);
-        when(problemLinkMapper.insert(any(ProblemLink.class))).thenReturn(1);
+        when(problemAttachmentMapper.selectList(any())).thenReturn(List.of());
 
         ProblemUpdateRequest request = new ProblemUpdateRequest();
-        request.setTitle("更新后的题目");
-        request.setContestType("MCM_ICM");
-        request.setDifficulty(3);
-        request.setStatus(2);
-        request.setTagIds(List.of(101L));
-        request.setLinks(List.of(new ProblemUpdateRequest.LinkItem(
-                "更新资料", "https://example.com/new", null, 0
-        )));
-
+        request.setContentMarkdown("");
         ProblemVO result = problemService.updateProblem(1L, request);
 
-        assertEquals("更新后的题目", result.getTitle());
-        assertEquals("MCM_ICM", result.getContestType());
-        assertEquals(List.of("评价"), result.getTagNames());
-        assertEquals("更新资料", result.getLinks().get(0).getTitle());
+        assertNull(result.getContentMarkdown());
         verify(problemMapper).updateById(problem);
-        verify(problemTagMapper).delete(any());
-        verify(problemLinkMapper).delete(any());
     }
 
     @Test
-    @DisplayName("更新题目失败 —— 题目不存在")
-    void updateProblemNotFound() {
-        when(problemMapper.selectById(999L)).thenReturn(null);
-
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> problemService.updateProblem(999L, new ProblemUpdateRequest())
-        );
-
-        assertEquals(ProblemErrorCode.PROBLEM_NOT_FOUND.getCode(), exception.getCode());
-        verify(problemMapper, never()).updateById(any(Problem.class));
-    }
-
-    @Test
-    @DisplayName("删除题目成功并清理关联数据")
-    void deleteProblemSuccess() {
+    @DisplayName("上传附件保存对象路径和元数据")
+    void uploadAttachmentStoresObjectAndMetadata() {
         when(problemMapper.selectById(1L)).thenReturn(problem);
-        when(problemTagMapper.delete(any())).thenReturn(1);
-        when(problemLinkMapper.delete(any())).thenReturn(1);
-        when(problemMapper.deleteById(1L)).thenReturn(1);
+        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
+        when(storageService.upload(any(), any())).thenReturn("problems/1/attachments/file.pdf");
+        when(storageService.getUrl(any())).thenReturn("https://example.com/file.pdf");
+        when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
+            ProblemAttachment attachment = invocation.getArgument(0);
+            attachment.setId(201L);
+            return 1;
+        });
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "statement.pdf", "application/pdf", "pdf".getBytes()
+        );
 
-        problemService.deleteProblem(1L);
+        ProblemVO.AttachmentVO result = problemService.uploadAttachment(
+                1L, file, "原始题面", 1
+        );
 
-        verify(problemTagMapper).delete(any());
-        verify(problemLinkMapper).delete(any());
-        verify(problemMapper).deleteById(1L);
+        assertEquals("statement.pdf", result.getFileName());
+        assertEquals("原始题面", result.getDescription());
+        verify(storageService).upload(file, "problems/1/attachments");
+        verify(problemAttachmentMapper).insert(any(ProblemAttachment.class));
     }
 
     @Test
-    @DisplayName("删除题目失败 —— 题目不存在")
-    void deleteProblemNotFound() {
-        when(problemMapper.selectById(999L)).thenReturn(null);
-
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> problemService.deleteProblem(999L)
+    @DisplayName("删除附件清理元数据和对象")
+    void deleteAttachmentRemovesMetadataAndObject() {
+        ProblemAttachment attachment = attachment(
+                201L,
+                "statement.pdf",
+                "problems/1/attachments/file.pdf"
         );
+        when(problemAttachmentMapper.selectById(201L)).thenReturn(attachment);
+        when(problemAttachmentMapper.deleteById(201L)).thenReturn(1);
+        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
 
-        assertEquals(ProblemErrorCode.PROBLEM_NOT_FOUND.getCode(), exception.getCode());
-        verify(problemTagMapper, never()).delete(any());
-        verify(problemLinkMapper, never()).delete(any());
-        verify(problemMapper, never()).deleteById(999L);
+        problemService.deleteAttachment(1L, 201L);
+
+        verify(problemAttachmentMapper).deleteById(201L);
+        verify(storageService).delete("problems/1/attachments/file.pdf");
     }
 
-    private Tag tag(Long id, String name) {
+    private ProblemCreateRequest validCreateRequest() {
+        ProblemCreateRequest request = new ProblemCreateRequest();
+        request.setTitle("新题目");
+        request.setContestId(10L);
+        request.setYear(2026);
+        request.setStatementLanguage("ZH");
+        request.setDurationMinutes(4320);
+        request.setDifficulty(2);
+        return request;
+    }
+
+    private ProblemAttachment attachment(Long id, String fileName, String objectKey) {
+        ProblemAttachment attachment = new ProblemAttachment();
+        attachment.setId(id);
+        attachment.setProblemId(1L);
+        attachment.setFileName(fileName);
+        attachment.setObjectKey(objectKey);
+        attachment.setContentType("application/octet-stream");
+        attachment.setFileSize(10L);
+        attachment.setSortOrder(0);
+        return attachment;
+    }
+
+    private Tag tag(Long id, String name, String type) {
         Tag tag = new Tag();
         tag.setId(id);
         tag.setName(name);
+        tag.setType(type);
         return tag;
-    }
-
-    private ProblemTag problemTag(Long problemId, Long tagId) {
-        ProblemTag problemTag = new ProblemTag();
-        problemTag.setProblemId(problemId);
-        problemTag.setTagId(tagId);
-        return problemTag;
-    }
-
-    private ProblemLink link(Long id, Long problemId, String title) {
-        ProblemLink link = new ProblemLink();
-        link.setId(id);
-        link.setProblemId(problemId);
-        link.setTitle(title);
-        link.setUrl("https://example.com");
-        link.setSortOrder(0);
-        return link;
     }
 }

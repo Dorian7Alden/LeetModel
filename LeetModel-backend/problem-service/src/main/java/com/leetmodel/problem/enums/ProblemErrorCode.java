@@ -24,9 +24,6 @@ public enum ProblemErrorCode implements ErrorCode {
     /** 标签名称已存在 */
     TAG_NAME_DUPLICATE(40403, "标签名称已存在"),
 
-    /** 赛事类型不合法 */
-    INVALID_CONTEST_TYPE(40404, "赛事类型不合法，只支持 MCM_ICM 或 CUMCM"),
-
     /** 难度值不合法 */
     INVALID_DIFFICULTY(40405, "难度值不合法，只支持 1-3"),
 
@@ -35,8 +32,11 @@ public enum ProblemErrorCode implements ErrorCode {
 
     /** 标签仍被题目使用 */
     TAG_IN_USE(40407, "标签仍被题目使用，不能删除"),
-    CONTEST_NOT_FOUND(40408, "赛事不存在或已停用"),
-    CONTEST_CODE_DUPLICATE(40409, "赛事编码已存在"),
+    CONTEST_NOT_FOUND(40408, "赛事不存在"),
+    ATTACHMENT_NOT_FOUND(40410, "题目附件不存在"),
+    STORAGE_NOT_ENABLED(40411, "附件存储服务未启用"),
+    TAG_TYPE_CONFLICT(40412, "背景领域和题目类型分别只能选择一个标签"),
+    INVALID_SCORE_RANGE(40413, "最低分不能大于最高分"),
     ;
 
     /** 错误码 */

@@ -14,9 +14,9 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 })
 @EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
 @MapperScan("com.leetmodel.team.mapper")
-public class LeetModelTeamApplication {
+public class TeamApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(LeetModelTeamApplication.class, args);
+        SpringApplication.run(TeamApplication.class, args);
     }
 }

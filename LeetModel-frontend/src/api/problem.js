@@ -9,7 +9,16 @@ export function getProblemDetail(problemId) {
 }
 
 export function getPublicProblemList(params) {
-  return request({ url: "/public/problems", method: "get", params });
+  return request({
+    url: "/public/problems",
+    method: "get",
+    params,
+    paramsSerializer: { indexes: null },
+  });
+}
+
+export function getPublicProblemFilterOptions() {
+  return request({ url: "/public/problems/filter-options", method: "get" });
 }
 
 export function getPublicProblemDetail(problemId) {
@@ -17,7 +26,12 @@ export function getPublicProblemDetail(problemId) {
 }
 
 export function getRandomPublicProblem(params) {
-  return request({ url: "/public/problems/random", method: "get", params });
+  return request({
+    url: "/public/problems/random",
+    method: "get",
+    params,
+    paramsSerializer: { indexes: null },
+  });
 }
 
 export function getContests() {
