@@ -6,6 +6,10 @@
     </div>
 
     <p class="team-desc">{{ team.description }}</p>
+    <div class="team-context">
+      <el-tag size="small" type="info">题目 {{ team.problemId }}</el-tag>
+      <el-tag size="small" :type="practiceType">{{ practiceLabel }}</el-tag>
+    </div>
 
     <!-- 成员头像 -->
     <div class="member-avatars">
@@ -65,6 +69,8 @@ const recruitmentRoles = computed(() => {
   if (props.team.needWriter) roles.push('论文手')
   return roles
 })
+const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[props.team.practiceStatus] || props.team.practiceStatus || '未知状态')
+const practiceType = computed(() => ({ PREPARING: 'info', IN_PROGRESS: 'warning', ENDED: 'success' })[props.team.practiceStatus] || 'info')
 
 function goDetail() {
   router.push({ name: 'TeamDetail', params: { id: props.team.id } })
@@ -124,6 +130,7 @@ function goDetail() {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.team-context { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .member-avatars {
   display: flex;

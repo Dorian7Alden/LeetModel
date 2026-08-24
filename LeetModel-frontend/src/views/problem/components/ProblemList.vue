@@ -1,193 +1,90 @@
 <template>
-  <div class="problem-list">
-    <div class="list-header">
-      <span class="result-count">共 {{ filteredList.length }} 题</span>
-    </div>
-
-    <div v-if="pagedList.length > 0" class="list-cards">
-      <div
-        class="problem-card card-hover"
-        v-for="(item, idx) in pagedList"
-        :key="item.problemId"
-        @click="$router.push(`/problem/${item.problemId}`)"
-      >
-        <div class="card-left">
-          <span class="card-index">{{ (pageNum - 1) * pageSize + idx + 1 }}</span>
-        </div>
+  <div class="problem-list" v-loading="loading">
+    <div class="list-header"><span class="result-count">共 {{ total }} 题</span></div>
+    <div v-if="problems.length" class="list-cards">
+      <div v-for="(item, index) in problems" :key="item.id" class="problem-card card-hover" @click="$router.push(`/problem/${item.id}`)">
+        <span class="card-index">{{ (page - 1) * pageSize + index + 1 }}</span>
         <div class="card-body">
           <div class="card-top">
-            <h3 class="card-title">{{ item.problemTitle }}</h3>
-            <el-tag
-              :type="difficultyType(item.difficulty)"
-              size="small"
-              effect="plain"
-            >{{ item.difficulty }}</el-tag>
+            <h3 class="card-title">{{ item.title }}</h3>
+            <el-tag :type="difficultyType(item.difficulty)" size="small" effect="plain">{{ difficultyLabel(item.difficulty) }}</el-tag>
+            <el-tag size="small" effect="plain" type="info">{{ contestTypeLabel(item.contestType) }}</el-tag>
           </div>
-          <div class="card-tags" v-if="item.tags">
-            <span class="card-tag" v-for="t in item.tags.slice(0, 4)" :key="t">{{ t }}</span>
+          <div v-if="item.tagNames?.length" class="card-tags">
+            <span v-for="tag in item.tagNames.slice(0, 4)" :key="tag" class="card-tag">{{ tag }}</span>
           </div>
           <div class="card-meta">
-            <span class="meta-item">
-              <el-icon :size="14"><StarFilled /></el-icon>
-              {{ item.aveScore }} 分
-            </span>
-            <span class="meta-item">
-              <el-icon :size="14"><User /></el-icon>
-              {{ item.submissionCount }} 提交
-            </span>
-            <span class="meta-item">
-              通过率 {{ (item.passRate * 100).toFixed(0) }}%
-            </span>
+            <span class="meta-item"><el-icon :size="14"><StarFilled /></el-icon>平均分 {{ item.averageScore ?? 0 }}</span>
+            <span class="meta-item">发布于 {{ formatDate(item.createTime) }}</span>
+            <span class="meta-item">{{ item.year || '-' }} 年 · {{ item.statementLanguage === 'EN' ? '英文' : '中文' }} · {{ formatDuration(item.durationMinutes) }}</span>
           </div>
         </div>
       </div>
     </div>
-
-    <div v-else class="empty-state">
-      <el-empty description="暂无符合条件的题目" />
-    </div>
-
-    <div class="pagination-wrap" v-if="filteredList.length > pageSize">
-      <el-pagination
-        v-model:current-page="pageNum"
-        :page-size="pageSize"
-        :total="filteredList.length"
-        background
-        layout="prev, pager, next, total"
-        @current-change="scrollToTop"
-      />
+    <el-empty v-else-if="!loading" description="暂无符合条件的题目" />
+    <div v-if="total > pageSize" class="pagination-wrap">
+      <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" background layout="prev, pager, next, total" @current-change="fetchProblems" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { StarFilled, User } from '@element-plus/icons-vue'
-import { mockProblems } from '@/mock/data.js'
+import { onMounted, ref } from 'vue'
+import { StarFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getPublicProblemList } from '@/api/problem'
 
-const allProblems = ref([])
-const pageNum = ref(1)
+const problems = ref([])
+const loading = ref(false)
+const page = ref(1)
 const pageSize = ref(10)
-const queryParams = ref({})
+const total = ref(0)
+const query = ref({})
+const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
+const contestTypeLabel = (value) => ({ MCM_ICM: '美赛', CUMCM: '国赛' })[value] || value || '未分类'
+const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
+const formatDate = (value) => value ? new Date(value).toLocaleDateString('zh-CN') : '-'
+const formatDuration = (minutes) => minutes ? `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ''}` : '时长未设置'
 
-onMounted(() => {
-  allProblems.value = mockProblems
-})
-
-const filteredList = computed(() => {
-  let list = [...allProblems.value]
-  const q = queryParams.value
-  if (!q) return list
-
-  if (q.keyword) {
-    const kw = q.keyword.toLowerCase()
-    list = list.filter(p => p.problemTitle.toLowerCase().includes(kw) || (p.description && p.description.toLowerCase().includes(kw)))
+const fetchProblems = async () => {
+  loading.value = true
+  try {
+    const response = await getPublicProblemList({ page: page.value, pageSize: pageSize.value, ...query.value })
+    problems.value = response.data?.rows || []
+    total.value = response.data?.total || 0
+  } catch (error) {
+    problems.value = []
+    total.value = 0
+    ElMessage.error(error.message || '获取题目列表失败')
+  } finally {
+    loading.value = false
   }
-  if (q.difficulty) list = list.filter(p => p.difficulty === q.difficulty)
-  if (q.language) list = list.filter(p => p.language === q.language)
-  if (q.tags && q.tags.length > 0) {
-    list = list.filter(p => q.tags.some(t => p.tags && p.tags.includes(t)))
-  }
-  if (q.minAveScore != null) list = list.filter(p => p.aveScore >= q.minAveScore)
-  if (q.maxAveScore != null) list = list.filter(p => p.aveScore <= q.maxAveScore)
-
-  if (q.sortOrder === 'asc') list.sort((a, b) => a.aveScore - b.aveScore)
-  else if (q.sortOrder === 'desc') list.sort((a, b) => b.aveScore - a.aveScore)
-  else if (q.sortOrder === 'newest') list.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
-
-  return list
-})
-
-const pagedList = computed(() => {
-  const start = (pageNum.value - 1) * pageSize.value
-  return filteredList.value.slice(start, start + pageSize.value)
-})
-
-function updateQuery(params) {
-  queryParams.value = { ...params }
-  pageNum.value = 1
 }
 
-function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+const updateQuery = (params) => {
+  query.value = Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value !== '' && value != null))
+  page.value = 1
+  fetchProblems()
 }
 
-function difficultyType(d) {
-  const map = { '入门': 'success', '中等': 'warning', '困难': 'danger', '挑战': 'danger' }
-  return map[d] || 'info'
-}
-
+onMounted(fetchProblems)
 defineExpose({ updateQuery })
 </script>
 
 <style scoped>
-.problem-list { }
-
-.list-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 12px;
-}
-
-.result-count {
-  font-size: 13px; color: var(--lm-text-secondary); font-weight: 500;
-}
-
-.list-cards {
-  display: flex; flex-direction: column; gap: 8px;
-}
-
-.problem-card {
-  display: flex; gap: 16px;
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius);
-  padding: 16px 18px;
-  cursor: pointer;
-  align-items: flex-start;
-}
-
-.card-left {
-  display: flex; align-items: center; padding-top: 2px;
-}
-
-.card-index {
-  font-size: 14px; font-weight: 600; color: var(--lm-text-muted);
-  width: 28px; text-align: center;
-}
-
+.problem-list { min-height: 240px; }
+.list-header { margin-bottom: 12px; }
+.result-count { font-size: 13px; color: var(--lm-text-secondary); font-weight: 500; }
+.list-cards { display: flex; flex-direction: column; gap: 8px; }
+.problem-card { display: flex; gap: 16px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: var(--lm-radius); padding: 16px 18px; cursor: pointer; }
+.card-index { width: 28px; padding-top: 2px; text-align: center; font-size: 14px; font-weight: 600; color: var(--lm-text-muted); }
 .card-body { flex: 1; min-width: 0; }
-
-.card-top {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
-}
-
-.card-title {
-  font-size: 15px; font-weight: 600; color: var(--lm-text-primary);
-  margin: 0; line-height: 1.4;
-}
-
-.card-title:hover { color: var(--lm-primary); }
-
-.card-tags {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
-}
-
-.card-tag {
-  font-size: 11px; color: var(--lm-text-secondary);
-  background: var(--lm-bg-secondary);
-  padding: 2px 8px; border-radius: 4px;
-}
-
-.card-meta {
-  display: flex; gap: 16px;
-}
-
-.meta-item {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; color: var(--lm-text-muted);
-}
-
-.pagination-wrap {
-  display: flex; justify-content: center; margin-top: 24px;
-}
+.card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.card-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--lm-text-primary); }
+.card-tags, .card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.card-tags { margin-bottom: 8px; }
+.card-tag { padding: 2px 8px; border-radius: 4px; background: var(--lm-bg-secondary); font-size: 11px; color: var(--lm-text-secondary); }
+.card-meta { gap: 16px; }
+.meta-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--lm-text-muted); }
+.pagination-wrap { display: flex; justify-content: center; margin-top: 24px; }
 </style>

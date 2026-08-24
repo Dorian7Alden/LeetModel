@@ -18,6 +18,18 @@ export default [
         ]
       },
       {
+        path: 'contest',
+        meta: { title: '赛事数据', icon: 'Collection' },
+        children: [
+          {
+            path: 'list',
+            name: 'AdminContestList',
+            component: () => import("@/views/admin/pages/ContestListPage.vue"),
+            meta: { title: '赛事数据' }
+          }
+        ]
+      },
+      {
         path: 'problem',
         meta: { title: '题目管理', icon: 'Document' },
         children: [
@@ -26,18 +38,6 @@ export default [
             name: 'AdminProblemList',
             component: () => import("@/views/admin/pages/ProblemListPage.vue"),
             meta: { title: '题目管理' }
-          }
-        ]
-      },
-      {
-        path: 'submission',
-        meta: { title: '作品管理', icon: 'UploadFilled' },
-        children: [
-          {
-            path: 'list',
-            name: 'AdminSubmissionList',
-            component: () => import("@/views/admin/pages/SubmissionListPage.vue"),
-            meta: { title: '作品管理' }
           }
         ]
       },

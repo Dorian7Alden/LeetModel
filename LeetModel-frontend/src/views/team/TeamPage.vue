@@ -28,6 +28,11 @@
 
     <el-dialog v-model="showCreateDialog" title="创建队伍" width="520px">
       <el-form :model="createForm" label-width="80px">
+        <el-form-item label="练习题目" required>
+          <el-select v-model="createForm.problemId" filterable placeholder="请选择题目" style="width: 100%">
+            <el-option v-for="problem in problemOptions" :key="problem.id" :label="`${problem.year} · ${problem.title}`" :value="problem.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="队伍名称" required><el-input v-model="createForm.name" maxlength="64" show-word-limit /></el-form-item>
         <el-form-item label="队伍简介"><el-input v-model="createForm.description" type="textarea" :rows="3" maxlength="256" show-word-limit /></el-form-item>
         <el-form-item label="最大人数"><el-input-number v-model="createForm.maxMembers" :min="1" :max="3" /></el-form-item>
@@ -41,17 +46,26 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import { useRoute } from 'vue-router'
 import { createTeam, getMyTeams, getPublicTeams } from '@/api/team'
+import { getPublicProblemList } from '@/api/problem'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TeamCard from './components/TeamCard.vue'
 
 const activeTab = ref('mine')
+const route = useRoute()
 const teams = ref([])
+const problemOptions = ref([])
 const total = ref(0)
 const loading = ref(false)
 const showCreateDialog = ref(false)
 const query = reactive({ page: 1, pageSize: 9, keyword: '', availableOnly: false, recruitingOnly: false, needModeler: false, needProgrammer: false, needWriter: false, sortBy: 'createTime' })
-const createForm = reactive({ name: '', description: '', maxMembers: 3 })
+const createForm = reactive({ problemId: null, name: '', description: '', maxMembers: 3 })
+
+async function loadProblemOptions() {
+  try { problemOptions.value = (await getPublicProblemList({ page: 1, pageSize: 100 })).data?.rows || [] }
+  catch (error) { ElMessage.error(error.message || '题目列表加载失败') }
+}
 
 async function loadPublicTeams() {
   loading.value = true
@@ -75,9 +89,10 @@ function handleTabChange(name) { name === 'public' ? loadPublicTeams() : loadMyT
 
 async function handleCreate() {
   if (!createForm.name.trim()) return ElMessage.warning('请输入队伍名称')
+  if (!createForm.problemId) return ElMessage.warning('请选择练习题目')
   try {
     const created = (await createTeam({ ...createForm, name: createForm.name.trim(), description: createForm.description.trim() || null })).data
-    Object.assign(createForm, { name: '', description: '', maxMembers: 3 })
+    Object.assign(createForm, { problemId: null, name: '', description: '', maxMembers: 3 })
     showCreateDialog.value = false
     activeTab.value = 'mine'
     await loadMyTeams()
@@ -85,7 +100,13 @@ async function handleCreate() {
   } catch (error) { ElMessage.error(error.message || '队伍创建失败') }
 }
 
-onMounted(loadMyTeams)
+onMounted(async () => {
+  await Promise.all([loadMyTeams(), loadProblemOptions()])
+  if (route.query.problemId) {
+    createForm.problemId = problemOptions.value.find(item => String(item.id) === String(route.query.problemId))?.id || route.query.problemId
+    showCreateDialog.value = true
+  }
+})
 </script>
 
 <style scoped>

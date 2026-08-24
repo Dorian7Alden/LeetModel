@@ -6,7 +6,7 @@
         <h1 class="hero-title">关于 LeetModel</h1>
         <p class="hero-subtitle">
           以模型会友，以算法相知。LeetModel 是一个专注于数学建模训练与竞技的在线平台，
-          致力于为建模爱好者提供最优质的训练、竞赛与协作体验。
+          致力于为建模爱好者提供从题目、组队、限时提交到 AI 评审的完整实训体验。
         </p>
       </div>
       <div class="hero-stats">
@@ -21,10 +21,6 @@
         <div class="stat-item">
           <span class="stat-num">890+</span>
           <span class="stat-text">提交作品</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-num">6</span>
-          <span class="stat-text">年度赛事</span>
         </div>
       </div>
     </section>
@@ -80,14 +76,14 @@ import { Aim, DataAnalysis, Connection, Promotion } from '@element-plus/icons-vu
 
 const missions = [
   { title: '精准训练', desc: '覆盖模型设计、算法实现、数据处理、结果分析、论文写作五大维度，提供全方位建模训练。', icon: 'Aim', bg: '#eff6ff' },
-  { title: '以赛促学', desc: '对接国赛、美赛、统计建模等主流赛事，提供赛前训练、赛中交流、赛后复盘的全流程支持。', icon: 'DataAnalysis', bg: '#f0fdf4' },
-  { title: '协作共赢', desc: '打通组队、讨论、分享等协作场景，让建模不再是一个人的战斗。', icon: 'Connection', bg: '#fffbeb' },
+  { title: '限时实训', desc: '以公开赛题为练习内容，通过题目规定时长还原完整建模节奏。', icon: 'DataAnalysis', bg: '#f0fdf4' },
+  { title: '协作共赢', desc: '围绕具体题目组建队伍、分配职责并共享提交与评审结果。', icon: 'Connection', bg: '#fffbeb' },
 ]
 
 const milestones = [
   { time: '2025年9月', title: '项目立项', desc: '核心团队组建，确定技术选型与产品方向。' },
   { time: '2025年11月', title: 'Alpha 版本', desc: '完成用户系统、题库模块、作品提交核心功能开发。' },
-  { time: '2026年1月', title: 'Beta 公测', desc: '上线社区模块、赛事模块，开放首批种子用户测试。' },
+  { time: '2026年1月', title: 'Beta 公测', desc: '上线题目组队与限时练习主流程，开放首批种子用户测试。' },
   { time: '2026年3月', title: 'v1.0 正式发布', desc: '完整功能上线，包括 AI 评审引擎和 RBAC 权限体系。' },
   { time: '2026年5月', title: 'v1.1 持续迭代', desc: '优化用户体验，接入更多竞赛数据源，完善训练体系。' },
 ]

@@ -39,7 +39,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { List, StarFilled, Reading, Aim, DArrowLeft, DArrowRight, ArrowDown } from '@element-plus/icons-vue'
+import { List, DArrowLeft, DArrowRight, ArrowDown } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,19 +47,10 @@ const route = useRoute()
 const isCollapsed = ref(false)
 const activeKey = ref('all')
 
-const iconMap = { all: List, top: StarFilled, leetbook: Reading, training: Aim }
+const iconMap = { all: List }
 
 const menuList = ref([
   { key: 'all', label: '全部题目', path: '/problem/problemListPage' },
-  { key: 'top', label: '精选 TOP 10', path: '/problem/top' },
-  { key: 'leetbook', label: 'LeetBook', path: '/problem/leetbook' },
-  {
-    key: 'training', label: '专项训练', open: false, children: [
-      { key: 'model', label: '建模手', path: '/problem/modeling' },
-      { key: 'code', label: '编程手', path: '/problem/coding' },
-      { key: 'paper', label: '论文手', path: '/problem/paper' },
-    ],
-  },
 ])
 
 const toggleCollapse = () => { isCollapsed.value = !isCollapsed.value }

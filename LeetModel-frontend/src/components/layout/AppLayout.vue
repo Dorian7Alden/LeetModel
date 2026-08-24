@@ -34,7 +34,7 @@
         <div class="right-area">
           <el-input
             v-model="keyword"
-            placeholder="搜索题目 / 比赛 / 帖子"
+            placeholder="搜索题目"
             class="search-input"
             clearable
           />
@@ -81,10 +81,6 @@
                     <el-icon class="menu-icon"><StarFilled /></el-icon>
                     我的收藏
                   </el-dropdown-item>
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><Document /></el-icon>
-                    我的笔记
-                  </el-dropdown-item>
                 </div>
 
                 <div class="divider"></div>
@@ -128,8 +124,6 @@
           <div class="footer-col">
             <h4>平台</h4>
             <router-link to="/problem">题库</router-link>
-            <router-link to="/contest">赛事</router-link>
-            <router-link to="/community">社区</router-link>
             <router-link to="/team">组队</router-link>
           </div>
           <div class="footer-col">
@@ -157,7 +151,6 @@ import { getCurrentAuthorization } from '@/api/user'
 import {
   Collection,
   StarFilled,
-  Document,
   UserFilled,
   SwitchButton,
 } from '@element-plus/icons-vue'
@@ -175,8 +168,6 @@ const roleTagType = computed(() => {
 
 const navItems = [
   { label: '题库', path: '/problem' },
-  { label: '赛事', path: '/contest' },
-  { label: '社区', path: '/community' },
   { label: '组队', path: '/team' },
 ]
 

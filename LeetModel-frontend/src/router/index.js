@@ -3,8 +3,6 @@ import AppLayout from "@/components/layout/AppLayout.vue";
 
 import homeRoutes from "./modules/home";
 import problemRoutes from "./modules/problem";
-import contestRoutes from "./modules/contest";
-import communityRoutes from "./modules/community";
 import teamRoutes from "./modules/team";
 import profileRoutes from "./modules/profile";
 import authRoutes from "./modules/auth";
@@ -19,8 +17,6 @@ const routes = [
     children: [
       ...homeRoutes,
       ...problemRoutes,
-      ...contestRoutes,
-      ...communityRoutes,
       ...teamRoutes,
       ...profileRoutes,
       ...aboutRoutes,

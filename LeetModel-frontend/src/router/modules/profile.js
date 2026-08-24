@@ -11,11 +11,6 @@ export default [
     component: () => import("@/views/profile/pages/SkillAnalysisPage.vue"),
   },
   {
-    path: "profile/achievement",
-    name: "Achievement",
-    component: () => import("@/views/profile/pages/AchievementPage.vue"),
-  },
-  {
     path: "profile/history",
     name: "History",
     component: () => import("@/views/profile/pages/HistoryPage.vue"),

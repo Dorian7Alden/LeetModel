@@ -163,7 +163,6 @@ const permissionGroups = computed(() => {
     { label: '题目管理', prefix: 'PROBLEM' },
     { label: '作品管理', prefix: 'SUBMISSION' },
     { label: '标签管理', prefix: 'TAG' },
-    { label: '帖子管理', prefix: 'POST' },
     { label: '赛事管理', prefix: 'CONTEST' },
     { label: '角色管理', prefix: 'ROLE' },
     { label: '权限管理', prefix: 'PERMISSION' },

@@ -23,7 +23,7 @@
             </div>
             <div class="feature-item">
               <el-icon :size="18"><CircleCheck /></el-icon>
-              <span>竞赛交流社区</span>
+              <span>限时组队论文实训</span>
             </div>
           </div>
         </div>

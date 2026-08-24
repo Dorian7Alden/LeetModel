@@ -59,3 +59,7 @@ export function getTeamApplications(teamId) {
 export function reviewTeamApplication(teamId, applicationId, decision) {
   return request.put(`/teams/${teamId}/applications/${applicationId}`, { decision });
 }
+
+export function startTeamPractice(teamId) {
+  return request.post(`/teams/${teamId}/practice/start`);
+}

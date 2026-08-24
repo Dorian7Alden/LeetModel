@@ -17,12 +17,18 @@
       </div>
 
       <el-table :data="tableData" style="width: 100%" stripe v-loading="tableLoading">
-        <el-table-column prop="problemId" label="ID" width="80" />
-        <el-table-column prop="problemTitle" label="题目名称" min-width="200" />
-        <el-table-column prop="problemStatus" label="状态" width="100">
+        <el-table-column prop="id" label="ID" width="180" />
+        <el-table-column prop="title" label="题目名称" min-width="200" />
+        <el-table-column prop="contestName" label="赛事" width="180" />
+        <el-table-column prop="year" label="年份" width="80" />
+        <el-table-column prop="statementLanguage" label="题面" width="70"><template #default="scope">{{ scope.row.statementLanguage === 'EN' ? '英文' : '中文' }}</template></el-table-column>
+        <el-table-column prop="difficulty" label="难度" width="80">
+          <template #default="scope">{{ getDifficultyLabel(scope.row.difficulty) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.problemStatus)">
-              {{ getStatusLabel(scope.row.problemStatus) }}
+            <el-tag :type="getStatusType(scope.row.status)">
+              {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -64,33 +70,33 @@
       @closed="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
-        <el-form-item label="题目标题" prop="problemTitle">
-          <el-input v-model="form.problemTitle" placeholder="请输入题目标题" />
+        <el-form-item label="题目标题" prop="title">
+          <el-input v-model="form.title" placeholder="请输入题目标题" />
         </el-form-item>
 
-        <el-form-item label="题目内容文件" prop="contentFileId">
-          <div class="upload-area">
-            <el-upload
-              ref="uploadRef"
-              :auto-upload="false"
-              :limit="1"
-              :on-change="handleFileChange"
-              :on-remove="handleFileRemove"
-              :file-list="fileList"
-              accept=".md"
-            >
-              <el-button type="primary" plain :loading="uploading">
-                {{ uploading ? '上传中...' : '选择 .md 文件' }}
-              </el-button>
-            </el-upload>
-            <span v-if="form.contentFileId" class="upload-tip">
-              文件已上传 (ID: {{ form.contentFileId }})
-            </span>
-          </div>
+        <el-form-item label="题面文件 ID" prop="contentFileId">
+          <el-input-number v-model="form.contentFileId" :min="1" controls-position="right" />
+          <span class="field-tip">文件上传接口尚未实现，可暂不填写</span>
         </el-form-item>
 
-        <el-form-item label="题目状态" prop="problemStatus">
-          <el-select v-model="form.problemStatus" placeholder="请选择状态" style="width: 100%">
+        <el-form-item label="所属赛事" prop="contestId">
+          <el-select v-model="form.contestId" style="width: 100%">
+            <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="题目年份" prop="year"><el-input-number v-model="form.year" :min="2000" :max="2100" /></el-form-item>
+        <el-form-item label="题面语言" prop="statementLanguage"><el-radio-group v-model="form.statementLanguage"><el-radio value="ZH">中文</el-radio><el-radio value="EN">英文</el-radio></el-radio-group></el-form-item>
+        <el-form-item label="完成时长" prop="durationMinutes"><el-input-number v-model="form.durationMinutes" :min="1" :max="10080" /><span class="field-tip">分钟</span></el-form-item>
+
+        <el-form-item label="难度" prop="difficulty">
+          <el-select v-model="form.difficulty" style="width: 100%">
+            <el-option label="简单" :value="1" /><el-option label="中等" :value="2" /><el-option label="困难" :value="3" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="题目状态" prop="status">
+          <el-select v-model="form.status" placeholder="请选择状态" style="width: 100%">
             <el-option label="草稿" :value="0" />
             <el-option label="已发布" :value="1" />
             <el-option label="已下线" :value="2" />
@@ -121,8 +127,7 @@ const formatTime = (val) => {
 };
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { getProblemList, getProblemDetail, createProblem, updateProblem, deleteProblem } from '@/api/problem';
-import { uploadFile } from '@/api/file';
+import { getProblemList, getProblemDetail, createProblem, updateProblem, deleteProblem, getContests } from '@/api/problem';
 
 const searchQuery = ref('');
 const tableData = ref([]);
@@ -130,25 +135,32 @@ const tableLoading = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
+const contests = ref([]);
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
 const editId = ref(null);
 const submitLoading = ref(false);
-const uploading = ref(false);
-const fileList = ref([]);
 const formRef = ref();
-const uploadRef = ref();
 
 const form = reactive({
-  problemTitle: '',
+  title: '',
   contentFileId: null,
-  problemStatus: 0
+  contestId: null,
+  year: new Date().getFullYear(),
+  statementLanguage: 'ZH',
+  durationMinutes: 4320,
+  difficulty: 1,
+  status: 0
 });
 
 const rules = {
-  problemTitle: [{ required: true, message: '请输入题目标题', trigger: 'blur' }],
-  contentFileId: [{ required: true, message: '请上传题目内容文件', trigger: 'change' }]
+  title: [{ required: true, message: '请输入题目标题', trigger: 'blur' }],
+  contestId: [{ required: true, message: '请选择赛事', trigger: 'change' }],
+  year: [{ required: true, message: '请输入年份', trigger: 'change' }],
+  statementLanguage: [{ required: true, message: '请选择题面语言', trigger: 'change' }],
+  durationMinutes: [{ required: true, message: '请输入完成时长', trigger: 'change' }],
+  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }]
 };
 
 const statusMap = {
@@ -160,6 +172,7 @@ const statusMap = {
 
 const getStatusLabel = (status) => statusMap[status]?.label || '未知';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
+const getDifficultyLabel = (difficulty) => ({ 1: '简单', 2: '中等', 3: '困难' })[difficulty] || '未知';
 
 const fetchList = async () => {
   tableLoading.value = true;
@@ -170,7 +183,7 @@ const fetchList = async () => {
     }
     const res = await getProblemList(params);
     if (res.code === 20000 && res.data) {
-      tableData.value = res.data.records || [];
+      tableData.value = res.data.rows || [];
       total.value = res.data.total || 0;
     } else {
       ElMessage.error(res.msg || '获取题目列表失败');
@@ -183,32 +196,6 @@ const fetchList = async () => {
   }
 };
 
-const handleFileChange = async (uploadFileItem) => {
-  const file = uploadFileItem.raw;
-  if (!file) return;
-  uploading.value = true;
-  try {
-    const res = await uploadFile(file);
-    if (res.code === 20000) {
-      form.contentFileId = res.data.fileId;
-      ElMessage.success('文件上传成功');
-    } else {
-      ElMessage.error(res.msg || '文件上传失败');
-      uploadRef.value.clearFiles();
-    }
-  } catch (error) {
-    console.error('文件上传失败', error);
-    ElMessage.error('文件上传失败');
-    uploadRef.value.clearFiles();
-  } finally {
-    uploading.value = false;
-  }
-};
-
-const handleFileRemove = () => {
-  form.contentFileId = null;
-};
-
 const openCreateDialog = () => {
   isEdit.value = false;
   editId.value = null;
@@ -217,17 +204,19 @@ const openCreateDialog = () => {
 
 const openEditDialog = async (row) => {
   isEdit.value = true;
-  editId.value = row.problemId;
+  editId.value = row.id;
   try {
-    const res = await getProblemDetail(row.problemId);
+    const res = await getProblemDetail(row.id);
     if (res.code === 20000 && res.data) {
       const d = res.data;
-      form.problemTitle = d.problemTitle;
+      form.title = d.title;
       form.contentFileId = d.contentFileId;
-      form.problemStatus = d.problemStatus;
-      if (d.contentFileId) {
-        fileList.value = [{ name: d.contentFileUrl || '已上传文件', id: d.contentFileId }];
-      }
+      form.contestId = d.contestId;
+      form.year = d.year;
+      form.statementLanguage = d.statementLanguage;
+      form.durationMinutes = d.durationMinutes;
+      form.difficulty = d.difficulty;
+      form.status = d.status;
     } else {
       ElMessage.error(res.msg || '获取题目详情失败');
       return;
@@ -241,13 +230,13 @@ const openEditDialog = async (row) => {
 };
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除题目「${row.problemTitle}」吗？`, '确认删除', {
+  ElMessageBox.confirm(`确定要删除题目「${row.title}」吗？`, '确认删除', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
     try {
-      await deleteProblem(row.problemId);
+      await deleteProblem(row.id);
       ElMessage.success('删除成功');
       fetchList();
     } catch (error) {
@@ -258,10 +247,14 @@ const handleDelete = (row) => {
 };
 
 const resetForm = () => {
-  form.problemTitle = '';
+  form.title = '';
   form.contentFileId = null;
-  form.problemStatus = 0;
-  fileList.value = [];
+  form.contestId = null;
+  form.year = new Date().getFullYear();
+  form.statementLanguage = 'ZH';
+  form.durationMinutes = 4320;
+  form.difficulty = 1;
+  form.status = 0;
   formRef.value?.resetFields();
 };
 
@@ -273,9 +266,14 @@ const onSubmit = async () => {
   submitLoading.value = true;
   try {
     const payload = {
-      problemTitle: form.problemTitle,
+      title: form.title,
       contentFileId: form.contentFileId,
-      problemStatus: form.problemStatus
+      contestId: form.contestId,
+      year: form.year,
+      statementLanguage: form.statementLanguage,
+      durationMinutes: form.durationMinutes,
+      difficulty: form.difficulty,
+      status: form.status
     };
     if (isEdit.value) {
       await updateProblem(editId.value, payload);
@@ -296,6 +294,7 @@ const onSubmit = async () => {
 
 onMounted(() => {
   fetchList();
+  getContests().then(res => { contests.value = (res.data || []).filter(item => item.status === 1); }).catch(error => ElMessage.error(error.message || '赛事数据加载失败'));
 });
 </script>
 
@@ -319,4 +318,5 @@ onMounted(() => {
   color: #67c23a;
   font-size: 13px;
 }
+.field-tip { margin-left: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
 </style>

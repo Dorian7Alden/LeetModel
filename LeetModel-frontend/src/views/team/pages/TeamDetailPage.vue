@@ -10,6 +10,7 @@
               <span class="meta-item"><el-icon><Calendar /></el-icon>{{ formatDate(team.createTime) }} 创建</span>
               <span class="meta-item"><el-icon><UserFilled /></el-icon>{{ team.members.length }} / {{ team.maxMembers }} 人</span>
               <el-tag :type="team.status === 1 ? 'success' : 'info'">{{ team.status === 1 ? '活跃' : '已解散' }}</el-tag>
+              <el-tag :type="practiceTagType">{{ practiceLabel }}</el-tag>
             </div>
           </div>
           <div v-if="team.status === 1" class="hero-action">
@@ -23,6 +24,50 @@
       </div>
 
       <div class="detail-body">
+        <div class="section practice-section">
+          <div class="section-heading">
+            <div>
+              <h3 class="section-title">限时练习</h3>
+              <p class="practice-meta">题目 ID：{{ team.problemId }}<template v-if="team.startedAt"> · 开始于 {{ formatDate(team.startedAt) }}</template></p>
+            </div>
+            <el-button v-if="canManage && team.practiceStatus === 'PREPARING'" type="primary" :loading="startingPractice" @click="handleStartPractice">开始练习</el-button>
+          </div>
+          <el-alert v-if="team.practiceStatus === 'PREPARING'" title="开始前需确保建模手、编程手和论文手三类职责均有人承担" type="info" :closable="false" show-icon />
+          <el-statistic v-else-if="team.practiceStatus === 'IN_PROGRESS'" title="距离截止" :value="remainingSeconds" value-style="color: #e6a23c">
+            <template #suffix>秒</template>
+          </el-statistic>
+          <p v-else-if="team.deadlineAt" class="practice-meta">截止时间：{{ formatDate(team.deadlineAt) }}</p>
+        </div>
+
+        <div v-if="isMember && team.practiceStatus !== 'PREPARING'" class="section">
+          <div class="section-heading"><h3 class="section-title">论文提交</h3><el-button @click="loadSubmissions">刷新历史</el-button></div>
+          <el-upload v-if="team.practiceStatus === 'IN_PROGRESS'" :auto-upload="false" :limit="1" accept="application/pdf,.pdf" :on-change="handlePdfChange" :on-remove="handlePdfRemove">
+            <el-button type="primary" plain>选择 PDF</el-button>
+            <template #tip><div class="el-upload__tip">仅支持 PDF，每次成功提交都会生成新版本</div></template>
+          </el-upload>
+          <el-button v-if="selectedPdf" type="primary" :loading="submitting" class="submit-button" @click="handleSubmitPdf">提交第 {{ nextVersion }} 版</el-button>
+          <el-button v-if="team.practiceStatus !== 'IN_PROGRESS'" :loading="finalizing" @click="handleFinalize">锁定并查看最终版本</el-button>
+          <el-table :data="submissions" size="small" class="submission-table" empty-text="暂无提交版本">
+            <el-table-column prop="version" label="版本" width="80"><template #default="scope">V{{ scope.row.version }}</template></el-table-column>
+            <el-table-column prop="originalFilename" label="文件名" min-width="180" />
+            <el-table-column prop="fileSize" label="大小" width="110"><template #default="scope">{{ formatFileSize(scope.row.fileSize) }}</template></el-table-column>
+            <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
+            <el-table-column label="操作" width="90"><template #default="scope"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></template></el-table-column>
+          </el-table>
+        </div>
+
+        <div v-if="isMember && team.practiceStatus !== 'PREPARING'" class="section">
+          <div class="section-heading"><h3 class="section-title">AI 评审结果</h3><el-button @click="loadReviews">刷新结果</el-button></div>
+          <el-table :data="reviews" size="small" empty-text="暂无已生成的评审结果">
+            <el-table-column prop="submissionId" label="提交 ID" min-width="150" />
+            <el-table-column prop="workflowVersion" label="评审版本" width="160" />
+            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column prop="totalScore" label="总分" width="90" />
+            <el-table-column prop="finishedAt" label="完成时间" width="170"><template #default="scope">{{ formatDate(scope.row.finishedAt) }}</template></el-table-column>
+            <el-table-column label="操作" width="120"><template #default="scope"><el-button v-if="scope.row.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.taskId)">重试</el-button><el-button v-if="scope.row.resultJson" type="primary" link @click="showReviewResult(scope.row)">查看结果</el-button></template></el-table-column>
+          </el-table>
+        </div>
+
         <div class="section">
           <div class="section-heading">
             <h3 class="section-title">当前成员</h3>
@@ -93,15 +138,18 @@
       </el-form>
       <template #footer><el-button @click="showApplyDialog = false">取消</el-button><el-button type="primary" @click="handleSubmitApplication">提交申请</el-button></template>
     </el-dialog>
+    <el-dialog v-model="showReviewDialog" title="AI 评审详情" width="680px"><pre class="review-json">{{ selectedReviewJson }}</pre></el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, UserFilled } from '@element-plus/icons-vue'
-import { addTeamMember, cancelTeamApplication, dissolveTeam, getTeamApplications, getTeamDetail, leaveTeam, removeTeamMember, reviewTeamApplication, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamRecruitment } from '@/api/team'
+import { addTeamMember, cancelTeamApplication, dissolveTeam, getTeamApplications, getTeamDetail, leaveTeam, removeTeamMember, reviewTeamApplication, startTeamPractice, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamRecruitment } from '@/api/team'
+import { finalizeTeamSubmission, getTeamSubmissionHistory, submitTeamPdf } from '@/api/submission'
+import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
@@ -113,6 +161,16 @@ const showEditDialog = ref(false)
 const showAddDialog = ref(false)
 const showApplyDialog = ref(false)
 const applications = ref([])
+const submissions = ref([])
+const reviews = ref([])
+const showReviewDialog = ref(false)
+const selectedReviewJson = ref('')
+const selectedPdf = ref(null)
+const submitting = ref(false)
+const finalizing = ref(false)
+const startingPractice = ref(false)
+const now = ref(Date.now())
+let clockTimer
 const addUserId = ref(null)
 const editForm = reactive({ name: '', description: '' })
 const recruitmentForm = reactive({ recruiting: false, needModeler: false, needProgrammer: false, needWriter: false })
@@ -121,6 +179,10 @@ const currentUserId = computed(() => Number(userStore.userId))
 const isLeader = computed(() => team.value?.leaderId === currentUserId.value)
 const isMember = computed(() => team.value?.members.some(member => member.userId === currentUserId.value) || false)
 const canManage = computed(() => isLeader.value && team.value?.status === 1)
+const remainingSeconds = computed(() => Math.max(0, Math.floor((new Date(team.value?.deadlineAt || 0).getTime() - now.value) / 1000)))
+const nextVersion = computed(() => Math.max(0, ...submissions.value.map(item => item.version || 0)) + 1)
+const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
+const practiceTagType = computed(() => ({ PREPARING: 'info', IN_PROGRESS: 'warning', ENDED: 'success' })[team.value?.practiceStatus] || 'info')
 
 async function loadTeam() {
   loading.value = true
@@ -128,12 +190,60 @@ async function loadTeam() {
     team.value = (await getTeamDetail(route.params.id)).data
     Object.assign(recruitmentForm, { recruiting: team.value.recruiting, needModeler: team.value.needModeler, needProgrammer: team.value.needProgrammer, needWriter: team.value.needWriter })
     if (team.value.canManage) applications.value = (await getTeamApplications(team.value.id)).data || []
+    if (team.value.members?.some(member => member.userId === currentUserId.value) && team.value.practiceStatus !== 'PREPARING') await Promise.all([loadSubmissions(), loadReviews()])
   }
   catch (error) { ElMessage.error(error.message || '队伍详情加载失败') }
   finally { loading.value = false }
 }
 
 function formatDate(value) { return value ? value.replace('T', ' ').slice(0, 16) : '未知时间' }
+function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
+function handlePdfChange(file) { selectedPdf.value = file.raw || null }
+function handlePdfRemove() { selectedPdf.value = null }
+
+async function loadSubmissions() {
+  try { submissions.value = (await getTeamSubmissionHistory(team.value.id)).data || [] }
+  catch (error) { ElMessage.error(error.message || '提交历史加载失败') }
+}
+async function loadReviews() {
+  try { reviews.value = (await getTeamReviews(team.value.id)).data || [] }
+  catch (error) { ElMessage.error(error.message || '评审结果加载失败') }
+}
+function showReviewResult(review) {
+  try { selectedReviewJson.value = JSON.stringify(JSON.parse(review.resultJson), null, 2) }
+  catch { selectedReviewJson.value = review.resultJson }
+  showReviewDialog.value = true
+}
+async function handleRetryReview(taskId) {
+  try { await retryReviewTask(taskId); await loadReviews(); ElMessage.success('评审任务已重新排队') }
+  catch (error) { ElMessage.error(error.message || '评审任务重试失败') }
+}
+
+async function handleStartPractice() {
+  try {
+    await ElMessageBox.confirm('开始后将立即按题目时长倒计时，成员和职责不可再修改。确定开始吗？', '开始限时练习', { type: 'warning' })
+    startingPractice.value = true
+    team.value = (await startTeamPractice(team.value.id)).data
+    await loadSubmissions()
+    ElMessage.success('限时练习已开始')
+  } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '开始练习失败') }
+  finally { startingPractice.value = false }
+}
+
+async function handleSubmitPdf() {
+  if (!selectedPdf.value) return
+  submitting.value = true
+  try { await submitTeamPdf(team.value.id, selectedPdf.value); selectedPdf.value = null; await loadSubmissions(); ElMessage.success('PDF 提交成功') }
+  catch (error) { ElMessage.error(error.message || 'PDF 提交失败') }
+  finally { submitting.value = false }
+}
+
+async function handleFinalize() {
+  finalizing.value = true
+  try { const result = (await finalizeTeamSubmission(team.value.id)).data; ElMessage.success(`最终版本已锁定为 V${result.version}`); await loadSubmissions() }
+  catch (error) { ElMessage.error(error.message || '最终版本锁定失败') }
+  finally { finalizing.value = false }
+}
 function openEditDialog() {
   Object.assign(editForm, { name: team.value.name, description: team.value.description || '' })
   showEditDialog.value = true
@@ -224,9 +334,13 @@ async function handleReview(applicationId, decision) {
   catch (error) { ElMessage.error(error.message || '申请审核失败') }
 }
 
-onMounted(loadTeam)
+onMounted(() => { loadTeam(); clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000) })
+onBeforeUnmount(() => window.clearInterval(clockTimer))
 </script>
 
 <style scoped>
 @import '../style.css';
+.practice-meta { margin: 6px 0; color: var(--lm-text-secondary); font-size: 13px; }
+.submit-button, .submission-table { margin-top: 16px; }
+.review-json { max-height: 520px; overflow: auto; padding: 16px; border-radius: 8px; background: var(--lm-bg-secondary); white-space: pre-wrap; word-break: break-word; }
 </style>

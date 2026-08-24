@@ -28,8 +28,7 @@
         <h4>你可能想找：</h4>
         <div class="tips-links">
           <router-link to="/problem">题库训练</router-link>
-          <router-link to="/contest">赛事一览</router-link>
-          <router-link to="/community">社区讨论</router-link>
+          <router-link to="/team">我的队伍</router-link>
           <router-link to="/help">使用帮助</router-link>
         </div>
       </div>
