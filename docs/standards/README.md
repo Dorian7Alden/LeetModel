@@ -19,6 +19,7 @@
 | 09 | [09-knife4j-annotation-spec.md](09-knife4j-annotation-spec.md) | Knife4j 接口注解规范：必须写 @Operation 且置于请求映射注解之前 | 编写 Controller 接口时 |
 | 10 | [10-exception-handling-spec.md](10-exception-handling-spec.md) | 统一项目异常处理规范：BusinessException、throwIf、全局异常处理器、Feign 降级 | 编写 Service 或 Controller 异常逻辑时 |
 | 11 | [11-code-style-spec.md](11-code-style-spec.md) | 后端 Java 代码风格规范：小方法、步骤注释、早返回、Stream 与集合组装 | 编写或调整 Java 代码时 |
+| 12 | [12-microservice-design-document-spec.md](12-microservice-design-document-spec.md) | 微服务设计文档规范：服务归属、功能目录、原子文档和跨服务边界 | 新增、拆分或更新微服务设计时 |
 
 ---
 

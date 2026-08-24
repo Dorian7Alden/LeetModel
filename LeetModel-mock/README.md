@@ -21,8 +21,9 @@ LeetModel-mock/
 │       ├── passwords.py         # 明文密码、BCrypt 哈希接口
 │       └── misc.py              # 头像、URL、手机号、布尔值接口
 ├── scripts/
-│   ├── generate_user_service_demo.py  # 场景脚本：组装 user-service 演示数据
-│   └── generate_team_service_demo.py  # 场景脚本：组装 team-service 演示数据
+│   ├── generate_user_service_demo.py     # 场景脚本：组装 user-service 演示数据
+│   ├── generate_team_service_demo.py     # 场景脚本：组装 team-service 演示数据
+│   └── generate_problem_service_demo.py  # 场景脚本：组装 problem-service 题库演示数据
 ├── requirements.txt
 └── README.md
 ```
@@ -148,6 +149,18 @@ python3 scripts/generate_team_service_demo.py
 
 ```text
 LeetModel-backend/team-service/src/main/resources/db/migration/V3__insert_mock_teams.sql
+```
+
+problem-service 演示数据使用固定业务场景覆盖赛事、年份、语言、难度、三类标签组合、历史分数区间和草稿隔离：
+
+```bash
+python3 scripts/generate_problem_service_demo.py
+```
+
+脚本输出：
+
+```text
+LeetModel-backend/problem-service/src/main/resources/db/migration/V6__insert_mock_problems.sql
 ```
 
 ## 演示账号
