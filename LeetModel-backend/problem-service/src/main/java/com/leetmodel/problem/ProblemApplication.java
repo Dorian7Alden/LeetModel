@@ -8,10 +8,10 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 @SpringBootApplication(scanBasePackages = "com.leetmodel")
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
-public class LeetModelProblemApplication {
+public class ProblemApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(LeetModelProblemApplication.class, args);
+        SpringApplication.run(ProblemApplication.class, args);
     }
 
 }

@@ -14,9 +14,9 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
         "com.leetmodel.common"
 })
 @EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
-public class LeetModelAdminApplication {
+public class AdminApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(LeetModelAdminApplication.class, args);
+        SpringApplication.run(AdminApplication.class, args);
     }
 }
