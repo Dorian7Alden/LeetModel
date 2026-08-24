@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: submission-service
+  profiles:
+    active: dev
+server:
+  shutdown: graceful

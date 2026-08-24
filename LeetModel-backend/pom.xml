@@ -28,6 +28,8 @@
         <module>user-service</module>
         <module>problem-service</module>
         <module>team-service</module>
+        <module>submission-service</module>
+        <module>review-service</module>
         <module>gateway-service</module>
         <module>admin-service</module>
     </modules>

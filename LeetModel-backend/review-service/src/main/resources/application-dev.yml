@@ -1,0 +1,27 @@
+server:
+  port: 8086
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/lm_review?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+  flyway:
+    enabled: true
+minio:
+  enabled: true
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: leetmodel
+review:
+  ai:
+    mode: ${REVIEW_AI_MODE:mock}
+    base-url: ${REVIEW_AI_BASE_URL:https://api.openai.com}
+    api-key: ${REVIEW_AI_API_KEY:}
+    model: ${REVIEW_AI_MODEL:gpt-4.1-mini}
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+springdoc:
+  api-docs:
+    path: /api/reviews/v3/api-docs

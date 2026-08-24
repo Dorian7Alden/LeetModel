@@ -54,6 +54,21 @@ spring:
           predicates:
             - Path=/api/tags/**
 
+        - id: contest-service
+          uri: lb://problem-service
+          predicates:
+            - Path=/api/contests/**
+
+        - id: submission-service
+          uri: lb://submission-service
+          predicates:
+            - Path=/api/submissions/**
+
+        - id: review-service
+          uri: lb://review-service
+          predicates:
+            - Path=/api/reviews/**
+
         # ---- 管理后台 ----
         - id: admin-service
           uri: lb://admin-service
@@ -104,6 +119,14 @@ knife4j:
       - name: admin-service
         service-name: admin-service
         url: /api/admin/v3/api-docs
+        context-path: /
+      - name: submission-service
+        service-name: submission-service
+        url: /api/submissions/v3/api-docs
+        context-path: /
+      - name: review-service
+        service-name: review-service
+        url: /api/reviews/v3/api-docs
         context-path: /
 
 # 鉴权白名单在 SaTokenConfig.java 中通过 .addExclude() 配置，此处不重复声明
