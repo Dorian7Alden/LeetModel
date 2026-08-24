@@ -8,25 +8,30 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 标签实体。
+ * 题目附件实体。
  */
 @Data
-@TableName("tag")
-public class Tag {
+@TableName("problem_attachment")
+public class ProblemAttachment {
 
-    /** 标签 ID（雪花算法） */
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
-    /** 标签名称 */
-    private String name;
+    private Long problemId;
 
-    /** 标签类型：背景领域、题目类型或模型与算法 */
-    private String type;
+    private String fileName;
 
-    /** 创建时间 */
+    private String objectKey;
+
+    private String contentType;
+
+    private Long fileSize;
+
+    private String description;
+
+    private Integer sortOrder;
+
     private LocalDateTime createTime;
 
-    /** 更新时间 */
     private LocalDateTime updateTime;
 }

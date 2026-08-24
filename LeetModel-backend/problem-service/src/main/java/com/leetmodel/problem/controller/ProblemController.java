@@ -13,6 +13,8 @@ import com.leetmodel.problem.vo.ProblemVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +24,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * 题目管理接口（需要 admin 角色）。
@@ -31,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @SaCheckRole("admin")
 @Tag(name = "题目管理")
+@Validated
 public class ProblemController {
 
     private final ProblemService problemService;
@@ -69,6 +76,27 @@ public class ProblemController {
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         problemService.deleteProblem(id);
+        return Result.ok();
+    }
+
+    @Operation(summary = "上传题目附件")
+    @PostMapping(path = "/{id}/attachments", consumes = "multipart/form-data")
+    public Result<ProblemVO.AttachmentVO> uploadAttachment(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) @Size(max = 500) String description,
+            @RequestParam(required = false) @Min(0) Integer sortOrder
+    ) {
+        return Result.ok(problemService.uploadAttachment(id, file, description, sortOrder));
+    }
+
+    @Operation(summary = "删除题目附件")
+    @DeleteMapping("/{problemId}/attachments/{attachmentId}")
+    public Result<Void> deleteAttachment(
+            @PathVariable Long problemId,
+            @PathVariable Long attachmentId
+    ) {
+        problemService.deleteAttachment(problemId, attachmentId);
         return Result.ok();
     }
 }

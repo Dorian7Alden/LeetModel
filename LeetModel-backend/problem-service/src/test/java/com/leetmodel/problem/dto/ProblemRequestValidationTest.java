@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,31 +46,30 @@ class ProblemRequestValidationTest {
     }
 
     @Test
-    @DisplayName("创建题目递归校验外部链接")
-    void createRequestValidatesNestedLink() {
-        ProblemCreateRequest request = validCreateRequest();
-        request.setLinks(List.of(new ProblemCreateRequest.LinkItem(
-                "", "ftp://example.com", null, -1
-        )));
-
-        Set<ConstraintViolation<ProblemCreateRequest>> violations = validator.validate(request);
-
-        assertTrue(hasViolation(violations, "links[0].title"));
-        assertTrue(hasViolation(violations, "links[0].url"));
-        assertTrue(hasViolation(violations, "links[0].sortOrder"));
-    }
-
-    @Test
     @DisplayName("分页查询拒绝非法赛事 ID 和标签 ID")
     void pageQueryRejectsInvalidFilters() {
         ProblemPageQuery query = new ProblemPageQuery();
         query.setContestId(0L);
-        query.setTagId(0L);
+        query.setTagIds(java.util.List.of(0L));
 
         Set<ConstraintViolation<ProblemPageQuery>> violations = validator.validate(query);
 
         assertTrue(hasViolation(violations, "contestId"));
-        assertTrue(hasViolation(violations, "tagId"));
+        assertTrue(violations.stream().anyMatch(violation ->
+                violation.getPropertyPath().toString().startsWith("tagIds")));
+    }
+
+    @Test
+    @DisplayName("分页查询拒绝非白名单排序字段和方向")
+    void pageQueryRejectsInvalidSort() {
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setSortBy("title desc");
+        query.setSortOrder("sideways");
+
+        Set<ConstraintViolation<ProblemPageQuery>> violations = validator.validate(query);
+
+        assertTrue(hasViolation(violations, "sortBy"));
+        assertTrue(hasViolation(violations, "sortOrder"));
     }
 
     private ProblemCreateRequest validCreateRequest() {

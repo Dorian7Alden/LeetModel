@@ -3,6 +3,7 @@ package com.leetmodel.problem.service;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
+import com.leetmodel.problem.enums.TagType;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.impl.TagServiceImpl;
@@ -45,6 +46,7 @@ class TagServiceTest {
         tag = new Tag();
         tag.setId(1L);
         tag.setName("预测");
+        tag.setType(TagType.PROBLEM_TYPE.name());
     }
 
     @Test
@@ -57,10 +59,11 @@ class TagServiceTest {
             return 1;
         });
 
-        Tag result = tagService.createTag("优化");
+        Tag result = tagService.createTag("优化", TagType.PROBLEM_TYPE);
 
         assertEquals(2L, result.getId());
         assertEquals("优化", result.getName());
+        assertEquals(TagType.PROBLEM_TYPE.name(), result.getType());
         verify(tagMapper).insert(any(Tag.class));
     }
 
@@ -71,7 +74,7 @@ class TagServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> tagService.createTag("预测")
+                () -> tagService.createTag("预测", TagType.PROBLEM_TYPE)
         );
 
         assertEquals(ProblemErrorCode.TAG_NAME_DUPLICATE.getCode(), exception.getCode());
@@ -85,7 +88,7 @@ class TagServiceTest {
         when(tagMapper.exists(any())).thenReturn(false);
         when(tagMapper.updateById(any(Tag.class))).thenReturn(1);
 
-        Tag result = tagService.updateTag(1L, "优化");
+        Tag result = tagService.updateTag(1L, "优化", TagType.PROBLEM_TYPE);
 
         assertEquals("优化", result.getName());
         verify(tagMapper).updateById(tag);
@@ -98,7 +101,7 @@ class TagServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> tagService.updateTag(999L, "优化")
+                () -> tagService.updateTag(999L, "优化", TagType.PROBLEM_TYPE)
         );
 
         assertEquals(ProblemErrorCode.TAG_NOT_FOUND.getCode(), exception.getCode());
@@ -113,10 +116,25 @@ class TagServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> tagService.updateTag(1L, "优化")
+                () -> tagService.updateTag(1L, "优化", TagType.PROBLEM_TYPE)
         );
 
         assertEquals(ProblemErrorCode.TAG_NAME_DUPLICATE.getCode(), exception.getCode());
+        verify(tagMapper, never()).updateById(any(Tag.class));
+    }
+
+    @Test
+    @DisplayName("已使用标签不能更改类型")
+    void updateUsedTagRejectsTypeChange() {
+        when(tagMapper.selectById(1L)).thenReturn(tag);
+        when(problemTagMapper.exists(any())).thenReturn(true);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> tagService.updateTag(1L, "预测", TagType.MODEL_ALGORITHM)
+        );
+
+        assertEquals(ProblemErrorCode.TAG_IN_USE.getCode(), exception.getCode());
         verify(tagMapper, never()).updateById(any(Tag.class));
     }
 

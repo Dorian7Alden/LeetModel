@@ -41,7 +41,7 @@ public class TagController {
     @SaCheckRole("admin")
     @PostMapping
     public Result<Tag> create(@Valid @RequestBody TagRequest request) {
-        Tag tag = tagService.createTag(request.getName());
+        Tag tag = tagService.createTag(request.getName(), request.getType());
         return Result.ok(tag);
     }
 
@@ -50,7 +50,7 @@ public class TagController {
     @PutMapping("/{id}")
     public Result<Tag> update(@PathVariable Long id,
                                @Valid @RequestBody TagRequest request) {
-        Tag tag = tagService.updateTag(id, request.getName());
+        Tag tag = tagService.updateTag(id, request.getName(), request.getType());
         return Result.ok(tag);
     }
 

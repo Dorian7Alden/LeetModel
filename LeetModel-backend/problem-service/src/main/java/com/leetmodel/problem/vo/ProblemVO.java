@@ -27,8 +27,8 @@ public class ProblemVO {
     /** 题目标题 */
     private String title;
 
-    /** 题目描述 MD 文件 ID */
-    private Long contentFileId;
+    /** 题目详情使用的 Markdown 题面，列表中不返回 */
+    private String contentMarkdown;
 
     private Long contestId;
     private String contestCode;
@@ -36,10 +36,6 @@ public class ProblemVO {
     private Integer year;
     private String statementLanguage;
     private Integer durationMinutes;
-
-    public String getContestType() {
-        return contestCode;
-    }
 
     /** 难度：1=简单 2=中等 3=困难 */
     private Integer difficulty;
@@ -62,18 +58,20 @@ public class ProblemVO {
     /** 标签名称列表 */
     private List<String> tagNames;
 
-    /** 外部链接列表（仅详情接口返回） */
-    private List<LinkVO> links;
+    /** 附件列表，仅详情接口返回 */
+    private List<AttachmentVO> attachments;
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class LinkVO {
+    public static class AttachmentVO {
         private Long id;
-        private String title;
-        private String url;
+        private String fileName;
+        private String contentType;
+        private Long fileSize;
         private String description;
         private Integer sortOrder;
+        private String downloadUrl;
     }
 }
