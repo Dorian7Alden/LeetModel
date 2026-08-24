@@ -108,7 +108,7 @@
     </header>
 
     <!-- 页面内容 -->
-    <main class="content">
+    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') }">
       <router-view />
     </main>
 
@@ -490,6 +490,10 @@ onMounted(async () => {
   padding: 20px;
 }
 
+.content.content-flush {
+  padding: 0;
+}
+
 /* ========== Footer ========== */
 .footer {
   background: var(--lm-surface, #fff);
@@ -556,8 +560,12 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
+  .topbar-inner {
+    padding: 0 12px;
+  }
+
   .navbar {
-    gap: 16px;
+    gap: 8px;
   }
 
   .nav-item {
@@ -566,7 +574,17 @@ onMounted(async () => {
   }
 
   .search-input {
-    width: 140px;
+    display: none;
+  }
+
+  .right-area {
+    gap: 6px;
+  }
+
+  .login-btn,
+  .register-btn {
+    margin-right: 0;
+    padding: 6px 8px;
   }
 
   .footer-content {
