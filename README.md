@@ -25,8 +25,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `LeetModel-mock/` | Python mock 数据 API 服务，提供基础数据接口与场景脚本 |
 | `LeetModel-frontend/` | 旧版前端，Vue 3。当前阶段不维护，前后端暂不对齐 |
 | `docs/` | 项目全部文档，按 project / troubleshooting / learning / concepts / standards 五类组织 |
-| `knowledge-base/` | 论文评审 RAG 知识库，按标签目录组织原子笔记 |
-| `legacy/` | 历史内容隔离区，含旧单体后端、旧 SQL 与旧 AI 协作配置，后续统一处理 |
+| `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与暂缓的 RAG 知识库 |
 | `CONTEXT.md` | 给 AI 看的行为说明与协作规则 |
 | `TODO.md` | 开发计划与进度追踪 |
 | `README.md` | 本文件，项目正常说明 |
