@@ -35,6 +35,15 @@ jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
 
+minio:
+  enabled: true
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:leetmodel}
+  max-file-size: ${MINIO_MAX_FILE_SIZE:52428800}
+  expiry-seconds: ${MINIO_EXPIRY_SECONDS:604800}
+
 # 暴露 Actuator 端点
 management:
   endpoints:

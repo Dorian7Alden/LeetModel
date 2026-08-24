@@ -18,6 +18,15 @@ spring:
 server:
   port: 8083
 
+minio:
+  enabled: ${MINIO_ENABLED:true}
+  endpoint: ${MINIO_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET:leetmodel}
+  max-file-size: ${MINIO_MAX_FILE_SIZE:52428800}
+  expiry-seconds: ${MINIO_EXPIRY_SECONDS:604800}
+
 management:
   endpoints:
     web:

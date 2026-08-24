@@ -18,6 +18,9 @@ spring:
 server:
   port: 8083
 
+minio:
+  enabled: false
+
 # Knife4j API 文档
 springdoc:
   swagger-ui:
