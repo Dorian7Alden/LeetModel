@@ -58,4 +58,6 @@ public interface TeamService extends IService<Team> {
 
     JoinApplicationVO reviewApplication(Long teamId, Long applicationId,
                                         JoinApplicationReviewRequest request, Long operatorId);
+
+    TeamVO startPractice(Long teamId, Long operatorId);
 }

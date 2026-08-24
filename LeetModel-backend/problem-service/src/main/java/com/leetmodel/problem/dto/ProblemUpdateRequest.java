@@ -30,8 +30,23 @@ public class ProblemUpdateRequest {
     @Positive(message = "题目描述文件 ID 必须为正数")
     private Long contentFileId;
 
-    /** 赛事类型：MCM_ICM / CUMCM */
-    private String contestType;
+    @Positive(message = "赛事 ID 必须为正数")
+    private Long contestId;
+
+    @Min(value = 2000, message = "题目年份不能早于 2000 年")
+    @Max(value = 2100, message = "题目年份不能晚于 2100 年")
+    private Integer year;
+
+    @Pattern(regexp = "ZH|EN", message = "题面语言只支持 ZH 或 EN")
+    private String statementLanguage;
+
+    @Min(value = 1, message = "完成时长至少为 1 分钟")
+    @Max(value = 10080, message = "完成时长不能超过 10080 分钟")
+    private Integer durationMinutes;
+
+    public void setContestType(String contestType) {
+        this.contestId = "MCM_ICM".equals(contestType) ? 1L : 2L;
+    }
 
     /** 难度：1=简单 2=中等 3=困难 */
     @Min(value = 1, message = "难度最小为 1")

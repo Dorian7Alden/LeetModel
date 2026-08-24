@@ -2,6 +2,8 @@ package com.leetmodel.team.service;
 
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.api.feign.UserFeignClient;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.team.dto.AddMemberRequest;
@@ -54,6 +56,9 @@ class TeamServiceTest {
     @Mock
     private UserFeignClient userFeignClient;
 
+    @Mock
+    private ProblemFeignClient problemFeignClient;
+
     @InjectMocks
     private TeamServiceImpl teamService;
 
@@ -70,6 +75,8 @@ class TeamServiceTest {
         team.setLeaderId(10L);
         team.setMaxMembers(3);
         team.setStatus(1);
+        team.setProblemId(100L);
+        team.setPracticeStatus("PREPARING");
         team.setRecruiting(true);
         team.setNeedModeler(false);
         team.setNeedProgrammer(false);
@@ -81,10 +88,13 @@ class TeamServiceTest {
     void createTeamSuccess() {
         when(teamMapper.insert(any(Team.class))).thenReturn(1);
         when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
+        when(problemFeignClient.getPracticeProblem(100L))
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
 
         TeamCreateRequest request = new TeamCreateRequest();
         request.setName("新团队");
         request.setDescription("描述");
+        request.setProblemId(100L);
 
         TeamVO vo = teamService.createTeam(request, 10L);
 

@@ -28,6 +28,11 @@ public enum TeamErrorCode implements ErrorCode {
     INVALID_APPLICATION_DECISION(40314, "审核决定只能是 approved 或 rejected"),
     CANNOT_APPLY_OWN_TEAM(40315, "不能申请加入自己创建的团队"),
     INVALID_TEAM_STATUS(40316, "团队状态只能是 0 或 1"),
+    PROBLEM_NOT_AVAILABLE(40317, "题目不存在或未发布"),
+    USER_HAS_ACTIVE_PROBLEM_TEAM(40318, "用户已在该题目下参加未结束队伍"),
+    ROLES_NOT_COVERED(40319, "建模、编程和论文职责必须全部覆盖"),
+    PRACTICE_ALREADY_STARTED(40320, "练习已经开始"),
+    PRACTICE_NOT_IN_PROGRESS(40321, "练习未在进行中"),
 
     // ---- 5xxxx 服务端错误 ----
     ;

@@ -39,4 +39,10 @@ public class PublicProblemController {
         ProblemVO vo = problemService.getPublishedProblemDetail(id);
         return Result.ok(vo);
     }
+
+    @Operation(summary = "随机获取已发布题目")
+    @GetMapping("/random")
+    public Result<ProblemVO> random(@Valid ProblemPageQuery query) {
+        return Result.ok(problemService.getRandomPublishedProblem(query));
+    }
 }

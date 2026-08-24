@@ -21,8 +21,15 @@ public class Problem extends BaseEntity {
     /** 题目描述 MD 文件 ID */
     private Long contentFileId;
 
-    /** 赛事类型：MCM_ICM / CUMCM */
-    private String contestType;
+    private Long contestId;
+    private Integer year;
+    private String statementLanguage;
+    private Integer durationMinutes;
+
+    /** 兼容旧测试数据，正式接口使用 contestId。 */
+    public void setContestType(String contestType) {
+        this.contestId = "MCM_ICM".equals(contestType) ? 1L : 2L;
+    }
 
     /** 难度：1=简单 2=中等 3=困难 */
     private Integer difficulty;

@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
@@ -67,18 +69,23 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     private final TeamMemberMapper teamMemberMapper;
     private final TeamJoinApplicationMapper applicationMapper;
     private final UserFeignClient userFeignClient;
+    private final ProblemFeignClient problemFeignClient;
 
     /** {@inheritDoc} */
     @Override
     @Transactional
     public TeamVO createTeam(TeamCreateRequest request, Long leaderId) {
+        getPracticeProblem(request.getProblemId());
+        checkNoActiveProblemTeam(leaderId, request.getProblemId());
         // 创建团队并启用招募
         Team team = new Team();
         team.setName(request.getName());
         team.setDescription(request.getDescription());
         team.setLeaderId(leaderId);
+        team.setProblemId(request.getProblemId());
         team.setMaxMembers(request.getMaxMembers() != null ? request.getMaxMembers() : DEFAULT_MAX_MEMBERS);
         team.setStatus(STATUS_ACTIVE);
+        team.setPracticeStatus("PREPARING");
         team.setRecruiting(true);
         team.setNeedModeler(false);
         team.setNeedProgrammer(false);
@@ -212,6 +219,8 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         validateUserAvailable(request.getUserId());
         Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
+        checkPracticePreparing(team);
+        checkNoActiveProblemTeam(request.getUserId(), team.getProblemId());
         validateCanAddMember(team, request.getUserId());
         teamMemberMapper.insert(buildMember(teamId, request.getUserId(), ROLE_MEMBER, false, false, false));
     }
@@ -222,6 +231,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public void removeMember(Long teamId, Long memberId, Long operatorId) {
         Team team = getRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
+        checkPracticePreparing(team);
         BusinessException.throwIf(team.getLeaderId().equals(memberId), TeamErrorCode.CANNOT_REMOVE_LEADER);
         checkUserInTeam(teamId, memberId);
         removeTeamMember(teamId, memberId);
@@ -234,6 +244,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                                           MemberRolesUpdateRequest request, Long operatorId) {
         Team team = getRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
+        checkPracticePreparing(team);
         TeamMember member = getTeamMember(teamId, memberId);
         BusinessException.throwIf(member == null, TeamErrorCode.NOT_TEAM_MEMBER);
         member.setModeler(request.getModeler());
@@ -248,6 +259,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Transactional
     public void leaveTeam(Long teamId, Long userId) {
         Team team = getRequiredActiveTeam(teamId);
+        checkPracticePreparing(team);
         BusinessException.throwIf(team.getLeaderId().equals(userId), TeamErrorCode.LEADER_CANNOT_LEAVE);
         checkUserInTeam(teamId, userId);
         removeTeamMember(teamId, userId);
@@ -335,6 +347,28 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 getUserSummaries(List.of(application.getApplicantId())).get(application.getApplicantId()));
     }
 
+    @Override
+    @Transactional
+    public TeamVO startPractice(Long teamId, Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
+        checkLeader(team, operatorId);
+        checkPracticePreparing(team);
+        List<TeamMember> members = getMembersByTeamId(teamId);
+        boolean modeler = members.stream().anyMatch(member -> Boolean.TRUE.equals(member.getModeler()));
+        boolean programmer = members.stream().anyMatch(member -> Boolean.TRUE.equals(member.getProgrammer()));
+        boolean writer = members.stream().anyMatch(member -> Boolean.TRUE.equals(member.getWriter()));
+        BusinessException.throwIf(!modeler || !programmer || !writer, TeamErrorCode.ROLES_NOT_COVERED);
+        ProblemPracticeDTO problem = getPracticeProblem(team.getProblemId());
+        LocalDateTime now = LocalDateTime.now();
+        team.setPracticeStatus("IN_PROGRESS");
+        team.setStartedAt(now);
+        team.setDeadlineAt(now.plusMinutes(problem.getDurationMinutes()));
+        team.setRecruiting(false);
+        updateById(team);
+        closePendingApplications(teamId, operatorId);
+        return getTeamDetail(teamId, operatorId);
+    }
+
     // ==================== 查询与组装 ====================
 
     private List<TeamVO> assembleTeams(List<Team> teams, Long currentUserId) {
@@ -364,7 +398,10 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         boolean active = team.getStatus() == STATUS_ACTIVE;
         return TeamVO.builder()
                 .id(team.getId()).name(team.getName()).description(team.getDescription())
-                .leaderId(team.getLeaderId()).maxMembers(team.getMaxMembers()).status(team.getStatus())
+                .leaderId(team.getLeaderId()).problemId(team.getProblemId())
+                .maxMembers(team.getMaxMembers()).status(team.getStatus())
+                .practiceStatus(team.getPracticeStatus()).startedAt(team.getStartedAt())
+                .deadlineAt(team.getDeadlineAt()).endedAt(team.getEndedAt())
                 .recruiting(team.getRecruiting()).needModeler(team.getNeedModeler())
                 .needProgrammer(team.getNeedProgrammer()).needWriter(team.getNeedWriter())
                 .memberCount(memberCount).remainingSlots(Math.max(0, team.getMaxMembers() - memberCount))
@@ -414,6 +451,23 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     private void validateCanAddMember(Team team, Long userId) {
         BusinessException.throwIf(getTeamMember(team.getId(), userId) != null, TeamErrorCode.USER_ALREADY_IN_TEAM);
         BusinessException.throwIf(getMemberCount(team.getId()) >= team.getMaxMembers(), TeamErrorCode.TEAM_FULL);
+    }
+
+    private void checkPracticePreparing(Team team) {
+        BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus()),
+                TeamErrorCode.PRACTICE_ALREADY_STARTED);
+    }
+
+    private void checkNoActiveProblemTeam(Long userId, Long problemId) {
+        BusinessException.throwIf(teamMemberMapper.countActiveProblemTeams(userId, problemId) > 0,
+                TeamErrorCode.USER_HAS_ACTIVE_PROBLEM_TEAM);
+    }
+
+    private ProblemPracticeDTO getPracticeProblem(Long problemId) {
+        Result<ProblemPracticeDTO> result = problemFeignClient.getPracticeProblem(problemId);
+        BusinessException.throwIf(result == null || !result.isSuccess() || result.getData() == null,
+                TeamErrorCode.PROBLEM_NOT_AVAILABLE);
+        return result.getData();
     }
 
     private void checkLeader(Team team, Long operatorId) {

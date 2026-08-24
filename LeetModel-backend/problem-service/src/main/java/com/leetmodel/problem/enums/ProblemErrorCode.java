@@ -35,6 +35,8 @@ public enum ProblemErrorCode implements ErrorCode {
 
     /** 标签仍被题目使用 */
     TAG_IN_USE(40407, "标签仍被题目使用，不能删除"),
+    CONTEST_NOT_FOUND(40408, "赛事不存在或已停用"),
+    CONTEST_CODE_DUPLICATE(40409, "赛事编码已存在"),
     ;
 
     /** 错误码 */

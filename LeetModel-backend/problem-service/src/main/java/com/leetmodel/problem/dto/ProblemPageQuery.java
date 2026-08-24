@@ -20,9 +20,19 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(callSuper = true)
 public class ProblemPageQuery extends BasePageQuery {
 
-    /** 赛事类型筛选（可选） */
-    @Pattern(regexp = "MCM_ICM|CUMCM", message = "赛事类型只支持 MCM_ICM 或 CUMCM")
-    private String contestType;
+    @Positive(message = "赛事 ID 必须为正数")
+    private Long contestId;
+
+    @Min(value = 2000, message = "题目年份不能早于 2000 年")
+    @Max(value = 2100, message = "题目年份不能晚于 2100 年")
+    private Integer year;
+
+    @Pattern(regexp = "ZH|EN", message = "题面语言只支持 ZH 或 EN")
+    private String statementLanguage;
+
+    public void setContestType(String contestType) {
+        this.contestId = "MCM_ICM".equals(contestType) ? 1L : 2L;
+    }
 
     /** 难度筛选（可选） */
     @Min(value = 1, message = "难度最小为 1")

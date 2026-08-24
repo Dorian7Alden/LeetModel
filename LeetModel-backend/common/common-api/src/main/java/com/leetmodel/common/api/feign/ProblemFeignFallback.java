@@ -1,5 +1,7 @@
 package com.leetmodel.common.api.feign;
 
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
@@ -15,6 +17,16 @@ public class ProblemFeignFallback implements FallbackFactory<ProblemFeignClient>
     @Override
     public ProblemFeignClient create(Throwable cause) {
         log.error("ProblemFeignClient 调用失败", cause);
-        return () -> Result.ok(0L);
+        return new ProblemFeignClient() {
+            @Override
+            public Result<Long> getProblemCount() {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<ProblemPracticeDTO> getPracticeProblem(Long problemId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+        };
     }
 }

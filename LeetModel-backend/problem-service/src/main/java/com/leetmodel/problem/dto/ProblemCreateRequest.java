@@ -31,9 +31,28 @@ public class ProblemCreateRequest {
     @Positive(message = "题目描述文件 ID 必须为正数")
     private Long contentFileId;
 
-    /** 赛事类型：MCM_ICM / CUMCM */
-    @NotBlank(message = "赛事类型不能为空")
-    private String contestType;
+    @NotNull(message = "赛事不能为空")
+    @Positive(message = "赛事 ID 必须为正数")
+    private Long contestId;
+
+    @NotNull(message = "题目年份不能为空")
+    @Min(value = 2000, message = "题目年份不能早于 2000 年")
+    @Max(value = 2100, message = "题目年份不能晚于 2100 年")
+    private Integer year;
+
+    @NotBlank(message = "题面语言不能为空")
+    @Pattern(regexp = "ZH|EN", message = "题面语言只支持 ZH 或 EN")
+    private String statementLanguage;
+
+    @NotNull(message = "完成时长不能为空")
+    @Min(value = 1, message = "完成时长至少为 1 分钟")
+    @Max(value = 10080, message = "完成时长不能超过 10080 分钟")
+    private Integer durationMinutes;
+
+    /** 兼容旧调用，正式契约使用 contestId。 */
+    public void setContestType(String contestType) {
+        this.contestId = "MCM_ICM".equals(contestType) ? 1L : 2L;
+    }
 
     /** 难度：1=简单 2=中等 3=困难 */
     @NotNull(message = "难度不能为空")

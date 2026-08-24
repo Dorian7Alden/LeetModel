@@ -30,6 +30,8 @@ public interface ProblemService extends IService<Problem> {
      */
     ProblemVO getPublishedProblemDetail(Long id);
 
+    ProblemVO getRandomPublishedProblem(ProblemPageQuery query);
+
     /**
      * 创建题目（含标签和链接）。
      */

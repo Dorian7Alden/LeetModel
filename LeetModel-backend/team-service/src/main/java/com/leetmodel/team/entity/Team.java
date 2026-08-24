@@ -22,11 +22,18 @@ public class Team extends BaseEntity {
     /** 队长用户 ID */
     private Long leaderId;
 
+    private Long problemId;
+
     /** 最大成员数（默认 3） */
     private Integer maxMembers;
 
     /** 状态：1=活跃 0=已解散 */
     private Integer status;
+
+    private String practiceStatus;
+    private java.time.LocalDateTime startedAt;
+    private java.time.LocalDateTime deadlineAt;
+    private java.time.LocalDateTime endedAt;
 
     /** 是否正在招募 */
     private Boolean recruiting;

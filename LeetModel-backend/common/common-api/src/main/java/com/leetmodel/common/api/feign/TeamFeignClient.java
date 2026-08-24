@@ -5,6 +5,7 @@ import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.List;
 
@@ -37,4 +38,13 @@ public interface TeamFeignClient {
 
     @GetMapping("/internal/teams/count")
     Result<Long> getActiveTeamCount();
+
+    @PostMapping("/internal/teams/{teamId}/practice/submitted")
+    Result<Void> markSubmitted(@PathVariable Long teamId);
+
+    @PostMapping("/internal/teams/{teamId}/practice/completed")
+    Result<Void> markCompleted(@PathVariable Long teamId);
+
+    @GetMapping("/internal/teams/practice/expired")
+    Result<List<TeamDTO>> listExpiredPractices();
 }

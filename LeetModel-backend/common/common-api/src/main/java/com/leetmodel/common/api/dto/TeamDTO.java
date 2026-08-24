@@ -17,4 +17,8 @@ public class TeamDTO {
     private Long leaderId;
     private Integer status;
     private Integer memberCount;
+    private Long problemId;
+    private String practiceStatus;
+    private java.time.LocalDateTime startedAt;
+    private java.time.LocalDateTime deadlineAt;
 }

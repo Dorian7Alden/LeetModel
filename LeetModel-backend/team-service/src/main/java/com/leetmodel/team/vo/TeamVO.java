@@ -24,8 +24,13 @@ public class TeamVO {
     private String name;
     private String description;
     private Long leaderId;
+    private Long problemId;
     private Integer maxMembers;
     private Integer status;
+    private String practiceStatus;
+    private LocalDateTime startedAt;
+    private LocalDateTime deadlineAt;
+    private LocalDateTime endedAt;
     private Boolean recruiting;
     private Boolean needModeler;
     private Boolean needProgrammer;

@@ -167,4 +167,10 @@ public class TeamController {
         teamService.leaveTeam(id, userId);
         return Result.ok();
     }
+
+    @Operation(summary = "开始限时练习")
+    @PostMapping("/{id}/practice/start")
+    public Result<TeamVO> startPractice(@PathVariable Long id) {
+        return Result.ok(teamService.startPractice(id, UserContext.getUserId()));
+    }
 }

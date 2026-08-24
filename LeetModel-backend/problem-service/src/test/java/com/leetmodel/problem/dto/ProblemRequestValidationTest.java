@@ -62,22 +62,25 @@ class ProblemRequestValidationTest {
     }
 
     @Test
-    @DisplayName("分页查询拒绝非法赛事类型和标签 ID")
+    @DisplayName("分页查询拒绝非法赛事 ID 和标签 ID")
     void pageQueryRejectsInvalidFilters() {
         ProblemPageQuery query = new ProblemPageQuery();
-        query.setContestType("OTHER");
+        query.setContestId(0L);
         query.setTagId(0L);
 
         Set<ConstraintViolation<ProblemPageQuery>> violations = validator.validate(query);
 
-        assertTrue(hasViolation(violations, "contestType"));
+        assertTrue(hasViolation(violations, "contestId"));
         assertTrue(hasViolation(violations, "tagId"));
     }
 
     private ProblemCreateRequest validCreateRequest() {
         ProblemCreateRequest request = new ProblemCreateRequest();
         request.setTitle("测试题目");
-        request.setContestType("CUMCM");
+        request.setContestId(2L);
+        request.setYear(2026);
+        request.setStatementLanguage("ZH");
+        request.setDurationMinutes(4320);
         request.setDifficulty(2);
         return request;
     }

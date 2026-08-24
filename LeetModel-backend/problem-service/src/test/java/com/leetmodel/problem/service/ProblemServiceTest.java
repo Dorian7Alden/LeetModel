@@ -7,11 +7,13 @@ import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
+import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.entity.ProblemLink;
 import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ProblemLinkMapper;
+import com.leetmodel.problem.mapper.ContestMapper;
 import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
@@ -58,6 +60,9 @@ class ProblemServiceTest {
     @Mock
     private ProblemLinkMapper problemLinkMapper;
 
+    @Mock
+    private ContestMapper contestMapper;
+
     @InjectMocks
     private ProblemServiceImpl problemService;
 
@@ -76,6 +81,14 @@ class ProblemServiceTest {
         problem.setCreatorId(10L);
         problem.setCreateTime(LocalDateTime.now());
         problem.setUpdateTime(LocalDateTime.now());
+        org.mockito.Mockito.lenient().when(contestMapper.selectById(any())).thenAnswer(invocation -> {
+            Long id = invocation.getArgument(0);
+            if (id == null || id == 999L) return null;
+            Contest contest = new Contest();
+            contest.setId(id); contest.setCode(id == 1L ? "MCM_ICM" : "CUMCM");
+            contest.setName("测试赛事"); contest.setStatus(1);
+            return contest;
+        });
     }
 
     @Test
@@ -195,14 +208,14 @@ class ProblemServiceTest {
     @DisplayName("创建题目失败 —— 赛事类型不合法")
     void createProblemInvalidContestType() {
         ProblemCreateRequest request = new ProblemCreateRequest();
-        request.setContestType("OTHER");
+        request.setContestId(999L);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
                 () -> problemService.createProblem(request, 10L)
         );
 
-        assertEquals(ProblemErrorCode.INVALID_CONTEST_TYPE.getCode(), exception.getCode());
+        assertEquals(ProblemErrorCode.CONTEST_NOT_FOUND.getCode(), exception.getCode());
         verify(problemMapper, never()).insert(any(Problem.class));
     }
 

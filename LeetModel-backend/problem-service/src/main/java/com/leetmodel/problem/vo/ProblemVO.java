@@ -30,8 +30,16 @@ public class ProblemVO {
     /** 题目描述 MD 文件 ID */
     private Long contentFileId;
 
-    /** 赛事类型：MCM_ICM / CUMCM */
-    private String contestType;
+    private Long contestId;
+    private String contestCode;
+    private String contestName;
+    private Integer year;
+    private String statementLanguage;
+    private Integer durationMinutes;
+
+    public String getContestType() {
+        return contestCode;
+    }
 
     /** 难度：1=简单 2=中等 3=困难 */
     private Integer difficulty;

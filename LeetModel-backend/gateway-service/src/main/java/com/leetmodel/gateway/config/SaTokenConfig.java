@@ -90,6 +90,8 @@ public class SaTokenConfig {
                         "/api/users/v3/api-docs",
                         "/api/problems/v3/api-docs",
                         "/api/teams/v3/api-docs",
+                        "/api/submissions/v3/api-docs",
+                        "/api/reviews/v3/api-docs",
                         "/api/admin/v3/api-docs"
                 )
                 // 浏览器 CORS 预检不携带登录态，实际业务请求仍必须登录

@@ -34,6 +34,21 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
             public Result<Long> getActiveTeamCount() {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
+
+            @Override
+            public Result<Void> markSubmitted(Long teamId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<Void> markCompleted(Long teamId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<List<TeamDTO>> listExpiredPractices() {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
         };
     }
 }

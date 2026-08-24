@@ -9,11 +9,13 @@ import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
+import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.entity.ProblemLink;
 import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ProblemLinkMapper;
+import com.leetmodel.problem.mapper.ContestMapper;
 import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
@@ -43,6 +45,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private final ProblemTagMapper problemTagMapper;
     private final TagMapper tagMapper;
     private final ProblemLinkMapper problemLinkMapper;
+    private final ContestMapper contestMapper;
 
     // ==================== 分页查询 ====================
 
@@ -55,8 +58,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         if (query.getDifficulty() != null) {
             wrapper.eq(Problem::getDifficulty, query.getDifficulty());
         }
-        if (query.getContestType() != null && !query.getContestType().isBlank()) {
-            wrapper.eq(Problem::getContestType, query.getContestType());
+        if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
+        if (query.getStatementLanguage() != null) {
+            wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
         }
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             wrapper.like(Problem::getTitle, query.getKeyword());
@@ -113,17 +118,36 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         return toVO(problem, tagNames, links);
     }
 
+    @Override
+    public ProblemVO getRandomPublishedProblem(ProblemPageQuery query) {
+        LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
+                .eq(Problem::getStatus, 1);
+        if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
+        if (query.getStatementLanguage() != null) {
+            wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
+        }
+        if (query.getDifficulty() != null) wrapper.eq(Problem::getDifficulty, query.getDifficulty());
+        wrapper.last("ORDER BY RAND() LIMIT 1");
+        Problem problem = baseMapper.selectOne(wrapper);
+        BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        return toVO(problem, getTagNames(problem.getId()), getLinks(problem.getId()));
+    }
+
     // ==================== 创建 ====================
 
     @Override
     @Transactional
     public ProblemVO createProblem(ProblemCreateRequest request, Long creatorId) {
-        validateContestType(request.getContestType());
+        validateContest(request.getContestId());
 
         Problem problem = new Problem();
         problem.setTitle(request.getTitle());
         problem.setContentFileId(request.getContentFileId());
-        problem.setContestType(request.getContestType());
+        problem.setContestId(request.getContestId());
+        problem.setYear(request.getYear());
+        problem.setStatementLanguage(request.getStatementLanguage());
+        problem.setDurationMinutes(request.getDurationMinutes());
         problem.setDifficulty(request.getDifficulty());
         problem.setStatus(request.getStatus() != null ? request.getStatus() : 0);
         problem.setAverageScore(BigDecimal.ZERO);
@@ -151,9 +175,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Problem problem = getById(id);
         BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
 
-        if (request.getContestType() != null) {
-            validateContestType(request.getContestType());
-        }
+        if (request.getContestId() != null) validateContest(request.getContestId());
 
         boolean changed = false;
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
@@ -164,9 +186,16 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             problem.setContentFileId(request.getContentFileId());
             changed = true;
         }
-        if (request.getContestType() != null) {
-            problem.setContestType(request.getContestType());
+        if (request.getContestId() != null) {
+            problem.setContestId(request.getContestId());
             changed = true;
+        }
+        if (request.getYear() != null) { problem.setYear(request.getYear()); changed = true; }
+        if (request.getStatementLanguage() != null) {
+            problem.setStatementLanguage(request.getStatementLanguage()); changed = true;
+        }
+        if (request.getDurationMinutes() != null) {
+            problem.setDurationMinutes(request.getDurationMinutes()); changed = true;
         }
         if (request.getDifficulty() != null) {
             problem.setDifficulty(request.getDifficulty());
@@ -350,22 +379,27 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     /**
      * 校验赛事类型合法性。
      */
-    private void validateContestType(String contestType) {
-        BusinessException.throwIf(
-                !"MCM_ICM".equals(contestType) && !"CUMCM".equals(contestType),
-                ProblemErrorCode.INVALID_CONTEST_TYPE
-        );
+    private void validateContest(Long contestId) {
+        Contest contest = contestMapper.selectById(contestId);
+        BusinessException.throwIf(contest == null || !Integer.valueOf(1).equals(contest.getStatus()),
+                ProblemErrorCode.CONTEST_NOT_FOUND);
     }
 
     /**
      * Problem 实体转 ProblemVO。
      */
     private ProblemVO toVO(Problem p, List<String> tagNames, List<ProblemLink> links) {
+        Contest contest = contestMapper.selectById(p.getContestId());
         ProblemVO.ProblemVOBuilder builder = ProblemVO.builder()
                 .id(p.getId())
                 .title(p.getTitle())
                 .contentFileId(p.getContentFileId())
-                .contestType(p.getContestType())
+                .contestId(p.getContestId())
+                .contestCode(contest == null ? null : contest.getCode())
+                .contestName(contest == null ? null : contest.getName())
+                .year(p.getYear())
+                .statementLanguage(p.getStatementLanguage())
+                .durationMinutes(p.getDurationMinutes())
                 .difficulty(p.getDifficulty())
                 .averageScore(p.getAverageScore())
                 .status(p.getStatus())
