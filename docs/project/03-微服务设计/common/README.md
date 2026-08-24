@@ -11,4 +11,4 @@
 | [common-security/](common-security/) | 登录态、当前用户上下文、权限校验和安全异常处理 |
 | [common-ai/](common-ai/) | AI 网关客户端、统一调用契约和测试替身 |
 
-`common-ai` 是已确定但尚未创建代码目录的目标 Maven 模块。它的英文目录名与架构设计保持一致。
+`common-ai` 已建立为 Maven 公共模块，提供统一请求与响应契约、AI 用量模型和调用 AI 网关的客户端。

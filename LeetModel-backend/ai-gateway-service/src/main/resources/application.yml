@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: ai-gateway-service
+  profiles:
+    active: dev
+
+server:
+  shutdown: graceful
+
+common:
+  ai-client:
+    enabled: false
+
+ai:
+  providers:
+    deepseek:
+      base-url: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY:}
+      connect-timeout: 10s
+      read-timeout: 10m
+    kimi:
+      base-url: https://api.moonshot.cn/v1
+      api-key: ${KIMI_API_KEY:}
+      connect-timeout: 10s
+      read-timeout: 10m
+  gateway:
+    routes:
+      GENERAL_TEXT:
+        provider: DEEPSEEK
+        model: deepseek-v4-pro
+      MULTIMODAL:
+        provider: KIMI
+        model: kimi-k2.6

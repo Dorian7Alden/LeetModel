@@ -25,6 +25,7 @@
         <module>common/common-core</module>
         <module>common/common-api</module>
         <module>common/common-security</module>
+        <module>common/common-ai</module>
         <module>user-service</module>
         <module>problem-service</module>
         <module>team-service</module>
@@ -32,6 +33,7 @@
         <module>review-service</module>
         <module>gateway-service</module>
         <module>admin-service</module>
+        <module>ai-gateway-service</module>
     </modules>
 
     <!-- ==================== 集中版本管理 ==================== -->
