@@ -21,3 +21,4 @@
 | [Knife4j网关聚合文档加载失败.md](Knife4j网关聚合文档加载失败.md) | /doc.html 能打开，但分组文档加载失败，请求 /api/**/v3/api-docs 返回 40100 或 404/500 | 网关路由未剥离前缀，下游服务未在带前缀路径暴露 OpenAPI 文档，且网关与 Security 均未放行该路径 |
 | [Mockito匹配MyBatisPlus重载方法时编译歧义.md](Mockito匹配MyBatisPlus重载方法时编译歧义.md) | 测试编译提示 insert 或 updateById 方法匹配不明确 | 无类型 any 无法区分 MyBatis-Plus 的单实体与集合重载 |
 | [SpringSecurity与SaToken重复认证导致空403.md](SpringSecurity与SaToken重复认证导致空403.md) | 登录成功后业务接口仍返回空响应体 403 | Gateway 与业务服务使用两套未打通的认证状态 |
+| [业务服务启动报MinioClient类缺失.md](业务服务启动报MinioClient类缺失.md) | submission 或 review 服务启动报 MinioClient 类缺失 | 启用公共 MinIO 实现的业务服务没有显式声明 MinIO SDK |
