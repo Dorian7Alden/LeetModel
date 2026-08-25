@@ -1,28 +1,47 @@
 <template>
-  <div class="team-card" @click="goDetail">
+  <div class="team-card" :class="`team-card--${displayMode}`" @click="goDetail">
+    <div v-if="displayMode === 'roles'" class="role-focus">
+      <span class="focus-label">开放职位</span>
+      <div class="role-list">
+        <div v-for="item in openRecruitments" :key="item.id" class="role-item">
+          <strong>{{ recruitmentText(item) }}</strong>
+          <small>发布于 {{ formatDate(item.createTime) }}</small>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="displayMode === 'problems'" class="problem-focus">
+      <span>当前题目</span>
+      <strong>{{ team.problemTitle || `题目 ${team.problemId}` }}</strong>
+      <small>题目 {{ team.problemId }}</small>
+    </div>
+
     <div class="card-header">
       <h3 class="team-name">{{ team.name }}</h3>
       <span class="member-count">{{ team.memberCount }} / {{ team.maxMembers }}</span>
     </div>
 
     <p class="team-desc">{{ team.description }}</p>
-    <div class="team-context">
-      <el-tag size="small" type="info">题目 {{ team.problemId }}</el-tag>
+    <div v-if="displayMode !== 'problems'" class="team-context">
+      <el-tag size="small" type="info">题目 {{ team.problemId }} · {{ team.problemTitle || '标题加载中' }}</el-tag>
       <el-tag size="small" :type="practiceType">{{ practiceLabel }}</el-tag>
     </div>
 
     <!-- 成员头像 -->
     <div class="member-avatars">
-      <div
+      <button
         v-for="(member, idx) in team.members"
-        :key="idx"
-        class="avatar-circle"
+        :key="member.userId || idx"
+        type="button"
+        class="avatar-circle avatar-button"
         :style="{ backgroundColor: avatarColors[idx % avatarColors.length] }"
         :title="member.nickname || `用户 ${member.userId}`"
+        :aria-label="`查看${member.nickname || `用户 ${member.userId}`}的个人名片`"
+        @click.stop="emit('show-user', member)"
       >
         <img v-if="member.avatarUrl" :src="member.avatarUrl" class="avatar-image" />
         <template v-else>{{ (member.nickname || String(member.userId)).charAt(0) }}</template>
-      </div>
+      </button>
       <!-- 空位 -->
       <div
         v-for="n in emptySlots"
@@ -33,10 +52,12 @@
       </div>
     </div>
 
-    <div v-if="team.practiceStatus === 'PREPARING' && recruitmentRoles.length > 0" class="missing-roles">
+    <div class="team-times"><span>成立于 {{ formatDate(team.createTime) }}</span></div>
+
+    <div v-if="displayMode === 'problems' && team.practiceStatus === 'PREPARING' && openRecruitments.length > 0" class="missing-roles">
       <span class="missing-label">招募：</span>
-      <span v-for="role in recruitmentRoles" :key="role" class="role-tag">
-        {{ role }}
+      <span v-for="item in openRecruitments" :key="item.id" class="role-tag">
+        {{ recruitmentText(item) }} · {{ formatDate(item.createTime) }}
       </span>
     </div>
   </div>
@@ -50,7 +71,9 @@ import { User } from '@element-plus/icons-vue'
 const props = defineProps({
   team: { type: Object, required: true },
   detailRouteName: { type: String, default: 'TeamDetail' },
+  displayMode: { type: String, default: 'teams', validator: value => ['teams', 'problems', 'roles'].includes(value) },
 })
+const emit = defineEmits(['show-user'])
 
 const router = useRouter()
 
@@ -60,21 +83,15 @@ const emptySlots = computed(() => {
   return props.team.remainingSlots
 })
 
-const recruitmentRoles = computed(() => {
-  return (props.team.recruitments || []).filter(item => item.status === 'OPEN').flatMap(item => {
-    const roles = []
-    if (item.needModeler) roles.push('建模手')
-    if (item.needProgrammer) roles.push('编程手')
-    if (item.needWriter) roles.push('论文手')
-    return roles
-  })
-})
+const openRecruitments = computed(() => (props.team.recruitments || []).filter(item => item.status === 'OPEN'))
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[props.team.practiceStatus] || props.team.practiceStatus || '未知状态')
 const practiceType = computed(() => ({ PREPARING: 'info', IN_PROGRESS: 'warning', ENDED: 'success' })[props.team.practiceStatus] || 'info')
 
 function goDetail() {
   router.push({ name: props.detailRouteName, params: { id: props.team.id } })
 }
+function recruitmentText(item) { return [item.needModeler && '建模手', item.needProgrammer && '编程手', item.needWriter && '论文手'].filter(Boolean).join('、') }
+function formatDate(value) { return value ? value.replace('T', ' ').slice(0, 16) : '未知时间' }
 </script>
 
 <style scoped>
@@ -95,6 +112,19 @@ function goDetail() {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
   border-color: var(--lm-primary, #409eff);
 }
+
+.team-card--roles { border-top: 3px solid #f97316; }
+.team-card--problems { border-top: 3px solid #3b82f6; }
+.role-focus { padding: 14px; border-radius: 10px; background: #fff7ed; }
+.focus-label,.problem-focus span { display: block; margin-bottom: 9px; color: #c2410c; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.role-list { display: grid; gap: 8px; }
+.role-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.role-item strong { color: #9a3412; font-size: 16px; }
+.role-item small { color: #a16207; font-size: 12px; white-space: nowrap; }
+.problem-focus { display: grid; gap: 4px; padding: 14px; border-radius: 10px; background: #eff6ff; }
+.problem-focus span { margin: 0; color: #2563eb; }
+.problem-focus strong { color: #1e3a8a; font-size: 16px; line-height: 1.45; }
+.problem-focus small { color: #64748b; }
 
 .card-header {
   display: flex;
@@ -140,6 +170,7 @@ function goDetail() {
 }
 
 .avatar-circle {
+  padding: 0;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -153,6 +184,8 @@ function goDetail() {
   border: 2px solid #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
+.avatar-button { cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.avatar-button:hover,.avatar-button:focus-visible { outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.18); transform: translateY(-2px); }
 
 .empty-slot {
   background: var(--lm-bg, #f0f2f5) !important;
@@ -170,6 +203,7 @@ function goDetail() {
   flex-wrap: wrap;
   font-size: 13px;
 }
+.team-times { color: var(--lm-text-muted,#94a3b8); font-size: 12px; }
 
 .missing-label {
   color: var(--lm-text-muted, #999);
@@ -190,5 +224,9 @@ function goDetail() {
   color: #67c23a;
   font-size: 13px;
   gap: 4px;
+}
+
+@media (max-width: 480px) {
+  .role-item { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
 </style>

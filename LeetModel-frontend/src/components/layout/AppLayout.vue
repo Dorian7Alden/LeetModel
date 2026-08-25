@@ -582,12 +582,15 @@ onMounted(async () => {
   }
 
   .navbar {
-    gap: 8px;
+    gap: 2px;
   }
 
+  .left-area { min-width: 0; gap: 0; }
+  .home-icon { display: none; }
+
   .nav-item {
-    font-size: 13px;
-    padding: 6px 4px;
+    font-size: 12px;
+    padding: 6px 5px;
   }
 
   .search-input {

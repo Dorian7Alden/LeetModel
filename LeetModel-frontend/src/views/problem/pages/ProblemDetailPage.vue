@@ -21,7 +21,10 @@
             <span>完成时长：{{ formatDuration(problem.durationMinutes) }}</span>
             <span>更新时间：{{ formatTime(problem.updateTime) }}</span>
           </div>
-          <el-button type="primary" @click="createProblemTeam">创建队伍</el-button>
+          <div class="detail-actions">
+            <el-button @click="findProblemTeams">寻找队伍</el-button>
+            <el-button type="primary" @click="createProblemTeam">创建队伍</el-button>
+          </div>
         </div>
       </div>
 
@@ -89,6 +92,7 @@ const renderedMarkdown = computed(() => {
   return DOMPurify.sanitize(html)
 })
 const createProblemTeam = () => { showCreateDialog.value = true }
+const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
 const goBack = () => router.push('/problem/problemListPage')
 
 const fetchDetail = async () => {
@@ -117,6 +121,8 @@ onMounted(fetchDetail)
 .detail-title { margin: 0; font-size: 24px; color: var(--lm-text-primary); }
 .detail-badges, .detail-tags, .detail-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .detail-footer-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-top: 18px; }
+.detail-actions { display: flex; flex-shrink: 0; gap: 8px; }
+.detail-actions .el-button { margin-left: 0; }
 .detail-meta { flex: 1; gap: 24px; font-size: 13px; color: var(--lm-text-secondary); }
 .detail-tags { margin-bottom: 16px; padding: 12px 16px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: var(--lm-radius-lg); }
 .content-card { border-radius: var(--lm-radius-lg); }
