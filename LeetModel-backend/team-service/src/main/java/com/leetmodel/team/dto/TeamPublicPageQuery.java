@@ -11,9 +11,11 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class TeamPublicPageQuery extends BasePageQuery {
 
+    private Long problemId;
     private String keyword;
     private Boolean availableOnly;
     private Boolean recruitingOnly;
+    private Boolean excludeJoined;
     private Boolean needModeler;
     private Boolean needProgrammer;
     private Boolean needWriter;

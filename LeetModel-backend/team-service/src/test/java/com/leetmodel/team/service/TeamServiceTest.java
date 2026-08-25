@@ -14,6 +14,7 @@ import com.leetmodel.team.dto.JoinApplicationReviewRequest;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamUpdateRequest;
+import com.leetmodel.team.dto.TeamPublicPageQuery;
 import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamMember;
@@ -36,6 +37,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -111,6 +114,15 @@ class TeamServiceTest {
         ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
         verify(teamMemberMapper).insert(memberCaptor.capture());
         assertTrue(memberCaptor.getValue().getCanSubmit());
+    }
+
+    @Test
+    @DisplayName("题目推荐资格只返回存在组建中缺人队伍的题目标识")
+    void listPublicPreparingProblemIds() {
+        when(teamMapper.selectObjs(any(QueryWrapper.class))).thenReturn(List.of(51008L, 51006L));
+
+        assertEquals(List.of(51008L, 51006L), teamService.listPublicPreparingProblemIds());
+        verify(teamMapper).selectObjs(any(QueryWrapper.class));
     }
 
     @Test
@@ -193,6 +205,27 @@ class TeamServiceTest {
     }
 
     @Test
+    @DisplayName("队长可以更新开放招募的职位和文字说明")
+    void updateRecruitmentSuccess() {
+        TeamRecruitment recruitment = recruitment(200L);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment);
+        when(recruitmentMapper.updateById(recruitment)).thenReturn(1);
+        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of());
+        when(recruitmentMapper.selectList(any())).thenReturn(List.of(recruitment));
+        when(problemFeignClient.getPracticeProblem(100L))
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
+        RecruitmentUpdateRequest request = new RecruitmentUpdateRequest(false, true, true, "希望每周至少协作两次");
+
+        TeamVO result = teamService.updateRecruitment(1L, 200L, request, 10L);
+
+        assertEquals("希望每周至少协作两次", recruitment.getDescription());
+        assertFalse(recruitment.getNeedModeler());
+        assertEquals("希望每周至少协作两次", result.getRecruitments().get(0).getDescription());
+    }
+
+    @Test
     @DisplayName("移除成员失败 —— 目标不是团队成员")
     void removeMemberNotInTeam() {
         when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
@@ -238,11 +271,53 @@ class TeamServiceTest {
         when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
         when(teamMapper.updateById(team)).thenReturn(1);
         when(teamMapper.selectById(1L)).thenReturn(team);
+        when(problemFeignClient.getPracticeProblem(100L))
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
 
         TeamVO result = teamService.endPractice(1L, 10L);
 
         assertEquals("ENDED", result.getPracticeStatus());
         assertNotNull(result.getEndedAt());
+    }
+
+    @Test
+    @DisplayName("公共队伍查询批量返回题目标题")
+    void pagePublicTeamsIncludesProblemTitle() {
+        TeamMember leader = new TeamMember();
+        leader.setId(11L);
+        leader.setTeamId(1L);
+        leader.setUserId(10L);
+        leader.setRole("leader");
+        leader.setJoinedAt(LocalDateTime.now());
+        Page<Team> resultPage = new Page<>(1, 9, 1);
+        resultPage.setRecords(List.of(team));
+        when(teamMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenReturn(resultPage);
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of(leader));
+        when(userFeignClient.getPublicSummaries(List.of(10L)))
+                .thenReturn(Result.ok(List.of(new UserPublicSummaryDTO(10L, "队长", null))));
+        when(problemFeignClient.getPracticeProblems(List.of(100L)))
+                .thenReturn(Result.ok(List.of(new ProblemPracticeDTO(100L, "生态承载力研究", 180, 1))));
+        when(applicationMapper.selectList(any())).thenReturn(List.of());
+        when(recruitmentMapper.selectList(any())).thenReturn(List.of());
+        TeamPublicPageQuery query = new TeamPublicPageQuery();
+        query.setPage(1);
+        query.setPageSize(9);
+        query.setProblemId(100L);
+        query.setRecruitingOnly(true);
+        query.setExcludeJoined(true);
+        query.setNeedModeler(true);
+        query.setNeedProgrammer(true);
+
+        PageResult<TeamVO> result = teamService.pagePublicTeams(query, 20L);
+
+        assertEquals(1, result.getTotal());
+        assertEquals("生态承载力研究", result.getRows().get(0).getProblemTitle());
+        ArgumentCaptor<QueryWrapper<Team>> wrapperCaptor = ArgumentCaptor.forClass(QueryWrapper.class);
+        verify(teamMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getCustomSqlSegment();
+        assertTrue(sql.contains("problem_id"));
+        assertTrue(sql.contains("tr.need_modeler = 1 AND tr.need_programmer = 1"));
+        assertTrue(sql.contains("joined_tm.user_id"));
     }
 
     @Test
@@ -340,7 +415,7 @@ class TeamServiceTest {
         assertEquals("cancelled", application.getStatus());
         verify(teamMapper).selectByIdForUpdate(1L);
         verify(applicationMapper).selectPendingForUpdate(1L, 20L);
-        verify(applicationMapper).updateById(application);
+        verify(applicationMapper).update(eq(application), any());
     }
 
     @Test
@@ -375,7 +450,6 @@ class TeamServiceTest {
         when(teamMemberMapper.selectOne(any())).thenReturn(null);
         when(teamMemberMapper.selectCount(any())).thenReturn(2L);
         when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
-        when(applicationMapper.updateById(application)).thenReturn(1);
         when(userFeignClient.getPublicSummaries(List.of(20L))).thenReturn(Result.ok(List.of(
                 new UserPublicSummaryDTO(20L, "申请人", null))));
 

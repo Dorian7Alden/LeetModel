@@ -25,6 +25,7 @@ public class TeamVO {
     private String description;
     private Long leaderId;
     private Long problemId;
+    private String problemTitle;
     private Integer maxMembers;
     private Integer status;
     private String practiceStatus;

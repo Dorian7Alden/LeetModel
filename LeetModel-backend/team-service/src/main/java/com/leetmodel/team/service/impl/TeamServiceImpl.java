@@ -86,7 +86,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Override
     @Transactional
     public TeamVO createTeam(TeamCreateRequest request, Long leaderId) {
-        getPracticeProblem(request.getProblemId());
+        ProblemPracticeDTO problem = getPracticeProblem(request.getProblemId());
         checkNoActiveProblemTeam(leaderId, request.getProblemId());
         // 创建团队；招募位置由队长按需发布。
         Team team = new Team();
@@ -101,7 +101,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         // 创建者成为队长
         TeamMember leader = buildMember(team.getId(), leaderId, ROLE_LEADER, false, false, false);
         teamMemberMapper.insert(leader);
-        return assembleTeamVO(team, List.of(leader), leaderId, Map.of(), Set.of());
+        TeamVO result = assembleTeamVO(team, List.of(leader), leaderId, Map.of(), Set.of());
+        result.setProblemTitle(problem.getTitle());
+        return result;
     }
 
     /** {@inheritDoc} */
@@ -111,7 +113,10 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         QueryWrapper<Team> wrapper = new QueryWrapper<>();
         wrapper.eq("status", STATUS_ACTIVE)
                 .eq("practice_status", "PREPARING")
-                .eq("deleted", 0);
+                .eq("deleted", 0)
+                .apply("(SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id) < {0}",
+                        DEFAULT_MAX_MEMBERS);
+        if (query.getProblemId() != null) wrapper.eq("problem_id", query.getProblemId());
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             wrapper.and(value -> value.like("name", query.getKeyword())
                     .or().like("description", query.getKeyword()));
@@ -119,14 +124,20 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         if (Boolean.TRUE.equals(query.getRecruitingOnly())) {
             wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN'");
         }
+        if (Boolean.TRUE.equals(query.getExcludeJoined()) && currentUserId != null) {
+            wrapper.notExists("SELECT 1 FROM team_member joined_tm WHERE joined_tm.team_id = team.id AND joined_tm.user_id = {0}",
+                    currentUserId);
+        }
         if (Boolean.TRUE.equals(query.getAvailableOnly())) {
-            wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN'");
+            wrapper.apply("(SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id) < {0}",
+                    DEFAULT_MAX_MEMBERS);
         }
         addRecruitmentRoleFilter(wrapper, query);
         if ("remainingSlots".equals(query.getSortBy())) {
-            wrapper.orderByDesc("(3 - (SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id))");
+            wrapper.orderByDesc("(3 - (SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id))")
+                    .orderByDesc("create_time").orderByDesc("id");
         } else {
-            wrapper.orderByDesc("create_time");
+            wrapper.orderByDesc("create_time").orderByDesc("id");
         }
 
         // 分页查询并批量组装
@@ -134,6 +145,21 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         IPage<Team> teamPage = baseMapper.selectPage(page, wrapper);
         List<TeamVO> rows = assembleTeams(teamPage.getRecords(), currentUserId);
         return new PageResult<>(teamPage.getTotal(), query.getPage(), query.getPageSize(), rows);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<Long> listPublicPreparingProblemIds() {
+        QueryWrapper<Team> wrapper = new QueryWrapper<>();
+        wrapper.select("problem_id")
+                .eq("status", STATUS_ACTIVE)
+                .eq("practice_status", "PREPARING")
+                .eq("deleted", 0)
+                .apply("(SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id) < {0}",
+                        DEFAULT_MAX_MEMBERS)
+                .groupBy("problem_id")
+                .orderByDesc("MAX(create_time)");
+        return baseMapper.selectObjs(wrapper).stream().map(value -> ((Number) value).longValue()).toList();
     }
 
     /** {@inheritDoc} */
@@ -146,7 +172,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         }
         Map<Long, UserPublicSummaryDTO> summaries = getUserSummaries(memberUserIds(members));
         Set<Long> pendingTeamIds = getPendingTeamIds(currentUserId, List.of(teamId));
-        return assembleTeamVO(team, members, currentUserId, summaries, pendingTeamIds);
+        TeamVO result = assembleTeamVO(team, members, currentUserId, summaries, pendingTeamIds);
+        result.setProblemTitle(getPracticeProblem(team.getProblemId()).getTitle());
+        return result;
     }
 
     /** {@inheritDoc} */
@@ -154,7 +182,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public TeamVO getTeamDetail(Long teamId) {
         Team team = getRequiredTeam(teamId);
         List<TeamMember> members = getMembersByTeamId(teamId);
-        return assembleTeamVO(team, members, null, getUserSummaries(memberUserIds(members)), Set.of());
+        TeamVO result = assembleTeamVO(team, members, null, getUserSummaries(memberUserIds(members)), Set.of());
+        result.setProblemTitle(getPracticeProblem(team.getProblemId()).getTitle());
+        return result;
     }
 
     /** {@inheritDoc} */
@@ -195,10 +225,36 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         recruitment.setNeedModeler(request.getNeedModeler());
         recruitment.setNeedProgrammer(request.getNeedProgrammer());
         recruitment.setNeedWriter(request.getNeedWriter());
+        recruitment.setDescription(request.getDescription());
         recruitment.setStatus(RECRUITMENT_OPEN);
         recruitment.setCreateTime(LocalDateTime.now());
         recruitment.setUpdateTime(LocalDateTime.now());
         recruitmentMapper.insert(recruitment);
+        return getTeamDetail(teamId, operatorId);
+    }
+
+    @Override
+    @Transactional
+    public TeamVO updateRecruitment(Long teamId, Long recruitmentId, RecruitmentUpdateRequest request,
+                                    Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
+        checkLeader(team, operatorId);
+        checkPracticePreparing(team);
+        BusinessException.throwIf(!Boolean.TRUE.equals(request.getNeedModeler())
+                        && !Boolean.TRUE.equals(request.getNeedProgrammer())
+                        && !Boolean.TRUE.equals(request.getNeedWriter()),
+                TeamErrorCode.RECRUITMENT_ROLE_REQUIRED);
+        TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(recruitmentId);
+        BusinessException.throwIf(recruitment == null || !teamId.equals(recruitment.getTeamId()),
+                TeamErrorCode.RECRUITMENT_NOT_FOUND);
+        BusinessException.throwIf(!RECRUITMENT_OPEN.equals(recruitment.getStatus()),
+                TeamErrorCode.RECRUITMENT_ALREADY_CLOSED);
+        recruitment.setNeedModeler(request.getNeedModeler());
+        recruitment.setNeedProgrammer(request.getNeedProgrammer());
+        recruitment.setNeedWriter(request.getNeedWriter());
+        recruitment.setDescription(request.getDescription());
+        recruitment.setUpdateTime(LocalDateTime.now());
+        recruitmentMapper.updateById(recruitment);
         return getTeamDetail(teamId, operatorId);
     }
 
@@ -525,11 +581,15 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         Set<Long> userIds = new LinkedHashSet<>();
         for (List<TeamMember> members : memberMap.values()) userIds.addAll(memberUserIds(members));
         Map<Long, UserPublicSummaryDTO> summaries = getUserSummaries(new ArrayList<>(userIds));
+        Map<Long, ProblemPracticeDTO> problems = getProblemSummaries(
+                teams.stream().map(Team::getProblemId).distinct().toList());
         Set<Long> pendingTeamIds = getPendingTeamIds(currentUserId, teamIds);
         List<TeamVO> result = new ArrayList<>();
         for (Team team : teams) {
-            result.add(assembleTeamVO(team, memberMap.getOrDefault(team.getId(), List.of()),
-                    currentUserId, summaries, pendingTeamIds));
+            TeamVO view = assembleTeamVO(team, memberMap.getOrDefault(team.getId(), List.of()),
+                    currentUserId, summaries, pendingTeamIds);
+            view.setProblemTitle(problems.get(team.getProblemId()).getTitle());
+            result.add(view);
         }
         return result;
     }
@@ -726,6 +786,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 .stream().map(item -> TeamRecruitmentVO.builder()
                         .id(item.getId()).needModeler(item.getNeedModeler())
                         .needProgrammer(item.getNeedProgrammer()).needWriter(item.getNeedWriter())
+                        .description(item.getDescription())
                         .status(item.getStatus()).createTime(item.getCreateTime()).build())
                 .toList();
     }
@@ -811,11 +872,30 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         return summaries;
     }
 
+    /**
+     * 批量获取题目摘要并按题目标识建立索引。
+     *
+     * @param problemIds 题目标识集合
+     * @return 题目摘要索引
+     */
+    private Map<Long, ProblemPracticeDTO> getProblemSummaries(List<Long> problemIds) {
+        if (problemIds.isEmpty()) return Map.of();
+        List<Long> distinctIds = new ArrayList<>(new LinkedHashSet<>(problemIds));
+        Result<List<ProblemPracticeDTO>> result = problemFeignClient.getPracticeProblems(distinctIds);
+        BusinessException.throwIf(result == null || !result.isSuccess() || result.getData() == null,
+                ErrorCodeEnum.SYSTEM_ERROR);
+        Map<Long, ProblemPracticeDTO> summaries = new HashMap<>();
+        for (ProblemPracticeDTO summary : result.getData()) summaries.put(summary.getId(), summary);
+        BusinessException.throwIf(summaries.size() != distinctIds.size(), ErrorCodeEnum.SYSTEM_ERROR);
+        return summaries;
+    }
+
     private Set<Long> getPendingTeamIds(Long userId, List<Long> teamIds) {
         if (userId == null || teamIds.isEmpty()) return Set.of();
         List<TeamJoinApplication> applications = applicationMapper.selectList(
                 new LambdaQueryWrapper<TeamJoinApplication>()
                         .eq(TeamJoinApplication::getApplicantId, userId)
+                        .eq(TeamJoinApplication::getStatus, PENDING)
                         .eq(TeamJoinApplication::getPendingMarker, 1)
                         .in(TeamJoinApplication::getTeamId, teamIds));
         Set<Long> result = new LinkedHashSet<>();
@@ -828,7 +908,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         application.setPendingMarker(null);
         application.setHandledBy(handlerId);
         application.setHandledAt(LocalDateTime.now());
-        applicationMapper.updateById(application);
+        applicationMapper.update(application, new UpdateWrapper<TeamJoinApplication>()
+                .eq("id", application.getId())
+                .set("pending_marker", null));
     }
 
     private void closePendingApplications(Long teamId, Long operatorId) {
@@ -891,7 +973,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         if (modeler) roleConditions.add("tr.need_modeler = 1");
         if (programmer) roleConditions.add("tr.need_programmer = 1");
         if (writer) roleConditions.add("tr.need_writer = 1");
-        wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN' AND ("
-                + String.join(" OR ", roleConditions) + ")");
+        wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN' AND "
+                + String.join(" AND ", roleConditions));
     }
 }

@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 题目服务 Feign 降级工厂。
  */
@@ -25,6 +27,11 @@ public class ProblemFeignFallback implements FallbackFactory<ProblemFeignClient>
 
             @Override
             public Result<ProblemPracticeDTO> getPracticeProblem(Long problemId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<List<ProblemPracticeDTO>> getPracticeProblems(List<Long> problemIds) {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
         };

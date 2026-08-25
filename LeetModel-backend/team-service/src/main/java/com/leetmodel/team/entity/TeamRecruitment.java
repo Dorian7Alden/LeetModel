@@ -14,6 +14,7 @@ public class TeamRecruitment implements Serializable {
     private Boolean needModeler;
     private Boolean needProgrammer;
     private Boolean needWriter;
+    private String description;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
