@@ -1,10 +1,10 @@
 import request from './request'
 
-export function submitTeamPdf(teamId, file) {
+export function submitTeamPdf(teamId, file, onUploadProgress) {
   const data = new FormData()
   data.append('teamId', teamId)
   data.append('file', file)
-  return request({ url: '/submissions', method: 'post', data, timeout: 30000 })
+  return request({ url: '/submissions', method: 'post', data, timeout: 30000, onUploadProgress })
 }
 
 export function getTeamSubmissionHistory(teamId) {

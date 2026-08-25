@@ -4,8 +4,8 @@ export function createTeam(data) {
   return request.post("/teams", data);
 }
 
-export function getMyTeams() {
-  return request.get("/teams/mine");
+export function getMyTeams(params) {
+  return request.get("/teams/mine/page", { params });
 }
 
 export function getPublicTeams(params) {
@@ -52,8 +52,8 @@ export function cancelTeamApplication(teamId) {
   return request.delete(`/teams/${teamId}/applications/mine`);
 }
 
-export function getTeamApplications(teamId) {
-  return request.get(`/teams/${teamId}/applications`);
+export function getTeamApplications(teamId, params) {
+  return request.get(`/teams/${teamId}/applications`, { params });
 }
 
 export function reviewTeamApplication(teamId, applicationId, decision) {

@@ -50,7 +50,7 @@
               <span class="section-kicker">SUBMISSIONS</span>
               <h3 class="section-title">论文提交</h3>
             </div>
-            <el-button plain @click="loadSubmissions">刷新历史</el-button>
+            <el-button plain @click="refreshSubmissionReviews">刷新记录</el-button>
           </div>
           <el-alert v-if="team.practiceStatus === 'IN_PROGRESS' && !currentMemberCanSubmit" title="队长尚未授予你作品提交权限" type="warning" :closable="false" show-icon />
           <div v-if="team.practiceStatus === 'IN_PROGRESS' && currentMemberCanSubmit" class="upload-panel">
@@ -67,32 +67,28 @@
                 <el-button text class="remove-file" @click="handlePdfRemove">移除</el-button>
               </div>
               <div v-else class="file-placeholder">尚未选择文件</div>
+              <el-progress v-if="submitting" type="circle" :percentage="uploadProgress" :width="48" :stroke-width="5" class="upload-progress" />
               <el-button type="primary" :disabled="!selectedPdf" :loading="submitting" class="submit-button" @click="handleSubmitPdf">提交第 {{ nextVersion }} 版</el-button>
             </div>
-            <p class="upload-tip">仅支持 PDF 文件；每次成功提交都会保留为一个新版本。</p>
+            <p class="upload-tip">仅支持 PDF 文件，大小不超过 20MB；每次成功提交都会保留为一个新版本。</p>
           </div>
           <div v-if="team.practiceStatus !== 'IN_PROGRESS'" class="final-version-bar">
-            <span>练习已经结束，可以锁定并查看最终提交版本。</span>
-            <el-button type="primary" plain :loading="finalizing" @click="handleFinalize">锁定最终版本</el-button>
+            <span>{{ finalSubmission ? `最终提交已锁定为 V${finalSubmission.version}` : '练习已经结束，可以锁定并查看最终提交版本。' }}</span>
+            <el-button v-if="!finalSubmission" type="primary" plain :loading="finalizing" @click="handleFinalize">锁定最终版本</el-button>
           </div>
-          <el-table :data="submissions" size="small" class="submission-table" empty-text="暂无提交版本">
-            <el-table-column prop="version" label="版本" width="80"><template #default="scope">V{{ scope.row.version }}</template></el-table-column>
+          <div v-if="scoreSummary" class="score-summary" :class="{ final: scoreSummary.submission.finalVersion }">
+            <div><span>{{ scoreSummaryLabel }}</span><strong>V{{ scoreSummary.submission.version }}</strong></div>
+            <div class="score-value"><strong>{{ scoreSummary.review?.totalScore ?? '--' }}</strong><span>/ 100</span></div>
+            <el-tag :type="reviewStatusType(scoreSummary.review?.status)" effect="light">{{ reviewStatusLabel(scoreSummary.review?.status) }}</el-tag>
+          </div>
+          <el-table :data="submissionRows" size="small" class="submission-table" empty-text="暂无提交版本">
+            <el-table-column label="版本" width="120"><template #default="scope"><div class="version-cell"><strong>V{{ scope.row.version }}</strong><el-tag v-if="scope.row.finalVersion" type="success" size="small" effect="light">最终版</el-tag></div></template></el-table-column>
             <el-table-column prop="originalFilename" label="文件名" min-width="180" />
             <el-table-column prop="fileSize" label="大小" width="110"><template #default="scope">{{ formatFileSize(scope.row.fileSize) }}</template></el-table-column>
+            <el-table-column label="评审状态" width="110"><template #default="scope"><el-tag :type="reviewStatusType(scope.row.review?.status)" size="small" effect="light">{{ reviewStatusLabel(scope.row.review?.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.totalScore != null" class="table-score">{{ scope.row.review.totalScore }}</strong><span v-else>--</span></template></el-table-column>
             <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
-            <el-table-column label="操作" width="90"><template #default="scope"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></template></el-table-column>
-          </el-table>
-        </div>
-
-        <div v-if="isMember && team.practiceStatus !== 'PREPARING'" class="section">
-          <div class="section-heading"><h3 class="section-title">AI 评审结果</h3><el-button @click="loadReviews">刷新结果</el-button></div>
-          <el-table :data="reviews" size="small" empty-text="暂无已生成的评审结果">
-            <el-table-column prop="submissionId" label="提交 ID" min-width="150" />
-            <el-table-column prop="workflowVersion" label="评审版本" width="160" />
-            <el-table-column prop="status" label="状态" width="100" />
-            <el-table-column prop="totalScore" label="总分" width="90" />
-            <el-table-column prop="finishedAt" label="完成时间" width="170"><template #default="scope">{{ formatDate(scope.row.finishedAt) }}</template></el-table-column>
-            <el-table-column label="操作" width="120"><template #default="scope"><el-button v-if="scope.row.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.taskId)">重试</el-button><el-button v-if="scope.row.resultJson" type="primary" link @click="showReviewResult(scope.row)">查看结果</el-button></template></el-table-column>
+            <el-table-column label="操作" width="180"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试评审</el-button><el-button v-if="scope.row.review?.resultJson" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button></template></el-table-column>
           </el-table>
         </div>
 
@@ -133,7 +129,20 @@
         </div>
 
         <div v-if="isLeader && team.practiceStatus === 'PREPARING'" class="section">
-          <div class="section-heading"><div><span class="section-kicker">APPLICATIONS</span><h3 class="section-title">入队申请</h3></div><el-badge :value="pendingApplicationCount" :hidden="pendingApplicationCount === 0" /></div>
+          <div class="section-heading">
+            <div><span class="section-kicker">APPLICATIONS</span><h3 class="section-title">入队申请</h3></div>
+            <div class="application-tools">
+              <el-badge v-if="applicationStatus === 'pending'" :value="applicationTotal" :hidden="applicationTotal === 0" />
+              <el-select v-model="applicationStatus" size="small" class="application-status-select" @change="handleApplicationFilterChange">
+                <el-option label="待审核" value="pending" />
+                <el-option label="全部记录" value="all" />
+                <el-option label="已通过" value="approved" />
+                <el-option label="已拒绝" value="rejected" />
+                <el-option label="已取消" value="cancelled" />
+                <el-option label="已关闭" value="closed" />
+              </el-select>
+            </div>
+          </div>
           <el-empty v-if="applications.length === 0" description="暂无入队申请" :image-size="70" />
           <div v-for="application in applications" :key="application.id" class="application-card" :class="`application-${application.status}`">
             <div class="application-person">
@@ -150,13 +159,14 @@
               <span v-else-if="application.handledAt" class="handled-time">{{ formatDate(application.handledAt) }} 处理</span>
             </div>
           </div>
+          <el-pagination v-if="applicationTotal > applicationPageSize" background layout="prev, pager, next" :current-page="applicationPage" :page-size="applicationPageSize" :total="applicationTotal" class="application-pagination" @current-change="handleApplicationPageChange" />
         </div>
       </div>
     </template>
     <el-empty v-else-if="!loading" description="队伍不存在" />
 
     <el-dialog v-model="showEditDialog" title="编辑队伍资料" width="500px">
-      <el-form :model="editForm" label-width="80px">
+      <el-form :model="editForm" label-width="96px" class="edit-team-form">
         <el-form-item label="队伍名称" required><el-input v-model="editForm.name" :disabled="team.practiceStatus !== 'PREPARING'" maxlength="64" show-word-limit /></el-form-item>
         <el-form-item label="队伍简介"><el-input v-model="editForm.description" type="textarea" :rows="4" maxlength="256" show-word-limit /></el-form-item>
       </el-form>
@@ -194,12 +204,17 @@ const problem = ref(null)
 const showEditDialog = ref(false)
 const showApplyDialog = ref(false)
 const applications = ref([])
+const applicationPage = ref(1)
+const applicationPageSize = 6
+const applicationTotal = ref(0)
+const applicationStatus = ref('pending')
 const submissions = ref([])
 const reviews = ref([])
 const showReviewDialog = ref(false)
 const selectedReviewJson = ref('')
 const selectedPdf = ref(null)
 const submitting = ref(false)
+const uploadProgress = ref(0)
 const finalizing = ref(false)
 const startingPractice = ref(false)
 const endingPractice = ref(false)
@@ -220,10 +235,20 @@ const currentMemberCanSubmit = computed(() => currentMember.value?.role === 'lea
 const openRecruitments = computed(() => (team.value?.recruitments || []).filter(item => item.status === 'OPEN'))
 const coveredRoleCount = computed(() => ['modeler', 'programmer', 'writer'].filter(role => team.value?.members.some(member => member[role])).length)
 const allRolesCovered = computed(() => coveredRoleCount.value === 3)
-const pendingApplicationCount = computed(() => applications.value.filter(item => item.status === 'pending').length)
 const remainingSeconds = computed(() => Math.max(0, Math.floor((new Date(team.value?.deadlineAt || 0).getTime() - now.value) / 1000)))
 const remainingTimeText = computed(() => { const seconds = remainingSeconds.value; const hours = Math.floor(seconds / 3600); const minutes = Math.floor((seconds % 3600) / 60); return `${String(hours).padStart(2, '0')} : ${String(minutes).padStart(2, '0')} : ${String(seconds % 60).padStart(2, '0')}` })
 const nextVersion = computed(() => Math.max(0, ...submissions.value.map(item => item.version || 0)) + 1)
+const reviewBySubmissionId = computed(() => new Map(reviews.value.map(item => [String(item.submissionId), item])))
+const submissionRows = computed(() => submissions.value.map(item => ({ ...item, review: reviewBySubmissionId.value.get(String(item.id)) })))
+const finalSubmission = computed(() => submissions.value.find(item => item.finalVersion))
+const scoreSummary = computed(() => {
+  if (submissionRows.value.length === 0) return null
+  const submission = team.value?.practiceStatus === 'ENDED'
+    ? submissionRows.value.find(item => item.finalVersion) || submissionRows.value[0]
+    : submissionRows.value[0]
+  return { submission, review: submission.review }
+})
+const scoreSummaryLabel = computed(() => scoreSummary.value?.submission.finalVersion ? '最终得分' : '当前版本得分')
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
 
 async function loadTeam() {
@@ -231,20 +256,60 @@ async function loadTeam() {
   try {
     team.value = (await getTeamDetail(route.params.id)).data
     problem.value = (await getPublicProblemDetail(team.value.problemId)).data
-    if (team.value.canManage) applications.value = (await getTeamApplications(team.value.id)).data || []
+    if (team.value.canManage) await loadApplications()
     if (team.value.members?.some(member => member.userId === currentUserId.value) && team.value.practiceStatus !== 'PREPARING') await Promise.all([loadSubmissions(), loadReviews()])
   }
   catch (error) { ElMessage.error(error.message || '队伍详情加载失败') }
   finally { loading.value = false }
 }
 
+async function loadApplications() {
+  const params = { page: applicationPage.value, pageSize: applicationPageSize }
+  if (applicationStatus.value !== 'all') params.status = applicationStatus.value
+  const page = (await getTeamApplications(team.value.id, params)).data
+  applications.value = page?.rows || []
+  applicationTotal.value = page?.total || 0
+  if (applicationPage.value > 1 && applications.value.length === 0) {
+    applicationPage.value -= 1
+    return loadApplications()
+  }
+}
+
+async function handleApplicationFilterChange() {
+  applicationPage.value = 1
+  try { await loadApplications() }
+  catch (error) { ElMessage.error(error.message || '入队申请加载失败') }
+}
+
+async function handleApplicationPageChange(page) {
+  applicationPage.value = page
+  try { await loadApplications() }
+  catch (error) { ElMessage.error(error.message || '入队申请加载失败') }
+}
+
 function formatDate(value) { return value ? value.replace('T', ' ').slice(0, 16) : '未知时间' }
 function difficultyLabel(value) { return ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知' }
 function formatDuration(minutes) { return minutes % 60 === 0 ? `${minutes / 60} 小时` : `${minutes} 分钟` }
 function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
+function reviewStatusLabel(value) { return ({ WAITING: '等待评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败' })[value] || '等待评审' }
+function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', RUNNING: 'warning' })[value] || 'info' }
 function memberRoles(member) { return [member.modeler && '建模', member.programmer && '编程', member.writer && '论文'].filter(Boolean) }
-function handlePdfChange(file) { selectedPdf.value = file.raw || null }
-function handlePdfRemove() { selectedPdf.value = null }
+const MAX_PDF_SIZE = 20 * 1024 * 1024
+function handlePdfChange(file) {
+  const rawFile = file.raw
+  if (!rawFile) return
+  const isPdf = rawFile.name?.toLowerCase().endsWith('.pdf') && (!rawFile.type || rawFile.type === 'application/pdf')
+  if (!isPdf) {
+    selectedPdf.value = null
+    return ElMessage.warning('请选择 PDF 文件')
+  }
+  if (rawFile.size > MAX_PDF_SIZE) {
+    selectedPdf.value = null
+    return ElMessage.warning('PDF 文件大小不能超过 20MB')
+  }
+  selectedPdf.value = rawFile
+}
+function handlePdfRemove() { selectedPdf.value = null; uploadProgress.value = 0 }
 
 async function loadSubmissions() {
   try { submissions.value = (await getTeamSubmissionHistory(team.value.id)).data || [] }
@@ -254,13 +319,14 @@ async function loadReviews() {
   try { reviews.value = (await getTeamReviews(team.value.id)).data || [] }
   catch (error) { ElMessage.error(error.message || '评审结果加载失败') }
 }
+async function refreshSubmissionReviews() { await Promise.all([loadSubmissions(), loadReviews()]) }
 function showReviewResult(review) {
   try { selectedReviewJson.value = JSON.stringify(JSON.parse(review.resultJson), null, 2) }
   catch { selectedReviewJson.value = review.resultJson }
   showReviewDialog.value = true
 }
 async function handleRetryReview(taskId) {
-  try { await retryReviewTask(taskId); await loadReviews(); ElMessage.success('评审任务已重新排队') }
+  try { await retryReviewTask(taskId); await refreshSubmissionReviews(); ElMessage.success('评审任务已重新排队') }
   catch (error) { ElMessage.error(error.message || '评审任务重试失败') }
 }
 
@@ -287,10 +353,20 @@ async function handleEndPractice() {
 
 async function handleSubmitPdf() {
   if (!selectedPdf.value) return
+  if (selectedPdf.value.size > MAX_PDF_SIZE) return ElMessage.warning('PDF 文件大小不能超过 20MB')
   submitting.value = true
-  try { await submitTeamPdf(team.value.id, selectedPdf.value); selectedPdf.value = null; await loadSubmissions(); ElMessage.success('PDF 提交成功') }
+  uploadProgress.value = 0
+  try {
+    await submitTeamPdf(team.value.id, selectedPdf.value, event => {
+      if (event.total) uploadProgress.value = Math.min(100, Math.round(event.loaded * 100 / event.total))
+    })
+    uploadProgress.value = 100
+    selectedPdf.value = null
+    await loadSubmissions()
+    ElMessage.success('PDF 提交成功')
+  }
   catch (error) { ElMessage.error(error.message || 'PDF 提交失败') }
-  finally { submitting.value = false }
+  finally { submitting.value = false; uploadProgress.value = 0 }
 }
 
 async function handleFinalize() {
@@ -412,6 +488,16 @@ watch(remainingSeconds, (value, previous) => {
 @import '../style.css';
 .practice-meta { margin: 6px 0; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-table { margin-top: 18px; }
+.score-summary { display: flex; align-items: center; gap: 18px; margin-top: 18px; padding: 16px 18px; border: 1px solid #dbeafe; border-radius: 14px; background: linear-gradient(135deg, #eff6ff, #f8fafc); }
+.score-summary.final { border-color: #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #f8fafc); }
+.score-summary > div:first-child { display: flex; flex: 1; flex-direction: column; gap: 4px; color: var(--lm-text-muted); font-size: 12px; }
+.score-summary > div:first-child strong { color: var(--lm-text-primary); font-size: 16px; }
+.score-value { display: flex; align-items: baseline; gap: 4px; }
+.score-value strong { color: #2563eb; font-size: 30px; line-height: 1; }
+.score-summary.final .score-value strong { color: #16a34a; }
+.score-value span { color: var(--lm-text-muted); font-size: 12px; }
+.version-cell { display: flex; align-items: center; gap: 7px; }
+.table-score { color: #2563eb; font-size: 16px; }
 .upload-panel { margin-top: 18px; padding: 16px; border: 1px solid var(--lm-border-light); border-radius: 14px; background: #f8fafc; }
 .upload-toolbar { display: flex; min-width: 0; align-items: center; gap: 14px; }
 .selected-file { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10px; }
@@ -421,8 +507,13 @@ watch(remainingSeconds, (value, previous) => {
 .file-meta span, .upload-tip { color: var(--lm-text-muted); font-size: 11px; }
 .file-placeholder { flex: 1; color: var(--lm-text-muted); font-size: 13px; }
 .remove-file { flex-shrink: 0; color: var(--lm-text-secondary); }
+.upload-progress { flex-shrink: 0; }
 .submit-button { flex-shrink: 0; margin-left: auto; }
 .upload-tip { margin: 11px 0 0; }
+.edit-team-form :deep(.el-form-item__label) { white-space: nowrap; }
+.application-tools { display: flex; min-width: 180px; align-items: center; justify-content: flex-end; gap: 14px; }
+.application-status-select { width: 120px; }
+.application-pagination { justify-content: center; margin-top: 18px; }
 .final-version-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: #f8fafc; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-permission { min-width: 128px; }
 .slot-hint { margin-left: 12px; color: var(--lm-text-muted); font-size: 13px; }
