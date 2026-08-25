@@ -145,11 +145,13 @@ team-service 演示数据复用 user-service V3 中的正常用户：
 python3 scripts/generate_team_service_demo.py
 ```
 
-脚本生成满员团队、单人团队、专业角色多选团队和已解散历史团队，并输出：
+脚本基于当前 team-service 表结构生成组建中、练习中、练习结束、已解散、开放招募位置及申请审核场景，并输出：
 
 ```text
-LeetModel-backend/team-service/src/main/resources/db/migration/V3__insert_mock_teams.sql
+LeetModel-backend/team-service/src/main/resources/db/migration/V8__refresh_team_demo_data.sql
 ```
+
+使用 `vip_demo` 登录后，可以同时看到自己管理的组建中与练习中队伍、自己加入的练习结束队伍，以及在队伍广场中的待审核申请。
 
 problem-service 演示数据使用固定业务场景覆盖赛事、年份、语言、难度、三类标签组合、历史分数区间和草稿隔离：
 
