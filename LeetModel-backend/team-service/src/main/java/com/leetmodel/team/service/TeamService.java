@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
+import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
+import com.leetmodel.team.dto.MyTeamPageQuery;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
@@ -43,6 +45,8 @@ public interface TeamService extends IService<Team> {
 
     List<TeamVO> listMyTeams(Long userId);
 
+    PageResult<TeamVO> pageMyTeams(Long userId, MyTeamPageQuery query);
+
     void removeMember(Long teamId, Long memberId, Long operatorId);
 
     TeamMemberVO updateMemberRoles(Long teamId, Long memberId,
@@ -55,7 +59,8 @@ public interface TeamService extends IService<Team> {
 
     void cancelMyApplication(Long teamId, Long applicantId);
 
-    List<JoinApplicationVO> listApplications(Long teamId, Long operatorId);
+    PageResult<JoinApplicationVO> pageApplications(Long teamId, JoinApplicationPageQuery query,
+                                                   Long operatorId);
 
     JoinApplicationVO reviewApplication(Long teamId, Long applicationId,
                                         JoinApplicationReviewRequest request, Long operatorId);

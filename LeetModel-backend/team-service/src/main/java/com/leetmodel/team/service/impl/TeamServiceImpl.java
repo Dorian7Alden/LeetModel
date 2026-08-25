@@ -16,8 +16,10 @@ import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
+import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
+import com.leetmodel.team.dto.MyTeamPageQuery;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
@@ -159,7 +161,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Override
     @Transactional
     public TeamVO updateTeam(Long teamId, TeamUpdateRequest request, Long operatorId) {
-        Team team = getRequiredActiveTeam(teamId);
+        Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
         refreshExpiredPractice(team);
         BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus())
@@ -266,8 +268,31 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     /** {@inheritDoc} */
     @Override
     @Transactional
+    public PageResult<TeamVO> pageMyTeams(Long userId, MyTeamPageQuery query) {
+        // 找出当前用户参与过的队伍，并先收敛已到期状态。
+        List<Long> teamIds = getUserTeamIds(userId);
+        if (teamIds.isEmpty()) {
+            return new PageResult<>(0, query.getPage(), query.getPageSize(), List.of());
+        }
+        refreshExpiredPractices(teamIds);
+
+        // 每个生命周期板块独立分页，避免一个板块挤占其他板块。
+        Page<Team> page = new Page<>(query.getPage(), query.getPageSize());
+        IPage<Team> teamPage = baseMapper.selectPage(page, new LambdaQueryWrapper<Team>()
+                .in(Team::getId, teamIds)
+                .eq(Team::getStatus, STATUS_ACTIVE)
+                .eq(Team::getPracticeStatus, query.getPracticeStatus())
+                .orderByDesc(Team::getUpdateTime)
+                .orderByDesc(Team::getId));
+        return new PageResult<>(teamPage.getTotal(), query.getPage(), query.getPageSize(),
+                assembleTeams(teamPage.getRecords(), userId));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Transactional
     public void removeMember(Long teamId, Long memberId, Long operatorId) {
-        Team team = getRequiredActiveTeam(teamId);
+        Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
         checkPracticePreparing(team);
         BusinessException.throwIf(team.getLeaderId().equals(memberId), TeamErrorCode.CANNOT_REMOVE_LEADER);
@@ -280,7 +305,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Transactional
     public TeamMemberVO updateMemberRoles(Long teamId, Long memberId,
                                           MemberRolesUpdateRequest request, Long operatorId) {
-        Team team = getRequiredActiveTeam(teamId);
+        Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
         checkPracticePreparing(team);
         TeamMember member = getTeamMember(teamId, memberId);
@@ -296,7 +321,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Override
     @Transactional
     public void leaveTeam(Long teamId, Long userId) {
-        Team team = getRequiredActiveTeam(teamId);
+        Team team = lockRequiredActiveTeam(teamId);
         checkPracticePreparing(team);
         BusinessException.throwIf(team.getLeaderId().equals(userId), TeamErrorCode.LEADER_CANNOT_LEAVE);
         checkUserInTeam(teamId, userId);
@@ -309,7 +334,8 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public JoinApplicationVO submitApplication(Long teamId, JoinApplicationCreateRequest request,
                                                Long applicantId) {
         validateUserAvailable(applicantId);
-        Team team = getRequiredActiveTeam(teamId);
+        // 与开始练习、关闭招募和审核申请保持相同锁顺序。
+        Team team = lockRequiredActiveTeam(teamId);
         TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(request.getRecruitmentId());
         validateApplicationAllowed(team, recruitment, applicantId);
 
@@ -333,27 +359,41 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     @Override
     @Transactional
     public void cancelMyApplication(Long teamId, Long applicantId) {
-        TeamJoinApplication application = getPendingApplication(teamId, applicantId);
+        Team team = lockRequiredActiveTeam(teamId);
+        checkPracticePreparing(team);
+        TeamJoinApplication application = applicationMapper.selectPendingForUpdate(teamId, applicantId);
         BusinessException.throwIf(application == null, TeamErrorCode.APPLICATION_NOT_FOUND);
         finishApplication(application, CANCELLED, applicantId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public List<JoinApplicationVO> listApplications(Long teamId, Long operatorId) {
+    public PageResult<JoinApplicationVO> pageApplications(Long teamId, JoinApplicationPageQuery query,
+                                                          Long operatorId) {
+        // 只有队长可以查看申请历史。
         Team team = getRequiredTeam(teamId);
         checkLeader(team, operatorId);
-        List<TeamJoinApplication> applications = applicationMapper.selectList(
-                new LambdaQueryWrapper<TeamJoinApplication>()
-                        .eq(TeamJoinApplication::getTeamId, teamId)
-                        .orderByAsc(TeamJoinApplication::getStatus)
-                        .orderByDesc(TeamJoinApplication::getCreateTime));
+
+        // 待处理申请优先，其余按最近申请时间稳定倒序。
+        Page<TeamJoinApplication> page = new Page<>(query.getPage(), query.getPageSize());
+        QueryWrapper<TeamJoinApplication> wrapper = new QueryWrapper<>();
+        wrapper.eq("team_id", teamId)
+                .eq(query.getStatus() != null && !query.getStatus().isBlank(), "status", query.getStatus())
+                .orderByAsc("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")
+                .orderByDesc("create_time")
+                .orderByDesc("id");
+        IPage<TeamJoinApplication> applicationPage = applicationMapper.selectPage(page, wrapper);
+        List<TeamJoinApplication> applications = applicationPage.getRecords();
+
+        // 批量聚合用户与招募位置，避免逐条查询。
         Map<Long, UserPublicSummaryDTO> summaries = getUserSummaries(applicationUserIds(applications));
+        Map<Long, TeamRecruitment> recruitments = getRecruitmentsByIds(applicationRecruitmentIds(applications));
         List<JoinApplicationVO> result = new ArrayList<>();
         for (TeamJoinApplication application : applications) {
-            result.add(toApplicationVO(application, summaries.get(application.getApplicantId())));
+            result.add(toApplicationVO(application, summaries.get(application.getApplicantId()),
+                    recruitments.get(application.getRecruitmentId())));
         }
-        return result;
+        return new PageResult<>(applicationPage.getTotal(), query.getPage(), query.getPageSize(), result);
     }
 
     /** {@inheritDoc} */
@@ -364,6 +404,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         // 锁定团队和申请，串行化审核与容量检查
         Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
+        checkPracticePreparing(team);
         TeamJoinApplication application = applicationMapper.selectByIdForUpdate(applicationId);
         BusinessException.throwIf(application == null || !teamId.equals(application.getTeamId()),
                 TeamErrorCode.APPLICATION_NOT_FOUND);
@@ -374,8 +415,13 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         if (APPROVED.equals(request.getDecision())) {
             TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(application.getRecruitmentId());
             validateApplicationApproval(team, recruitment, application.getApplicantId());
-            teamMemberMapper.insert(buildMember(teamId, application.getApplicantId(), ROLE_MEMBER,
-                    recruitment.getNeedModeler(), recruitment.getNeedProgrammer(), recruitment.getNeedWriter()));
+            checkNoActiveProblemTeam(application.getApplicantId(), team.getProblemId());
+            try {
+                teamMemberMapper.insert(buildMember(teamId, application.getApplicantId(), ROLE_MEMBER,
+                        recruitment.getNeedModeler(), recruitment.getNeedProgrammer(), recruitment.getNeedWriter()));
+            } catch (DuplicateKeyException exception) {
+                throw new BusinessException(TeamErrorCode.USER_ALREADY_IN_TEAM);
+            }
             recruitment.setStatus(RECRUITMENT_FILLED);
             recruitment.setUpdateTime(LocalDateTime.now());
             recruitmentMapper.updateById(recruitment);
@@ -498,7 +544,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         int memberCount = members.size();
         boolean active = team.getStatus() == STATUS_ACTIVE;
         List<TeamRecruitmentVO> recruitments = "PREPARING".equals(team.getPracticeStatus())
-                ? getRecruitmentVOs(team.getId()) : List.of();
+                ? getOpenRecruitmentVOs(team.getId()) : List.of();
         long openRecruitments = recruitments.stream().filter(item -> RECRUITMENT_OPEN.equals(item.getStatus())).count();
         return TeamVO.builder()
                 .id(team.getId()).name(team.getName()).description(team.getDescription())
@@ -528,7 +574,14 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     }
 
     private JoinApplicationVO toApplicationVO(TeamJoinApplication application, UserPublicSummaryDTO summary) {
-        TeamRecruitment recruitment = recruitmentMapper.selectById(application.getRecruitmentId());
+        return toApplicationVO(application, summary, recruitmentMapper.selectById(application.getRecruitmentId()));
+    }
+
+    /**
+     * 使用已批量查询的招募位置组装申请视图。
+     */
+    private JoinApplicationVO toApplicationVO(TeamJoinApplication application, UserPublicSummaryDTO summary,
+                                              TeamRecruitment recruitment) {
         return JoinApplicationVO.builder().id(application.getId()).teamId(application.getTeamId())
                 .recruitmentId(application.getRecruitmentId())
                 .applicantId(application.getApplicantId())
@@ -558,7 +611,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
 
     private void validateApplicationApproval(Team team, TeamRecruitment recruitment, Long applicantId) {
         checkPracticePreparing(team);
-        BusinessException.throwIf(recruitment == null || !RECRUITMENT_OPEN.equals(recruitment.getStatus()),
+        BusinessException.throwIf(recruitment == null || !team.getId().equals(recruitment.getTeamId()),
+                TeamErrorCode.RECRUITMENT_NOT_FOUND);
+        BusinessException.throwIf(!RECRUITMENT_OPEN.equals(recruitment.getStatus()),
                 TeamErrorCode.RECRUITMENT_ALREADY_CLOSED);
         validateCanAddMember(team, applicantId);
     }
@@ -660,16 +715,55 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 .eq(TeamRecruitment::getStatus, RECRUITMENT_OPEN));
     }
 
-    private List<TeamRecruitmentVO> getRecruitmentVOs(Long teamId) {
+    /**
+     * 查询队伍当前开放的招募位置。
+     */
+    private List<TeamRecruitmentVO> getOpenRecruitmentVOs(Long teamId) {
         return recruitmentMapper.selectList(new LambdaQueryWrapper<TeamRecruitment>()
                         .eq(TeamRecruitment::getTeamId, teamId)
-                        .orderByAsc(TeamRecruitment::getStatus)
+                        .eq(TeamRecruitment::getStatus, RECRUITMENT_OPEN)
                         .orderByAsc(TeamRecruitment::getCreateTime))
                 .stream().map(item -> TeamRecruitmentVO.builder()
                         .id(item.getId()).needModeler(item.getNeedModeler())
                         .needProgrammer(item.getNeedProgrammer()).needWriter(item.getNeedWriter())
                         .status(item.getStatus()).createTime(item.getCreateTime()).build())
                 .toList();
+    }
+
+    /**
+     * 批量查询招募位置并按 ID 建立索引。
+     */
+    private Map<Long, TeamRecruitment> getRecruitmentsByIds(List<Long> recruitmentIds) {
+        if (recruitmentIds.isEmpty()) return Map.of();
+        List<TeamRecruitment> recruitments = recruitmentMapper.selectBatchIds(recruitmentIds);
+        Map<Long, TeamRecruitment> result = new HashMap<>();
+        for (TeamRecruitment recruitment : recruitments) result.put(recruitment.getId(), recruitment);
+        return result;
+    }
+
+    /**
+     * 查询用户参加过的全部队伍 ID。
+     */
+    private List<Long> getUserTeamIds(Long userId) {
+        return teamMemberMapper.selectList(new LambdaQueryWrapper<TeamMember>()
+                        .eq(TeamMember::getUserId, userId))
+                .stream()
+                .map(TeamMember::getTeamId)
+                .distinct()
+                .toList();
+    }
+
+    /**
+     * 收敛指定队伍中已经到期的练习状态。
+     */
+    private void refreshExpiredPractices(List<Long> teamIds) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Team> expired = baseMapper.selectList(new LambdaQueryWrapper<Team>()
+                .in(Team::getId, teamIds)
+                .eq(Team::getStatus, STATUS_ACTIVE)
+                .eq(Team::getPracticeStatus, "IN_PROGRESS")
+                .le(Team::getDeadlineAt, now));
+        for (Team team : expired) markPracticeEnded(team, team.getDeadlineAt());
     }
 
     private void closeOpenRecruitments(Long teamId) {
@@ -779,6 +873,13 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
 
     private List<Long> applicationUserIds(List<TeamJoinApplication> applications) {
         return applications.stream().map(TeamJoinApplication::getApplicantId).distinct().toList();
+    }
+
+    /**
+     * 提取申请关联的去重招募位置 ID。
+     */
+    private List<Long> applicationRecruitmentIds(List<TeamJoinApplication> applications) {
+        return applications.stream().map(TeamJoinApplication::getRecruitmentId).distinct().toList();
     }
 
     private void addRecruitmentRoleFilter(QueryWrapper<Team> wrapper, TeamPublicPageQuery query) {

@@ -29,6 +29,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class SubmissionService {
+    private static final long MAX_PDF_SIZE = 20L * 1024 * 1024;
     private final SubmissionMapper submissionMapper;
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
@@ -62,9 +63,12 @@ public class SubmissionService {
 
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
+        SubmissionLock lock = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
+                .eq(SubmissionLock::getTeamId, teamId));
+        Long finalSubmissionId = lock == null ? null : lock.getSubmissionId();
         return submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTeamId, teamId).orderByDesc(Submission::getVersion))
-                .stream().map(this::toVO).toList();
+                .stream().map(value -> toVO(value, finalSubmissionId)).toList();
     }
 
     @Transactional
@@ -93,7 +97,7 @@ public class SubmissionService {
         Long teamId = team.getId();
         SubmissionLock existing = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
                 .eq(SubmissionLock::getTeamId, teamId));
-        if (existing != null) return toVO(requiredSubmission(existing.getSubmissionId()));
+        if (existing != null) return toVO(requiredSubmission(existing.getSubmissionId()), existing.getSubmissionId());
         LocalDateTime effectiveEnd = team.getEndedAt() != null ? team.getEndedAt() : team.getDeadlineAt();
         Submission latest = submissionMapper.selectOne(new LambdaQueryWrapper<Submission>()
                 .eq(Submission::getTeamId, teamId).eq(Submission::getStatus, "SUCCESS")
@@ -102,7 +106,7 @@ public class SubmissionService {
         SubmissionLock lock = new SubmissionLock();
         lock.setTeamId(teamId); lock.setSubmissionId(latest.getId()); lock.setLockedAt(LocalDateTime.now());
         lockMapper.insert(lock);
-        return toVO(latest);
+        return toVO(latest, latest.getId());
     }
 
     public SubmissionReviewDTO getForReview(Long id) {
@@ -142,6 +146,8 @@ public class SubmissionService {
     }
 
     private void validatePdf(MultipartFile file) {
+        BusinessException.throwIf(file != null && file.getSize() > MAX_PDF_SIZE,
+                SubmissionErrorCode.PDF_SIZE_EXCEEDED);
         boolean metadata = file != null && !file.isEmpty()
                 && "application/pdf".equalsIgnoreCase(file.getContentType())
                 && file.getOriginalFilename() != null
@@ -163,9 +169,14 @@ public class SubmissionService {
     }
 
     private SubmissionVO toVO(Submission value) {
+        return toVO(value, null);
+    }
+
+    private SubmissionVO toVO(Submission value, Long finalSubmissionId) {
         return SubmissionVO.builder().id(value.getId()).teamId(value.getTeamId()).problemId(value.getProblemId())
                 .submitterId(value.getSubmitterId()).version(value.getVersion())
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
+                .finalVersion(value.getId().equals(finalSubmissionId))
                 .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
     }
 }

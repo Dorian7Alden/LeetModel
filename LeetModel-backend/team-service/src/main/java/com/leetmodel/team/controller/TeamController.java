@@ -5,7 +5,9 @@ import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.security.context.UserContext;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
+import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
+import com.leetmodel.team.dto.MyTeamPageQuery;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
@@ -62,6 +64,12 @@ public class TeamController {
         Long userId = UserContext.getUserId();
         List<TeamVO> teams = teamService.listMyTeams(userId, status);
         return Result.ok(teams);
+    }
+
+    @Operation(summary = "分页查询我的队伍")
+    @GetMapping("/mine/page")
+    public Result<PageResult<TeamVO>> pageMyTeams(@Valid MyTeamPageQuery query) {
+        return Result.ok(teamService.pageMyTeams(UserContext.getUserId(), query));
     }
 
     @Operation(summary = "获取团队详情")
@@ -123,9 +131,10 @@ public class TeamController {
 
     @Operation(summary = "查询队伍入队申请")
     @GetMapping("/{id}/applications")
-    public Result<List<JoinApplicationVO>> listApplications(@PathVariable Long id) {
-        Long userId = UserContext.getUserId();
-        return Result.ok(teamService.listApplications(id, userId));
+    public Result<PageResult<JoinApplicationVO>> pageApplications(
+            @PathVariable Long id,
+            @Valid JoinApplicationPageQuery query) {
+        return Result.ok(teamService.pageApplications(id, query, UserContext.getUserId()));
     }
 
     @Operation(summary = "审核入队申请")

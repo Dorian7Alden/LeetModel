@@ -6,6 +6,8 @@ import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.result.PageResult;
+import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
@@ -37,6 +39,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Collection;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -153,7 +156,7 @@ class TeamServiceTest {
     @Test
     @DisplayName("更新团队信息 —— 非队长操作")
     void updateNotLeader() {
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
 
         TeamUpdateRequest request = new TeamUpdateRequest();
         request.setName("改名");
@@ -192,7 +195,7 @@ class TeamServiceTest {
     @Test
     @DisplayName("移除成员失败 —— 目标不是团队成员")
     void removeMemberNotInTeam() {
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
         when(teamMemberMapper.selectOne(any())).thenReturn(null);
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -206,7 +209,7 @@ class TeamServiceTest {
     @DisplayName("已解散团队不能继续更新")
     void updateDisbandedTeam() {
         team.setStatus(0);
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> teamService.updateTeam(1L, new TeamUpdateRequest("改名", null), 10L));
@@ -219,7 +222,7 @@ class TeamServiceTest {
     void updateNameDuringPracticeRejected() {
         team.setPracticeStatus("IN_PROGRESS");
         team.setDeadlineAt(LocalDateTime.now().plusHours(1));
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> teamService.updateTeam(1L, new TeamUpdateRequest("新名称", "新简介"), 10L));
@@ -254,7 +257,7 @@ class TeamServiceTest {
         member.setProgrammer(false);
         member.setWriter(false);
 
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
         when(teamMemberMapper.selectOne(any())).thenReturn(member);
         when(teamMemberMapper.updateById(any(TeamMember.class))).thenReturn(1);
         when(userFeignClient.getPublicSummaries(List.of(20L))).thenReturn(Result.ok(List.of(
@@ -272,7 +275,7 @@ class TeamServiceTest {
     @Test
     @DisplayName("更新成员专业角色失败 —— 非队长操作")
     void updateMemberRolesNotLeader() {
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
 
         MemberRolesUpdateRequest request = new MemberRolesUpdateRequest(true, false, false);
         BusinessException ex = assertThrows(BusinessException.class,
@@ -310,7 +313,7 @@ class TeamServiceTest {
     void submitApplicationSuccess() {
         TeamRecruitment recruitment = recruitment(200L);
         when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
-        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
         when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment);
         when(recruitmentMapper.selectById(200L)).thenReturn(recruitment);
         when(teamMemberMapper.selectOne(any())).thenReturn(null);
@@ -322,6 +325,36 @@ class TeamServiceTest {
 
         JoinApplicationCreateRequest request = new JoinApplicationCreateRequest(200L, "希望加入");
         assertEquals("pending", teamService.submitApplication(1L, request, 20L).getStatus());
+        verify(teamMapper).selectByIdForUpdate(1L);
+    }
+
+    @Test
+    @DisplayName("取消申请时按统一顺序锁定队伍和申请")
+    void cancelApplicationLocksTeamAndApplication() {
+        TeamJoinApplication application = application(100L, 20L);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(applicationMapper.selectPendingForUpdate(1L, 20L)).thenReturn(application);
+
+        teamService.cancelMyApplication(1L, 20L);
+
+        assertEquals("cancelled", application.getStatus());
+        verify(teamMapper).selectByIdForUpdate(1L);
+        verify(applicationMapper).selectPendingForUpdate(1L, 20L);
+        verify(applicationMapper).updateById(application);
+    }
+
+    @Test
+    @DisplayName("练习开始后不能继续审核遗留申请")
+    void reviewApplicationAfterPracticeRejected() {
+        team.setPracticeStatus("IN_PROGRESS");
+        team.setDeadlineAt(LocalDateTime.now().plusHours(1));
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> teamService.reviewApplication(
+                1L, 100L, new JoinApplicationReviewRequest("rejected"), 10L));
+
+        assertEquals(TeamErrorCode.PRACTICE_ALREADY_STARTED.getCode(), ex.getCode());
+        verify(applicationMapper, never()).selectByIdForUpdate(anyLong());
     }
 
     @Test
@@ -349,6 +382,84 @@ class TeamServiceTest {
         assertEquals("approved", teamService.reviewApplication(
                 1L, 100L, new JoinApplicationReviewRequest("approved"), 10L).getStatus());
         verify(teamMemberMapper).insert(any(TeamMember.class));
+    }
+
+    @Test
+    @DisplayName("审核申请失败 —— 招募位置不属于当前队伍")
+    void approveApplicationRejectsForeignRecruitment() {
+        TeamJoinApplication application = application(100L, 20L);
+        TeamRecruitment recruitment = recruitment(200L);
+        recruitment.setTeamId(2L);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(applicationMapper.selectByIdForUpdate(100L)).thenReturn(application);
+        when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> teamService.reviewApplication(
+                1L, 100L, new JoinApplicationReviewRequest("approved"), 10L));
+
+        assertEquals(TeamErrorCode.RECRUITMENT_NOT_FOUND.getCode(), ex.getCode());
+        verify(teamMemberMapper, never()).insert(any(TeamMember.class));
+    }
+
+    @Test
+    @DisplayName("审核申请失败 —— 申请人已参加同题目的其他队伍")
+    void approveApplicationRejectsOtherActiveProblemTeam() {
+        TeamJoinApplication application = application(100L, 20L);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(applicationMapper.selectByIdForUpdate(100L)).thenReturn(application);
+        when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment(200L));
+        when(teamMemberMapper.selectOne(any())).thenReturn(null);
+        when(teamMemberMapper.selectCount(any())).thenReturn(1L);
+        when(teamMemberMapper.countActiveProblemTeams(20L, 100L)).thenReturn(1L);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> teamService.reviewApplication(
+                1L, 100L, new JoinApplicationReviewRequest("approved"), 10L));
+
+        assertEquals(TeamErrorCode.USER_HAS_ACTIVE_PROBLEM_TEAM.getCode(), ex.getCode());
+        verify(teamMemberMapper, never()).insert(any(TeamMember.class));
+    }
+
+    @Test
+    @DisplayName("入队申请按页返回并批量聚合招募信息")
+    @SuppressWarnings("unchecked")
+    void pageApplications() {
+        TeamJoinApplication first = application(100L, 20L);
+        TeamJoinApplication second = application(101L, 21L);
+        second.setStatus("rejected");
+        when(teamMapper.selectById(1L)).thenReturn(team);
+        when(applicationMapper.selectPage(any(), any())).thenAnswer(invocation -> {
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<TeamJoinApplication> page = invocation.getArgument(0);
+            page.setRecords(List.of(first, second));
+            page.setTotal(8);
+            return page;
+        });
+        when(userFeignClient.getPublicSummaries(List.of(20L, 21L))).thenReturn(Result.ok(List.of(
+                new UserPublicSummaryDTO(20L, "申请人甲", null),
+                new UserPublicSummaryDTO(21L, "申请人乙", null))));
+        when(recruitmentMapper.selectBatchIds(any(Collection.class))).thenReturn(List.of(recruitment(200L)));
+        JoinApplicationPageQuery query = new JoinApplicationPageQuery();
+        query.setPage(2);
+        query.setPageSize(2);
+
+        PageResult<com.leetmodel.team.vo.JoinApplicationVO> result =
+                teamService.pageApplications(1L, query, 10L);
+
+        assertEquals(8, result.getTotal());
+        assertEquals(2, result.getPage());
+        assertEquals(2, result.getRows().size());
+        assertTrue(result.getRows().get(0).getNeedModeler());
+        verify(recruitmentMapper).selectBatchIds(any(Collection.class));
+    }
+
+    private TeamJoinApplication application(Long id, Long applicantId) {
+        TeamJoinApplication application = new TeamJoinApplication();
+        application.setId(id);
+        application.setTeamId(1L);
+        application.setRecruitmentId(200L);
+        application.setApplicantId(applicantId);
+        application.setStatus("pending");
+        application.setPendingMarker(1);
+        return application;
     }
 
     private TeamRecruitment recruitment(Long id) {
