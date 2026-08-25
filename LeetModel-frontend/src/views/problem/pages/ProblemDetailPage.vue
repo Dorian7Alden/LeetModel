@@ -14,6 +14,7 @@
         </div>
         <div class="detail-footer-row">
           <div class="detail-meta">
+            <span>题号：{{ problem.id }}</span>
             <span>平均分：{{ problem.averageScore ?? 0 }}</span>
             <span>年份：{{ problem.year }}</span>
             <span>题面：{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
@@ -48,6 +49,7 @@
 
     </template>
     <el-empty v-else-if="!loading" description="题目不存在或尚未发布" />
+    <CreateTeamDialog v-model="showCreateDialog" :preset-problem="problem" />
   </div>
 </template>
 
@@ -60,10 +62,12 @@ import DOMPurify from 'dompurify'
 import 'github-markdown-css/github-markdown.css'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { getPublicProblemDetail } from '@/api/problem'
+import CreateTeamDialog from '@/views/team/components/CreateTeamDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
+const showCreateDialog = ref(false)
 const problem = ref(null)
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
@@ -84,7 +88,7 @@ const renderedMarkdown = computed(() => {
   })
   return DOMPurify.sanitize(html)
 })
-const createProblemTeam = () => router.push({ path: '/team', query: { problemId: problem.value.id } })
+const createProblemTeam = () => { showCreateDialog.value = true }
 const goBack = () => router.push('/problem/problemListPage')
 
 const fetchDetail = async () => {

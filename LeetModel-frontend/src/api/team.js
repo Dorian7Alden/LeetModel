@@ -20,16 +20,16 @@ export function updateTeam(teamId, data) {
   return request.put(`/teams/${teamId}`, data);
 }
 
-export function updateTeamRecruitment(teamId, data) {
-  return request.put(`/teams/${teamId}/recruitment`, data);
+export function publishTeamRecruitment(teamId, data) {
+  return request.post(`/teams/${teamId}/recruitments`, data);
+}
+
+export function closeTeamRecruitment(teamId, recruitmentId) {
+  return request.delete(`/teams/${teamId}/recruitments/${recruitmentId}`);
 }
 
 export function dissolveTeam(teamId) {
   return request.delete(`/teams/${teamId}`);
-}
-
-export function addTeamMember(teamId, userId) {
-  return request.post(`/teams/${teamId}/members`, { userId });
 }
 
 export function removeTeamMember(teamId, userId) {
@@ -62,4 +62,12 @@ export function reviewTeamApplication(teamId, applicationId, decision) {
 
 export function startTeamPractice(teamId) {
   return request.post(`/teams/${teamId}/practice/start`);
+}
+
+export function endTeamPractice(teamId) {
+  return request.post(`/teams/${teamId}/practice/end`);
+}
+
+export function updateTeamSubmissionPermission(teamId, userId, canSubmit) {
+  return request.put(`/teams/${teamId}/members/${userId}/submission-permission`, { canSubmit });
 }
