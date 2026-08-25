@@ -1,8 +1,19 @@
 <template>
   <div v-loading="loading" class="team-detail-page">
+    <el-alert
+      v-if="refreshAfterCancelError"
+      title="申请已取消，但最新队伍状态加载失败"
+      type="warning"
+      :description="refreshAfterCancelError"
+      :closable="false"
+      show-icon
+      class="partial-success-alert"
+    >
+      <template #default><el-button type="warning" plain @click="retryRefreshAfterCancel">重新加载</el-button></template>
+    </el-alert>
     <template v-if="team">
       <div class="page-nav">
-        <el-button text class="back-button" @click="router.push('/team')">← 返回我的队伍</el-button>
+        <el-button text class="back-button" @click="handleBack">← 返回上一页</el-button>
         <span class="team-id">队伍 ID · {{ team.id }}</span>
       </div>
       <div class="hero-section">
@@ -96,7 +107,7 @@
           <div class="section-heading"><div><span class="section-kicker">TEAM ROSTER</span><h3 class="section-title">成员与职责</h3></div><div class="capacity"><strong>{{ team.members.length }}</strong><span>/ {{ team.maxMembers }} 人</span></div></div>
           <div class="member-list">
             <div v-for="member in team.members" :key="member.userId" class="member-item" :class="{ 'is-leader': member.role === 'leader' }">
-              <div class="member-avatar" :class="{ 'has-image': member.avatarUrl }"><img v-if="member.avatarUrl" :src="member.avatarUrl" class="member-avatar-image" /><template v-else>{{ (member.nickname || String(member.userId)).charAt(0) }}</template></div>
+              <button type="button" class="member-avatar member-avatar-button" :class="{ 'has-image': member.avatarUrl }" :aria-label="`查看${member.nickname || `用户 ${member.userId}`}的个人名片`" @click="showUserCard(member)"><img v-if="member.avatarUrl" :src="member.avatarUrl" class="member-avatar-image" /><template v-else>{{ (member.nickname || String(member.userId)).charAt(0) }}</template></button>
               <div class="member-info">
                 <span class="member-name">{{ member.nickname || `用户 ${member.userId}` }}</span>
                 <span class="member-role">{{ member.role === 'leader' ? '队长 · 创建者' : '队伍成员' }}</span>
@@ -115,15 +126,13 @@
         </div>
 
         <div v-if="team.practiceStatus === 'PREPARING'" class="section highlight-section">
-          <div class="section-heading"><div><span class="section-kicker">RECRUITMENT</span><h3 class="section-title">招募位置</h3></div><span class="section-note">每条招募对应 1 个成员位置</span></div>
-          <el-form :model="recruitmentForm" class="recruitment-publisher">
-            <el-form-item label="招募角色："><el-checkbox v-model="recruitmentForm.needModeler" :disabled="!canManageFormation">建模手</el-checkbox><el-checkbox v-model="recruitmentForm.needProgrammer" :disabled="!canManageFormation">编程手</el-checkbox><el-checkbox v-model="recruitmentForm.needWriter" :disabled="!canManageFormation">论文手</el-checkbox><el-button v-if="canManageFormation" class="publish-recruitment-button" type="primary" :disabled="team.members.length + openRecruitments.length >= team.maxMembers" @click="handlePublishRecruitment">发布招募</el-button><span class="slot-hint">已占 {{ team.members.length + openRecruitments.length }} / {{ team.maxMembers }}</span></el-form-item>
-          </el-form>
+          <div class="section-heading"><div><span class="section-kicker">RECRUITMENT</span><h3 class="section-title">招募位置</h3></div><div class="recruitment-heading-actions"><span class="section-note">已占 {{ team.members.length + openRecruitments.length }} / {{ team.maxMembers }}</span><el-button v-if="canManageFormation" type="primary" :disabled="team.members.length + openRecruitments.length >= team.maxMembers" @click="openPublishRecruitmentDialog">发布招募</el-button></div></div>
           <el-empty v-if="openRecruitments.length === 0" description="暂无招募信息" :image-size="60" />
           <div v-for="item in openRecruitments" :key="item.id" class="recruitment-slot">
             <div class="vacant-avatar"><el-icon><User /></el-icon></div>
-            <div class="vacant-info"><strong>等待队友加入</strong><span>{{ recruitmentRolesText(item) }}</span></div>
+            <div class="vacant-info"><strong>{{ recruitmentRolesText(item) }}</strong><div v-if="item.description" class="recruitment-markdown compact" v-html="renderSafeMarkdown(item.description)" /><span v-else>未填写招募说明</span><small>{{ formatDate(item.createTime) }} 发布</small></div>
             <el-tag type="success" effect="plain" round>招募中</el-tag>
+            <el-button v-if="canManageFormation" type="primary" text @click="openEditRecruitmentDialog(item)">编辑</el-button>
             <el-button v-if="canManageFormation" type="danger" text @click="handleCloseRecruitment(item.id)">关闭招募</el-button>
           </div>
         </div>
@@ -180,7 +189,23 @@
       </el-form>
       <template #footer><el-button @click="showApplyDialog = false">取消</el-button><el-button type="primary" @click="handleSubmitApplication">提交申请</el-button></template>
     </el-dialog>
+    <el-dialog v-model="showRecruitmentDialog" :title="editingRecruitmentId ? '编辑招募信息' : '发布招募信息'" width="520px">
+      <el-form :model="recruitmentForm" label-width="108px" class="recruitment-dialog-form">
+        <el-form-item label="招募职位" required>
+          <el-checkbox v-model="recruitmentForm.needModeler">建模手</el-checkbox>
+          <el-checkbox v-model="recruitmentForm.needProgrammer">编程手</el-checkbox>
+          <el-checkbox v-model="recruitmentForm.needWriter">论文手</el-checkbox>
+        </el-form-item>
+        <el-form-item label="招募说明">
+          <el-input v-model="recruitmentForm.description" type="textarea" :rows="5" maxlength="512" show-word-limit placeholder="支持 Markdown，例如：**协作要求**、- 每周讨论两次" />
+          <span class="markdown-hint">支持 Markdown 语法</span>
+        </el-form-item>
+        <el-form-item v-if="recruitmentForm.description" label="实时预览"><div class="recruitment-markdown preview" v-html="renderSafeMarkdown(recruitmentForm.description)" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="showRecruitmentDialog = false">取消</el-button><el-button type="primary" @click="handleSaveRecruitment">{{ editingRecruitmentId ? '保存修改' : '发布招募' }}</el-button></template>
+    </el-dialog>
     <el-dialog v-model="showReviewDialog" title="AI 评审详情" width="680px"><pre class="review-json">{{ selectedReviewJson }}</pre></el-dialog>
+    <UserMiniCardDialog v-model="showMiniCard" :member="selectedMember" />
   </div>
 </template>
 
@@ -188,21 +213,28 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { renderSafeMarkdown } from '@/utils/markdown'
 import { Calendar, User, UserFilled } from '@element-plus/icons-vue'
-import { cancelTeamApplication, closeTeamRecruitment, dissolveTeam, endTeamPractice, getTeamApplications, getTeamDetail, leaveTeam, publishTeamRecruitment, removeTeamMember, reviewTeamApplication, startTeamPractice, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamSubmissionPermission } from '@/api/team'
+import { cancelTeamApplication, closeTeamRecruitment, dissolveTeam, endTeamPractice, getTeamApplications, getTeamDetail, leaveTeam, publishTeamRecruitment, removeTeamMember, reviewTeamApplication, startTeamPractice, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamRecruitment, updateTeamSubmissionPermission } from '@/api/team'
 import { getPublicProblemDetail } from '@/api/problem'
 import { finalizeTeamSubmission, getTeamSubmissionHistory, submitTeamPdf } from '@/api/submission'
 import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { useUserStore } from '@/store/user'
+import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
+const refreshAfterCancelError = ref('')
 const team = ref(null)
 const problem = ref(null)
 const showEditDialog = ref(false)
 const showApplyDialog = ref(false)
+const showRecruitmentDialog = ref(false)
+const editingRecruitmentId = ref(null)
+const showMiniCard = ref(false)
+const selectedMember = ref(null)
 const applications = ref([])
 const applicationPage = ref(1)
 const applicationPageSize = 6
@@ -221,7 +253,7 @@ const endingPractice = ref(false)
 const now = ref(Date.now())
 let clockTimer
 const editForm = reactive({ name: '', description: '' })
-const recruitmentForm = reactive({ needModeler: false, needProgrammer: false, needWriter: false })
+const recruitmentForm = reactive({ needModeler: false, needProgrammer: false, needWriter: false, description: '' })
 const applyForm = reactive({ recruitmentId: null, message: '' })
 const currentUserId = computed(() => Number(userStore.userId))
 const isLeader = computed(() => team.value?.leaderId === currentUserId.value)
@@ -256,10 +288,19 @@ async function loadTeam() {
   try {
     team.value = (await getTeamDetail(route.params.id)).data
     problem.value = (await getPublicProblemDetail(team.value.problemId)).data
+    const requestedRecruitment = team.value.recruitments?.find(item => String(item.id) === String(route.query.recruitmentId) && item.status === 'OPEN')
+    if (route.query.apply === '1' && requestedRecruitment && team.value.canApply) {
+      applyForm.recruitmentId = requestedRecruitment.id
+      showApplyDialog.value = true
+    }
     if (team.value.canManage) await loadApplications()
     if (team.value.members?.some(member => member.userId === currentUserId.value) && team.value.practiceStatus !== 'PREPARING') await Promise.all([loadSubmissions(), loadReviews()])
+    return true
   }
-  catch (error) { ElMessage.error(error.message || '队伍详情加载失败') }
+  catch (error) {
+    ElMessage.error(error.message || '队伍详情加载失败')
+    return false
+  }
   finally { loading.value = false }
 }
 
@@ -288,6 +329,11 @@ async function handleApplicationPageChange(page) {
 }
 
 function formatDate(value) { return value ? value.replace('T', ' ').slice(0, 16) : '未知时间' }
+function showUserCard(member) { selectedMember.value = member; showMiniCard.value = true }
+function handleBack() {
+  if (window.history.state?.back) router.back()
+  else router.push(route.name === 'TeamSquareDetail' ? '/team/square' : '/team')
+}
 function difficultyLabel(value) { return ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知' }
 function formatDuration(minutes) { return minutes % 60 === 0 ? `${minutes / 60} 小时` : `${minutes} 分钟` }
 function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
@@ -448,10 +494,19 @@ function recruitmentRolesText(item) {
 function recruitmentRoleList(item) { return [item.needModeler && '建模手', item.needProgrammer && '编程手', item.needWriter && '论文手'].filter(Boolean) }
 function applicationStatusLabel(status) { return ({ pending: '待审核', approved: '已通过', rejected: '已拒绝', cancelled: '已取消', closed: '已关闭' })[status] || status }
 function applicationStatusType(status) { return ({ pending: 'warning', approved: 'success', rejected: 'danger', cancelled: 'info', closed: 'info' })[status] || 'info' }
-async function handlePublishRecruitment() {
+function resetRecruitmentForm() { Object.assign(recruitmentForm, { needModeler: false, needProgrammer: false, needWriter: false, description: '' }) }
+function openPublishRecruitmentDialog() { editingRecruitmentId.value = null; resetRecruitmentForm(); showRecruitmentDialog.value = true }
+function openEditRecruitmentDialog(item) { editingRecruitmentId.value = item.id; Object.assign(recruitmentForm, { needModeler: item.needModeler, needProgrammer: item.needProgrammer, needWriter: item.needWriter, description: item.description || '' }); showRecruitmentDialog.value = true }
+async function handleSaveRecruitment() {
   if (!recruitmentRolesText(recruitmentForm)) return ElMessage.warning('请至少选择一个招募职位')
-  try { team.value = (await publishTeamRecruitment(team.value.id, recruitmentForm)).data; Object.assign(recruitmentForm, { needModeler: false, needProgrammer: false, needWriter: false }); ElMessage.success('招募已发布') }
-  catch (error) { ElMessage.error(error.message || '招募发布失败') }
+  try {
+    const request = editingRecruitmentId.value
+      ? updateTeamRecruitment(team.value.id, editingRecruitmentId.value, recruitmentForm)
+      : publishTeamRecruitment(team.value.id, recruitmentForm)
+    team.value = (await request).data
+    showRecruitmentDialog.value = false
+    ElMessage.success(editingRecruitmentId.value ? '招募信息已更新' : '招募已发布')
+  } catch (error) { ElMessage.error(error.message || '招募信息保存失败') }
 }
 async function handleCloseRecruitment(recruitmentId) {
   try { await closeTeamRecruitment(team.value.id, recruitmentId); await loadTeam(); ElMessage.success('招募已关闭') }
@@ -468,8 +523,28 @@ async function handleSubmitApplication() {
 }
 
 async function handleCancelApplication() {
-  try { await cancelTeamApplication(team.value.id); await loadTeam(); ElMessage.success('申请已取消') }
-  catch (error) { ElMessage.error(error.message || '取消申请失败') }
+  try {
+    await cancelTeamApplication(team.value.id)
+    refreshAfterCancelError.value = ''
+    team.value.currentUserRelation = 'none'
+    team.value.canApply = openRecruitments.value.length > 0
+    try {
+      team.value = (await getTeamDetail(route.params.id)).data
+      problem.value = (await getPublicProblemDetail(team.value.problemId)).data
+      ElMessage.success('申请已取消')
+    }
+    catch (error) {
+      refreshAfterCancelError.value = error.message || '请重新加载以获取服务端最新状态'
+      ElMessage.warning('申请已取消，状态刷新失败')
+    }
+  } catch (error) {
+    if (error.code === 40312) await loadTeam()
+    ElMessage.error(error.message || '取消申请失败')
+  }
+}
+
+async function retryRefreshAfterCancel() {
+  if (await loadTeam()) refreshAfterCancelError.value = ''
 }
 
 async function handleReview(applicationId, decision) {
@@ -499,6 +574,7 @@ watch(remainingSeconds, (value, previous) => {
 .version-cell { display: flex; align-items: center; gap: 7px; }
 .table-score { color: #2563eb; font-size: 16px; }
 .upload-panel { margin-top: 18px; padding: 16px; border: 1px solid var(--lm-border-light); border-radius: 14px; background: #f8fafc; }
+.partial-success-alert { margin-bottom: 18px; }
 .upload-toolbar { display: flex; min-width: 0; align-items: center; gap: 14px; }
 .selected-file { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10px; }
 .file-icon { display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; background: #fee2e2; color: #dc2626; font-size: 10px; font-weight: 800; }
@@ -514,6 +590,8 @@ watch(remainingSeconds, (value, previous) => {
 .application-tools { display: flex; min-width: 180px; align-items: center; justify-content: flex-end; gap: 14px; }
 .application-status-select { width: 120px; }
 .application-pagination { justify-content: center; margin-top: 18px; }
+.member-avatar-button { padding: 0; border: 2px solid transparent; cursor: pointer; transition: border-color .2s ease,box-shadow .2s ease,transform .2s ease; }
+.member-avatar-button:hover,.member-avatar-button:focus-visible { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(37,99,235,.16); transform: translateY(-2px); }
 .final-version-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: #f8fafc; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-permission { min-width: 128px; }
 .slot-hint { margin-left: 12px; color: var(--lm-text-muted); font-size: 13px; }

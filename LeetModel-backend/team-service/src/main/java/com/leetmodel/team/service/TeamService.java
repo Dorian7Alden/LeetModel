@@ -29,6 +29,8 @@ public interface TeamService extends IService<Team> {
 
     PageResult<TeamVO> pagePublicTeams(TeamPublicPageQuery query, Long currentUserId);
 
+    List<Long> listPublicPreparingProblemIds();
+
     TeamVO getTeamDetail(Long teamId, Long currentUserId);
 
     TeamVO getTeamDetail(Long teamId);
@@ -36,6 +38,8 @@ public interface TeamService extends IService<Team> {
     TeamVO updateTeam(Long teamId, TeamUpdateRequest request, Long operatorId);
 
     TeamVO publishRecruitment(Long teamId, RecruitmentUpdateRequest request, Long operatorId);
+
+    TeamVO updateRecruitment(Long teamId, Long recruitmentId, RecruitmentUpdateRequest request, Long operatorId);
 
     void closeRecruitment(Long teamId, Long recruitmentId, Long operatorId);
 

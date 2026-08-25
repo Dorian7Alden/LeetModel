@@ -29,7 +29,8 @@ public interface TeamJoinApplicationMapper extends BaseMapper<TeamJoinApplicatio
      * @return 待处理申请
      */
     @Select("SELECT * FROM team_join_application WHERE team_id = #{teamId} " +
-            "AND applicant_id = #{applicantId} AND pending_marker = 1 FOR UPDATE")
+            "AND applicant_id = #{applicantId} AND status = 'pending' " +
+            "AND pending_marker = 1 FOR UPDATE")
     TeamJoinApplication selectPendingForUpdate(@Param("teamId") Long teamId,
                                                @Param("applicantId") Long applicantId);
 }

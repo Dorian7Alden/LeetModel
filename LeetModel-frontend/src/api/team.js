@@ -12,6 +12,10 @@ export function getPublicTeams(params) {
   return request.get("/teams/public", { params });
 }
 
+export function getPublicPreparingProblemIds() {
+  return request.get("/teams/public/preparing-problem-ids");
+}
+
 export function getTeamDetail(teamId) {
   return request.get(`/teams/${teamId}`);
 }
@@ -22,6 +26,10 @@ export function updateTeam(teamId, data) {
 
 export function publishTeamRecruitment(teamId, data) {
   return request.post(`/teams/${teamId}/recruitments`, data);
+}
+
+export function updateTeamRecruitment(teamId, recruitmentId, data) {
+  return request.put(`/teams/${teamId}/recruitments/${recruitmentId}`, data);
 }
 
 export function closeTeamRecruitment(teamId, recruitmentId) {

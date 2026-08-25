@@ -58,6 +58,12 @@ public class TeamController {
         return Result.ok(teamService.pagePublicTeams(query, userId));
     }
 
+    @Operation(summary = "查询存在组建中缺人队伍的题目标识")
+    @GetMapping("/public/preparing-problem-ids")
+    public Result<List<Long>> listPublicPreparingProblemIds() {
+        return Result.ok(teamService.listPublicPreparingProblemIds());
+    }
+
     @Operation(summary = "查询我的队伍")
     @GetMapping({"/mine", ""})
     public Result<List<TeamVO>> listMyTeams(Integer status) {
@@ -95,6 +101,13 @@ public class TeamController {
                                             @Valid @RequestBody RecruitmentUpdateRequest request) {
         Long userId = UserContext.getUserId();
         return Result.ok(teamService.publishRecruitment(id, request, userId));
+    }
+
+    @Operation(summary = "编辑一个开放招募位置")
+    @PutMapping("/{id}/recruitments/{recruitmentId}")
+    public Result<TeamVO> updateRecruitment(@PathVariable Long id, @PathVariable Long recruitmentId,
+                                           @Valid @RequestBody RecruitmentUpdateRequest request) {
+        return Result.ok(teamService.updateRecruitment(id, recruitmentId, request, UserContext.getUserId()));
     }
 
     @Operation(summary = "关闭一个招募位置")

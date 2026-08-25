@@ -156,6 +156,16 @@
 .vacant-info { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .vacant-info strong { color: var(--lm-text-primary); font-size: 14px; }
 .vacant-info span { color: var(--lm-text-secondary); font-size: 12px; }
+.vacant-info small { color: var(--lm-text-muted); font-size: 11px; }
+.recruitment-heading-actions { display: flex; align-items: center; gap: 12px; }
+.markdown-hint { display: block; width: 100%; margin-top: 5px; color: var(--lm-text-muted); font-size: 11px; }
+.recruitment-dialog-form .el-form-item__label { white-space: nowrap; }
+.recruitment-markdown { color: var(--lm-text-secondary); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.recruitment-markdown.preview { width: 100%; min-height: 76px; padding: 12px 14px; border: 1px solid var(--lm-border); border-radius: 10px; background: #f8fafc; }
+.recruitment-markdown :is(p, ul, ol, blockquote) { margin: 6px 0; }
+.recruitment-markdown :is(ul, ol) { padding-left: 20px; }
+.recruitment-markdown blockquote { padding-left: 10px; border-left: 3px solid #bfdbfe; color: var(--lm-text-muted); }
+.recruitment-markdown code { padding: 1px 4px; border-radius: 4px; background: #e2e8f0; }
 .dialog-form { margin-top: 22px; }
 .application-item { display: grid; grid-template-columns: minmax(120px, auto) 1fr auto auto auto; gap: 10px; align-items: center; margin-top: 10px; padding: 13px 15px; border: 1px solid var(--lm-border-light); border-radius: 12px; background: #fff; }
 .application-card { display: grid; grid-template-columns: 190px minmax(0, 1fr) 190px; align-items: center; gap: 24px; margin-top: 12px; padding: 18px 20px; border: 1px solid var(--lm-border-light); border-radius: 14px; background: #fff; transition: border-color .2s ease, box-shadow .2s ease; }
