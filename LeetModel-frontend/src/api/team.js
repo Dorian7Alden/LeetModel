@@ -4,8 +4,8 @@ export function createTeam(data) {
   return request.post("/teams", data);
 }
 
-export function getMyTeams() {
-  return request.get("/teams/mine");
+export function getMyTeams(params) {
+  return request.get("/teams/mine/page", { params });
 }
 
 export function getPublicTeams(params) {
@@ -20,16 +20,16 @@ export function updateTeam(teamId, data) {
   return request.put(`/teams/${teamId}`, data);
 }
 
-export function updateTeamRecruitment(teamId, data) {
-  return request.put(`/teams/${teamId}/recruitment`, data);
+export function publishTeamRecruitment(teamId, data) {
+  return request.post(`/teams/${teamId}/recruitments`, data);
+}
+
+export function closeTeamRecruitment(teamId, recruitmentId) {
+  return request.delete(`/teams/${teamId}/recruitments/${recruitmentId}`);
 }
 
 export function dissolveTeam(teamId) {
   return request.delete(`/teams/${teamId}`);
-}
-
-export function addTeamMember(teamId, userId) {
-  return request.post(`/teams/${teamId}/members`, { userId });
 }
 
 export function removeTeamMember(teamId, userId) {
@@ -52,8 +52,8 @@ export function cancelTeamApplication(teamId) {
   return request.delete(`/teams/${teamId}/applications/mine`);
 }
 
-export function getTeamApplications(teamId) {
-  return request.get(`/teams/${teamId}/applications`);
+export function getTeamApplications(teamId, params) {
+  return request.get(`/teams/${teamId}/applications`, { params });
 }
 
 export function reviewTeamApplication(teamId, applicationId, decision) {
@@ -62,4 +62,12 @@ export function reviewTeamApplication(teamId, applicationId, decision) {
 
 export function startTeamPractice(teamId) {
   return request.post(`/teams/${teamId}/practice/start`);
+}
+
+export function endTeamPractice(teamId) {
+  return request.post(`/teams/${teamId}/practice/end`);
+}
+
+export function updateTeamSubmissionPermission(teamId, userId, canSubmit) {
+  return request.put(`/teams/${teamId}/members/${userId}/submission-permission`, { canSubmit });
 }

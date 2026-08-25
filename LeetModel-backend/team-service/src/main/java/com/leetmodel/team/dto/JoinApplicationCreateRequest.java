@@ -14,14 +14,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class JoinApplicationCreateRequest {
 
-    @NotNull(message = "建模手意愿不能为空")
-    private Boolean desiredModeler;
-
-    @NotNull(message = "编程手意愿不能为空")
-    private Boolean desiredProgrammer;
-
-    @NotNull(message = "论文手意愿不能为空")
-    private Boolean desiredWriter;
+    @NotNull(message = "招募位置不能为空")
+    private Long recruitmentId;
 
     @Size(max = 256, message = "申请说明最多256位")
     private String message;

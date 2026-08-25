@@ -33,14 +33,11 @@
       </div>
     </div>
 
-    <div class="missing-roles" v-if="recruitmentRoles.length > 0">
+    <div v-if="team.practiceStatus === 'PREPARING' && recruitmentRoles.length > 0" class="missing-roles">
       <span class="missing-label">招募：</span>
       <span v-for="role in recruitmentRoles" :key="role" class="role-tag">
         {{ role }}
       </span>
-    </div>
-    <div class="missing-roles full-team" v-else>
-      <span>{{ team.recruiting ? '招募中，暂未指定角色' : '暂停招募' }}</span>
     </div>
   </div>
 </template>
@@ -52,6 +49,7 @@ import { User } from '@element-plus/icons-vue'
 
 const props = defineProps({
   team: { type: Object, required: true },
+  detailRouteName: { type: String, default: 'TeamDetail' },
 })
 
 const router = useRouter()
@@ -63,17 +61,19 @@ const emptySlots = computed(() => {
 })
 
 const recruitmentRoles = computed(() => {
-  const roles = []
-  if (props.team.needModeler) roles.push('建模手')
-  if (props.team.needProgrammer) roles.push('编程手')
-  if (props.team.needWriter) roles.push('论文手')
-  return roles
+  return (props.team.recruitments || []).filter(item => item.status === 'OPEN').flatMap(item => {
+    const roles = []
+    if (item.needModeler) roles.push('建模手')
+    if (item.needProgrammer) roles.push('编程手')
+    if (item.needWriter) roles.push('论文手')
+    return roles
+  })
 })
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[props.team.practiceStatus] || props.team.practiceStatus || '未知状态')
 const practiceType = computed(() => ({ PREPARING: 'info', IN_PROGRESS: 'warning', ENDED: 'success' })[props.team.practiceStatus] || 'info')
 
 function goDetail() {
-  router.push({ name: 'TeamDetail', params: { id: props.team.id } })
+  router.push({ name: props.detailRouteName, params: { id: props.team.id } })
 }
 </script>
 

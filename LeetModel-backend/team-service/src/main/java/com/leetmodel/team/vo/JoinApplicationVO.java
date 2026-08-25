@@ -18,12 +18,14 @@ public class JoinApplicationVO {
     private Long id;
     @JsonSerialize(using = ToStringSerializer.class)
     private Long teamId;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long recruitmentId;
     private Long applicantId;
     private String nickname;
     private String avatarUrl;
-    private Boolean desiredModeler;
-    private Boolean desiredProgrammer;
-    private Boolean desiredWriter;
+    private Boolean needModeler;
+    private Boolean needProgrammer;
+    private Boolean needWriter;
     private String message;
     private String status;
     private Long handledBy;

@@ -3,11 +3,13 @@ package com.leetmodel.team.controller;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.security.context.UserContext;
-import com.leetmodel.team.dto.AddMemberRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
+import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
+import com.leetmodel.team.dto.MyTeamPageQuery;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
+import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamPublicPageQuery;
 import com.leetmodel.team.dto.TeamUpdateRequest;
@@ -64,6 +66,12 @@ public class TeamController {
         return Result.ok(teams);
     }
 
+    @Operation(summary = "分页查询我的队伍")
+    @GetMapping("/mine/page")
+    public Result<PageResult<TeamVO>> pageMyTeams(@Valid MyTeamPageQuery query) {
+        return Result.ok(teamService.pageMyTeams(UserContext.getUserId(), query));
+    }
+
     @Operation(summary = "获取团队详情")
     @GetMapping("/{id}")
     public Result<TeamVO> detail(@PathVariable Long id) {
@@ -81,12 +89,19 @@ public class TeamController {
         return Result.ok(vo);
     }
 
-    @Operation(summary = "更新队伍招募配置")
-    @PutMapping("/{id}/recruitment")
-    public Result<TeamVO> updateRecruitment(@PathVariable Long id,
+    @Operation(summary = "发布一个招募位置")
+    @PostMapping("/{id}/recruitments")
+    public Result<TeamVO> publishRecruitment(@PathVariable Long id,
                                             @Valid @RequestBody RecruitmentUpdateRequest request) {
         Long userId = UserContext.getUserId();
-        return Result.ok(teamService.updateRecruitment(id, request, userId));
+        return Result.ok(teamService.publishRecruitment(id, request, userId));
+    }
+
+    @Operation(summary = "关闭一个招募位置")
+    @DeleteMapping("/{id}/recruitments/{recruitmentId}")
+    public Result<Void> closeRecruitment(@PathVariable Long id, @PathVariable Long recruitmentId) {
+        teamService.closeRecruitment(id, recruitmentId, UserContext.getUserId());
+        return Result.ok();
     }
 
     @Operation(summary = "解散团队（队长）")
@@ -94,15 +109,6 @@ public class TeamController {
     public Result<Void> dissolve(@PathVariable Long id) {
         Long userId = UserContext.getUserId();
         teamService.dissolveTeam(id, userId);
-        return Result.ok();
-    }
-
-    @Operation(summary = "添加成员（队长）")
-    @PostMapping("/{id}/members")
-    public Result<Void> addMember(@PathVariable Long id,
-                                   @Valid @RequestBody AddMemberRequest request) {
-        Long userId = UserContext.getUserId();
-        teamService.addMember(id, request, userId);
         return Result.ok();
     }
 
@@ -125,9 +131,10 @@ public class TeamController {
 
     @Operation(summary = "查询队伍入队申请")
     @GetMapping("/{id}/applications")
-    public Result<List<JoinApplicationVO>> listApplications(@PathVariable Long id) {
-        Long userId = UserContext.getUserId();
-        return Result.ok(teamService.listApplications(id, userId));
+    public Result<PageResult<JoinApplicationVO>> pageApplications(
+            @PathVariable Long id,
+            @Valid JoinApplicationPageQuery query) {
+        return Result.ok(teamService.pageApplications(id, query, UserContext.getUserId()));
     }
 
     @Operation(summary = "审核入队申请")
@@ -172,5 +179,21 @@ public class TeamController {
     @PostMapping("/{id}/practice/start")
     public Result<TeamVO> startPractice(@PathVariable Long id) {
         return Result.ok(teamService.startPractice(id, UserContext.getUserId()));
+    }
+
+    @Operation(summary = "提前结束限时练习")
+    @PostMapping("/{id}/practice/end")
+    public Result<TeamVO> endPractice(@PathVariable Long id) {
+        return Result.ok(teamService.endPractice(id, UserContext.getUserId()));
+    }
+
+    @Operation(summary = "设置成员作品提交权限")
+    @PutMapping("/{id}/members/{memberId}/submission-permission")
+    public Result<TeamMemberVO> updateSubmissionPermission(
+            @PathVariable Long id,
+            @PathVariable Long memberId,
+            @Valid @RequestBody SubmissionPermissionUpdateRequest request) {
+        return Result.ok(teamService.updateSubmissionPermission(
+                id, memberId, request, UserContext.getUserId()));
     }
 }

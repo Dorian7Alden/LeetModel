@@ -2,6 +2,7 @@ package com.leetmodel.team.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.team.entity.Team;
@@ -42,7 +43,7 @@ public class InternalTeamController {
         );
         return Result.ok(new TeamDTO(team.getId(), team.getName(), team.getLeaderId(),
                 team.getStatus(), (int) memberCount, team.getProblemId(), team.getPracticeStatus(),
-                team.getStartedAt(), team.getDeadlineAt()));
+                team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt()));
     }
 
     @Operation(summary = "获取团队成员用户 ID 列表")
@@ -56,6 +57,13 @@ public class InternalTeamController {
         return Result.ok(memberIds);
     }
 
+    @Operation(summary = "获取成员作品提交资格")
+    @GetMapping("/{teamId}/members/{userId}/submission-access")
+    public Result<TeamSubmissionAccessDTO> getSubmissionAccess(@PathVariable Long teamId,
+                                                               @PathVariable Long userId) {
+        return Result.ok(teamService.getSubmissionAccess(teamId, userId));
+    }
+
     @Operation(summary = "获取活跃团队数量")
     @GetMapping("/count")
     public Result<Long> getActiveTeamCount() {
@@ -65,41 +73,17 @@ public class InternalTeamController {
         return Result.ok(count);
     }
 
-    @Operation(summary = "标记队伍已提交")
-    @PostMapping("/{teamId}/practice/submitted")
-    public Result<Void> markSubmitted(@PathVariable Long teamId) {
-        Team team = teamService.getById(teamId);
-        BusinessException.throwIf(team == null || !("IN_PROGRESS".equals(team.getPracticeStatus())
-                        || "SUBMITTED".equals(team.getPracticeStatus())),
-                TeamErrorCode.PRACTICE_NOT_IN_PROGRESS);
-        if ("IN_PROGRESS".equals(team.getPracticeStatus())) {
-            team.setPracticeStatus("SUBMITTED");
-            teamService.updateById(team);
-        }
-        return Result.ok();
-    }
-
-    @Operation(summary = "标记队伍练习完成")
-    @PostMapping("/{teamId}/practice/completed")
-    public Result<Void> markCompleted(@PathVariable Long teamId) {
-        Team team = teamService.getById(teamId);
-        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
-        if (!"COMPLETED".equals(team.getPracticeStatus())) {
-            team.setPracticeStatus("COMPLETED");
-            team.setEndedAt(java.time.LocalDateTime.now());
-            teamService.updateById(team);
-        }
-        return Result.ok();
-    }
-
     @Operation(summary = "查询已到截止时间的练习")
     @GetMapping("/practice/expired")
     public Result<List<TeamDTO>> listExpiredPractices() {
         List<Team> teams = teamService.list(new LambdaQueryWrapper<Team>()
-                .in(Team::getPracticeStatus, "IN_PROGRESS", "SUBMITTED")
-                .le(Team::getDeadlineAt, java.time.LocalDateTime.now()));
+                .and(wrapper -> wrapper
+                        .eq(Team::getPracticeStatus, "ENDED")
+                        .or(nested -> nested
+                                .eq(Team::getPracticeStatus, "IN_PROGRESS")
+                                .le(Team::getDeadlineAt, java.time.LocalDateTime.now()))));
         return Result.ok(teams.stream().map(team -> new TeamDTO(team.getId(), team.getName(), team.getLeaderId(),
                 team.getStatus(), null, team.getProblemId(), team.getPracticeStatus(),
-                team.getStartedAt(), team.getDeadlineAt())).toList());
+                team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt())).toList());
     }
 }

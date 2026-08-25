@@ -6,13 +6,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 添加成员请求。
+ * 更新成员作品提交权限请求。
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AddMemberRequest {
+public class SubmissionPermissionUpdateRequest {
 
-    @NotNull(message = "用户ID不能为空")
-    private Long userId;
+    @NotNull(message = "提交权限不能为空")
+    private Boolean canSubmit;
 }

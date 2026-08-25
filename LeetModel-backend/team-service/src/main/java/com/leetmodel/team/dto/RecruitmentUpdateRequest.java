@@ -6,15 +6,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 更新队伍招募配置请求。
+ * 发布一个招募位置请求。
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class RecruitmentUpdateRequest {
-
-    @NotNull(message = "招募状态不能为空")
-    private Boolean recruiting;
 
     @NotNull(message = "建模手需求不能为空")
     private Boolean needModeler;

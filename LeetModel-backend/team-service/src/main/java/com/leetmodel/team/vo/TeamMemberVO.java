@@ -27,5 +27,6 @@ public class TeamMemberVO {
     private Boolean modeler;
     private Boolean programmer;
     private Boolean writer;
+    private Boolean canSubmit;
     private LocalDateTime joinedAt;
 }

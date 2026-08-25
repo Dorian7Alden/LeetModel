@@ -1,5 +1,7 @@
 package com.leetmodel.problem.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +24,7 @@ import java.util.List;
 public class ProblemVO {
 
     /** 题目 ID */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /** 题目标题 */

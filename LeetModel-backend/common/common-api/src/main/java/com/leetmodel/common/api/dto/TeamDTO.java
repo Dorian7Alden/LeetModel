@@ -21,4 +21,5 @@ public class TeamDTO {
     private String practiceStatus;
     private java.time.LocalDateTime startedAt;
     private java.time.LocalDateTime deadlineAt;
+    private java.time.LocalDateTime endedAt;
 }

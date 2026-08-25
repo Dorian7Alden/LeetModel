@@ -12,6 +12,8 @@ public enum SubmissionErrorCode implements ErrorCode {
     SUBMISSION_NOT_FOUND(40606, "提交记录不存在"),
     FINAL_SUBMISSION_NOT_FOUND(40607, "没有可锁定的成功提交"),
     DEADLINE_NOT_REACHED(40608, "截止时间尚未到达"),
+    SUBMISSION_PERMISSION_DENIED(40609, "当前成员没有作品提交权限"),
+    PDF_SIZE_EXCEEDED(40610, "PDF 文件大小不能超过 20MB"),
     REVIEW_TASK_CREATE_FAILED(50601, "评审任务创建失败");
     private final int code; private final String message;
 }

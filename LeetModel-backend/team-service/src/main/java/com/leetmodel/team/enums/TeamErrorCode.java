@@ -33,6 +33,13 @@ public enum TeamErrorCode implements ErrorCode {
     ROLES_NOT_COVERED(40319, "建模、编程和论文职责必须全部覆盖"),
     PRACTICE_ALREADY_STARTED(40320, "练习已经开始"),
     PRACTICE_NOT_IN_PROGRESS(40321, "练习未在进行中"),
+    TEAM_NAME_LOCKED(40322, "练习开始后不能修改队伍名称"),
+    TEAM_OPERATION_NOT_ALLOWED(40323, "当前队伍状态不允许执行该操作"),
+    LEADER_SUBMISSION_PERMISSION_FIXED(40324, "队长始终拥有提交权限"),
+    RECRUITMENT_ROLE_REQUIRED(40325, "每条招募至少选择一个职位"),
+    TEAM_SLOT_FULL(40326, "成员与开放招募位置已达到队伍人数上限"),
+    RECRUITMENT_NOT_FOUND(40327, "招募信息不存在"),
+    RECRUITMENT_ALREADY_CLOSED(40328, "招募信息已经关闭"),
 
     // ---- 5xxxx 服务端错误 ----
     ;
