@@ -8,35 +8,40 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.team.dto.AddMemberRequest;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
+import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamPublicPageQuery;
 import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamJoinApplication;
 import com.leetmodel.team.entity.TeamMember;
+import com.leetmodel.team.entity.TeamRecruitment;
 import com.leetmodel.team.enums.TeamErrorCode;
 import com.leetmodel.team.mapper.TeamJoinApplicationMapper;
 import com.leetmodel.team.mapper.TeamMapper;
 import com.leetmodel.team.mapper.TeamMemberMapper;
+import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.JoinApplicationVO;
 import com.leetmodel.team.vo.TeamMemberVO;
+import com.leetmodel.team.vo.TeamRecruitmentVO;
 import com.leetmodel.team.vo.TeamVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -62,12 +67,16 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     private static final String REJECTED = "rejected";
     private static final String CANCELLED = "cancelled";
     private static final String CLOSED = "closed";
+    private static final String RECRUITMENT_OPEN = "OPEN";
+    private static final String RECRUITMENT_FILLED = "FILLED";
+    private static final String RECRUITMENT_CLOSED = "CLOSED";
     private static final int DEFAULT_MAX_MEMBERS = 3;
     private static final int STATUS_ACTIVE = 1;
     private static final int STATUS_DISBANDED = 0;
 
     private final TeamMemberMapper teamMemberMapper;
     private final TeamJoinApplicationMapper applicationMapper;
+    private final TeamRecruitmentMapper recruitmentMapper;
     private final UserFeignClient userFeignClient;
     private final ProblemFeignClient problemFeignClient;
 
@@ -77,19 +86,14 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public TeamVO createTeam(TeamCreateRequest request, Long leaderId) {
         getPracticeProblem(request.getProblemId());
         checkNoActiveProblemTeam(leaderId, request.getProblemId());
-        // 创建团队并启用招募
+        // 创建团队；招募位置由队长按需发布。
         Team team = new Team();
         team.setName(request.getName());
         team.setDescription(request.getDescription());
         team.setLeaderId(leaderId);
         team.setProblemId(request.getProblemId());
-        team.setMaxMembers(request.getMaxMembers() != null ? request.getMaxMembers() : DEFAULT_MAX_MEMBERS);
         team.setStatus(STATUS_ACTIVE);
         team.setPracticeStatus("PREPARING");
-        team.setRecruiting(true);
-        team.setNeedModeler(false);
-        team.setNeedProgrammer(false);
-        team.setNeedWriter(false);
         save(team);
 
         // 创建者成为队长
@@ -103,18 +107,22 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public PageResult<TeamVO> pagePublicTeams(TeamPublicPageQuery query, Long currentUserId) {
         // 组合公共查询条件
         QueryWrapper<Team> wrapper = new QueryWrapper<>();
-        wrapper.eq("status", STATUS_ACTIVE).eq("deleted", 0);
+        wrapper.eq("status", STATUS_ACTIVE)
+                .eq("practice_status", "PREPARING")
+                .eq("deleted", 0);
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             wrapper.and(value -> value.like("name", query.getKeyword())
                     .or().like("description", query.getKeyword()));
         }
-        if (Boolean.TRUE.equals(query.getRecruitingOnly())) wrapper.eq("recruiting", 1);
+        if (Boolean.TRUE.equals(query.getRecruitingOnly())) {
+            wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN'");
+        }
         if (Boolean.TRUE.equals(query.getAvailableOnly())) {
-            wrapper.apply("(SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id) < max_members");
+            wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN'");
         }
         addRecruitmentRoleFilter(wrapper, query);
         if ("remainingSlots".equals(query.getSortBy())) {
-            wrapper.orderByDesc("(max_members - (SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id))");
+            wrapper.orderByDesc("(3 - (SELECT COUNT(*) FROM team_member tm WHERE tm.team_id = team.id))");
         } else {
             wrapper.orderByDesc("create_time");
         }
@@ -153,7 +161,15 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     public TeamVO updateTeam(Long teamId, TeamUpdateRequest request, Long operatorId) {
         Team team = getRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
-        if (request.getName() != null && !request.getName().isBlank()) team.setName(request.getName());
+        refreshExpiredPractice(team);
+        BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus())
+                        && request.getName() != null && !request.getName().equals(team.getName()),
+                TeamErrorCode.TEAM_NAME_LOCKED);
+        BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus())
+                        && !"IN_PROGRESS".equals(team.getPracticeStatus()),
+                TeamErrorCode.TEAM_OPERATION_NOT_ALLOWED);
+        if ("PREPARING".equals(team.getPracticeStatus())
+                && request.getName() != null && !request.getName().isBlank()) team.setName(request.getName());
         if (request.getDescription() != null) team.setDescription(request.getDescription());
         updateById(team);
         return getTeamDetail(teamId, operatorId);
@@ -162,15 +178,43 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     /** {@inheritDoc} */
     @Override
     @Transactional
-    public TeamVO updateRecruitment(Long teamId, RecruitmentUpdateRequest request, Long operatorId) {
-        Team team = getRequiredActiveTeam(teamId);
+    public TeamVO publishRecruitment(Long teamId, RecruitmentUpdateRequest request, Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
         checkLeader(team, operatorId);
-        team.setRecruiting(request.getRecruiting());
-        team.setNeedModeler(request.getNeedModeler());
-        team.setNeedProgrammer(request.getNeedProgrammer());
-        team.setNeedWriter(request.getNeedWriter());
-        updateById(team);
+        checkPracticePreparing(team);
+        BusinessException.throwIf(!Boolean.TRUE.equals(request.getNeedModeler())
+                        && !Boolean.TRUE.equals(request.getNeedProgrammer())
+                        && !Boolean.TRUE.equals(request.getNeedWriter()),
+                TeamErrorCode.RECRUITMENT_ROLE_REQUIRED);
+        BusinessException.throwIf(getMemberCount(teamId) + getOpenRecruitmentCount(teamId) >= DEFAULT_MAX_MEMBERS,
+                TeamErrorCode.TEAM_SLOT_FULL);
+        TeamRecruitment recruitment = new TeamRecruitment();
+        recruitment.setTeamId(teamId);
+        recruitment.setNeedModeler(request.getNeedModeler());
+        recruitment.setNeedProgrammer(request.getNeedProgrammer());
+        recruitment.setNeedWriter(request.getNeedWriter());
+        recruitment.setStatus(RECRUITMENT_OPEN);
+        recruitment.setCreateTime(LocalDateTime.now());
+        recruitment.setUpdateTime(LocalDateTime.now());
+        recruitmentMapper.insert(recruitment);
         return getTeamDetail(teamId, operatorId);
+    }
+
+    @Override
+    @Transactional
+    public void closeRecruitment(Long teamId, Long recruitmentId, Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
+        checkLeader(team, operatorId);
+        checkPracticePreparing(team);
+        TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(recruitmentId);
+        BusinessException.throwIf(recruitment == null || !teamId.equals(recruitment.getTeamId()),
+                TeamErrorCode.RECRUITMENT_NOT_FOUND);
+        BusinessException.throwIf(!RECRUITMENT_OPEN.equals(recruitment.getStatus()),
+                TeamErrorCode.RECRUITMENT_ALREADY_CLOSED);
+        recruitment.setStatus(RECRUITMENT_CLOSED);
+        recruitment.setUpdateTime(LocalDateTime.now());
+        recruitmentMapper.updateById(recruitment);
+        closePendingApplicationsForRecruitment(recruitmentId, operatorId);
     }
 
     /** {@inheritDoc} */
@@ -182,11 +226,14 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
         checkTeamActive(team);
         checkLeader(team, operatorId);
+        checkPracticePreparing(team);
 
         // 解散并关闭待处理申请
         team.setStatus(STATUS_DISBANDED);
-        team.setRecruiting(false);
+        team.setPracticeStatus("DISBANDED");
+        team.setEndedAt(LocalDateTime.now());
         updateById(team);
+        closeOpenRecruitments(teamId);
         closePendingApplications(teamId, operatorId);
     }
 
@@ -202,27 +249,18 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         LambdaQueryWrapper<Team> wrapper = new LambdaQueryWrapper<Team>()
                 .in(Team::getId, teamIds)
                 .eq(status != null, Team::getStatus, status)
-                .orderByDesc(Team::getCreateTime);
-        return assembleTeams(baseMapper.selectList(wrapper), userId);
+                .ne(status == null, Team::getPracticeStatus, "DISBANDED")
+                .orderByDesc(Team::getUpdateTime)
+                .orderByDesc(Team::getId);
+        List<Team> teams = baseMapper.selectList(wrapper);
+        for (Team team : teams) refreshExpiredPractice(team);
+        return assembleTeams(teams, userId);
     }
 
     /** {@inheritDoc} */
     @Override
     public List<TeamVO> listMyTeams(Long userId) {
         return listMyTeams(userId, null);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    @Transactional
-    public void addMember(Long teamId, AddMemberRequest request, Long operatorId) {
-        validateUserAvailable(request.getUserId());
-        Team team = lockRequiredActiveTeam(teamId);
-        checkLeader(team, operatorId);
-        checkPracticePreparing(team);
-        checkNoActiveProblemTeam(request.getUserId(), team.getProblemId());
-        validateCanAddMember(team, request.getUserId());
-        teamMemberMapper.insert(buildMember(teamId, request.getUserId(), ROLE_MEMBER, false, false, false));
     }
 
     /** {@inheritDoc} */
@@ -272,14 +310,13 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                                                Long applicantId) {
         validateUserAvailable(applicantId);
         Team team = getRequiredActiveTeam(teamId);
-        validateApplicationAllowed(team, applicantId);
+        TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(request.getRecruitmentId());
+        validateApplicationAllowed(team, recruitment, applicantId);
 
         TeamJoinApplication application = new TeamJoinApplication();
         application.setTeamId(teamId);
+        application.setRecruitmentId(recruitment.getId());
         application.setApplicantId(applicantId);
-        application.setDesiredModeler(request.getDesiredModeler());
-        application.setDesiredProgrammer(request.getDesiredProgrammer());
-        application.setDesiredWriter(request.getDesiredWriter());
         application.setMessage(request.getMessage());
         application.setStatus(PENDING);
         application.setPendingMarker(1);
@@ -335,10 +372,15 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
 
         // 按审核决定流转
         if (APPROVED.equals(request.getDecision())) {
-            validateApplicationApproval(team, application.getApplicantId());
+            TeamRecruitment recruitment = recruitmentMapper.selectByIdForUpdate(application.getRecruitmentId());
+            validateApplicationApproval(team, recruitment, application.getApplicantId());
             teamMemberMapper.insert(buildMember(teamId, application.getApplicantId(), ROLE_MEMBER,
-                    application.getDesiredModeler(), application.getDesiredProgrammer(), application.getDesiredWriter()));
+                    recruitment.getNeedModeler(), recruitment.getNeedProgrammer(), recruitment.getNeedWriter()));
+            recruitment.setStatus(RECRUITMENT_FILLED);
+            recruitment.setUpdateTime(LocalDateTime.now());
+            recruitmentMapper.updateById(recruitment);
             finishApplication(application, APPROVED, operatorId);
+            closePendingApplicationsForRecruitment(recruitment.getId(), operatorId);
         } else {
             BusinessException.throwIf(!REJECTED.equals(request.getDecision()), TeamErrorCode.INVALID_APPLICATION_DECISION);
             finishApplication(application, REJECTED, operatorId);
@@ -363,10 +405,69 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         team.setPracticeStatus("IN_PROGRESS");
         team.setStartedAt(now);
         team.setDeadlineAt(now.plusMinutes(problem.getDurationMinutes()));
-        team.setRecruiting(false);
         updateById(team);
+        closeOpenRecruitments(teamId);
         closePendingApplications(teamId, operatorId);
         return getTeamDetail(teamId, operatorId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Transactional
+    public TeamVO endPractice(Long teamId, Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
+        checkLeader(team, operatorId);
+        refreshExpiredPractice(team);
+        BusinessException.throwIf(!"IN_PROGRESS".equals(team.getPracticeStatus()),
+                TeamErrorCode.PRACTICE_NOT_IN_PROGRESS);
+        markPracticeEnded(team, LocalDateTime.now());
+        return getTeamDetail(teamId, operatorId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Transactional
+    public TeamMemberVO updateSubmissionPermission(Long teamId, Long memberId,
+                                                   SubmissionPermissionUpdateRequest request,
+                                                   Long operatorId) {
+        Team team = lockRequiredActiveTeam(teamId);
+        checkLeader(team, operatorId);
+        refreshExpiredPractice(team);
+        BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus())
+                        && !"IN_PROGRESS".equals(team.getPracticeStatus()),
+                TeamErrorCode.TEAM_OPERATION_NOT_ALLOWED);
+        TeamMember member = getTeamMember(teamId, memberId);
+        BusinessException.throwIf(member == null, TeamErrorCode.NOT_TEAM_MEMBER);
+        BusinessException.throwIf(ROLE_LEADER.equals(member.getRole()),
+                TeamErrorCode.LEADER_SUBMISSION_PERMISSION_FIXED);
+        member.setCanSubmit(request.getCanSubmit());
+        teamMemberMapper.updateById(member);
+        return toMemberVO(member, getUserSummaries(List.of(memberId)).get(memberId));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Scheduled(fixedDelayString = "${team.practice-expiration.delay-ms:60000}")
+    @Transactional
+    public void endExpiredPractices() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Team> expired = baseMapper.selectList(new LambdaQueryWrapper<Team>()
+                .eq(Team::getStatus, STATUS_ACTIVE)
+                .eq(Team::getPracticeStatus, "IN_PROGRESS")
+                .le(Team::getDeadlineAt, now));
+        for (Team team : expired) markPracticeEnded(team, team.getDeadlineAt());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Transactional
+    public TeamSubmissionAccessDTO getSubmissionAccess(Long teamId, Long userId) {
+        Team team = getRequiredTeam(teamId);
+        TeamMember member = getTeamMember(teamId, userId);
+        boolean canSubmit = member != null && (ROLE_LEADER.equals(member.getRole())
+                || Boolean.TRUE.equals(member.getCanSubmit()));
+        return new TeamSubmissionAccessDTO(teamId, team.getProblemId(), member != null, canSubmit,
+                team.getPracticeStatus(), team.getDeadlineAt(), team.getEndedAt());
     }
 
     // ==================== 查询与组装 ====================
@@ -396,19 +497,23 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         String relation = relationOf(team, members, currentUserId, pendingTeamIds);
         int memberCount = members.size();
         boolean active = team.getStatus() == STATUS_ACTIVE;
+        List<TeamRecruitmentVO> recruitments = "PREPARING".equals(team.getPracticeStatus())
+                ? getRecruitmentVOs(team.getId()) : List.of();
+        long openRecruitments = recruitments.stream().filter(item -> RECRUITMENT_OPEN.equals(item.getStatus())).count();
         return TeamVO.builder()
                 .id(team.getId()).name(team.getName()).description(team.getDescription())
                 .leaderId(team.getLeaderId()).problemId(team.getProblemId())
-                .maxMembers(team.getMaxMembers()).status(team.getStatus())
+                .maxMembers(DEFAULT_MAX_MEMBERS).status(team.getStatus())
                 .practiceStatus(team.getPracticeStatus()).startedAt(team.getStartedAt())
                 .deadlineAt(team.getDeadlineAt()).endedAt(team.getEndedAt())
-                .recruiting(team.getRecruiting()).needModeler(team.getNeedModeler())
-                .needProgrammer(team.getNeedProgrammer()).needWriter(team.getNeedWriter())
-                .memberCount(memberCount).remainingSlots(Math.max(0, team.getMaxMembers() - memberCount))
+                .recruitments(recruitments)
+                .memberCount(memberCount).remainingSlots(Math.max(0, DEFAULT_MAX_MEMBERS - memberCount))
                 .currentUserRelation(relation)
-                .canApply(active && Boolean.TRUE.equals(team.getRecruiting()) && memberCount < team.getMaxMembers()
+                .canApply(active && "PREPARING".equals(team.getPracticeStatus())
+                        && openRecruitments > 0
                         && "none".equals(relation))
-                .canManage("leader".equals(relation)).canLeave(active && "member".equals(relation))
+                .canManage("leader".equals(relation))
+                .canLeave(active && "PREPARING".equals(team.getPracticeStatus()) && "member".equals(relation))
                 .createTime(team.getCreateTime()).members(memberVOs).build();
     }
 
@@ -417,16 +522,21 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 .nickname(summary != null ? summary.getNickname() : null)
                 .avatarUrl(summary != null ? summary.getAvatarUrl() : null)
                 .role(member.getRole()).modeler(member.getModeler()).programmer(member.getProgrammer())
-                .writer(member.getWriter()).joinedAt(member.getJoinedAt()).build();
+                .writer(member.getWriter())
+                .canSubmit(ROLE_LEADER.equals(member.getRole()) || Boolean.TRUE.equals(member.getCanSubmit()))
+                .joinedAt(member.getJoinedAt()).build();
     }
 
     private JoinApplicationVO toApplicationVO(TeamJoinApplication application, UserPublicSummaryDTO summary) {
+        TeamRecruitment recruitment = recruitmentMapper.selectById(application.getRecruitmentId());
         return JoinApplicationVO.builder().id(application.getId()).teamId(application.getTeamId())
+                .recruitmentId(application.getRecruitmentId())
                 .applicantId(application.getApplicantId())
                 .nickname(summary != null ? summary.getNickname() : null)
                 .avatarUrl(summary != null ? summary.getAvatarUrl() : null)
-                .desiredModeler(application.getDesiredModeler())
-                .desiredProgrammer(application.getDesiredProgrammer()).desiredWriter(application.getDesiredWriter())
+                .needModeler(recruitment != null && Boolean.TRUE.equals(recruitment.getNeedModeler()))
+                .needProgrammer(recruitment != null && Boolean.TRUE.equals(recruitment.getNeedProgrammer()))
+                .needWriter(recruitment != null && Boolean.TRUE.equals(recruitment.getNeedWriter()))
                 .message(application.getMessage()).status(application.getStatus())
                 .handledBy(application.getHandledBy()).handledAt(application.getHandledAt())
                 .createTime(application.getCreateTime()).build();
@@ -434,28 +544,45 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
 
     // ==================== 业务校验 ====================
 
-    private void validateApplicationAllowed(Team team, Long applicantId) {
-        BusinessException.throwIf(!Boolean.TRUE.equals(team.getRecruiting()), TeamErrorCode.TEAM_NOT_RECRUITING);
+    private void validateApplicationAllowed(Team team, TeamRecruitment recruitment, Long applicantId) {
+        checkPracticePreparing(team);
+        BusinessException.throwIf(recruitment == null || !team.getId().equals(recruitment.getTeamId()),
+                TeamErrorCode.RECRUITMENT_NOT_FOUND);
+        BusinessException.throwIf(!RECRUITMENT_OPEN.equals(recruitment.getStatus()), TeamErrorCode.TEAM_NOT_RECRUITING);
         BusinessException.throwIf(team.getLeaderId().equals(applicantId), TeamErrorCode.CANNOT_APPLY_OWN_TEAM);
         BusinessException.throwIf(getTeamMember(team.getId(), applicantId) != null, TeamErrorCode.USER_ALREADY_IN_TEAM);
-        BusinessException.throwIf(getMemberCount(team.getId()) >= team.getMaxMembers(), TeamErrorCode.TEAM_FULL);
+        BusinessException.throwIf(getMemberCount(team.getId()) >= DEFAULT_MAX_MEMBERS, TeamErrorCode.TEAM_FULL);
         BusinessException.throwIf(getPendingApplication(team.getId(), applicantId) != null,
                 TeamErrorCode.APPLICATION_ALREADY_PENDING);
     }
 
-    private void validateApplicationApproval(Team team, Long applicantId) {
-        BusinessException.throwIf(!Boolean.TRUE.equals(team.getRecruiting()), TeamErrorCode.TEAM_NOT_RECRUITING);
+    private void validateApplicationApproval(Team team, TeamRecruitment recruitment, Long applicantId) {
+        checkPracticePreparing(team);
+        BusinessException.throwIf(recruitment == null || !RECRUITMENT_OPEN.equals(recruitment.getStatus()),
+                TeamErrorCode.RECRUITMENT_ALREADY_CLOSED);
         validateCanAddMember(team, applicantId);
     }
 
     private void validateCanAddMember(Team team, Long userId) {
         BusinessException.throwIf(getTeamMember(team.getId(), userId) != null, TeamErrorCode.USER_ALREADY_IN_TEAM);
-        BusinessException.throwIf(getMemberCount(team.getId()) >= team.getMaxMembers(), TeamErrorCode.TEAM_FULL);
+        BusinessException.throwIf(getMemberCount(team.getId()) >= DEFAULT_MAX_MEMBERS, TeamErrorCode.TEAM_FULL);
     }
 
     private void checkPracticePreparing(Team team) {
         BusinessException.throwIf(!"PREPARING".equals(team.getPracticeStatus()),
                 TeamErrorCode.PRACTICE_ALREADY_STARTED);
+    }
+
+    private void refreshExpiredPractice(Team team) {
+        if (!"IN_PROGRESS".equals(team.getPracticeStatus()) || team.getDeadlineAt() == null
+                || LocalDateTime.now().isBefore(team.getDeadlineAt())) return;
+        markPracticeEnded(team, team.getDeadlineAt());
+    }
+
+    private void markPracticeEnded(Team team, LocalDateTime endedAt) {
+        team.setPracticeStatus("ENDED");
+        team.setEndedAt(endedAt);
+        updateById(team);
     }
 
     private void checkNoActiveProblemTeam(Long userId, Long problemId) {
@@ -493,6 +620,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     private Team getRequiredTeam(Long teamId) {
         Team team = getById(teamId);
         BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
+        refreshExpiredPractice(team);
         return team;
     }
 
@@ -524,6 +652,37 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
     private long getMemberCount(Long teamId) {
         return teamMemberMapper.selectCount(new LambdaQueryWrapper<TeamMember>()
                 .eq(TeamMember::getTeamId, teamId));
+    }
+
+    private long getOpenRecruitmentCount(Long teamId) {
+        return recruitmentMapper.selectCount(new LambdaQueryWrapper<TeamRecruitment>()
+                .eq(TeamRecruitment::getTeamId, teamId)
+                .eq(TeamRecruitment::getStatus, RECRUITMENT_OPEN));
+    }
+
+    private List<TeamRecruitmentVO> getRecruitmentVOs(Long teamId) {
+        return recruitmentMapper.selectList(new LambdaQueryWrapper<TeamRecruitment>()
+                        .eq(TeamRecruitment::getTeamId, teamId)
+                        .orderByAsc(TeamRecruitment::getStatus)
+                        .orderByAsc(TeamRecruitment::getCreateTime))
+                .stream().map(item -> TeamRecruitmentVO.builder()
+                        .id(item.getId()).needModeler(item.getNeedModeler())
+                        .needProgrammer(item.getNeedProgrammer()).needWriter(item.getNeedWriter())
+                        .status(item.getStatus()).createTime(item.getCreateTime()).build())
+                .toList();
+    }
+
+    private void closeOpenRecruitments(Long teamId) {
+        recruitmentMapper.update(null, new UpdateWrapper<TeamRecruitment>()
+                .eq("team_id", teamId).eq("status", RECRUITMENT_OPEN)
+                .set("status", RECRUITMENT_CLOSED).set("update_time", LocalDateTime.now()));
+    }
+
+    private void closePendingApplicationsForRecruitment(Long recruitmentId, Long operatorId) {
+        applicationMapper.update(null, new UpdateWrapper<TeamJoinApplication>()
+                .eq("recruitment_id", recruitmentId).eq("pending_marker", 1)
+                .set("status", CLOSED).set("pending_marker", null)
+                .set("handled_by", operatorId).set("handled_at", LocalDateTime.now()));
     }
 
     private void removeTeamMember(Long teamId, Long userId) {
@@ -595,6 +754,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         TeamMember member = new TeamMember();
         member.setTeamId(teamId); member.setUserId(userId); member.setRole(role);
         member.setModeler(modeler); member.setProgrammer(programmer); member.setWriter(writer);
+        member.setCanSubmit(ROLE_LEADER.equals(role));
         member.setJoinedAt(LocalDateTime.now());
         return member;
     }
@@ -626,21 +786,11 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         boolean programmer = Boolean.TRUE.equals(query.getNeedProgrammer());
         boolean writer = Boolean.TRUE.equals(query.getNeedWriter());
         if (!modeler && !programmer && !writer) return;
-        wrapper.and(value -> {
-            boolean hasPrevious = false;
-            if (modeler) {
-                value.eq("need_modeler", 1);
-                hasPrevious = true;
-            }
-            if (programmer) {
-                if (hasPrevious) value.or();
-                value.eq("need_programmer", 1);
-                hasPrevious = true;
-            }
-            if (writer) {
-                if (hasPrevious) value.or();
-                value.eq("need_writer", 1);
-            }
-        });
+        List<String> roleConditions = new ArrayList<>();
+        if (modeler) roleConditions.add("tr.need_modeler = 1");
+        if (programmer) roleConditions.add("tr.need_programmer = 1");
+        if (writer) roleConditions.add("tr.need_writer = 1");
+        wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN' AND ("
+                + String.join(" OR ", roleConditions) + ")");
     }
 }

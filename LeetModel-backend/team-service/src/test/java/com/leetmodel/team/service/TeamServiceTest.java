@@ -6,19 +6,22 @@ import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.team.dto.AddMemberRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
+import com.leetmodel.team.dto.RecruitmentUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamUpdateRequest;
+import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamMember;
 import com.leetmodel.team.entity.TeamJoinApplication;
+import com.leetmodel.team.entity.TeamRecruitment;
 import com.leetmodel.team.enums.TeamErrorCode;
 import com.leetmodel.team.mapper.TeamMapper;
 import com.leetmodel.team.mapper.TeamMemberMapper;
 import com.leetmodel.team.mapper.TeamJoinApplicationMapper;
+import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.impl.TeamServiceImpl;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamVO;
@@ -32,6 +35,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,6 +58,9 @@ class TeamServiceTest {
     private TeamJoinApplicationMapper applicationMapper;
 
     @Mock
+    private TeamRecruitmentMapper recruitmentMapper;
+
+    @Mock
     private UserFeignClient userFeignClient;
 
     @Mock
@@ -73,14 +80,9 @@ class TeamServiceTest {
         team.setName("测试团队");
         team.setDescription("一个测试团队");
         team.setLeaderId(10L);
-        team.setMaxMembers(3);
         team.setStatus(1);
         team.setProblemId(100L);
         team.setPracticeStatus("PREPARING");
-        team.setRecruiting(true);
-        team.setNeedModeler(false);
-        team.setNeedProgrammer(false);
-        team.setNeedWriter(false);
     }
 
     @Test
@@ -100,8 +102,12 @@ class TeamServiceTest {
 
         assertNotNull(vo);
         assertEquals("新团队", vo.getName());
-        verify(teamMapper).insert(any(Team.class));
-        verify(teamMemberMapper).insert(any(TeamMember.class));
+        ArgumentCaptor<Team> teamCaptor = ArgumentCaptor.forClass(Team.class);
+        verify(teamMapper).insert(teamCaptor.capture());
+        assertEquals(3, vo.getMaxMembers());
+        ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
+        verify(teamMemberMapper).insert(memberCaptor.capture());
+        assertTrue(memberCaptor.getValue().getCanSubmit());
     }
 
     @Test
@@ -121,6 +127,19 @@ class TeamServiceTest {
         when(teamMapper.updateById(any(Team.class))).thenReturn(1);
 
         assertDoesNotThrow(() -> teamService.dissolveTeam(1L, 10L));
+        assertEquals("DISBANDED", team.getPracticeStatus());
+    }
+
+    @Test
+    @DisplayName("练习中队伍不能解散")
+    void dissolveInProgressTeamRejected() {
+        team.setPracticeStatus("IN_PROGRESS");
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.dissolveTeam(1L, 10L));
+
+        assertEquals(TeamErrorCode.PRACTICE_ALREADY_STARTED.getCode(), ex.getCode());
     }
 
     @Test
@@ -145,46 +164,29 @@ class TeamServiceTest {
     }
 
     @Test
-    @DisplayName("添加成员成功")
-    void addMemberSuccess() {
-        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
+    @DisplayName("发布招募失败 —— 至少选择一个职位")
+    void publishRecruitmentRequiresRole() {
         when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
-        when(teamMemberMapper.selectOne(any())).thenReturn(null);
-        when(teamMemberMapper.selectCount(any())).thenReturn(1L);
-        when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
 
-        assertDoesNotThrow(() -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
-        ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
-        verify(teamMemberMapper).insert((TeamMember) memberCaptor.capture());
-        assertEquals(20L, memberCaptor.getValue().getUserId());
-        assertEquals("member", memberCaptor.getValue().getRole());
+        BusinessException ex = assertThrows(BusinessException.class, () -> teamService.publishRecruitment(
+                1L, new RecruitmentUpdateRequest(false, false, false), 10L));
+
+        assertEquals(TeamErrorCode.RECRUITMENT_ROLE_REQUIRED.getCode(), ex.getCode());
+        verify(recruitmentMapper, never()).insert((TeamRecruitment) any());
     }
 
     @Test
-    @DisplayName("添加成员失败 —— 用户不可用")
-    void addMemberUserUnavailable() {
-        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(false));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
-
-        assertEquals(TeamErrorCode.USER_NOT_AVAILABLE.getCode(), ex.getCode());
-        verify(teamMapper, never()).selectByIdForUpdate(any());
-    }
-
-    @Test
-    @DisplayName("添加成员失败 —— 团队已满")
-    void addMemberTeamFull() {
-        when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
+    @DisplayName("发布招募失败 —— 成员与开放位置达到三人")
+    void publishRecruitmentReservesTeamSlot() {
         when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
-        when(teamMemberMapper.selectOne(any())).thenReturn(null);
-        when(teamMemberMapper.selectCount(any())).thenReturn(3L);
+        when(teamMemberMapper.selectCount(any())).thenReturn(2L);
+        when(recruitmentMapper.selectCount(any())).thenReturn(1L);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> teamService.addMember(1L, new AddMemberRequest(20L), 10L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> teamService.publishRecruitment(
+                1L, new RecruitmentUpdateRequest(true, false, false), 10L));
 
-        assertEquals(TeamErrorCode.TEAM_FULL.getCode(), ex.getCode());
-        verify(teamMemberMapper, never()).insert((TeamMember) any());
+        assertEquals(TeamErrorCode.TEAM_SLOT_FULL.getCode(), ex.getCode());
+        verify(recruitmentMapper, never()).insert((TeamRecruitment) any());
     }
 
     @Test
@@ -210,6 +212,34 @@ class TeamServiceTest {
                 () -> teamService.updateTeam(1L, new TeamUpdateRequest("改名", null), 10L));
 
         assertEquals(TeamErrorCode.TEAM_ALREADY_DISBANDED.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("练习开始后不能修改队伍名称")
+    void updateNameDuringPracticeRejected() {
+        team.setPracticeStatus("IN_PROGRESS");
+        team.setDeadlineAt(LocalDateTime.now().plusHours(1));
+        when(teamMapper.selectById(1L)).thenReturn(team);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> teamService.updateTeam(1L, new TeamUpdateRequest("新名称", "新简介"), 10L));
+
+        assertEquals(TeamErrorCode.TEAM_NAME_LOCKED.getCode(), ex.getCode());
+    }
+
+    @Test
+    @DisplayName("队长可以提前结束练习")
+    void endPracticeSuccess() {
+        team.setPracticeStatus("IN_PROGRESS");
+        team.setDeadlineAt(LocalDateTime.now().plusHours(1));
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(teamMapper.updateById(team)).thenReturn(1);
+        when(teamMapper.selectById(1L)).thenReturn(team);
+
+        TeamVO result = teamService.endPractice(1L, 10L);
+
+        assertEquals("ENDED", result.getPracticeStatus());
+        assertNotNull(result.getEndedAt());
     }
 
     @Test
@@ -253,10 +283,36 @@ class TeamServiceTest {
     }
 
     @Test
+    @DisplayName("练习中队长可以授予普通成员提交权限")
+    void updateSubmissionPermissionDuringPractice() {
+        team.setPracticeStatus("IN_PROGRESS");
+        team.setDeadlineAt(LocalDateTime.now().plusHours(1));
+        TeamMember member = new TeamMember();
+        member.setId(100L);
+        member.setTeamId(1L);
+        member.setUserId(20L);
+        member.setRole("member");
+        member.setCanSubmit(false);
+        when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
+        when(teamMemberMapper.selectOne(any())).thenReturn(member);
+        when(teamMemberMapper.updateById(member)).thenReturn(1);
+        when(userFeignClient.getPublicSummaries(List.of(20L))).thenReturn(Result.ok(List.of(
+                new UserPublicSummaryDTO(20L, "成员", null))));
+
+        TeamMemberVO result = teamService.updateSubmissionPermission(
+                1L, 20L, new SubmissionPermissionUpdateRequest(true), 10L);
+
+        assertTrue(result.getCanSubmit());
+    }
+
+    @Test
     @DisplayName("提交入队申请成功")
     void submitApplicationSuccess() {
+        TeamRecruitment recruitment = recruitment(200L);
         when(userFeignClient.isUserAvailable(20L)).thenReturn(Result.ok(true));
         when(teamMapper.selectById(1L)).thenReturn(team);
+        when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment);
+        when(recruitmentMapper.selectById(200L)).thenReturn(recruitment);
         when(teamMemberMapper.selectOne(any())).thenReturn(null);
         when(teamMemberMapper.selectCount(any())).thenReturn(1L);
         when(applicationMapper.selectOne(any())).thenReturn(null);
@@ -264,7 +320,7 @@ class TeamServiceTest {
         when(userFeignClient.getPublicSummaries(List.of(20L))).thenReturn(Result.ok(List.of(
                 new UserPublicSummaryDTO(20L, "申请人", null))));
 
-        JoinApplicationCreateRequest request = new JoinApplicationCreateRequest(true, false, true, "希望加入");
+        JoinApplicationCreateRequest request = new JoinApplicationCreateRequest(200L, "希望加入");
         assertEquals("pending", teamService.submitApplication(1L, request, 20L).getStatus());
     }
 
@@ -274,15 +330,15 @@ class TeamServiceTest {
         TeamJoinApplication application = new TeamJoinApplication();
         application.setId(100L);
         application.setTeamId(1L);
+        application.setRecruitmentId(200L);
         application.setApplicantId(20L);
-        application.setDesiredModeler(true);
-        application.setDesiredProgrammer(false);
-        application.setDesiredWriter(true);
         application.setStatus("pending");
         application.setPendingMarker(1);
 
         when(teamMapper.selectByIdForUpdate(1L)).thenReturn(team);
         when(applicationMapper.selectByIdForUpdate(100L)).thenReturn(application);
+        when(recruitmentMapper.selectByIdForUpdate(200L)).thenReturn(recruitment(200L));
+        when(recruitmentMapper.selectById(200L)).thenReturn(recruitment(200L));
         when(teamMemberMapper.selectOne(any())).thenReturn(null);
         when(teamMemberMapper.selectCount(any())).thenReturn(2L);
         when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
@@ -293,5 +349,16 @@ class TeamServiceTest {
         assertEquals("approved", teamService.reviewApplication(
                 1L, 100L, new JoinApplicationReviewRequest("approved"), 10L).getStatus());
         verify(teamMemberMapper).insert(any(TeamMember.class));
+    }
+
+    private TeamRecruitment recruitment(Long id) {
+        TeamRecruitment recruitment = new TeamRecruitment();
+        recruitment.setId(id);
+        recruitment.setTeamId(1L);
+        recruitment.setNeedModeler(true);
+        recruitment.setNeedProgrammer(false);
+        recruitment.setNeedWriter(true);
+        recruitment.setStatus("OPEN");
+        return recruitment;
     }
 }

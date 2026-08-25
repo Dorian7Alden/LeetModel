@@ -15,10 +15,8 @@ public class TeamJoinApplication implements Serializable {
 
     private Long id;
     private Long teamId;
+    private Long recruitmentId;
     private Long applicantId;
-    private Boolean desiredModeler;
-    private Boolean desiredProgrammer;
-    private Boolean desiredWriter;
     private String message;
     private String status;
     private Integer pendingMarker;

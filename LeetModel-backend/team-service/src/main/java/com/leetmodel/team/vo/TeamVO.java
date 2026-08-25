@@ -31,10 +31,7 @@ public class TeamVO {
     private LocalDateTime startedAt;
     private LocalDateTime deadlineAt;
     private LocalDateTime endedAt;
-    private Boolean recruiting;
-    private Boolean needModeler;
-    private Boolean needProgrammer;
-    private Boolean needWriter;
+    private List<TeamRecruitmentVO> recruitments;
     private Integer memberCount;
     private Integer remainingSlots;
     private String currentUserRelation;

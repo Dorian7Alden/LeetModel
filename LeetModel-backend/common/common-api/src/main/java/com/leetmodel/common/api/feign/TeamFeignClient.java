@@ -1,6 +1,7 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,14 +37,12 @@ public interface TeamFeignClient {
     @GetMapping("/internal/teams/{teamId}/members")
     Result<List<Long>> getMemberIds(@PathVariable Long teamId);
 
+    @GetMapping("/internal/teams/{teamId}/members/{userId}/submission-access")
+    Result<TeamSubmissionAccessDTO> getSubmissionAccess(@PathVariable Long teamId,
+                                                        @PathVariable Long userId);
+
     @GetMapping("/internal/teams/count")
     Result<Long> getActiveTeamCount();
-
-    @PostMapping("/internal/teams/{teamId}/practice/submitted")
-    Result<Void> markSubmitted(@PathVariable Long teamId);
-
-    @PostMapping("/internal/teams/{teamId}/practice/completed")
-    Result<Void> markCompleted(@PathVariable Long teamId);
 
     @GetMapping("/internal/teams/practice/expired")
     Result<List<TeamDTO>> listExpiredPractices();

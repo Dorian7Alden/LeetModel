@@ -1,8 +1,6 @@
 package com.leetmodel.team.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -29,7 +27,4 @@ public class TeamCreateRequest {
     @Size(max = 256, message = "团队描述最多256位")
     private String description;
 
-    @Min(value = 1, message = "团队人数上限不能小于1")
-    @Max(value = 3, message = "团队人数上限不能超过3")
-    private Integer maxMembers;
 }

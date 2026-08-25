@@ -36,6 +36,9 @@ public class TeamMember implements Serializable {
     /** 是否为论文手 */
     private Boolean writer;
 
+    /** 是否允许提交作品 */
+    private Boolean canSubmit;
+
     /** 加入时间 */
     private LocalDateTime joinedAt;
 

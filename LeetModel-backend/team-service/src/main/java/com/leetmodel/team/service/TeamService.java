@@ -2,11 +2,12 @@ package com.leetmodel.team.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.common.core.result.PageResult;
-import com.leetmodel.team.dto.AddMemberRequest;
+import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
 import com.leetmodel.team.dto.MemberRolesUpdateRequest;
 import com.leetmodel.team.dto.RecruitmentUpdateRequest;
+import com.leetmodel.team.dto.SubmissionPermissionUpdateRequest;
 import com.leetmodel.team.dto.TeamCreateRequest;
 import com.leetmodel.team.dto.TeamPublicPageQuery;
 import com.leetmodel.team.dto.TeamUpdateRequest;
@@ -32,15 +33,15 @@ public interface TeamService extends IService<Team> {
 
     TeamVO updateTeam(Long teamId, TeamUpdateRequest request, Long operatorId);
 
-    TeamVO updateRecruitment(Long teamId, RecruitmentUpdateRequest request, Long operatorId);
+    TeamVO publishRecruitment(Long teamId, RecruitmentUpdateRequest request, Long operatorId);
+
+    void closeRecruitment(Long teamId, Long recruitmentId, Long operatorId);
 
     void dissolveTeam(Long teamId, Long operatorId);
 
     List<TeamVO> listMyTeams(Long userId, Integer status);
 
     List<TeamVO> listMyTeams(Long userId);
-
-    void addMember(Long teamId, AddMemberRequest request, Long operatorId);
 
     void removeMember(Long teamId, Long memberId, Long operatorId);
 
@@ -60,4 +61,13 @@ public interface TeamService extends IService<Team> {
                                         JoinApplicationReviewRequest request, Long operatorId);
 
     TeamVO startPractice(Long teamId, Long operatorId);
+
+    TeamVO endPractice(Long teamId, Long operatorId);
+
+    TeamMemberVO updateSubmissionPermission(Long teamId, Long memberId,
+                                            SubmissionPermissionUpdateRequest request, Long operatorId);
+
+    void endExpiredPractices();
+
+    TeamSubmissionAccessDTO getSubmissionAccess(Long teamId, Long userId);
 }

@@ -1,6 +1,7 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -31,17 +32,12 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
             }
 
             @Override
+            public Result<TeamSubmissionAccessDTO> getSubmissionAccess(Long teamId, Long userId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
             public Result<Long> getActiveTeamCount() {
-                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
-            }
-
-            @Override
-            public Result<Void> markSubmitted(Long teamId) {
-                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
-            }
-
-            @Override
-            public Result<Void> markCompleted(Long teamId) {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
 
