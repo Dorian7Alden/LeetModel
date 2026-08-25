@@ -52,6 +52,7 @@ import { User } from '@element-plus/icons-vue'
 
 const props = defineProps({
   team: { type: Object, required: true },
+  detailRouteName: { type: String, default: 'TeamDetail' },
 })
 
 const router = useRouter()
@@ -73,7 +74,7 @@ const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '�
 const practiceType = computed(() => ({ PREPARING: 'info', IN_PROGRESS: 'warning', ENDED: 'success' })[props.team.practiceStatus] || 'info')
 
 function goDetail() {
-  router.push({ name: 'TeamDetail', params: { id: props.team.id } })
+  router.push({ name: props.detailRouteName, params: { id: props.team.id } })
 }
 </script>
 

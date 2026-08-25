@@ -19,6 +19,9 @@
             >
               {{ item.label }}
             </router-link>
+            <button type="button" class="nav-item nav-button" @click="onFeatureWip">
+              信息中心
+            </button>
             <router-link
               v-if="userStore.isAdmin"
               to="/admin/dashboard"
@@ -168,7 +171,8 @@ const roleTagType = computed(() => {
 
 const navItems = [
   { label: '题库', path: '/problem' },
-  { label: '组队', path: '/team' },
+  { label: '我的队伍', path: '/team' },
+  { label: '队伍广场', path: '/team/square' },
 ]
 
 function onFeatureWip() {
@@ -176,8 +180,10 @@ function onFeatureWip() {
 }
 
 function isActive(path) {
-  if (path === '/admin') return route.path.startsWith('/admin')
-  return route.path === path
+  if (path === '/team') {
+    return route.path === path || (route.path.startsWith('/team/') && !route.path.startsWith('/team/square'))
+  }
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 
 onMounted(async () => {
@@ -277,6 +283,17 @@ onMounted(async () => {
 
 .nav-item:hover {
   color: var(--lm-primary, #409eff);
+  background: rgba(64, 158, 255, 0.06);
+}
+
+.nav-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.nav-button:hover {
   background: rgba(64, 158, 255, 0.06);
 }
 
