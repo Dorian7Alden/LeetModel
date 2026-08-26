@@ -57,12 +57,12 @@ public class AiChatService {
                 route == null || route.getProvider() == null || route.getModel() == null,
                 AiGatewayErrorCode.ROUTE_NOT_FOUND
         );
-        validateCapabilities(route, request);
+        AiModelCatalogProperties.ModelProfile profile = validateCapabilities(route, request);
 
         // 调用供应商适配器
         String callId = UUID.randomUUID().toString();
         AiProviderAdapter adapter = providerRegistry.get(route.getProvider());
-        AiChatResponse providerResponse = adapter.chat(route.getModel(), request);
+        AiChatResponse providerResponse = adapter.chat(route.getModel(), profile.getProtocol(), request);
 
         // 记录不含业务内容和密钥的调用摘要
         log.info(
@@ -75,10 +75,14 @@ public class AiChatService {
         return withCallId(callId, providerResponse);
     }
 
-    private void validateCapabilities(AiRoutingProperties.Route route, AiChatRequest request) {
+    private AiModelCatalogProperties.ModelProfile validateCapabilities(
+            AiRoutingProperties.Route route,
+            AiChatRequest request
+    ) {
         String key = route.getProvider().name() + "/" + route.getModel();
         AiModelCatalogProperties.ModelProfile profile = modelCatalog.getModels().get(key);
         BusinessException.throwIf(profile == null || !profile.isEnabled(), AiGatewayErrorCode.MODEL_DISABLED);
+        BusinessException.throwIf(profile.getProtocol() == null, AiGatewayErrorCode.PROVIDER_NOT_CONFIGURED);
         boolean inputSupported = request.messages().stream().flatMap(message -> message.content().stream())
                 .allMatch(part -> profile.getInputTypes().contains(part.type()));
         BusinessException.throwIf(!inputSupported, AiGatewayErrorCode.INPUT_TYPE_UNSUPPORTED);
@@ -106,6 +110,7 @@ public class AiChatService {
         BusinessException.throwIf(profile.getContextTokens() != null
                         && textCodePoints + reservedOutput > profile.getContextTokens(),
                 AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
+        return profile;
     }
 
     private boolean supportsMediaType(AiModelCatalogProperties.ModelProfile profile, String url) {
