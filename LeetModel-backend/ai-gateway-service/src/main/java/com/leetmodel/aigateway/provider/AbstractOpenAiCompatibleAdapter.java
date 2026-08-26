@@ -1,5 +1,6 @@
 package com.leetmodel.aigateway.provider;
 
+import com.leetmodel.aigateway.config.AiApiProtocol;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
@@ -12,6 +13,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -69,16 +71,18 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
      * @return 统一响应
      */
     @Override
-    public AiChatResponse chat(String model, AiChatRequest request) {
+    public AiChatResponse chat(String model, AiApiProtocol protocol, AiChatRequest request) {
         // 检查供应商配置
         validateApiKey();
 
-        // 构建供应商请求
-        Map<String, Object> body = buildChatBody(model, request);
-
-        // 调用并转换响应
-        OpenAiCompatibleResponse response = executeChat(body);
-        return toChatResponse(response);
+        return switch (protocol) {
+            case OPENAI_COMPLETIONS -> {
+                Map<String, Object> body = buildChatBody(model, request);
+                yield toChatResponse(executeChat(body));
+            }
+            case OPENAI_RESPONSES -> executeResponses(model, request);
+            case ANTHROPIC_MESSAGES -> executeAnthropic(model, request);
+        };
     }
 
     /**
@@ -154,9 +158,90 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return response;
         } catch (BusinessException exception) {
             throw exception;
+        } catch (HttpClientErrorException.BadRequest exception) {
+            String responseBody = exception.getResponseBodyAsString().toLowerCase();
+            if (responseBody.contains("context") && (responseBody.contains("length") || responseBody.contains("token"))) {
+                throw new BusinessException(AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
+            }
+            if (responseBody.contains("image") && (responseBody.contains("format") || responseBody.contains("media type"))) {
+                throw new BusinessException(AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
+            }
+            throw new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
+    }
+
+    private AiChatResponse executeResponses(String model, AiChatRequest request) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", model);
+        body.put("input", ProviderRequestMapper.toResponsesInput(request.messages()));
+        ProviderRequestMapper.addResponsesOptions(body, request);
+        try {
+            OpenAiResponsesResponse response = restClient.post()
+                    .uri("/responses")
+                    .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                    .body(body)
+                    .retrieve()
+                    .body(OpenAiResponsesResponse.class);
+            validateResponses(response);
+            return response.toUnified(provider());
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (HttpClientErrorException.BadRequest exception) {
+            throw mapBadRequest(exception);
+        } catch (RestClientException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+        }
+    }
+
+    private AiChatResponse executeAnthropic(String model, AiChatRequest request) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", model);
+        String system = ProviderRequestMapper.anthropicSystem(request.messages());
+        if (StringUtils.hasText(system)) body.put("system", system);
+        body.put("messages", ProviderRequestMapper.toAnthropicMessages(request.messages()));
+        ProviderRequestMapper.addAnthropicOptions(body, request);
+        try {
+            AnthropicMessagesResponse response = restClient.post()
+                    .uri("/messages")
+                    .header("x-api-key", apiKey)
+                    .header("anthropic-version", "2023-06-01")
+                    .body(body)
+                    .retrieve()
+                    .body(AnthropicMessagesResponse.class);
+            validateAnthropic(response);
+            return response.toUnified(provider());
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (HttpClientErrorException.BadRequest exception) {
+            throw mapBadRequest(exception);
+        } catch (RestClientException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+        }
+    }
+
+    private void validateResponses(OpenAiResponsesResponse response) {
+        BusinessException.throwIf(response == null || response.output() == null || response.usage() == null,
+                AiGatewayErrorCode.RESPONSE_INVALID);
+        BusinessException.throwIf(!StringUtils.hasText(response.outputText()), AiGatewayErrorCode.RESPONSE_INVALID);
+    }
+
+    private void validateAnthropic(AnthropicMessagesResponse response) {
+        BusinessException.throwIf(response == null || response.content() == null || response.usage() == null,
+                AiGatewayErrorCode.RESPONSE_INVALID);
+        BusinessException.throwIf(!StringUtils.hasText(response.outputText()), AiGatewayErrorCode.RESPONSE_INVALID);
+    }
+
+    private BusinessException mapBadRequest(HttpClientErrorException.BadRequest exception) {
+        String responseBody = exception.getResponseBodyAsString().toLowerCase();
+        if (responseBody.contains("context") && (responseBody.contains("length") || responseBody.contains("token"))) {
+            return new BusinessException(AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
+        }
+        if (responseBody.contains("image") && (responseBody.contains("format") || responseBody.contains("media type"))) {
+            return new BusinessException(AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
+        }
+        return new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
     }
 
     /**

@@ -13,12 +13,17 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
   bucket: leetmodel
+common:
+  ai-client:
+    enabled: true
+    base-url: ${AI_GATEWAY_BASE_URL:http://localhost:8090}
 review:
-  ai:
-    mode: ${REVIEW_AI_MODE:mock}
-    base-url: ${REVIEW_AI_BASE_URL:https://api.openai.com}
-    api-key: ${REVIEW_AI_API_KEY:}
-    model: ${REVIEW_AI_MODEL:gpt-4.1-mini}
+  v1:
+    max-pages: 40
+    render-dpi: 110
+    jpeg-quality: 0.78
+    max-image-bytes: 8388608
+    max-total-image-bytes: 33554432
 jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800

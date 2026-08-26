@@ -19,6 +19,7 @@ class TeamVOSerializationTest {
         TeamVO team = TeamVO.builder()
                 .id(2091483544439365634L)
                 .leaderId(1002L)
+                .problemId(2092421535190147074L)
                 .members(java.util.List.of(member))
                 .build();
 
@@ -27,6 +28,8 @@ class TeamVOSerializationTest {
         assertThat(json.get("id").asText()).isEqualTo("2091483544439365634");
         assertThat(json.get("id").isTextual()).isTrue();
         assertThat(json.get("leaderId").isIntegralNumber()).isTrue();
+        assertThat(json.get("problemId").asText()).isEqualTo("2092421535190147074");
+        assertThat(json.get("problemId").isTextual()).isTrue();
         assertThat(json.at("/members/0/id").isTextual()).isTrue();
         assertThat(json.at("/members/0/userId").isIntegralNumber()).isTrue();
     }

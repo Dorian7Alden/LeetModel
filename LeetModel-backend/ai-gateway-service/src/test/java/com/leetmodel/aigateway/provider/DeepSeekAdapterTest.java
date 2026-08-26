@@ -19,6 +19,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -58,6 +59,32 @@ class DeepSeekAdapterTest {
         assertThat(response.usage().cacheHitTokens()).isEqualTo(60L);
         assertThat(response.usage().cacheMissTokens()).isEqualTo(40L);
         assertThat(response.usage().reasoningTokens()).isEqualTo(12L);
+        server.verify();
+    }
+
+    @Test
+    void shouldSendVisionImageUsingDeepSeekMultimodalProtocol() {
+        RestClient.Builder builder = RestClient.builder();
+        builder.baseUrl("https://api.deepseek.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DeepSeekAdapter adapter = new DeepSeekAdapter(builder.build(), "test-key");
+        server.expect(once(), requestTo("https://api.deepseek.test/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.model").value("deepseek-v4-flash-vision-exp"))
+                .andExpect(jsonPath("$.messages[0].content[0].type").value("text"))
+                .andExpect(jsonPath("$.messages[0].content[1].type").value("image_url"))
+                .andExpect(jsonPath("$.messages[0].content[1].image_url.url").value("data:image/jpeg;base64,AA=="))
+                .andRespond(withSuccess("""
+                        {"id":"ds-v1","model":"deepseek-v4-flash-vision-exp",
+                         "choices":[{"message":{"content":"{\\\"score\\\":80}"},"finish_reason":"stop"}],
+                         "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+                        """, MediaType.APPLICATION_JSON));
+        AiMessage message = new AiMessage(AiRole.USER, List.of(
+                new AiContentPart(AiContentType.TEXT, "review", null),
+                new AiContentPart(AiContentType.IMAGE_URL, null, "data:image/jpeg;base64,AA==")));
+        AiChatRequest request = new AiChatRequest(AiScene.MULTIMODAL, List.of(message), 100, 0.1, null, false);
+        assertThat(adapter.chat("deepseek-v4-flash-vision-exp", request).model())
+                .isEqualTo("deepseek-v4-flash-vision-exp");
         server.verify();
     }
 

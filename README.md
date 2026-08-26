@@ -24,6 +24,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `LeetModel-backend/` | 微服务后端，当前主要开发区域。Maven 多模块工程，基于 Spring Boot 3 与 Spring Cloud Alibaba |
 | `LeetModel-mock/` | Python mock 数据 API 服务，提供基础数据接口与场景脚本 |
 | `LeetModel-frontend/` | 旧版前端，Vue 3。当前阶段不维护，前后端暂不对齐 |
+| `data/` | AI 评审本地测试数据集，按题目目录保存 Markdown 题面和对应论文 PDF；使用前阅读 `data/README.md` |
 | `docs/` | 项目全部文档，按 project / troubleshooting / learning / concepts / standards 五类组织 |
 | `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与暂缓的 RAG 知识库 |
 | `CONTEXT.md` | 给 AI 看的行为说明与协作规则 |

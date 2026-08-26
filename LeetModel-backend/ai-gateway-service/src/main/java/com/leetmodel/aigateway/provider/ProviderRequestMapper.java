@@ -94,6 +94,88 @@ final class ProviderRequestMapper {
         }
     }
 
+    static List<Map<String, Object>> toResponsesInput(List<AiMessage> messages) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (AiMessage message : messages) {
+            List<Map<String, Object>> content = new ArrayList<>();
+            for (AiContentPart part : message.content()) {
+                if (part.type() == AiContentType.TEXT) {
+                    requireText(part.text());
+                    content.add(Map.of("type", "input_text", "text", part.text()));
+                } else {
+                    requireUrl(part.url());
+                    content.add(Map.of("type", "input_image", "image_url", part.url()));
+                }
+            }
+            result.add(Map.of(
+                    "role", message.role().name().toLowerCase(Locale.ROOT),
+                    "content", content
+            ));
+        }
+        return result;
+    }
+
+    static List<Map<String, Object>> toAnthropicMessages(List<AiMessage> messages) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (AiMessage message : messages) {
+            if (message.role() == com.leetmodel.common.ai.model.AiRole.SYSTEM) continue;
+            List<Map<String, Object>> content = new ArrayList<>();
+            for (AiContentPart part : message.content()) {
+                if (part.type() == AiContentType.TEXT) {
+                    requireText(part.text());
+                    content.add(Map.of("type", "text", "text", part.text()));
+                } else {
+                    requireUrl(part.url());
+                    content.add(toAnthropicImage(part.url()));
+                }
+            }
+            result.add(Map.of(
+                    "role", message.role().name().toLowerCase(Locale.ROOT),
+                    "content", content
+            ));
+        }
+        return result;
+    }
+
+    static String anthropicSystem(List<AiMessage> messages) {
+        return messages.stream()
+                .filter(message -> message.role() == com.leetmodel.common.ai.model.AiRole.SYSTEM)
+                .flatMap(message -> message.content().stream())
+                .map(part -> {
+                    BusinessException.throwIf(part.type() != AiContentType.TEXT,
+                            AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+                    requireText(part.text());
+                    return part.text();
+                })
+                .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
+    static void addResponsesOptions(Map<String, Object> body, AiChatRequest request) {
+        if (request.maxTokens() != null) body.put("max_output_tokens", request.maxTokens());
+        if (request.temperature() != null) body.put("temperature", request.temperature());
+        if (request.responseFormat() == AiResponseFormat.JSON_OBJECT) {
+            body.put("text", Map.of("format", openAiJsonSchema()));
+        }
+    }
+
+    static void addAnthropicOptions(Map<String, Object> body, AiChatRequest request) {
+        body.put("max_tokens", request.maxTokens() == null ? 4096 : request.maxTokens());
+        if (request.temperature() != null) body.put("temperature", request.temperature());
+        if (request.responseFormat() == AiResponseFormat.JSON_OBJECT) {
+            body.put("output_config", Map.of("format", anthropicJsonSchema()));
+        }
+        if (request.thinkingEnabled() != null) {
+            if (Boolean.TRUE.equals(request.thinkingEnabled())) {
+                body.put("thinking", Map.of(
+                        "type", "enabled",
+                        "budget_tokens", Math.max(1024, request.maxTokens() == null ? 4096 : request.maxTokens())
+                ));
+            } else {
+                body.put("thinking", Map.of("type", "disabled"));
+            }
+        }
+    }
+
     /**
      * 构建单条文本消息。
      *
@@ -128,5 +210,43 @@ final class ProviderRequestMapper {
                 AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED
         );
         return Map.of("type", "image_url", "image_url", Map.of("url", part.url()));
+    }
+
+    private static Map<String, Object> toAnthropicImage(String url) {
+        if (!url.startsWith("data:")) {
+            return Map.of("type", "image", "source", Map.of("type", "url", "url", url));
+        }
+        int typeEnd = url.indexOf(';');
+        int dataStart = url.indexOf(',');
+        BusinessException.throwIf(typeEnd < 5 || dataStart <= typeEnd,
+                AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
+        return Map.of("type", "image", "source", Map.of(
+                "type", "base64",
+                "media_type", url.substring(5, typeEnd),
+                "data", url.substring(dataStart + 1)
+        ));
+    }
+
+    private static Map<String, Object> openAiJsonSchema() {
+        return Map.of(
+                "type", "json_schema",
+                "name", "response",
+                "schema", Map.of("type", "object", "additionalProperties", true)
+        );
+    }
+
+    private static Map<String, Object> anthropicJsonSchema() {
+        return Map.of(
+                "type", "json_schema",
+                "schema", Map.of("type", "object", "additionalProperties", true)
+        );
+    }
+
+    private static void requireText(String text) {
+        BusinessException.throwIf(!StringUtils.hasText(text), AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
+
+    private static void requireUrl(String url) {
+        BusinessException.throwIf(!StringUtils.hasText(url), AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
     }
 }

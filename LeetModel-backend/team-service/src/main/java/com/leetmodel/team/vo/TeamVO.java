@@ -24,6 +24,7 @@ public class TeamVO {
     private String name;
     private String description;
     private Long leaderId;
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long problemId;
     private String problemTitle;
     private Integer maxMembers;

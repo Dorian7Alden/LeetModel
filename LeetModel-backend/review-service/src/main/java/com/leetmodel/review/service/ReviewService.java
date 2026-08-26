@@ -1,69 +1,100 @@
 package com.leetmodel.review.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
-import com.leetmodel.review.ai.ReviewModelClient;
-import com.leetmodel.review.entity.ReviewResult;
 import com.leetmodel.review.entity.ReviewTask;
+import com.leetmodel.review.entity.ReviewTaskLog;
+import com.leetmodel.review.entity.ReviewV1Result;
+import com.leetmodel.review.entity.ReviewVersion;
 import com.leetmodel.review.enums.ReviewErrorCode;
-import com.leetmodel.review.mapper.ReviewResultMapper;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
+import com.leetmodel.review.mapper.ReviewV1ResultMapper;
+import com.leetmodel.review.mapper.ReviewVersionMapper;
 import com.leetmodel.review.vo.ReviewVO;
-import lombok.RequiredArgsConstructor;
+import com.leetmodel.review.workflow.ReviewWorkflow;
+import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
+import com.leetmodel.review.workflow.ReviewWorkflowResult;
+import com.leetmodel.review.workflow.v1.BasicReviewV1Workflow;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.InputStream;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
+@Slf4j @Service
 public class ReviewService {
-    public static final String WORKFLOW_VERSION = "BASIC_REVIEW_V1";
+    public static final String WORKFLOW_VERSION = BasicReviewV1Workflow.VERSION_CODE;
     private final ReviewTaskMapper taskMapper;
-    private final ReviewResultMapper resultMapper;
+    private final ReviewV1ResultMapper resultMapper;
+    private final ReviewVersionMapper versionMapper;
     private final SubmissionFeignClient submissionFeignClient;
     private final TeamFeignClient teamFeignClient;
-    private final StorageService storageService;
-    private final ReviewModelClient modelClient;
-    private final ObjectMapper objectMapper;
+    private final ReviewWorkflowRegistry workflowRegistry;
+    private final ReviewTaskLogService logService;
+    private final ReviewResultPersistenceService persistenceService;
+
+    public ReviewService(ReviewTaskMapper taskMapper, ReviewV1ResultMapper resultMapper,
+                         ReviewVersionMapper versionMapper, SubmissionFeignClient submissionFeignClient,
+                         TeamFeignClient teamFeignClient, ReviewWorkflowRegistry workflowRegistry,
+                         ReviewTaskLogService logService, ReviewResultPersistenceService persistenceService) {
+        this.taskMapper = taskMapper; this.resultMapper = resultMapper; this.versionMapper = versionMapper;
+        this.submissionFeignClient = submissionFeignClient; this.teamFeignClient = teamFeignClient;
+        this.workflowRegistry = workflowRegistry; this.logService = logService;
+        this.persistenceService = persistenceService;
+    }
 
     @Transactional
-    public Long createTask(Long submissionId) {
+    public Long createTask(Long submissionId, Long teamId, Long problemId) {
         ReviewTask existing = taskMapper.selectOne(new LambdaQueryWrapper<ReviewTask>()
                 .eq(ReviewTask::getSubmissionId, submissionId)
                 .eq(ReviewTask::getWorkflowVersion, WORKFLOW_VERSION));
         if (existing != null) return existing.getId();
+        ReviewWorkflow workflow = workflowRegistry.required(WORKFLOW_VERSION);
         ReviewTask task = new ReviewTask();
-        task.setSubmissionId(submissionId); task.setStatus("WAITING");
-        task.setWorkflowVersion(WORKFLOW_VERSION); task.setRetryCount(0); task.setNextRunAt(LocalDateTime.now());
-        taskMapper.insert(task);
-        return task.getId();
+        task.setSubmissionId(submissionId); task.setVersionId(workflow.versionId());
+        task.setTeamId(teamId); task.setProblemId(problemId); task.setStatus("WAITING");
+        task.setWorkflowVersion(workflow.versionCode()); task.setPromptSnapshot(workflow.currentPrompt());
+        task.setRetryCount(0); task.setAttemptNo(1); task.setNextRunAt(LocalDateTime.now());
+        try {
+            taskMapper.insert(task);
+            return task.getId();
+        } catch (DuplicateKeyException exception) {
+            ReviewTask concurrent = taskMapper.selectOne(new LambdaQueryWrapper<ReviewTask>()
+                    .eq(ReviewTask::getSubmissionId, submissionId)
+                    .eq(ReviewTask::getWorkflowVersion, WORKFLOW_VERSION));
+            if (concurrent != null) return concurrent.getId();
+            throw exception;
+        }
     }
 
     @Scheduled(fixedDelayString = "${review.worker.delay-ms:2000}")
     public void processNext() {
         ReviewTask task = taskMapper.selectNextWaiting();
         if (task == null || taskMapper.claim(task.getId(), LocalDateTime.now()) == 0) return;
+        task.setStatus("RUNNING"); task.setStartedAt(LocalDateTime.now());
+        ReviewTaskLog runLog = logService.start(task, "TASK_RUN", "执行评审任务", "submissionId=" + task.getSubmissionId());
         try {
-            execute(task);
+            SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+            ReviewWorkflowResult workflowResult = workflowRegistry.required(task.getWorkflowVersion()).execute(task, submission);
+            ReviewTaskLog saveLog = logService.start(task, "SAVE_RESULT", "保存 V1 结果", "score=" + workflowResult.score());
+            try {
+                persistenceService.completeV1(task, submission, workflowResult);
+                logService.succeed(saveLog, "taskStatus=COMPLETED", workflowResult.aiCallId());
+            } catch (RuntimeException error) {
+                logService.fail(saveLog, error);
+                throw error;
+            }
+            logService.succeed(runLog, "score=" + workflowResult.score(), workflowResult.aiCallId());
         } catch (Exception exception) {
-            log.error("基础评审失败 taskId={}", task.getId(), exception);
+            log.error("AI 评审失败 taskId={}", task.getId(), exception);
+            logService.fail(runLog, exception);
             task.setStatus("FAILED"); task.setFinishedAt(LocalDateTime.now());
             task.setErrorMessage(truncate(exception.getMessage())); taskMapper.updateById(task);
         }
@@ -73,16 +104,20 @@ public class ReviewService {
         ReviewTask task = requiredTask(taskId);
         SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
         checkMember(submission.getTeamId(), userId);
-        ReviewResult result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewResult>()
-                .eq(ReviewResult::getTaskId, taskId));
+        ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                .eq(ReviewV1Result::getTaskId, taskId));
         return toVO(task, result);
     }
 
     public List<ReviewVO> listTeamResults(Long teamId, Long userId) {
         checkMember(teamId, userId);
-        return resultMapper.selectList(new LambdaQueryWrapper<ReviewResult>()
-                        .eq(ReviewResult::getTeamId, teamId).orderByDesc(ReviewResult::getCreateTime))
-                .stream().map(result -> toVO(requiredTask(result.getTaskId()), result)).toList();
+        return taskMapper.selectList(new LambdaQueryWrapper<ReviewTask>()
+                        .eq(ReviewTask::getTeamId, teamId).orderByDesc(ReviewTask::getCreateTime))
+                .stream().map(task -> {
+                    ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                            .eq(ReviewV1Result::getTaskId, task.getId()));
+                    return toVO(task, result);
+                }).toList();
     }
 
     @Transactional
@@ -92,32 +127,10 @@ public class ReviewService {
         checkMember(submission.getTeamId(), userId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), ReviewErrorCode.TASK_NOT_FAILED);
         task.setStatus("WAITING"); task.setRetryCount(task.getRetryCount() + 1);
-        task.setNextRunAt(LocalDateTime.now()); task.setStartedAt(null); task.setFinishedAt(null); task.setErrorMessage(null);
-        taskMapper.updateById(task);
+        task.setAttemptNo(task.getAttemptNo() + 1); task.setNextRunAt(LocalDateTime.now());
+        task.setStartedAt(null); task.setFinishedAt(null); task.setErrorMessage(null);
+        taskMapper.resetForRetry(task);
         return toVO(task, null);
-    }
-
-    private void execute(ReviewTask task) throws Exception {
-        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
-        String text;
-        try (InputStream input = storageService.download(submission.getObjectName());
-             PDDocument document = Loader.loadPDF(input.readAllBytes())) {
-            text = new PDFTextStripper().getText(document);
-        }
-        String json = modelClient.review(text);
-        JsonNode root = objectMapper.readTree(json);
-        BigDecimal totalScore = root.path("totalScore").decimalValue();
-        if (!root.has("totalScore") || totalScore.compareTo(BigDecimal.ZERO) < 0
-                || totalScore.compareTo(BigDecimal.valueOf(100)) > 0) {
-            throw new IllegalArgumentException("模型评审结果总分不合法");
-        }
-        ReviewResult result = new ReviewResult();
-        result.setTaskId(task.getId()); result.setSubmissionId(submission.getId());
-        result.setTeamId(submission.getTeamId()); result.setProblemId(submission.getProblemId());
-        result.setWorkflowVersion(WORKFLOW_VERSION); result.setTotalScore(totalScore); result.setResultJson(json);
-        resultMapper.insert(result);
-        task.setStatus("COMPLETED"); task.setFinishedAt(LocalDateTime.now()); task.setErrorMessage(null);
-        taskMapper.updateById(task);
     }
 
     private ReviewTask requiredTask(Long id) {
@@ -136,15 +149,20 @@ public class ReviewService {
         BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null
                 || !response.getData().contains(userId), ReviewErrorCode.NOT_TEAM_MEMBER);
     }
-    private ReviewVO toVO(ReviewTask task, ReviewResult result) {
+    private ReviewVO toVO(ReviewTask task, ReviewV1Result result) {
+        ReviewVersion version = versionMapper.selectById(task.getVersionId());
         return ReviewVO.builder().taskId(task.getId()).submissionId(task.getSubmissionId()).status(task.getStatus())
-                .workflowVersion(task.getWorkflowVersion()).retryCount(task.getRetryCount())
-                .errorMessage(task.getErrorMessage()).finishedAt(task.getFinishedAt())
-                .totalScore(result == null ? null : result.getTotalScore())
-                .resultJson(result == null ? null : result.getResultJson()).build();
+                .workflowVersion(task.getWorkflowVersion())
+                .versionName(version == null ? task.getWorkflowVersion() : version.getName())
+                .versionDescription(version == null ? null : version.getDescription())
+                .processSummary(version == null ? null : version.getProcessSummary())
+                .retryCount(task.getRetryCount()).attemptNo(task.getAttemptNo()).errorMessage(task.getErrorMessage())
+                .finishedAt(task.getFinishedAt()).score(result == null ? null : result.getScore())
+                .resultJson(result == null ? null : result.getResultJson())
+                .modelName(result == null ? null : result.getModelName()).build();
     }
     private String truncate(String message) {
-        if (message == null) return "未知错误";
+        if (message == null || message.isBlank()) return "未知错误";
         return message.substring(0, Math.min(message.length(), 500));
     }
 }
