@@ -103,15 +103,20 @@ class SuggestionServiceTest {
     }
 
     @Test
-    void createRejectsNonFinalSubmission() {
-        when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
-        when(teamFeignClient.getMemberIds(TEAM_ID)).thenReturn(Result.ok(List.of(USER_ID)));
-        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+    void createAllowsAnyCompletedReviewVersionNotJustFinal() {
+        prepareSubmissionAndPermission();
+        when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));
+        when(workflow.currentPrompt()).thenReturn("prompt-v1");
+        doAnswer(invocation -> {
+            SuggestionTask task = invocation.getArgument(0);
+            task.setId(9001L);
+            return 1;
+        }).when(taskMapper).insert(any(SuggestionTask.class));
 
-        assertThatThrownBy(() -> service.create(SUBMISSION_ID, USER_ID))
-                .isInstanceOf(BusinessException.class)
-                .extracting("code").isEqualTo(40802);
-        verify(reviewFeignClient, never()).getBySubmission(anyLong());
+        SuggestionVO result = service.create(SUBMISSION_ID, USER_ID);
+
+        assertThat(result.getTaskId()).isEqualTo(9001L);
+        verify(taskMapper).insert(any(SuggestionTask.class));
     }
 
     @Test
@@ -218,11 +223,6 @@ class SuggestionServiceTest {
     private void prepareSubmissionAndPermission() {
         when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
         when(teamFeignClient.getMemberIds(TEAM_ID)).thenReturn(Result.ok(List.of(USER_ID)));
-        SubmissionSnapshotDTO finalSubmission = new SubmissionSnapshotDTO(
-                SUBMISSION_ID, TEAM_ID, PROBLEM_ID, USER_ID, 2, "paper.pdf", "object",
-                "SUCCESS", true, LocalDateTime.now());
-        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID))
-                .thenReturn(Result.ok(List.of(finalSubmission)));
     }
 
     private SubmissionReviewDTO submission() {

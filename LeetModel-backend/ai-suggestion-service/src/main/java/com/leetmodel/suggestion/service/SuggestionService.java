@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SuggestionTaskSummaryDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
@@ -60,7 +59,6 @@ public class SuggestionService {
     public SuggestionVO create(Long submissionId, Long userId) {
         SubmissionReviewDTO submission = requiredSubmission(submissionId);
         checkMember(submission.getTeamId(), userId);
-        requireFinalSubmission(submission);
         ReviewSummaryDTO review = requiredCompletedReview(submissionId);
         validateSource(submission, review);
 
@@ -231,16 +229,6 @@ public class SuggestionService {
 
     private SubmissionReviewDTO requiredSubmission(Long submissionId) {
         return requiredData(() -> submissionFeignClient.getForReview(submissionId));
-    }
-
-    private void requireFinalSubmission(SubmissionReviewDTO submission) {
-        List<SubmissionSnapshotDTO> finals = requiredData(
-                () -> submissionFeignClient.listFinalSubmissions(submission.getProblemId()));
-        boolean found = finals.stream().anyMatch(item -> item != null
-                && Objects.equals(item.getId(), submission.getId())
-                && Objects.equals(item.getTeamId(), submission.getTeamId())
-                && Boolean.TRUE.equals(item.getFinalVersion()));
-        BusinessException.throwIf(!found, SuggestionErrorCode.FINAL_SUBMISSION_REQUIRED);
     }
 
     private ReviewSummaryDTO requiredCompletedReview(Long submissionId) {
