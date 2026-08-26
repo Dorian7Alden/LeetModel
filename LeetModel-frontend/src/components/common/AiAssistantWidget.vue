@@ -80,7 +80,7 @@
 
               <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
                 <template v-if="msg.role === 'assistant'">
-                  <div class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
+                  <div class="ai-msg-avatar support"><el-icon :size="15"><Service /></el-icon></div>
                   <div class="ai-msg-col">
                     <span class="ai-msg-name">AI 客服</span>
                     <div class="ai-bubble">
@@ -104,12 +104,15 @@
                       <div class="ai-meta"><span class="ai-msg-time">{{ shortTime(msg.createTime) }}</span></div>
                     </div>
                   </div>
-                  <div class="ai-msg-avatar user"><span>{{ userInitial }}</span></div>
+                  <div class="ai-msg-avatar user">
+                    <img v-if="userAvatar" :src="userAvatar" alt="我" />
+                    <span v-else>{{ userInitial }}</span>
+                  </div>
                 </template>
               </div>
 
               <div v-if="sending" class="ai-msg assistant">
-                <div class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
+                <div class="ai-msg-avatar support"><el-icon :size="15"><Service /></el-icon></div>
                 <div class="ai-msg-col">
                   <span class="ai-msg-name">AI 客服</span>
                   <div class="ai-bubble typing"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>
@@ -179,6 +182,7 @@ let suggestTimer = null;
 
 const userInitial = computed(() => (userStore.nickname || userStore.username || "我").charAt(0));
 const userDisplayName = computed(() => userStore.nickname || userStore.username || "我");
+const userAvatar = computed(() => userStore.avatarUrl || "");
 
 // 固定推荐问题池（可换一换轮换展示，提问内容固定）
 const recPool = [
@@ -412,6 +416,8 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
 .ai-msg-avatar.support { background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
 .ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
+.ai-msg-avatar.user { overflow: hidden; }
+.ai-msg-avatar.user img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-bubble { max-width: 100%; padding: 8px 11px; border-radius: 12px; font-size: 13px; }
 .ai-msg.assistant .ai-bubble { border-top-left-radius: 4px; background: var(--lm-surface); border: 1px solid var(--lm-border); color: var(--lm-text-primary); }
 .ai-msg.user .ai-bubble { border-top-right-radius: 4px; background: var(--lm-primary); color: #fff; }
