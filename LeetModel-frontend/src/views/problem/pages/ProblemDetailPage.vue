@@ -14,7 +14,7 @@
         </div>
         <div class="detail-footer-row">
           <div class="detail-meta">
-            <span>题号：{{ problem.id }}</span>
+            <span>题号：{{ problem.code }}</span>
             <span>平均分：{{ problem.averageScore ?? 0 }}</span>
             <span>年份：{{ problem.year }}</span>
             <span>题面：{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>

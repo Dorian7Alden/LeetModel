@@ -12,7 +12,7 @@
 
         <el-descriptions :column="2" border class="detail-descriptions">
           <el-descriptions-item label="队伍 ID">{{ submission.teamId }}</el-descriptions-item>
-          <el-descriptions-item label="题目 ID">{{ submission.problemId }}</el-descriptions-item>
+          <el-descriptions-item label="题号">{{ submission.problemCode || submission.problemId }}</el-descriptions-item>
           <el-descriptions-item label="提交人 ID">{{ submission.submitterId }}</el-descriptions-item>
           <el-descriptions-item label="文件大小">{{ formatSize(submission.fileSize) }}</el-descriptions-item>
           <el-descriptions-item label="提交时间">{{ formatTime(submission.createTime) }}</el-descriptions-item>

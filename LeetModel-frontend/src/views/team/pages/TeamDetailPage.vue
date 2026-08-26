@@ -45,7 +45,7 @@
               <span class="section-kicker">PRACTICE BRIEF</span>
               <h3 class="section-title">练习题目</h3>
               <p class="problem-title">{{ problem?.title || '题目信息加载中' }}</p>
-              <div class="problem-meta-list"><span>题号 {{ team.problemId }}</span><span v-if="problem?.difficulty">{{ difficultyLabel(problem.difficulty) }}</span><span v-if="problem?.durationMinutes">{{ formatDuration(problem.durationMinutes) }}</span></div>
+              <div class="problem-meta-list"><span>题号 {{ problem?.code || team.problemCode }}</span><span v-if="problem?.difficulty">{{ difficultyLabel(problem.difficulty) }}</span><span v-if="problem?.durationMinutes">{{ formatDuration(problem.durationMinutes) }}</span></div>
             </div>
             <el-button v-if="canManage && team.practiceStatus === 'PREPARING'" type="primary" :loading="startingPractice" @click="handleStartPractice">开始练习</el-button>
             <el-button v-if="canManage && team.practiceStatus === 'IN_PROGRESS'" type="danger" plain :loading="endingPractice" @click="handleEndPractice">提前结束</el-button>

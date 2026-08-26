@@ -83,7 +83,7 @@
               <el-tag :type="teamStatusType(team.practiceStatus)" size="small" effect="light">{{ teamStatusLabel(team.practiceStatus) }}</el-tag>
             </div>
             <div class="team-card-meta">
-              <span v-if="team.problemId">题目 #{{ team.problemId }}</span>
+              <span v-if="team.problemId">题号 {{ team.problemCode || team.problemId }}</span>
               <span>{{ team.memberCount ?? '成员' }}</span>
             </div>
           </router-link>

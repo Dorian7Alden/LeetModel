@@ -32,7 +32,7 @@
         </div>
         <h3 class="file-name">{{ item.originalFilename || '未命名 PDF' }}</h3>
         <div class="card-meta">
-          <span>题目 #{{ item.problemId }}</span>
+          <span>题号 {{ item.problemCode || item.problemId }}</span>
           <span>V{{ item.version }}</span>
           <el-tag v-if="item.finalVersion" type="success" size="small">最终版</el-tag>
         </div>

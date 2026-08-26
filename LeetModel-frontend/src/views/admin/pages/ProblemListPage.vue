@@ -17,7 +17,9 @@
       </div>
 
       <el-table :data="tableData" style="width: 100%" stripe v-loading="tableLoading">
-        <el-table-column prop="id" label="ID" width="180" />
+        <el-table-column label="题号" width="90">
+          <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
+        </el-table-column>
         <el-table-column prop="title" label="题目名称" min-width="200" />
         <el-table-column prop="contestName" label="赛事" width="180" />
         <el-table-column prop="year" label="年份" width="80" />
