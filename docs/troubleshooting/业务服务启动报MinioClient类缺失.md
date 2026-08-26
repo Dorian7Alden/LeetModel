@@ -2,7 +2,7 @@
 
 ## 现象
 
-submission 服务或 review 服务启动失败。最外层异常可能指向某个条件装配方法，完整异常链最终包含：
+submission-service 或 ai-review-service 启动失败。最外层异常可能指向某个条件装配方法，完整异常链最终包含：
 
 ```text
 NoClassDefFoundError: io/minio/MinioClient
@@ -41,5 +41,7 @@ mvn -pl submission-service,review-service -am install -DskipTests
 ```bash
 mvn -pl submission-service,review-service dependency:tree -Dincludes=io.minio:minio
 ```
+
+以上命令中的 `review-service` 是 ai-review-service 当前真实 Maven artifactId，不是领域服务的统一文档名称。
 
 再分别启动服务。启动日志应出现 Tomcat started 和 Started Application，不再出现 MinioClient 类缺失异常。

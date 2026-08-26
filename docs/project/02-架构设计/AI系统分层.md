@@ -1,0 +1,128 @@
+## AI 系统分层
+
+> 设计状态：已确认系统采用分层方式梳理；各服务的详细职责边界仍需由开发者逐个讨论和确认。
+
+LeetModel 的 AI 系统不按照模型供应商或页面数量拆分，而是按照业务事实、质量评价和模型调用治理三类不同职责分层。分层先回答每类服务为什么存在，具体服务内部的工作流、调度、数据模型和接口在对应服务设计中继续细化。
+
+
+### AI 业务能力层
+
+AI 业务能力层直接产生用户能够理解和使用的业务结果。
+
+| 服务 | 核心业务事实 | 初始职责定位 |
+|------|--------------|--------------|
+| `ai-review-service` | 某次论文提交按照指定评审版本产生的任务与评审结果 | 论文评审工作流、业务输出校验、结果和任务生命周期 |
+| `ai-suggestion-service` | 针对某次论文提交产生的改善建议任务与结果 | 论文改善建议工作流、建议定位、结果和任务生命周期 |
+| `ai-assistant-service` | 用户与 AI 助手之间的会话、消息和推荐解释 | 多轮对话、意图理解、工具调用和选题推荐 |
+
+这一层拥有业务 Prompt、业务工作流、业务输出契约和业务结果。它不直接适配模型供应商，也不拥有其他领域服务的主数据。
+
+
+### AI 质量评价层
+
+`ai-evaluation-service` 负责评价 AI 业务能力及其版本，而不代替业务服务生成用户结果。
+
+它组织固定样本、隔离实验、重复运行、确定性规则、AI 裁判、统计指标、归一化和版本对比。被评价服务仍负责执行自己的业务工作流并解释原始结果；质量评价结果不能覆盖原始业务结果。
+
+
+### AI 调用治理层
+
+`ai-gateway-service` 是所有业务服务访问外部模型供应商的唯一出口。
+
+它负责供应商协议、模型能力、路由、密钥、调用稳定性、Token、耗时、价格、成本和单次调用追踪。它不理解论文评审、改善建议、助手问答或 AI 裁判的业务语义，也不编排这些业务工作流。
+
+
+### 公共客户端与管理入口
+
+项目确认保留 `common-ai`。它是公共客户端 Jar，不是微服务，向业务服务提供供应商无关的 AI 调用契约、AI 网关客户端、异常转换和测试支持，不拥有业务数据、Prompt、路由或密钥。
+
+`common-ai` 在业务服务进程内执行，负责把 Java 方法调用转换为对 AI 网关的统一 HTTP 请求；ai-gateway-service 独立运行，负责处理该请求并访问外部供应商。因此调用链是“业务服务 → common-ai 客户端 → ai-gateway-service → 模型供应商”，不是两个功能相同的 AI 网关。
+
+`admin-service` 是管理端入口和跨服务聚合层，不属于 AI 能力执行层。它可以发起管理操作并聚合展示业务结果、质量评价和资源指标，但不直接访问各服务数据库，也不代替数据所有者执行领域规则。
+
+
+### 交互流程示意
+
+```mermaid
+flowchart TB
+    USER[普通用户]
+    ADMIN_USER[管理员]
+    API_GATEWAY[平台 API 网关]
+
+    subgraph DOMAIN[业务数据服务]
+        SUBMISSION[submission-service<br/>论文提交与原始 PDF]
+        PROBLEM[problem-service<br/>题目与赛事]
+    end
+
+    subgraph BUSINESS[AI 业务能力层]
+        REVIEW[ai-review-service<br/>论文评审]
+        SUGGESTION[ai-suggestion-service<br/>改善建议]
+        ASSISTANT[ai-assistant-service<br/>对话与选题推荐]
+    end
+
+    subgraph QUALITY[AI 质量评价层]
+        EVALUATION[ai-evaluation-service<br/>实验与质量评价]
+    end
+
+    subgraph CLIENT[公共客户端]
+        COMMON_AI[common-ai<br/>公共客户端 Jar]
+    end
+
+    subgraph GOVERNANCE[AI 调用治理层]
+        AI_GATEWAY[ai-gateway-service<br/>模型调用治理]
+    end
+
+    MODEL[外部模型供应商]
+
+    ADMIN[admin-service<br/>管理聚合入口]
+
+    USER --> API_GATEWAY
+    API_GATEWAY --> REVIEW
+    API_GATEWAY --> SUGGESTION
+    API_GATEWAY --> ASSISTANT
+    SUBMISSION -->|提交事实与 PDF 引用| REVIEW
+    SUBMISSION -->|提交事实与 PDF 引用| SUGGESTION
+    PROBLEM -->|题目内容| REVIEW
+    PROBLEM -->|题目内容| SUGGESTION
+    PROBLEM -->|候选题目查询| ASSISTANT
+
+    REVIEW --> COMMON_AI
+    SUGGESTION --> COMMON_AI
+    ASSISTANT --> COMMON_AI
+    EVALUATION -->|调用裁判模型| COMMON_AI
+    COMMON_AI --> AI_GATEWAY
+    AI_GATEWAY --> MODEL
+
+    EVALUATION -->|发起隔离实验并读取业务结果| REVIEW
+    EVALUATION -.->|后续评价| SUGGESTION
+    EVALUATION -.->|后续评价| ASSISTANT
+    EVALUATION -->|关联调用耗时、用量与成本| AI_GATEWAY
+
+    ADMIN_USER --> API_GATEWAY
+    API_GATEWAY --> ADMIN
+    ADMIN -->|启动与查询评价| EVALUATION
+    ADMIN -->|查询业务任务与结果| REVIEW
+    ADMIN -->|查询资源与稳定性指标| AI_GATEWAY
+```
+
+实线表示已经明确需要的协作方向，虚线表示目标设计中预留但尚未进入详细设计的质量评价方向。该图只表达服务交互和数据方向，不代表已经确定使用同步调用、消息队列或其他具体调度技术。
+
+
+### 边界判断原则
+
+后续逐个梳理服务时，使用以下问题判断职责归属：
+
+1. 哪个服务能够解释这条数据的业务含义。
+2. 哪个服务负责驱动这条数据的状态变化。
+3. 更换模型供应商后，这项规则是否仍然存在。
+4. 当前服务是否正在复制其他服务的业务事实或业务规则。
+
+前两个问题用于确定业务和数据所有者；第三个问题用于区分业务能力与模型调用治理；第四个问题用于发现跨服务越界。
+
+
+### 当前实现边界
+
+- ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
+- ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 当前只有目标设计，没有对应 Maven 运行模块。
+- common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
+- 本文只确认分层框架。各服务 README 中的职责边界是后续逐个梳理的起点，不代表全部细节已经确认。

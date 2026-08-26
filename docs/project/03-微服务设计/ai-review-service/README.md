@@ -2,7 +2,9 @@
 
 ai-review-service 负责将用户提交的 PDF 论文交给指定版本的 AI 评审工作流，最终产生可查询的评审分数。
 
-当前后端实现的 Maven 模块仍名为 `review-service`。本文档使用目标服务名 `ai-review-service`；模块、配置和代码包名的迁移属于后续独立改造，不在本轮文档整理范围内。
+当前后端 Maven 模块目录、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。Java 包名仍使用 `com.leetmodel.review`，包名调整不属于本次服务命名统一范围。
+
+> 分层定位：AI 业务能力层。当前职责边界是后续逐项梳理的起点；V1 已实现事实与后续目标设计必须明确区分。
 
 
 ### 职责边界

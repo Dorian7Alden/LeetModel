@@ -143,7 +143,7 @@ flowchart LR
 
 ### 四、API 契约
 
-检索能力具有评审业务语义，由 ai-review 服务承载。`common-ai` 只提供 AI 网关客户端，不实现 RAG。检索管道需要模型判断时，通过 `common-ai` 调用 AI 网关。
+检索能力具有评审业务语义，由 ai-review-service 承载。`common-ai` 只提供 AI 网关客户端，不实现 RAG。检索管道需要模型判断时，通过 `common-ai` 调用 AI 网关。
 
 > 接口为自定义抽象，不套用 LangChain4j 的 ContentRetriever 体系，理由见决策记录 9。检索判断通过 AI 网关调用模型，供应商适配由 AI 网关使用 LangChain4j 完成。
 
@@ -179,7 +179,7 @@ public interface KnowledgeRetriever {
 |------|------|------|
 | POST | /internal/rag/retrieve | 按任务描述检索知识上下文，仅在其他服务出现真实复用需求后开放 |
 
-知识库的增删改不提供接口，V1 通过直接编辑 `knowledge-base/` 目录完成，git 即审计日志。review 是当前知识库所有者，其他服务不能直接读取其挂载目录。
+知识库的增删改不提供接口，V1 通过直接编辑 `knowledge-base/` 目录完成，git 即审计日志。ai-review-service 是当前知识库所有者，其他服务不能直接读取其挂载目录。
 
 ---
 
