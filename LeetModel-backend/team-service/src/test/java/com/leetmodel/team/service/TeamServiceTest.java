@@ -97,7 +97,7 @@ class TeamServiceTest {
         when(teamMapper.insert(any(Team.class))).thenReturn(1);
         when(teamMemberMapper.insert(any(TeamMember.class))).thenReturn(1);
         when(problemFeignClient.getPracticeProblem(100L))
-                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, 1001, "题目", 180, 1)));
 
         TeamCreateRequest request = new TeamCreateRequest();
         request.setName("新团队");
@@ -215,7 +215,7 @@ class TeamServiceTest {
         when(teamMemberMapper.selectList(any())).thenReturn(List.of());
         when(recruitmentMapper.selectList(any())).thenReturn(List.of(recruitment));
         when(problemFeignClient.getPracticeProblem(100L))
-                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, 1001, "题目", 180, 1)));
         RecruitmentUpdateRequest request = new RecruitmentUpdateRequest(false, true, true, "希望每周至少协作两次");
 
         TeamVO result = teamService.updateRecruitment(1L, 200L, request, 10L);
@@ -272,7 +272,7 @@ class TeamServiceTest {
         when(teamMapper.updateById(team)).thenReturn(1);
         when(teamMapper.selectById(1L)).thenReturn(team);
         when(problemFeignClient.getPracticeProblem(100L))
-                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, "题目", 180, 1)));
+                .thenReturn(Result.ok(new ProblemPracticeDTO(100L, 1001, "题目", 180, 1)));
 
         TeamVO result = teamService.endPractice(1L, 10L);
 
@@ -296,7 +296,7 @@ class TeamServiceTest {
         when(userFeignClient.getPublicSummaries(List.of(10L)))
                 .thenReturn(Result.ok(List.of(new UserPublicSummaryDTO(10L, "队长", null))));
         when(problemFeignClient.getPracticeProblems(List.of(100L)))
-                .thenReturn(Result.ok(List.of(new ProblemPracticeDTO(100L, "生态承载力研究", 180, 1))));
+                .thenReturn(Result.ok(List.of(new ProblemPracticeDTO(100L, 1001, "生态承载力研究", 180, 1))));
         when(applicationMapper.selectList(any())).thenReturn(List.of());
         when(recruitmentMapper.selectList(any())).thenReturn(List.of());
         TeamPublicPageQuery query = new TeamPublicPageQuery();

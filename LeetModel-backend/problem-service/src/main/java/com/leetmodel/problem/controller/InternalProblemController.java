@@ -41,7 +41,7 @@ public class InternalProblemController {
     @GetMapping("/{problemId}/practice")
     public Result<ProblemPracticeDTO> getPracticeProblem(@PathVariable Long problemId) {
         ProblemVO problem = problemService.getPublishedProblemDetail(problemId);
-        return Result.ok(new ProblemPracticeDTO(problem.getId(), problem.getTitle(),
+        return Result.ok(new ProblemPracticeDTO(problem.getId(), problem.getCode(), problem.getTitle(),
                 problem.getDurationMinutes(), problem.getStatus()));
     }
 
@@ -63,7 +63,7 @@ public class InternalProblemController {
                 .in(Problem::getId, problemIds.stream().distinct().toList())
                 .eq(Problem::getStatus, 1));
         List<ProblemPracticeDTO> summaries = problems.stream()
-                .map(problem -> new ProblemPracticeDTO(problem.getId(), problem.getTitle(),
+                .map(problem -> new ProblemPracticeDTO(problem.getId(), problem.getCode(), problem.getTitle(),
                         problem.getDurationMinutes(), problem.getStatus()))
                 .toList();
         return Result.ok(summaries);
@@ -86,6 +86,7 @@ public class InternalProblemController {
         List<ProblemOptionDTO> options = problemService.list(query).stream()
                 .map(problem -> new ProblemOptionDTO(
                         problem.getId(),
+                        problem.getCode(),
                         problem.getTitle(),
                         problem.getContestId(),
                         problem.getYear(),

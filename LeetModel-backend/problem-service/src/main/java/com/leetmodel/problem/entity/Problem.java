@@ -15,6 +15,9 @@ import java.math.BigDecimal;
 @TableName("problem")
 public class Problem extends BaseEntity {
 
+    /** 题号：短顺序编号，面向用户展示，不暴露内部雪花主键。 */
+    private Integer code;
+
     /** 题目标题 */
     private String title;
 

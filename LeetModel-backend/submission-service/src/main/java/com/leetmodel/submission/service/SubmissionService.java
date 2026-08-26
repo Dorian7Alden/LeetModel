@@ -5,6 +5,8 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -28,7 +30,9 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +42,7 @@ public class SubmissionService {
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
     private final ReviewFeignClient reviewFeignClient;
+    private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
 
     @Transactional
@@ -70,9 +75,27 @@ public class SubmissionService {
         SubmissionLock lock = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
                 .eq(SubmissionLock::getTeamId, teamId));
         Long finalSubmissionId = lock == null ? null : lock.getSubmissionId();
-        return submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTeamId, teamId).orderByDesc(Submission::getVersion))
-                .stream().map(value -> toVO(value, finalSubmissionId)).toList();
+        List<Submission> submissions = submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTeamId, teamId).orderByDesc(Submission::getVersion));
+        Map<Long, Integer> codeByProblem = loadProblemCodes(submissions.stream()
+                .map(Submission::getProblemId).distinct().toList());
+        return submissions.stream().map(value -> {
+            SubmissionVO vo = toVO(value, finalSubmissionId);
+            vo.setProblemCode(codeByProblem.get(value.getProblemId()));
+            return vo;
+        }).toList();
+    }
+
+    /**
+     * 批量查询题目题号（短顺序编号），用于提交记录展示。
+     */
+    private Map<Long, Integer> loadProblemCodes(List<Long> problemIds) {
+        if (problemIds.isEmpty()) return Map.of();
+        Result<List<ProblemPracticeDTO>> result = problemFeignClient.getPracticeProblems(problemIds);
+        if (result == null || !result.isSuccess() || result.getData() == null) return Map.of();
+        return result.getData().stream()
+                .filter(problem -> problem.getCode() != null)
+                .collect(Collectors.toMap(ProblemPracticeDTO::getId, ProblemPracticeDTO::getCode));
     }
 
     @Transactional

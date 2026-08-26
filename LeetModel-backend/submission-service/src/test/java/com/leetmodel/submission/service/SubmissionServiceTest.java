@@ -5,6 +5,7 @@ import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.*;
 class SubmissionServiceTest {
     @Mock SubmissionMapper submissionMapper; @Mock SubmissionLockMapper lockMapper;
     @Mock TeamFeignClient teamFeignClient; @Mock ReviewFeignClient reviewFeignClient;
+    @Mock ProblemFeignClient problemFeignClient;
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
 
     @Test
