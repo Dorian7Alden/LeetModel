@@ -19,7 +19,7 @@ README 只负责导航，不能代替任务相关文档和当前实现。
 
 - LeetModel 是数学建模在线实训平台，项目定位与结构参考 `README.md`。
 - 项目由一名独立开发者维护，目标是积累 Java 后端工程经验并服务实习面试。
-- 当前只开发 `LeetModel-backend/`。`LeetModel-frontend/` 是旧前端，不维护、不对齐。
+- 当前同时开发 `LeetModel-backend/` 与 `LeetModel-frontend/`，以真实前后端联调完成 MVP 主链。`LeetModel-frontend/` 虽源自旧前端，但已重新作为 MVP 唯一前端维护并与后端契约对齐。
 - `legacy/` 是历史与暂缓内容隔离区，默认不读取。RAG 知识库已归档到 `legacy/knowledge-base/`，当前不读取、不维护。
 - `data/` 是本地测试数据集，当前保存 AI 评审使用的 Markdown 题面和对应论文 PDF。它不是生产预置数据，具体数据清单、导入方式、关联规则和限制以 `data/README.md` 为准。
 - 过去的开发集中在 `dev` 分支并混合多个领域。现有功能多为局部实现，未经真实端到端验收不得认定为从 0 到 1 完成。
@@ -99,7 +99,7 @@ README 只负责导航，不能代替任务相关文档和当前实现。
 
 ## 红线
 
-1. 不读取或修改 `legacy/` 与 `LeetModel-frontend/`，除非用户明确要求。
+1. 不读取或修改 `legacy/`，除非用户明确要求。`LeetModel-frontend/` 已纳入当前 MVP 开发范围，可以按唯一任务卡读取和修改。
 2. Git 写操作必须由用户明确授权。`git status`、`git log` 和 `git diff` 等只读操作可以执行。
 3. 不创建、不调用、不维护自定义 Skill，忽略 superpower 相关内容。
 4. 不主动扩展任务范围。任务过大时先拆分，用户确认任务卡后再开发。
