@@ -13,7 +13,7 @@ ai-review-service 负责将用户提交的 PDF 论文交给指定版本的 AI �
 flowchart LR
     subgraph callers["上游调用方"]
         submissionService["submission-service"]
-        evaluationService["ai-evaluation-service，目标设计"]
+        evaluationService["ai-evaluation-service"]
         adminService["admin-service"]
     end
 
@@ -55,7 +55,7 @@ flowchart LR
     resultValidation --> reviewDatabase
 ```
 
-submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。虚线表示未来由 ai-evaluation-service 发起的隔离实验运行，不能视为当前已实现功能。
+submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。ai-evaluation-service 可调用已实现的隔离实验接口，指定评审版本并取得结构化结果；该路径不创建正式评审任务或日志。
 
 
 ### 职责边界
@@ -105,7 +105,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审任务、最终评�
 | 评审结果校验 | 检查版本输出是否完整，并保证最终评分在 `[0,100]` 范围内 | 各评审版本文档分别说明 |
 | 评审结果查询 | 查询任务进度、失败信息、论文评分和版本详细结果 | 后续按需建立功能文档 |
 | 失败重试 | 对可恢复的失败任务重新执行，保留原失败信息 | 后续按需建立功能文档 |
-| 实验评审 | 按 ai-evaluation-service 指定的测试用例、版本和轮次产生隔离的评审结果 | 后续按需建立功能文档 |
+| 实验评审 | 按 ai-evaluation-service 指定的提交、版本和轮次产生隔离的评审结果 | 已提供内部实验契约 |
 | 评价数据提供 | 向 ai-evaluation-service 提供评审结果、执行状态和调用关联标识 | 由跨服务边界说明 |
 
 

@@ -1,153 +1,73 @@
 ## AI 质量评价服务
 
-ai-evaluation-service 是独立的 AI 业务质量评价微服务。它使用固定样本、规则、统计方法和裁判模型，评价不同 AI 功能或工作流版本的质量与综合表现。
+ai-evaluation-service 是独立的 AI 业务质量评价微服务。MVP 只评价 AI 论文评审工作流版本：管理员用已有最终提交组成不可变固定数据集，选择评审版本和重复次数，启动与用户正式评审隔离的实验运行，查看指标、失败样本和版本对比。
 
-当前第一个使用场景是 AI 论文评审版本对比。后续可以扩展到 AI 论文改善建议等其他对输出质量有明确要求的功能。
+> 实现状态：已有 Maven 运行模块，默认端口 `8091`，独占数据库 `lm_ai_evaluation`，表结构由 Flyway 管理。当前为 MVP 固定口径，不是通用实验平台。
 
-> 分层定位：AI 质量评价层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的目标设计，不表示已经实现。
-
-
-### 整体结构与工作流程
+### 已实现流程
 
 ```mermaid
 flowchart LR
-    subgraph callers["上游调用方，目标设计"]
-        adminService["admin-service"]
-    end
+    A[admin-service] --> B[创建固定数据集]
+    B --> C[选择评审版本与重复次数]
+    C --> D[生成运行槽位]
+    D --> E[ai-review-service 隔离实验]
+    E --> F[保存每次尝试与失败分类]
+    F --> G[计算有效性稳定性成功率耗时]
+    G --> H[同口径版本对比]
 
-    subgraph evaluation["ai-evaluation-service 质量评价，目标设计"]
-        controlApi["评价任务与查询 API"]
-        sampleSet["固定样本集"]
-        evaluationTask["候选版本与重复运行编排"]
-        metricCollection["质量、稳定性与资源指标"]
-        judge["确定性规则与 AI 裁判"]
-        normalize["指标归一化与综合得分"]
-        comparison["版本对比结果"]
-
-        controlApi --> sampleSet
-        sampleSet --> evaluationTask
-        evaluationTask --> metricCollection
-        metricCollection --> judge
-        judge --> normalize
-        normalize --> comparison
-    end
-
-    subgraph business["被评价业务与样本来源"]
-        reviewService["ai-review-service"]
-        suggestionService["ai-suggestion-service，目标设计"]
-        assistantService["ai-assistant-service，目标设计"]
-        problemService["problem-service"]
-        submissionService["submission-service"]
-    end
-
-    subgraph aiSupport["模型与资源数据"]
-        commonAi["common-ai 客户端 Jar"]
-        aiGateway["ai-gateway-service"]
-    end
-
-    subgraph data["评价事实，目标设计"]
-        evaluationDatabase[(lm_ai_evaluation)]
-    end
-
-    adminService --> controlApi
-    sampleSet --> problemService
-    sampleSet --> submissionService
-    evaluationTask --> reviewService
-    evaluationTask --> suggestionService
-    evaluationTask --> assistantService
-    metricCollection --> aiGateway
-    judge --> commonAi
-    commonAi --> aiGateway
-    sampleSet --> evaluationDatabase
-    evaluationTask --> evaluationDatabase
-    comparison --> evaluationDatabase
+    B --> I[(lm_ai_evaluation)]
+    D --> I
+    F --> I
+    G --> I
+    B --> J[submission-service]
 ```
 
-目标流程由管理员锁定测试集、候选版本和重复次数，再调用被评价业务服务产生隔离结果。评价服务收集质量、稳定性与资源指标，执行固定规则和 AI 裁判，最后形成归一化得分与版本对比。它不代替业务服务生成结果，也不直接访问模型供应商；当前整张图均为目标设计。
+1. 创建数据集时校验最终提交可用性，快照保存 `submissionId`、`teamId`、`problemId` 和排序，不复制 PDF。
+2. 数据集创建后不允许修改；每个数据集最多 10 个样本，不能重复引用同一提交。
+3. 创建任务时校验评审版本，重复次数限为 1–3，`clientRequestId` 保证幂等，相同标识不得改变配置。
+4. 调度器每次领取一个待运行槽位，调用 ai-review-service 的隔离实验接口。实验不创建正式评审任务或覆盖用户评审。
+5. 每次尝试都独立留痕。输出错误计入版本有效性；环境或配置错误阻断得分，可由管理员重试，旧尝试不被覆盖。
+6. 任务完成后计算固定指标；版本对比只允许相同数据集和相同重复次数，每个版本取最新完成任务。
 
-
-### 拆分目标
-
-- 将 AI 功能生成与 AI 质量评价分为两个清晰的职责。
-- 统一管理固定样本、重复测试、评价指标、归一化和综合得分。
-- 避免评价规则与某个 AI 业务功能的实现过度绑定。
-- 为后续新增 AI 功能提供独立的质量评价扩展边界。
-
-
-### 职责边界
+### 责任边界
 
 #### 负责
 
-- 维护 AI 质量评价任务和执行状态。
-- 维护由指定题目和指定 PDF 输入组成的测试集。
-- 为不同 AI 功能定义各自的评价指标和评价口径。
-- 组织固定样本与重复运行，保证对比输入一致。
-- 执行确定性规则、统计指标和裁判模型评价。
-- 对各项指标进行归一化并计算综合得分。
-- 保存评价指标、综合得分和横向对比结论。
+- 拥有不可变数据集、样本快照、评价任务、运行尝试和汇总指标。
+- 组织固定样本与重复运行，处理中断恢复和环境失败重试。
+- 保存输出有效性、重复分数稳定性、成功率、平均耗时与综合得分。
+- 输出单任务明细、失败样本和同口径版本比较。
 
 #### 不负责
 
-- 不执行论文评审、论文改善建议或其他 AI 业务功能。
-- 不修改 AI 业务功能的原始输出。
-- 不拥有论文 PDF、评审结果或改善建议等业务事实。
-- 不直接管理模型供应商、密钥、价格和路由。
-- 不负责管理端页面聚合和展示。
+- 不执行或修改用户正式评审；评审工作流仍归 ai-review-service。
+- 不拥有 PDF、题目、论文评审结果或模型供应商配置。
+- MVP 不使用另一个 AI 裁判模型，不宣称识别评审的语义正确性。
+- MVP 未接入 AI 网关成本聚合，综合得分不包含 Token 或价格成本。
+- 不扩展为通用实验、模型训练、自动调权或自动发布系统。
 
+### 数据与接口
 
-### 数据与协作边界
+| 资源 | 所有者 | 说明 |
+|------|--------|------|
+| `evaluation_dataset` | ai-evaluation-service | 不可变数据集定义 |
+| `evaluation_sample` | ai-evaluation-service | 提交、队伍、题目快照，不保存 PDF |
+| `evaluation_task` | ai-evaluation-service | 版本、重复次数、进度和汇总指标 |
+| `evaluation_run_attempt` | ai-evaluation-service | 每个样本和轮次的多次尝试及失败分类 |
+| PDF 与提交事实 | submission-service | 创建数据集时通过内部契约校验 |
+| 可执行版本与实验结果 | ai-review-service | 提供版本列表和隔离实验契约 |
 
-ai-evaluation-service 独占 `lm_ai_evaluation` 数据库，拥有评价任务、样本集定义、指标结果、归一化结果和综合得分。样本集只保存对业务样本的引用，不复制 PDF 等原始业务数据。
+ai-evaluation-service 只暴露 `/internal/evaluations/**`，对外的管理员权限、操作入口和页面聚合由 admin-service 负责。
 
-- ai-review-service 拥有论文评审任务和评审结果，向 ai-evaluation-service 提供评价所需的结果和关联标识。
-- problem-service 拥有测试用例引用的题目内容。
-- submission-service 拥有测试用例引用的原始 PDF。
-- ai-gateway-service 拥有模型调用、Token、成本、耗时和调用状态数据。
-- ai-evaluation-service 通过 common-ai 调用裁判模型。
-- admin-service 负责启动评价和聚合展示，不直接访问 `lm_ai_evaluation`。
+### 验证基线
 
-
-### 功能清单
-
-| 功能 | 功能说明 | 文档安排 |
-|------|----------|----------|
-| 测试集管理 | 组织由指定题目和指定 PDF 输入组成的固定测试用例 | [AI裁判/](AI裁判/) |
-| 评价任务创建 | 锁定测试集、候选 AI 功能版本、重复次数和评价口径 | [AI裁判/](AI裁判/) |
-| 重复运行编排 | 组织业务服务对同一测试用例执行多次运行 | [AI裁判/](AI裁判/) |
-| 确定性检查 | 检查 AI 业务输出的结构、必填内容和数值范围 | [AI裁判/](AI裁判/) |
-| AI 裁判 | 使用裁判模型评价难以由固定规则判断的质量与语义一致性 | [AI裁判/](AI裁判/) |
-| 稳定性统计 | 统计同一样本重复运行时的分数波动和主要结论一致性 | [AI裁判/](AI裁判/) |
-| 资源指标关联 | 根据调用关联标识获取完整工作流的成本、耗时和成功状态 | [AI裁判/](AI裁判/) |
-| 指标归一化 | 将质量、稳定性、成本、响应时间和成功率转换为统一得分 | [AI裁判/](AI裁判/) |
-| 综合得分 | 按固定权重聚合指标，生成 `[0,100]` 范围的 AI 功能版本综合得分 | [AI裁判/](AI裁判/) |
-| 版本横向对比 | 展示各版本的综合排名、单项优势和主要代价 | [AI裁判/](AI裁判/) |
-| 评价进度与重试 | 查询评价阶段和失败范围，对可恢复失败项重新执行 | [AI裁判/](AI裁判/) |
-| 其他 AI 功能评价 | 后续为论文改善建议等 AI 功能分别建立评价指标和综合口径 | 有真实业务功能后再建立文档 |
-
-
-### 评价流程
-
-```mermaid
-flowchart LR
-    A[选择指定题目与 PDF] --> B[组成固定测试集]
-    B --> C[选择 AI 功能与候选版本]
-    C --> D[业务服务产生多次运行结果]
-    D --> E[AI 质量评价服务收集指标]
-    E --> F[执行规则、统计和 AI 评价]
-    F --> G[归一化并计算综合得分]
-    G --> H[输出版本对比结果]
-```
-
-
-### 拆分取舍
-
-当前只有 AI 论文评审这一个明确消费场景，拆分独立微服务会增加跨服务调用、数据关联、部署和故障处理成本。
-
-本项目仍选择提前拆分，原因是 AI 功能生成与 AI 质量评价具有明确不同的职责，并且后续计划增加论文改善建议等新的 AI 质量评价场景。该拆分优先追求系统结构清晰和长期扩展边界，接受当前阶段的额外工程成本。
-
+- 自动化测试覆盖数据集边界、依赖失败、版本校验、幂等冲突、运行领取、三类结果、中断恢复、重试、计分、对比和大整数 ID。
+- 真实 MySQL 已验证 Flyway V1 创建四张业务表和幂等/查询索引。
+- 真实 `8091` HTTP 实例已验证计数、参数上下界、空数据集和依赖不可用映射。
 
 ### 文档索引
 
 | 文档 | 内容摘要 |
 |------|----------|
-| [AI裁判/](AI裁判/) | 第一版 AI 评审质量评价指标、归一化和综合得分 |
+| [AI裁判/](AI裁判/) | MVP 评审版本质量评价口径与后续演进边界 |
