@@ -1,277 +1,150 @@
 <template>
-  <div class="dashboard" v-loading="loading">
-    <!-- Row 1: Stat cards -->
-    <el-row :gutter="20" class="stat-row">
-      <el-col :xs="24" :sm="12" :lg="6" v-for="item in stats" :key="item.title">
-        <el-card shadow="never" class="stat-card-wrapper">
-          <StatCard :title="item.title" :value="item.value" :icon="item.icon" :color="item.color"
-            :bg-color="item.bgColor" :hover="true" />
-        </el-card>
-      </el-col>
-    </el-row>
+  <div class="dashboard-page" v-loading="loading">
+    <el-alert
+      v-if="partialFailure"
+      title="部分下游服务不可用，以下指标未显示真实数值"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="partial-alert"
+    />
 
-    <!-- Row 2: Submission trend chart -->
-    <el-row :gutter="20" class="chart-row">
-      <el-col :span="24">
-        <el-card shadow="never" class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span class="card-title">提交趋势</span>
-            </div>
-          </template>
-          <div ref="trendChartRef" class="chart-container"></div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="panel-heading">
+      <div>
+        <h2 class="page-title">运行概况</h2>
+        <p class="page-subtitle">来自各领域服务的真实统计摘要，更新于 {{ generatedAt }}</p>
+      </div>
+      <el-button :loading="loading" @click="fetchDashboard">刷新</el-button>
+    </div>
 
-    <!-- Row 3: Recent submissions + Problem status distribution -->
-    <el-row :gutter="20" class="bottom-row">
-      <el-col :xs="24" :lg="14">
-        <el-card shadow="never" class="table-card">
-          <template #header>
-            <div class="card-header">
-              <span class="card-title">最近提交</span>
-              <el-button text type="primary" size="small">查看全部</el-button>
-            </div>
-          </template>
-          <el-table :data="recentSubmissions" size="default" stripe class="submission-table" empty-text="暂无提交">
-            <el-table-column prop="username" label="用户" min-width="100">
-              <template #default="{ row }">
-                <span class="table-user">{{ row.username }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="title" label="作品标题" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag :type="statusType(row.status)" size="small" effect="plain" round>
-                  {{ statusLabel(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="totalScore" label="得分" width="80" align="center">
-              <template #default="{ row }">
-                <span class="score-cell" :class="{ 'no-score': row.totalScore === null }">
-                  {{ row.totalScore !== null ? row.totalScore : '-' }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="submitTime" label="提交时间" width="110" align="center" />
-          </el-table>
-        </el-card>
-      </el-col>
+    <div class="metric-grid">
+      <div
+        v-for="item in metricCards"
+        :key="item.key"
+        class="metric-card"
+        :class="{ unavailable: !item.available }"
+      >
+        <div class="metric-icon" :style="{ background: item.bgColor, color: item.color }">
+          <el-icon :size="20"><component :is="item.icon" /></el-icon>
+        </div>
+        <div class="metric-body">
+          <span class="metric-title">{{ item.title }}</span>
+          <strong class="metric-value">{{ item.available ? item.value : '--' }}</strong>
+          <span v-if="!item.available" class="metric-message">{{ item.message }}</span>
+        </div>
+      </div>
+    </div>
 
-      <el-col :xs="24" :lg="10">
-        <el-card shadow="never" class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span class="card-title">题目状态分布</span>
-            </div>
-          </template>
-          <div ref="pieChartRef" class="chart-container pie-container"></div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <section class="quick-section">
+      <h3 class="section-title">管理入口</h3>
+      <div class="quick-grid">
+        <router-link v-for="item in quickLinks" :key="item.path" :to="item.path" class="quick-link">
+          <el-icon :size="18"><component :is="item.icon" /></el-icon>
+          <span>{{ item.title }}</span>
+        </router-link>
+      </div>
+    </section>
+
+    <section class="note-section">
+      <el-card shadow="never">
+        <template #header>关于数据</template>
+        <p>所有指标均由 admin-service 实时聚合，单个下游失败会独立标记为不可用，不会用零值掩盖故障。</p>
+      </el-card>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
-import * as echarts from "echarts";
+import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import StatCard from "@/components/common/StatCard.vue";
 import { getDashboard } from "@/api/dashboard";
 
-const statusColorMap = {
-  "已发布": "#16a34a",
-  "草稿": "#d97706",
-  "已下线": "#64748b",
-  "已归档": "#dc2626",
-};
+const loading = ref(false);
+const metrics = ref({});
+const partialFailure = ref(false);
+const generatedAt = ref("");
 
 const cardConfigs = [
-  { key: "totalProblems", title: "总题目数", icon: "DocumentCopy", color: "#2563eb", bgColor: "#eff6ff" },
-  { key: "totalSubmissions", title: "总作品数", icon: "DataLine", color: "#16a34a", bgColor: "#f0fdf4" },
-  { key: "todaySubmissions", title: "今日提交", icon: "Upload", color: "#d97706", bgColor: "#fffbeb" },
-  { key: "pendingReviews", title: "待审核", icon: "Warning", color: "#dc2626", bgColor: "#fef2f2" },
+  { key: "users", title: "用户", icon: "User", color: "#2563eb", bgColor: "#eff6ff" },
+  { key: "teams", title: "队伍", icon: "UserFilled", color: "#0891b2", bgColor: "#ecfeff" },
+  { key: "problems", title: "题目", icon: "Document", color: "#16a34a", bgColor: "#f0fdf4" },
+  { key: "submissions", title: "提交", icon: "Upload", color: "#d97706", bgColor: "#fffbeb" },
+  { key: "reviews", title: "评审", icon: "DataAnalysis", color: "#7c3aed", bgColor: "#f5f3ff" },
+  { key: "suggestions", title: "建议", icon: "ChatDotRound", color: "#db2777", bgColor: "#fdf2f8" },
+  { key: "rankings", title: "排行", icon: "Trophy", color: "#d97706", bgColor: "#fffbeb" },
+  { key: "assistantConversations", title: "客服会话", icon: "PieChart", color: "#0d9488", bgColor: "#f0fdfa" },
+  { key: "evaluationTasks", title: "质量评价", icon: "Histogram", color: "#475569", bgColor: "#f8fafc" },
+  { key: "aiCalls", title: "AI 调用", icon: "Cpu", color: "#2563eb", bgColor: "#eff6ff" },
 ];
 
-const loading = ref(true);
-const stats = ref([]);
-const recentSubmissions = ref([]);
-const submissionTrendData = ref([]);
-const problemStatusDistData = ref([]);
+const quickLinks = [
+  { path: "/admin/problem/list", title: "题目管理", icon: "Document" },
+  { path: "/admin/tags/list", title: "标签管理", icon: "Collection" },
+  { path: "/admin/users/list", title: "用户管理", icon: "User" },
+  { path: "/admin/role/list", title: "角色管理", icon: "UserFilled" },
+  { path: "/admin/submissions/list", title: "提交管理", icon: "Upload" },
+  { path: "/admin/teams/list", title: "队伍管理", icon: "UserFilled" },
+  { path: "/admin/reviews/list", title: "评审管理", icon: "DataAnalysis" },
+  { path: "/admin/suggestions/list", title: "建议管理", icon: "ChatDotRound" },
+  { path: "/admin/rankings/list", title: "排行榜管理", icon: "Trophy" },
+  { path: "/admin/ai-calls/list", title: "AI 调用", icon: "Cpu" },
+  { path: "/admin/evaluations/list", title: "质量评价", icon: "Histogram" },
+];
 
-function statusType(status) {
-  const map = { COMPLETED: "success", EVALUATING: "warning", PENDING: "info", FAILED: "danger" };
-  return map[status] || "info";
-}
-
-function statusLabel(status) {
-  const map = { COMPLETED: "已完成", EVALUATING: "评审中", PENDING: "待评审", FAILED: "未通过" };
-  return map[status] || status;
-}
+const metricCards = computed(() =>
+  cardConfigs.map((config) => {
+    const metric = metrics.value[config.key];
+    if (!metric) return { ...config, available: false, value: "--", message: "暂不可用" };
+    return {
+      ...config,
+      available: metric.available !== false,
+      value: metric.value,
+      message: metric.message || "暂不可用",
+    };
+  }),
+);
 
 async function fetchDashboard() {
+  loading.value = true;
   try {
     const res = await getDashboard();
-    if (res.code === 20000) {
-      const data = res.data;
-      stats.value = cardConfigs.map((c) => ({
-        ...c,
-        value: data.stats[c.key],
-      }));
-      recentSubmissions.value = data.recentSubmissions || [];
-      submissionTrendData.value = data.submissionTrend || [];
-      problemStatusDistData.value = (data.problemStatusDist || []).map((item) => ({
-        ...item,
-        color: statusColorMap[item.name] || "#64748b",
-      }));
-      await nextTick();
-      initTrendChart();
-      initPieChart();
-    } else {
-      ElMessage.error(res.msg || "获取概览数据失败");
+    metrics.value = res.data?.metrics || {};
+    partialFailure.value = !!res.data?.partialFailure;
+    if (res.data?.generatedAt) {
+      generatedAt.value = String(res.data.generatedAt).replace("T", " ").slice(0, 19);
     }
-  } catch {
-    ElMessage.error("获取概览数据失败，请检查网络");
+  } catch (error) {
+    ElMessage.error(error.message || "概览数据加载失败");
+    metrics.value = {};
   } finally {
     loading.value = false;
   }
 }
 
-// --- ECharts: Submission Trend (line chart) ---
-const trendChartRef = ref(null);
-let trendChartInstance = null;
-
-function initTrendChart() {
-  if (!trendChartRef.value) return;
-  if (trendChartInstance) {
-    trendChartInstance.dispose();
-    trendChartInstance = null;
-  }
-  trendChartInstance = echarts.init(trendChartRef.value);
-
-  const dates = submissionTrendData.value.map((d) => d.date);
-  const values = submissionTrendData.value.map((d) => d.count);
-
-  trendChartInstance.setOption({
-    tooltip: {
-      trigger: "axis",
-      backgroundColor: "#fff",
-      borderColor: "#e2e8f0",
-      textStyle: { color: "#1e293b", fontSize: 13 },
-      boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
-      formatter: (params) => {
-        const item = params[0];
-        return `<div style="font-weight:600;margin-bottom:4px">${item.axisValue}</div>
-                <div style="color:#64748b">提交数 <span style="color:#2563eb;font-weight:600">${item.value}</span></div>`;
-      },
-    },
-    grid: { left: "3%", right: "4%", bottom: "3%", top: "10%", containLabel: true },
-    xAxis: {
-      type: "category",
-      data: dates,
-      axisLine: { lineStyle: { color: "#e2e8f0" } },
-      axisTick: { show: false },
-      axisLabel: { color: "#94a3b8", fontSize: 12 },
-    },
-    yAxis: {
-      type: "value",
-      splitLine: { lineStyle: { color: "#f1f5f9", type: "dashed" } },
-      axisLabel: { color: "#94a3b8", fontSize: 12 },
-      minInterval: 1,
-    },
-    series: [
-      {
-        data: values,
-        type: "line",
-        smooth: true,
-        symbol: "circle",
-        symbolSize: 6,
-        lineStyle: { color: "#2563eb", width: 3 },
-        itemStyle: {
-          color: "#2563eb",
-          borderColor: "#fff",
-          borderWidth: 2,
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "rgba(37, 99, 235, 0.12)" },
-            { offset: 1, color: "rgba(37, 99, 235, 0.01)" },
-          ]),
-        },
-      },
-    ],
-  });
-}
-
-// --- ECharts: Problem Status Distribution (donut chart) ---
-const pieChartRef = ref(null);
-let pieChartInstance = null;
-
-function initPieChart() {
-  if (!pieChartRef.value) return;
-  if (pieChartInstance) {
-    pieChartInstance.dispose();
-    pieChartInstance = null;
-  }
-  pieChartInstance = echarts.init(pieChartRef.value);
-
-  pieChartInstance.setOption({
-    tooltip: {
-      trigger: "item",
-      backgroundColor: "#fff",
-      borderColor: "#e2e8f0",
-      textStyle: { color: "#1e293b", fontSize: 13 },
-      formatter: "{b}: {c} 题 ({d}%)",
-    },
-    series: [
-      {
-        type: "pie",
-        radius: ["55%", "80%"],
-        center: ["50%", "48%"],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 4,
-          borderColor: "#fff",
-          borderWidth: 2,
-        },
-        label: {
-          show: false,
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 16,
-            fontWeight: "bold",
-          },
-        },
-        data: problemStatusDistData.value.map((item) => ({
-          name: item.name,
-          value: item.value,
-          itemStyle: { color: item.color },
-        })),
-      },
-    ],
-  });
-}
-
-onMounted(() => {
-  fetchDashboard();
-});
-
-onBeforeUnmount(() => {
-  if (trendChartInstance) {
-    trendChartInstance.dispose();
-    trendChartInstance = null;
-  }
-  if (pieChartInstance) {
-    pieChartInstance.dispose();
-    pieChartInstance = null;
-  }
-});
+onMounted(fetchDashboard);
 </script>
 
 <style scoped>
-@import '../style.css';
+.dashboard-page { padding: 24px; }
+.partial-alert { margin-bottom: 20px; }
+.panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.page-title { margin: 0; font-size: 22px; color: var(--lm-text-primary); }
+.page-subtitle { margin: 6px 0 0; font-size: 13px; color: var(--lm-text-muted); }
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.metric-card { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 12px; }
+.metric-card.unavailable { border-style: dashed; background: var(--lm-bg-secondary); }
+.metric-icon { display: flex; width: 42px; height: 42px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; }
+.metric-body { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.metric-title { font-size: 12px; color: var(--lm-text-muted); }
+.metric-value { font-size: 24px; line-height: 1.2; color: var(--lm-text-primary); }
+.metric-message { font-size: 11px; color: var(--lm-warning); }
+.quick-section { margin-top: 32px; }
+.section-title { margin: 0 0 14px; font-size: 16px; color: var(--lm-text-primary); }
+.quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.quick-link { display: flex; align-items: center; gap: 8px; padding: 14px 16px; color: var(--lm-text-secondary); background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 10px; text-decoration: none; transition: border-color var(--lm-transition), color var(--lm-transition); }
+.quick-link:hover { color: var(--lm-primary); border-color: var(--lm-primary); }
+.note-section { margin-top: 32px; }
+.note-section p { margin: 0; color: var(--lm-text-secondary); font-size: 13px; line-height: 1.7; }
+@media (max-width: 1200px) { .metric-grid, .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .metric-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-page { padding: 16px; } }
 </style>

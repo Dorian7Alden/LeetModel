@@ -49,8 +49,16 @@ const handleRandom = async (params) => {
 
 onMounted(() => {
   fetchFilterOptions()
+  if (route.query.keyword) listRef.value?.updateQuery({ keyword: String(route.query.keyword) })
   if (route.query.tagIds) listRef.value?.updateQuery({ tagIds: [Number(route.query.tagIds)] })
 })
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    if (listRef.value) listRef.value.updateQuery({ keyword: keyword || '' })
+  },
+  { immediate: true },
+)
 watch(
   () => route.query.tagIds,
   (tagId) => {

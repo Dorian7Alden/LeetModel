@@ -19,9 +19,6 @@
             >
               {{ item.label }}
             </router-link>
-            <button type="button" class="nav-item nav-button" @click="onFeatureWip">
-              信息中心
-            </button>
             <router-link
               v-if="userStore.isAdmin"
               to="/admin/dashboard"
@@ -40,6 +37,8 @@
             placeholder="搜索题目"
             class="search-input"
             clearable
+            @keyup.enter="submitSearch"
+            @clear="submitSearch"
           />
           <!-- 未登录 -->
           <template v-if="!userStore.isLogin">
@@ -76,14 +75,24 @@
                 </div>
 
                 <div class="menu-group">
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><Collection /></el-icon>
-                    我的题单
-                  </el-dropdown-item>
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><StarFilled /></el-icon>
-                    我的收藏
-                  </el-dropdown-item>
+                  <router-link to="/ranking" class="menu-link">
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><Trophy /></el-icon>
+                      排行榜
+                    </el-dropdown-item>
+                  </router-link>
+                  <router-link to="/suggestion" class="menu-link">
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><ChatLineSquare /></el-icon>
+                      论文建议
+                    </el-dropdown-item>
+                  </router-link>
+                  <router-link to="/assistant" class="menu-link">
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><Service /></el-icon>
+                      AI 客服
+                    </el-dropdown-item>
+                  </router-link>
                 </div>
 
                 <div class="divider"></div>
@@ -93,6 +102,12 @@
                     <el-dropdown-item class="menu-item">
                       <el-icon class="menu-icon"><UserFilled /></el-icon>
                       个人中心
+                    </el-dropdown-item>
+                  </router-link>
+                  <router-link to="/profile/settings" class="menu-link">
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><Setting /></el-icon>
+                      个人设置
                     </el-dropdown-item>
                   </router-link>
                 </div>
@@ -146,19 +161,21 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
 import { getCurrentAuthorization } from '@/api/user'
 import {
-  Collection,
-  StarFilled,
+  Trophy,
+  ChatLineSquare,
+  Service,
   UserFilled,
+  Setting,
   SwitchButton,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const { handleLogout } = useAuth()
 
@@ -173,17 +190,21 @@ const navItems = [
   { label: '题库', path: '/problem' },
   { label: '我的队伍', path: '/team' },
   { label: '队伍广场', path: '/team/square' },
+  { label: '排行榜', path: '/ranking' },
+  { label: '论文建议', path: '/suggestion' },
+  { label: 'AI 客服', path: '/assistant' },
 ]
-
-function onFeatureWip() {
-  ElMessage.info("该功能正在开发中，敬请期待")
-}
 
 function isActive(path) {
   if (path === '/team') {
     return route.path === path || (route.path.startsWith('/team/') && !route.path.startsWith('/team/square'))
   }
   return route.path === path || route.path.startsWith(`${path}/`)
+}
+
+function submitSearch() {
+  const value = keyword.value.trim()
+  router.push({ path: '/problem', query: value ? { keyword: value } : {} })
 }
 
 onMounted(async () => {
@@ -577,30 +598,27 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .topbar-inner {
-    padding: 0 12px;
-  }
-
+  .topbar { height: auto; padding: 6px 0; }
+  .topbar-inner { flex-wrap: wrap; gap: 6px; padding: 0 10px; }
+  .left-area { order: 1; flex: 1 1 100%; min-width: 0; gap: 0; }
+  .right-area { order: 2; flex: 1 1 auto; justify-content: flex-end; gap: 6px; }
   .navbar {
-    gap: 2px;
+    gap: 4px;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-
-  .left-area { min-width: 0; gap: 0; }
+  .navbar::-webkit-scrollbar { display: none; }
   .home-icon { display: none; }
-
   .nav-item {
     font-size: 12px;
     padding: 6px 5px;
+    flex: 0 0 auto;
   }
-
   .search-input {
     display: none;
   }
-
-  .right-area {
-    gap: 6px;
-  }
-
   .login-btn,
   .register-btn {
     margin-right: 0;
