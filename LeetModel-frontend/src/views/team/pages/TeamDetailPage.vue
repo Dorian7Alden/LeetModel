@@ -89,7 +89,7 @@
           </div>
           <div v-if="scoreSummary" class="score-summary" :class="{ final: scoreSummary.submission.finalVersion }">
             <div><span>{{ scoreSummaryLabel }}</span><strong>V{{ scoreSummary.submission.version }}</strong></div>
-            <div class="score-value"><strong>{{ scoreSummary.review?.totalScore ?? '--' }}</strong><span>/ 100</span></div>
+            <div class="score-value"><strong>{{ scoreSummary.review?.score ?? '--' }}</strong><span>/ 100</span></div>
             <el-tag :type="reviewStatusType(scoreSummary.review?.status)" effect="light">{{ reviewStatusLabel(scoreSummary.review?.status) }}</el-tag>
           </div>
           <el-table :data="submissionRows" size="small" class="submission-table" empty-text="暂无提交版本">
@@ -97,9 +97,9 @@
             <el-table-column prop="originalFilename" label="文件名" min-width="180" />
             <el-table-column prop="fileSize" label="大小" width="110"><template #default="scope">{{ formatFileSize(scope.row.fileSize) }}</template></el-table-column>
             <el-table-column label="评审状态" width="110"><template #default="scope"><el-tag :type="reviewStatusType(scope.row.review?.status)" size="small" effect="light">{{ reviewStatusLabel(scope.row.review?.status) }}</el-tag></template></el-table-column>
-            <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.totalScore != null" class="table-score">{{ scope.row.review.totalScore }}</strong><span v-else>--</span></template></el-table-column>
+            <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.score != null" class="table-score">{{ scope.row.review.score }}</strong><span v-else>--</span></template></el-table-column>
             <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
-            <el-table-column label="操作" width="180"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试评审</el-button><el-button v-if="scope.row.review?.resultJson" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button></template></el-table-column>
+            <el-table-column label="操作" width="210"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试</el-button></template></el-table-column>
           </el-table>
         </div>
 
@@ -204,7 +204,21 @@
       </el-form>
       <template #footer><el-button @click="showRecruitmentDialog = false">取消</el-button><el-button type="primary" @click="handleSaveRecruitment">{{ editingRecruitmentId ? '保存修改' : '发布招募' }}</el-button></template>
     </el-dialog>
-    <el-dialog v-model="showReviewDialog" title="AI 评审详情" width="680px"><pre class="review-json">{{ selectedReviewJson }}</pre></el-dialog>
+    <el-dialog v-model="showReviewDialog" title="AI 评审详情" width="760px">
+      <div v-if="selectedReview" class="review-detail">
+        <div class="review-version"><div><strong>{{ selectedReview.versionName || selectedReview.workflowVersion }}</strong><p>{{ selectedReview.versionDescription }}</p></div><el-tag :type="reviewStatusType(selectedReview.status)">{{ reviewStatusLabel(selectedReview.status) }}</el-tag></div>
+        <p class="review-process">{{ selectedReview.processSummary }}</p>
+        <el-alert v-if="selectedReview.status === 'FAILED'" type="error" :title="selectedReview.errorMessage || '评审执行失败'" :closable="false" show-icon />
+        <el-empty v-else-if="selectedReview.status !== 'COMPLETED'" :description="selectedReview.status === 'RUNNING' ? 'AI 正在阅读论文，请稍后刷新' : '评审任务正在等待执行'" :image-size="72" />
+        <template v-else-if="selectedReviewResult">
+          <div class="review-score"><span>论文总分</span><strong>{{ selectedReviewResult.score }}</strong><small>/ 100</small></div>
+          <p class="review-summary">{{ selectedReviewResult.summary }}</p>
+          <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} 分</span></div><p>{{ item.value?.comment }}</p></div></div>
+          <div v-for="section in reviewLists" :key="section.key" class="review-list"><h4>{{ section.label }}</h4><ul><li v-for="item in section.items" :key="item">{{ item }}</li></ul></div>
+        </template>
+        <el-alert v-else type="warning" title="评审结果暂时无法解析" :closable="false" show-icon />
+      </div>
+    </el-dialog>
     <UserMiniCardDialog v-model="showMiniCard" :member="selectedMember" />
   </div>
 </template>
@@ -243,7 +257,7 @@ const applicationStatus = ref('pending')
 const submissions = ref([])
 const reviews = ref([])
 const showReviewDialog = ref(false)
-const selectedReviewJson = ref('')
+const selectedReview = ref(null)
 const selectedPdf = ref(null)
 const submitting = ref(false)
 const uploadProgress = ref(0)
@@ -252,6 +266,7 @@ const startingPractice = ref(false)
 const endingPractice = ref(false)
 const now = ref(Date.now())
 let clockTimer
+let reviewTimer
 const editForm = reactive({ name: '', description: '' })
 const recruitmentForm = reactive({ needModeler: false, needProgrammer: false, needWriter: false, description: '' })
 const applyForm = reactive({ recruitmentId: null, message: '' })
@@ -281,6 +296,24 @@ const scoreSummary = computed(() => {
   return { submission, review: submission.review }
 })
 const scoreSummaryLabel = computed(() => scoreSummary.value?.submission.finalVersion ? '最终得分' : '当前版本得分')
+const selectedReviewResult = computed(() => {
+  if (!selectedReview.value?.resultJson) return null
+  try { return JSON.parse(selectedReview.value.resultJson) } catch { return null }
+})
+const reviewDimensions = computed(() => {
+  const values = selectedReviewResult.value?.dimensions || {}
+  return [
+    { key: 'assumptionRationality', label: '假设合理性', value: values.assumptionRationality },
+    { key: 'modelCreativity', label: '建模创造性', value: values.modelCreativity },
+    { key: 'resultCorrectness', label: '结果正确性', value: values.resultCorrectness },
+    { key: 'expressionClarity', label: '表达清晰性', value: values.expressionClarity },
+  ]
+})
+const reviewLists = computed(() => [
+  { key: 'strengths', label: '主要优点', items: selectedReviewResult.value?.strengths || [] },
+  { key: 'weaknesses', label: '主要问题', items: selectedReviewResult.value?.weaknesses || [] },
+  { key: 'suggestions', label: '改进建议', items: selectedReviewResult.value?.suggestions || [] },
+])
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
 
 async function loadTeam() {
@@ -367,8 +400,7 @@ async function loadReviews() {
 }
 async function refreshSubmissionReviews() { await Promise.all([loadSubmissions(), loadReviews()]) }
 function showReviewResult(review) {
-  try { selectedReviewJson.value = JSON.stringify(JSON.parse(review.resultJson), null, 2) }
-  catch { selectedReviewJson.value = review.resultJson }
+  selectedReview.value = review
   showReviewDialog.value = true
 }
 async function handleRetryReview(taskId) {
@@ -381,7 +413,7 @@ async function handleStartPractice() {
     await ElMessageBox.confirm('开始后将立即按题目时长倒计时，成员和职责不可再修改。确定开始吗？', '开始限时练习', { type: 'warning' })
     startingPractice.value = true
     team.value = (await startTeamPractice(team.value.id)).data
-    await loadSubmissions()
+    await refreshSubmissionReviews()
     ElMessage.success('限时练习已开始')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '开始练习失败') }
   finally { startingPractice.value = false }
@@ -408,7 +440,7 @@ async function handleSubmitPdf() {
     })
     uploadProgress.value = 100
     selectedPdf.value = null
-    await loadSubmissions()
+    await refreshSubmissionReviews()
     ElMessage.success('PDF 提交成功')
   }
   catch (error) { ElMessage.error(error.message || 'PDF 提交失败') }
@@ -552,8 +584,14 @@ async function handleReview(applicationId, decision) {
   catch (error) { ElMessage.error(error.message || '申请审核失败') }
 }
 
-onMounted(() => { loadTeam(); clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000) })
-onBeforeUnmount(() => window.clearInterval(clockTimer))
+onMounted(() => {
+  loadTeam()
+  clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
+  reviewTimer = window.setInterval(() => {
+    if (reviews.value.some(item => ['WAITING', 'RUNNING'].includes(item.status))) loadReviews()
+  }, 5000)
+})
+onBeforeUnmount(() => { window.clearInterval(clockTimer); window.clearInterval(reviewTimer) })
 watch(remainingSeconds, (value, previous) => {
   if (value === 0 && previous > 0 && team.value?.practiceStatus === 'IN_PROGRESS') loadTeam()
 })
@@ -595,7 +633,19 @@ watch(remainingSeconds, (value, previous) => {
 .final-version-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: #f8fafc; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-permission { min-width: 128px; }
 .slot-hint { margin-left: 12px; color: var(--lm-text-muted); font-size: 13px; }
-.review-json { max-height: 520px; overflow: auto; padding: 16px; border-radius: 8px; background: var(--lm-bg-secondary); white-space: pre-wrap; word-break: break-word; }
+.review-detail { display: grid; gap: 18px; }
+.review-version { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.review-version p, .review-process, .review-summary, .dimension-card p { margin: 6px 0 0; color: var(--lm-text-secondary); line-height: 1.7; }
+.review-process { padding: 12px 14px; border-radius: 10px; background: var(--lm-bg-secondary); }
+.review-score { display: flex; align-items: baseline; gap: 8px; padding: 18px; border-radius: 12px; background: #eef7ff; }
+.review-score strong { font-size: 42px; color: var(--el-color-primary); }
+.dimension-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dimension-card { padding: 14px; border: 1px solid var(--lm-border); border-radius: 10px; }
+.dimension-card > div { display: flex; justify-content: space-between; gap: 12px; }
+.dimension-card span { color: var(--el-color-primary); font-weight: 600; }
+.review-list h4 { margin: 0 0 8px; }
+.review-list ul { margin: 0; padding-left: 22px; color: var(--lm-text-secondary); line-height: 1.8; }
+@media (max-width: 720px) { .dimension-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   .upload-toolbar { align-items: stretch; flex-direction: column; }
   .submit-button { width: 100%; margin-left: 0; }
