@@ -2,6 +2,7 @@ package com.leetmodel.submission.service;
 
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -94,6 +95,36 @@ class SubmissionServiceTest {
 
         assertTrue(history.get(0).getFinalVersion());
         assertFalse(history.get(1).getFinalVersion());
+    }
+
+    @Test
+    void returnEmptyFinalSnapshotsWhenNoSubmissionIsLocked() {
+        when(lockMapper.selectList(null)).thenReturn(List.of());
+
+        List<SubmissionSnapshotDTO> result = service.listFinalSnapshots(null);
+
+        assertTrue(result.isEmpty());
+        verifyNoInteractions(submissionMapper);
+    }
+
+    @Test
+    void filterFinalSnapshotsByProblemUsingStableSubmissionIds() {
+        SubmissionLock firstLock = new SubmissionLock();
+        firstLock.setSubmissionId(101L);
+        SubmissionLock secondLock = new SubmissionLock();
+        secondLock.setSubmissionId(102L);
+        when(lockMapper.selectList(null)).thenReturn(List.of(firstLock, secondLock));
+        Submission first = submission(101L, 1);
+        first.setProblemId(100L);
+        Submission second = submission(102L, 2);
+        second.setProblemId(200L);
+        when(submissionMapper.selectBatchIds(anyCollection())).thenReturn(List.of(first, second));
+
+        List<SubmissionSnapshotDTO> result = service.listFinalSnapshots(200L);
+
+        assertEquals(1, result.size());
+        assertEquals(102L, result.get(0).getId());
+        assertTrue(result.get(0).getFinalVersion());
     }
 
     private TeamDTO team() {

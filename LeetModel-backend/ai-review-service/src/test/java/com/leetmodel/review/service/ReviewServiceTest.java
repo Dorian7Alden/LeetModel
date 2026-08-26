@@ -7,6 +7,7 @@ import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
+import com.leetmodel.review.entity.ReviewV1Result;
 import com.leetmodel.review.enums.ReviewErrorCode;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.mapper.ReviewV1ResultMapper;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.argThat;
@@ -158,6 +160,50 @@ class ReviewServiceTest {
         verify(logService).fail(any(), any());
         verify(taskMapper).updateById(argThat((ReviewTask value) -> "FAILED".equals(value.getStatus())
                 && value.getFinishedAt() != null && value.getErrorMessage() != null));
+    }
+
+    @Test
+    void returnWaitingSummaryByStableSubmissionId() {
+        ReviewTask task = task(26L, "WAITING");
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(resultMapper.selectOne(any())).thenReturn(null);
+
+        var summary = service.getSummaryBySubmission(31L);
+
+        assertEquals(26L, summary.getTaskId());
+        assertEquals(31L, summary.getSubmissionId());
+        assertEquals("WAITING", summary.getStatus());
+        assertNull(summary.getScore());
+    }
+
+    @Test
+    void rejectSummaryQueryWhenSubmissionHasNoReviewTask() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.getSummaryBySubmission(99L));
+
+        assertEquals(ReviewErrorCode.TASK_NOT_FOUND.getCode(), error.getCode());
+    }
+
+    @Test
+    void listCompletedSummariesSkipsOrphanResult() {
+        ReviewV1Result valid = new ReviewV1Result();
+        valid.setTaskId(27L);
+        valid.setSubmissionId(31L);
+        valid.setTeamId(41L);
+        valid.setProblemId(51L);
+        valid.setScore(new java.math.BigDecimal("88.50"));
+        ReviewV1Result orphan = new ReviewV1Result();
+        orphan.setTaskId(999L);
+        when(resultMapper.selectList(any())).thenReturn(java.util.List.of(valid, orphan));
+        when(taskMapper.selectById(27L)).thenReturn(task(27L, "COMPLETED"));
+        when(taskMapper.selectById(999L)).thenReturn(null);
+
+        var summaries = service.listCompletedSummaries(51L);
+
+        assertEquals(1, summaries.size());
+        assertEquals(new java.math.BigDecimal("88.50"), summaries.get(0).getScore());
     }
 
     private ReviewTask task(Long id, String status) {

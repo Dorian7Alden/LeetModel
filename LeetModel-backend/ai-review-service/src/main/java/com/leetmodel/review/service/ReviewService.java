@@ -2,6 +2,7 @@ package com.leetmodel.review.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -120,6 +121,52 @@ public class ReviewService {
                 }).toList();
     }
 
+    /**
+     * 按提交 ID 查询最新评审摘要。
+     * @param submissionId 提交 ID
+     * @return 评审摘要
+     */
+    public ReviewSummaryDTO getSummaryBySubmission(Long submissionId) {
+        ReviewTask task = taskMapper.selectOne(new LambdaQueryWrapper<ReviewTask>()
+                .eq(ReviewTask::getSubmissionId, submissionId)
+                .orderByDesc(ReviewTask::getCreateTime)
+                .last("LIMIT 1"));
+        BusinessException.throwIf(task == null, ReviewErrorCode.TASK_NOT_FOUND);
+        ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                .eq(ReviewV1Result::getTaskId, task.getId()));
+        return toSummary(task, result);
+    }
+
+    /**
+     * 查询已完成且已产生结果的评审摘要。
+     * @param problemId 可选题目 ID
+     * @return 评审摘要列表
+     */
+    public List<ReviewSummaryDTO> listCompletedSummaries(Long problemId) {
+        // 评审结果表只在任务完成时写入
+        LambdaQueryWrapper<ReviewV1Result> query = new LambdaQueryWrapper<>();
+        if (problemId != null) query.eq(ReviewV1Result::getProblemId, problemId);
+        query.orderByDesc(ReviewV1Result::getCreateTime);
+        List<ReviewV1Result> results = resultMapper.selectList(query);
+
+        // 使用稳定 taskId 关联任务状态，不依赖列表顺序
+        return results.stream()
+                .map(result -> {
+                    ReviewTask task = taskMapper.selectById(result.getTaskId());
+                    return task == null ? null : toSummary(task, result);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * 获取评审任务数量。
+     * @return 评审任务数量
+     */
+    public long count() {
+        return taskMapper.selectCount(null);
+    }
+
     @Transactional
     public ReviewVO retry(Long taskId, Long userId) {
         ReviewTask task = requiredTask(taskId);
@@ -160,6 +207,29 @@ public class ReviewService {
                 .finishedAt(task.getFinishedAt()).score(result == null ? null : result.getScore())
                 .resultJson(result == null ? null : result.getResultJson())
                 .modelName(result == null ? null : result.getModelName()).build();
+    }
+
+    /**
+     * 转换跨服务评审摘要。
+     * @param task 评审任务
+     * @param result 可空评审结果
+     * @return 评审摘要
+     */
+    private ReviewSummaryDTO toSummary(ReviewTask task, ReviewV1Result result) {
+        return new ReviewSummaryDTO(
+                task.getId(),
+                task.getSubmissionId(),
+                task.getTeamId(),
+                task.getProblemId(),
+                task.getStatus(),
+                task.getWorkflowVersion(),
+                result == null ? null : result.getScore(),
+                result == null ? null : result.getResultJson(),
+                result == null ? null : result.getModelName(),
+                result == null ? null : result.getAiCallId(),
+                task.getErrorMessage(),
+                task.getFinishedAt()
+        );
     }
     private String truncate(String message) {
         if (message == null || message.isBlank()) return "未知错误";

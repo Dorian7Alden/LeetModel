@@ -2,6 +2,7 @@ package com.leetmodel.submission.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
@@ -24,7 +25,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -115,6 +119,39 @@ public class SubmissionService {
                 value.getVersion(), value.getObjectName());
     }
 
+    /**
+     * 查询已经锁定的最终提交快照。
+     * @param problemId 可选题目 ID
+     * @return 最终提交快照
+     */
+    public List<SubmissionSnapshotDTO> listFinalSnapshots(Long problemId) {
+        // 最终版本事实只来自 submission_lock
+        List<SubmissionLock> locks = lockMapper.selectList(null);
+        if (locks.isEmpty()) return List.of();
+
+        Set<Long> finalIds = new HashSet<>();
+        for (SubmissionLock lock : locks) finalIds.add(lock.getSubmissionId());
+        List<Submission> submissions = submissionMapper.selectBatchIds(finalIds);
+
+        // 可选按题目过滤，并按提交时间倒序输出
+        return submissions.stream()
+                .filter(value -> problemId == null || problemId.equals(value.getProblemId()))
+                .sorted(Comparator.comparing(
+                        Submission::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
+                .map(this::toSnapshot)
+                .toList();
+    }
+
+    /**
+     * 获取提交记录数量。
+     * @return 提交数量
+     */
+    public long count() {
+        return submissionMapper.selectCount(null);
+    }
+
     private TeamDTO requiredMemberTeam(Long teamId, Long userId) {
         Result<TeamDTO> teamResult = teamFeignClient.getTeamInfo(teamId);
         Result<List<Long>> membersResult = teamFeignClient.getMemberIds(teamId);
@@ -178,5 +215,25 @@ public class SubmissionService {
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
                 .finalVersion(value.getId().equals(finalSubmissionId))
                 .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
+    }
+
+    /**
+     * 转换最终提交快照。
+     * @param value 提交实体
+     * @return 最终提交快照
+     */
+    private SubmissionSnapshotDTO toSnapshot(Submission value) {
+        return new SubmissionSnapshotDTO(
+                value.getId(),
+                value.getTeamId(),
+                value.getProblemId(),
+                value.getSubmitterId(),
+                value.getVersion(),
+                value.getOriginalFilename(),
+                value.getObjectName(),
+                value.getStatus(),
+                true,
+                value.getCreateTime()
+        );
     }
 }
