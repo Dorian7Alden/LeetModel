@@ -167,6 +167,7 @@ Goal 启动后从最新 `dev` 创建该分支。所有后端、前端、配置�
 - [x] 修复建议任务超时：`common-ai` 的 `HttpAiClient` 默认读取超时过短，新增可配置 `connectTimeout`/`readTimeout`（默认 10s/5min）并在 `AiClientConfiguration` 应用；重建并重启 ai-review / ai-suggestion / ai-assistant 后，建议任务不再超时。
 - [x] 真实 AI 结果证据：新提交文本论文评审完成（45 分，deepseek-v4-flash-vision-exp）；该最终稿生成 10 条结构化论文建议（summary 给出具体改进方向）；AI 客服返回完整平台答疑（deepseek-v4-pro）；管理员创建固定测试集并运行 AI 质量评价任务，完成并返回综合分 100/有效性 100/成功率 100；对应题目排行榜重建后出现该队伍（45 分）。
 - [x] 敏感信息处理：API Key 仅作为运行环境变量注入，未写入任何仓库文件或提交记录。
+- [x] 题目题号改为短顺序编号：新增 `problem.code`（题号，1001 起始、上限 10000、唯一），内部雪花主键仅作稳定标识/URL/引用，不再面向用户展示；跨服务透传 `ProblemVO.code`、`ProblemPracticeDTO.code`、`TeamVO.problemCode`、`SubmissionVO.problemCode`，以 `V7__add_problem_code.sql` 回填存量数据，并在题目服务设计文档补充该领域特征与生成规则。
 
 #### 当前状态
 
