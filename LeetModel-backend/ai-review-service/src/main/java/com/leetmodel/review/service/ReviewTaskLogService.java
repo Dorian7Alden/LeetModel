@@ -26,7 +26,9 @@ public class ReviewTaskLogService {
         log.setStatus("RUNNING");
         log.setStartedAt(LocalDateTime.now());
         log.setInputSummary(inputSummary);
-        mapper.insert(log);
+        if (task.getId() != null) {
+            mapper.insert(log);
+        }
         return log;
     }
 
@@ -46,7 +48,9 @@ public class ReviewTaskLogService {
         log.setOutputSummary(outputSummary);
         log.setAiCallId(aiCallId);
         log.setErrorMessage(errorMessage);
-        mapper.updateById(log);
+        if (log.getId() != null) {
+            mapper.updateById(log);
+        }
     }
 
     private String truncate(String value) {

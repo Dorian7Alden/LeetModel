@@ -1,12 +1,15 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -23,4 +26,8 @@ public interface ReviewFeignClient {
 
     @GetMapping("/internal/reviews/count")
     Result<Long> getReviewCount();
+
+    @PostMapping("/internal/reviews/experiments")
+    Result<ReviewExperimentResultDTO> runExperiment(
+            @RequestBody ReviewExperimentRequestDTO request);
 }

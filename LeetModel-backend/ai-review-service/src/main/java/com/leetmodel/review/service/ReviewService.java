@@ -3,6 +3,7 @@ package com.leetmodel.review.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 
 @Slf4j @Service
@@ -167,6 +169,43 @@ public class ReviewService {
         return taskMapper.selectCount(null);
     }
 
+    /**
+     * 执行一次不写入正式评审任务的版本实验，供质量评价服务使用。
+     *
+     * @param submissionId 已有提交标识
+     * @param workflowVersion 待评价评审版本
+     * @return 隔离实验结果或分类失败
+     */
+    public ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion) {
+        LocalDateTime startedAt = LocalDateTime.now();
+        try {
+            ReviewWorkflow workflow = workflowRegistry.required(workflowVersion);
+            SubmissionReviewDTO submission = requiredSubmission(submissionId);
+            ReviewTask transientTask = new ReviewTask();
+            transientTask.setSubmissionId(submissionId);
+            transientTask.setTeamId(submission.getTeamId());
+            transientTask.setProblemId(submission.getProblemId());
+            transientTask.setVersionId(workflow.versionId());
+            transientTask.setWorkflowVersion(workflow.versionCode());
+            transientTask.setPromptSnapshot(workflow.currentPrompt());
+            transientTask.setAttemptNo(1);
+            ReviewWorkflowResult result = workflow.execute(transientTask, submission);
+            return new ReviewExperimentResultDTO(
+                    submissionId, submission.getProblemId(), workflow.versionCode(), "SUCCEEDED", null,
+                    result.score(), result.resultJson(), result.modelName(), result.aiCallId(),
+                    Duration.between(startedAt, LocalDateTime.now()).toMillis(), null);
+        } catch (Exception exception) {
+            log.warn("隔离评审实验失败 submissionId={}, workflowVersion={}, message={}",
+                    submissionId, workflowVersion, exception.getMessage());
+            String failureType = classifyExperimentFailure(exception);
+            return new ReviewExperimentResultDTO(
+                    submissionId, null, workflowVersion, "FAILED", failureType,
+                    null, null, null, null,
+                    Duration.between(startedAt, LocalDateTime.now()).toMillis(),
+                    experimentErrorMessage(failureType));
+        }
+    }
+
     @Transactional
     public ReviewVO retry(Long taskId, Long userId) {
         ReviewTask task = requiredTask(taskId);
@@ -234,5 +273,22 @@ public class ReviewService {
     private String truncate(String message) {
         if (message == null || message.isBlank()) return "未知错误";
         return message.substring(0, Math.min(message.length(), 500));
+    }
+
+    private String classifyExperimentFailure(Exception exception) {
+        String message = exception.getMessage() == null ? "" : exception.getMessage();
+        if (message.startsWith("未知评审版本")) return "CONFIGURATION";
+        if (message.contains("模型输出不符合") || message.contains("AI 网关未返回评审内容")) {
+            return "OUTPUT";
+        }
+        return "ENVIRONMENT";
+    }
+
+    private String experimentErrorMessage(String failureType) {
+        return switch (failureType) {
+            case "CONFIGURATION" -> "评审版本不存在或不可执行";
+            case "OUTPUT" -> "评审版本未产生符合契约的结果";
+            default -> "实验评审依赖暂不可用";
+        };
     }
 }

@@ -14,6 +14,7 @@ import com.leetmodel.review.mapper.ReviewV1ResultMapper;
 import com.leetmodel.review.mapper.ReviewVersionMapper;
 import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
+import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -204,6 +205,61 @@ class ReviewServiceTest {
 
         assertEquals(1, summaries.size());
         assertEquals(new java.math.BigDecimal("88.50"), summaries.get(0).getScore());
+    }
+
+    @Test
+    void runExperimentUsesTransientTaskWithoutCreatingFormalReview() throws Exception {
+        when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
+        when(workflow.versionCode()).thenReturn(ReviewService.WORKFLOW_VERSION);
+        when(workflow.versionId()).thenReturn(1L);
+        when(workflow.currentPrompt()).thenReturn("locked prompt");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("86.50"), "{\"score\":86.5}", "model-a", "call-1"));
+
+        var result = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        assertEquals(new java.math.BigDecimal("86.50"), result.getScore());
+        assertEquals("call-1", result.getAiCallId());
+        verify(workflow).execute(argThat(task -> task.getId() == null
+                && "locked prompt".equals(task.getPromptSnapshot())
+                && task.getAttemptNo() == 1), any());
+        verify(taskMapper, never()).insert(any(ReviewTask.class));
+        verify(resultMapper, never()).insert(any(ReviewV1Result.class));
+    }
+
+    @Test
+    void runExperimentRejectsUnknownVersionBeforeReadingSubmission() {
+        when(workflowRegistry.required("UNKNOWN"))
+                .thenThrow(new IllegalArgumentException("未知评审版本: UNKNOWN"));
+
+        var result = service.runExperiment(31L, "UNKNOWN");
+
+        assertEquals("FAILED", result.getStatus());
+        assertEquals("CONFIGURATION", result.getFailureType());
+        assertEquals("评审版本不存在或不可执行", result.getErrorMessage());
+        verify(submissionFeignClient, never()).getForReview(any());
+    }
+
+    @Test
+    void runExperimentClassifiesDependencyAndOutputFailures() throws Exception {
+        when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(null);
+
+        var dependency = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("ENVIRONMENT", dependency.getFailureType());
+        assertEquals("实验评审依赖暂不可用", dependency.getErrorMessage());
+
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any()))
+                .thenThrow(new IllegalArgumentException("模型输出不符合 BASIC_REVIEW_V1 JSON 契约"));
+
+        var output = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("OUTPUT", output.getFailureType());
+        assertEquals("评审版本未产生符合契约的结果", output.getErrorMessage());
     }
 
     private ReviewTask task(Long id, String status) {

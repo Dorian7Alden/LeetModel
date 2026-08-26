@@ -1,16 +1,20 @@
 package com.leetmodel.review.controller;
 
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -45,5 +49,13 @@ public class InternalReviewController {
     @GetMapping("/count")
     public Result<Long> count() {
         return Result.ok(reviewService.count());
+    }
+
+    @Operation(summary = "执行隔离评审实验")
+    @PostMapping("/experiments")
+    public Result<ReviewExperimentResultDTO> runExperiment(
+            @Valid @RequestBody ReviewExperimentRequestDTO request) {
+        return Result.ok(reviewService.runExperiment(
+                request.getSubmissionId(), request.getWorkflowVersion()));
     }
 }
