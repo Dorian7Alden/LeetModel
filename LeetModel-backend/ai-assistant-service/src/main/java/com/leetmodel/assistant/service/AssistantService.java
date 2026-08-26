@@ -210,7 +210,7 @@ public class AssistantService {
             log.warn("AI 客服回复失败 conversationId={}, message={}",
                     conversation.getId(), exception.getMessage());
             return persistReply(existingReply, conversation, userMessage, "FAILED",
-                    null, truncate(exception.getMessage()), toolContextJson, null, null);
+                    null, userFacingError(exception), toolContextJson, null, null);
         }
     }
 
@@ -348,9 +348,13 @@ public class AssistantService {
                 .build();
     }
 
-    private String truncate(String message) {
-        if (message == null || message.isBlank()) return "AI 客服暂时无法回答，请稍后重试";
-        return message.substring(0, Math.min(message.length(), 500));
+    private String userFacingError(Exception exception) {
+        String message = exception.getMessage();
+        if ("题目查询服务暂不可用".equals(message)
+                || "AI 网关未返回客服回复".equals(message)) {
+            return message;
+        }
+        return "AI 客服暂时无法回答，请稍后重试";
     }
 
     private record ReplyClaim(AssistantMessage reply, boolean claimed) {

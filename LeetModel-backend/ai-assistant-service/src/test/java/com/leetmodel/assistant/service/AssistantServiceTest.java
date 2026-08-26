@@ -130,6 +130,26 @@ class AssistantServiceTest {
     }
 
     @Test
+    void aiFailureDoesNotExposeInternalAddressToUser() throws Exception {
+        when(conversationMapper.selectOne(any())).thenReturn(conversation("ACTIVE"));
+        when(messageMapper.selectOne(any())).thenReturn(null).thenReturn(null);
+        assignMessageIds();
+        when(messageMapper.selectList(any())).thenReturn(List.of());
+        when(workflow.needsProblemTool("如何组队？")).thenReturn(false);
+        when(workflow.reply(any(), any(), isNull()))
+                .thenThrow(new IllegalStateException(
+                        "POST http://localhost:8090/internal/ai/chat connection refused"));
+
+        AssistantReplyVO result = service.send(CONVERSATION_ID, USER_ID,
+                "如何组队？", "request_005");
+
+        assertThat(result.getAssistantMessage().getStatus()).isEqualTo("FAILED");
+        assertThat(result.getAssistantMessage().getErrorMessage())
+                .isEqualTo("AI 客服暂时无法回答，请稍后重试")
+                .doesNotContain("localhost", "/internal/");
+    }
+
+    @Test
     void conversationOwnershipIsCheckedBeforeMessageHistory() {
         when(conversationMapper.selectOne(any())).thenReturn(null);
 
