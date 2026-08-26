@@ -8,6 +8,10 @@ spring:
     password: root
   flyway:
     enabled: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
 
 common:
   ai-client:

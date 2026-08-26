@@ -1,6 +1,6 @@
 # ==================== LeetModel 本地开发基础设施 ====================
-# 使用方式：docker compose up -d mysql redis minio
-# Nacos 已通过本地 jar 方式运行（端口 8848），不在此编排
+# 使用方式：docker compose up -d --wait mysql redis minio
+# Nacos 复用本机 ${NACOS_HOME:-~/repo/nacos}，由 scripts/start-mvp.sh 按需启动。
 
 services:
   mysql:

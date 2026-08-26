@@ -7,6 +7,10 @@ spring:
     password: root
   flyway:
     enabled: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
 minio:
   enabled: true
   endpoint: http://localhost:9000
