@@ -12,6 +12,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -154,6 +155,15 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return response;
         } catch (BusinessException exception) {
             throw exception;
+        } catch (HttpClientErrorException.BadRequest exception) {
+            String responseBody = exception.getResponseBodyAsString().toLowerCase();
+            if (responseBody.contains("context") && (responseBody.contains("length") || responseBody.contains("token"))) {
+                throw new BusinessException(AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
+            }
+            if (responseBody.contains("image") && (responseBody.contains("format") || responseBody.contains("media type"))) {
+                throw new BusinessException(AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
+            }
+            throw new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }

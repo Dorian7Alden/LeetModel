@@ -60,7 +60,7 @@ public class DeepSeekAdapter extends AbstractOpenAiCompatibleAdapter {
     protected Map<String, Object> buildChatBody(String model, AiChatRequest request) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
-        body.put("messages", ProviderRequestMapper.toTextMessages(request.messages()));
+        body.put("messages", ProviderRequestMapper.toMultimodalMessages(request.messages()));
         body.put("stream", false);
         ProviderRequestMapper.addCommonOptions(body, request);
         return body;
