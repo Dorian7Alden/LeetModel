@@ -53,7 +53,7 @@ public class SubmissionService {
             storageService.delete(objectName);
             throw exception;
         }
-        Result<Long> task = reviewFeignClient.createTask(submission.getId());
+        Result<Long> task = reviewFeignClient.createTask(submission.getId(), submission.getTeamId(), submission.getProblemId());
         if (task == null || !task.isSuccess()) {
             storageService.delete(objectName);
             throw new BusinessException(SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED);

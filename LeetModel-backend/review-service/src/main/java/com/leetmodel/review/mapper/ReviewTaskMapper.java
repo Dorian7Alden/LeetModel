@@ -9,4 +9,8 @@ public interface ReviewTaskMapper extends BaseMapper<ReviewTask> {
     ReviewTask selectNextWaiting();
     @Update("UPDATE review_task SET status='RUNNING', started_at=#{now}, update_time=#{now} WHERE id=#{id} AND status='WAITING'")
     int claim(@Param("id") Long id, @Param("now") LocalDateTime now);
+    @Update("UPDATE review_task SET status=#{status}, retry_count=#{retryCount}, attempt_no=#{attemptNo}, " +
+            "next_run_at=#{nextRunAt}, started_at=NULL, finished_at=NULL, error_message=NULL, update_time=NOW() " +
+            "WHERE id=#{id} AND status='FAILED'")
+    int resetForRetry(ReviewTask task);
 }

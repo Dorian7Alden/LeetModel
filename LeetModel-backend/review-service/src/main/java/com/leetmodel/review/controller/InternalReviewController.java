@@ -8,5 +8,7 @@ import org.springframework.web.bind.annotation.*;
 public class InternalReviewController {
     private final ReviewService reviewService;
     @Operation(summary="创建基础评审任务") @PostMapping("/tasks")
-    public Result<Long> create(@RequestParam Long submissionId) { return Result.ok(reviewService.createTask(submissionId)); }
+    public Result<Long> create(@RequestParam Long submissionId, @RequestParam Long teamId, @RequestParam Long problemId) {
+        return Result.ok(reviewService.createTask(submissionId, teamId, problemId));
+    }
 }
