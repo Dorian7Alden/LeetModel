@@ -51,6 +51,17 @@ V1 AI 评审开发期间，以本目录中的两个 `problem.md` 作为测试题
 
 具体数据库字段、接口和导入脚本以 problem-service 当前实现为准。README 只定义数据来源、关联规则和验收边界。
 
+本地完整服务启动后，可以使用以下脚本通过真实登录、题目管理和公开查询接口执行幂等导入：
+
+```bash
+LEETMODEL_API_BASE=http://localhost:8080 ./data/import-problems.sh
+```
+
+脚本默认使用本地演示管理员 `admin / 123456` 和赛事 ID `3`。其他环境必须通过
+`LEETMODEL_ADMIN_USERNAME`、`LEETMODEL_ADMIN_PASSWORD` 和 `LEETMODEL_TEST_CONTEST_ID`
+显式覆盖，不在脚本或仓库中写入真实凭据。脚本按完整标题查询已发布题目，已存在时跳过，
+新建后再次通过公开题目接口核对题目 ID、标题和 Markdown 长度。
+
 ### PDF 提交与评审规则
 
 - 成功路径优先使用题目匹配且不超过当前上传限制的 PDF。
