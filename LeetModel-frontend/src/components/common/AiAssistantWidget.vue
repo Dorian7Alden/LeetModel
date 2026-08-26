@@ -79,25 +79,41 @@
               </div>
 
               <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
-                <div v-if="msg.role === 'assistant'" class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
-                <div class="ai-bubble">
-                  <div v-if="msg.role === 'assistant'" class="markdown-body ai-md" v-html="md(msg.content)"></div>
-                  <p v-else class="ai-content">{{ msg.content || '（无内容）' }}</p>
-                  <div class="ai-meta">
-                    <el-tag v-if="msg.status === 'FAILED'" type="danger" size="small" effect="light">{{ msg.errorMessage || '回复失败' }}</el-tag>
-                    <span v-else class="ai-msg-time">{{ shortTime(msg.createTime) }}</span>
+                <template v-if="msg.role === 'assistant'">
+                  <div class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
+                  <div class="ai-msg-col">
+                    <span class="ai-msg-name">AI 客服</span>
+                    <div class="ai-bubble">
+                      <div class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <div class="ai-meta">
+                        <el-tag v-if="msg.status === 'FAILED'" type="danger" size="small" effect="light">{{ msg.errorMessage || '回复失败' }}</el-tag>
+                        <span v-else class="ai-msg-time">{{ shortTime(msg.createTime) }}</span>
+                      </div>
+                      <div v-if="msg.status !== 'RUNNING'" class="ai-msg-actions">
+                        <button type="button" title="复制" @click="copy(msg.content)"><el-icon :size="14"><CopyDocument /></el-icon></button>
+                        <button v-if="msg.status === 'FAILED'" type="button" title="重新回答" @click="retry(msg.id)"><el-icon :size="14"><Refresh /></el-icon></button>
+                      </div>
+                    </div>
                   </div>
-                  <div v-if="msg.role === 'assistant' && msg.status !== 'RUNNING'" class="ai-msg-actions">
-                    <button type="button" title="复制" @click="copy(msg.content)"><el-icon :size="14"><CopyDocument /></el-icon></button>
-                    <button v-if="msg.status === 'FAILED'" type="button" title="重新回答" @click="retry(msg.id)"><el-icon :size="14"><Refresh /></el-icon></button>
+                </template>
+                <template v-else>
+                  <div class="ai-msg-col user">
+                    <span class="ai-msg-name">{{ userDisplayName }}</span>
+                    <div class="ai-bubble">
+                      <p class="ai-content">{{ msg.content || '（无内容）' }}</p>
+                      <div class="ai-meta"><span class="ai-msg-time">{{ shortTime(msg.createTime) }}</span></div>
+                    </div>
                   </div>
-                </div>
-                <div v-if="msg.role === 'user'" class="ai-msg-avatar user"><span>{{ userInitial }}</span></div>
+                  <div class="ai-msg-avatar user"><span>{{ userInitial }}</span></div>
+                </template>
               </div>
 
               <div v-if="sending" class="ai-msg assistant">
                 <div class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
-                <div class="ai-bubble typing"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>
+                <div class="ai-msg-col">
+                  <span class="ai-msg-name">AI 客服</span>
+                  <div class="ai-bubble typing"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>
+                </div>
               </div>
             </div>
 
@@ -162,6 +178,7 @@ const suggestOpen = ref(false);
 let suggestTimer = null;
 
 const userInitial = computed(() => (userStore.nickname || userStore.username || "我").charAt(0));
+const userDisplayName = computed(() => userStore.nickname || userStore.username || "我");
 
 // 固定推荐问题池（可换一换轮换展示，提问内容固定）
 const recPool = [
@@ -388,10 +405,14 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg { display: flex; align-items: flex-start; gap: 8px; }
 .ai-msg.assistant { justify-content: flex-start; }
 .ai-msg.user { justify-content: flex-end; }
+.ai-msg-col { display: flex; min-width: 0; max-width: 78%; flex-direction: column; gap: 4px; }
+.ai-msg-col.user { align-items: flex-end; }
+.ai-msg-name { color: var(--lm-text-muted); font-size: 11px; line-height: 1; }
+.ai-msg.user .ai-msg-name { text-align: right; }
 .ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
 .ai-msg-avatar.support { background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
 .ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
-.ai-bubble { max-width: 78%; padding: 8px 11px; border-radius: 12px; font-size: 13px; }
+.ai-bubble { max-width: 100%; padding: 8px 11px; border-radius: 12px; font-size: 13px; }
 .ai-msg.assistant .ai-bubble { border-top-left-radius: 4px; background: var(--lm-surface); border: 1px solid var(--lm-border); color: var(--lm-text-primary); }
 .ai-msg.user .ai-bubble { border-top-right-radius: 4px; background: var(--lm-primary); color: #fff; }
 .ai-content { margin: 0; white-space: pre-wrap; line-height: 1.6; }
@@ -402,7 +423,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg-actions { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
 .ai-msg-actions button { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: var(--lm-text-muted); cursor: pointer; transition: background .15s, color .15s; }
 .ai-msg-actions button:hover { background: var(--lm-bg-secondary); color: var(--lm-primary); }
-.ai-msg-avatar.support + .ai-bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
+.ai-msg-avatar.support + .ai-msg-col .ai-bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
 .ai-typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lm-text-muted); animation: ai-blink 1.2s infinite ease-in-out; }
 .ai-typing-dot:nth-child(2) { animation-delay: .2s; }
 .ai-typing-dot:nth-child(3) { animation-delay: .4s; }
