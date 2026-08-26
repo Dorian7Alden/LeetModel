@@ -1,8 +1,63 @@
 ## AI 论文改善服务
 
-ai-suggestion-service 负责根据用户提交的论文 PDF 和已有评审结果，生成面向论文修改的具体建议。
+ai-suggestion-service 负责根据用户提交的论文 PDF 和可选的已有评审结果，生成面向论文修改的具体建议。
 
-当前没有时间实现该服务，但先明确服务边界和功能组成，为后续实现预留清晰位置。
+当前只建立服务边界和功能组成，为后续逐项设计预留清晰位置。
+
+> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+
+
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方，目标设计"]
+        apiGateway["gateway-service"]
+        evaluationService["ai-evaluation-service"]
+        adminService["admin-service"]
+    end
+
+    subgraph suggestion["ai-suggestion-service 论文改善，目标设计"]
+        taskApi["改善任务与查询 API"]
+        taskLifecycle["任务调度与状态管理"]
+        inputPreparation["题目、PDF 与评审输入准备"]
+        suggestionWorkflow["版本化建议工作流"]
+        evidence["建议依据与位置关联"]
+        result["建议校验与结果保存"]
+
+        taskApi --> taskLifecycle
+        taskLifecycle --> inputPreparation
+        inputPreparation --> suggestionWorkflow
+        suggestionWorkflow --> evidence
+        evidence --> result
+    end
+
+    subgraph dependencies["业务与模型依赖"]
+        submissionService["submission-service"]
+        problemService["problem-service"]
+        reviewService["ai-review-service"]
+        commonAi["common-ai 客户端 Jar"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    subgraph data["建议事实，目标设计"]
+        suggestionDatabase[(lm_ai_suggestion)]
+    end
+
+    apiGateway --> taskApi
+    evaluationService -->|"实验运行"| taskApi
+    adminService -->|"查询任务与结果"| taskApi
+    inputPreparation --> submissionService
+    inputPreparation --> problemService
+    inputPreparation --> reviewService
+    suggestionWorkflow --> commonAi
+    commonAi --> aiGateway
+    taskLifecycle --> suggestionDatabase
+    evidence --> suggestionDatabase
+    result --> suggestionDatabase
+```
+
+目标流程是创建改善任务后读取提交 PDF、题目和可选评审结果，由版本化建议工作流生成并定位具体改善依据，最后保存建议结果。业务编排归 ai-suggestion-service，模型访问统一经过 `common-ai` 和 ai-gateway-service。当前整张图均为目标设计，不表示已经存在运行模块。
 
 
 ### 职责边界

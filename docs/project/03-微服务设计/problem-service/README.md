@@ -6,6 +6,52 @@
 
 problem-service 负责将赛事与题目组织为可管理、可发布、可查询的公开题库。首版的题目详情只提供标题、Markdown 题面和附件信息。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+        teamService["team-service"]
+        submissionService["submission-service"]
+        reviewService["ai-review-service"]
+    end
+
+    subgraph problem["problem-service 题库管理"]
+        publicApi["公开题库 API"]
+        manageApi["题目管理 API"]
+        internalApi["题目摘要内部 API"]
+        contestProblem["赛事、题目与题面"]
+        tagPublish["标签、筛选与发布"]
+        attachment["附件管理"]
+
+        publicApi --> contestProblem
+        publicApi --> tagPublish
+        manageApi --> contestProblem
+        manageApi --> tagPublish
+        manageApi --> attachment
+        internalApi --> contestProblem
+    end
+
+    subgraph data["题目数据与文件"]
+        problemDatabase[(lm_problem)]
+        minio["MinIO 题目附件"]
+    end
+
+    apiGateway --> publicApi
+    adminService --> manageApi
+    teamService --> internalApi
+    submissionService --> internalApi
+    reviewService --> internalApi
+    contestProblem --> problemDatabase
+    tagPublish --> problemDatabase
+    attachment --> problemDatabase
+    attachment --> minio
+```
+
+公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，附件二进制归 MinIO 保存。
+
 ## 职责边界
 
 ### 负责

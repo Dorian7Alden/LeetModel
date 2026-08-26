@@ -4,6 +4,59 @@ ai-assistant-service 负责与用户进行对话，帮助用户理解平台功�
 
 当前只建立服务边界和功能目录。该服务不属于当前 AI 评审核心闭环，具体功能后续逐个设计。
 
+> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+
+
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方，目标设计"]
+        apiGateway["gateway-service"]
+        evaluationService["ai-evaluation-service"]
+        adminService["admin-service"]
+    end
+
+    subgraph assistant["ai-assistant-service 对话与推荐，目标设计"]
+        conversationApi["会话与消息 API"]
+        sessionContext["会话状态与上下文"]
+        intent["意图与选题条件理解"]
+        toolQuery["平台数据工具调用"]
+        assistantWorkflow["助手模型工作流"]
+        response["回答、推荐与解释"]
+
+        conversationApi --> sessionContext
+        sessionContext --> intent
+        intent --> toolQuery
+        intent --> assistantWorkflow
+        toolQuery --> assistantWorkflow
+        assistantWorkflow --> response
+    end
+
+    subgraph dependencies["平台与模型依赖"]
+        problemService["problem-service"]
+        userService["user-service"]
+        commonAi["common-ai 客户端 Jar"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    subgraph data["助手事实，目标设计"]
+        assistantDatabase[(lm_ai_assistant)]
+    end
+
+    apiGateway --> conversationApi
+    evaluationService -->|"质量评价"| conversationApi
+    adminService -->|"查询运行结果"| conversationApi
+    toolQuery --> problemService
+    toolQuery --> userService
+    assistantWorkflow --> commonAi
+    commonAi --> aiGateway
+    sessionContext --> assistantDatabase
+    response --> assistantDatabase
+```
+
+目标流程从用户会话开始，先维护上下文并理解问题或选题条件，再按需要查询题目与用户摘要，最终通过 AI 网关生成回答和推荐解释。题目与用户事实仍由对应领域服务拥有；当前整张图均为目标设计，不表示已经存在运行模块。
+
 
 ### 职责边界
 

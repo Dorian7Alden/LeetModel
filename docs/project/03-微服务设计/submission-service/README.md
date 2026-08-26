@@ -4,6 +4,60 @@
 
 提交服务只保证 PDF 文件完整上传、可访问和可追溯，不解析论文内容。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+    end
+
+    subgraph submission["submission-service 论文提交"]
+        submitApi["上传与提交 API"]
+        queryApi["提交查询 API"]
+        uploadTask["分片、合并与文件校验"]
+        eligibility["队伍与题目资格校验"]
+        versionRecord["提交版本与最终提交"]
+        snapshotApi["不可变 PDF 快照"]
+        reviewTrigger["AI 评审触发"]
+
+        submitApi --> uploadTask
+        uploadTask --> eligibility
+        eligibility --> versionRecord
+        versionRecord --> snapshotApi
+        versionRecord --> reviewTrigger
+        queryApi --> versionRecord
+    end
+
+    subgraph dependencies["领域校验与后续处理"]
+        teamService["team-service"]
+        problemService["problem-service"]
+        reviewService["ai-review-service"]
+        suggestionService["ai-suggestion-service，目标设计"]
+        evaluationService["ai-evaluation-service，目标设计"]
+    end
+
+    subgraph data["提交数据与文件"]
+        submissionDatabase[(lm_submission)]
+        minio["MinIO 原始 PDF"]
+    end
+
+    apiGateway --> submitApi
+    apiGateway --> queryApi
+    adminService --> queryApi
+    eligibility --> teamService
+    eligibility --> problemService
+    uploadTask --> minio
+    versionRecord --> submissionDatabase
+    reviewTrigger --> reviewService
+    snapshotApi --> reviewService
+    snapshotApi -.-> suggestionService
+    snapshotApi -.-> evaluationService
+```
+
+论文先完成分片、文件和提交资格校验，再形成可追溯的提交版本并保存原始 PDF。提交成功后触发 ai-review-service，同时向后续 AI 服务提供不可变快照。虚线表示尚未形成运行模块的改善建议和质量评价读取方向；评审执行状态仍由 ai-review-service 自己维护。
+
 ## 职责边界
 
 ### 负责

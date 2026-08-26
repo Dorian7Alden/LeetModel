@@ -2,7 +2,60 @@
 
 ai-review-service 负责将用户提交的 PDF 论文交给指定版本的 AI 评审工作流，最终产生可查询的评审分数。
 
-当前后端实现的 Maven 模块仍名为 `review-service`。本文档使用目标服务名 `ai-review-service`；模块、配置和代码包名的迁移属于后续独立改造，不在本轮文档整理范围内。
+当前后端 Maven 模块目录、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。Java 包名仍使用 `com.leetmodel.review`，包名调整不属于本次服务命名统一范围。
+
+> 分层定位：AI 业务能力层。当前职责边界是后续逐项梳理的起点；V1 已实现事实与后续目标设计必须明确区分。
+
+
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        submissionService["submission-service"]
+        evaluationService["ai-evaluation-service，目标设计"]
+        adminService["admin-service"]
+    end
+
+    subgraph review["ai-review-service 版本化评审"]
+        taskApi["评审任务与查询 API"]
+        scheduler["任务调度与状态管理"]
+        inputPreparation["提交、题目与 PDF 输入准备"]
+        pdfParser["可选 PDF 解析"]
+        workflow["版本化评审工作流，V1 当前"]
+        resultValidation["结果校验与评分保存"]
+
+        taskApi --> scheduler
+        scheduler --> inputPreparation
+        inputPreparation --> pdfParser
+        inputPreparation --> workflow
+        pdfParser --> workflow
+        workflow --> resultValidation
+    end
+
+    subgraph dependencies["业务与模型依赖"]
+        problemService["problem-service"]
+        commonAi["common-ai 客户端 Jar"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    subgraph data["评审事实"]
+        reviewDatabase[(lm_review)]
+    end
+
+    submissionService -->|"创建任务"| taskApi
+    evaluationService -.->|"实验运行"| taskApi
+    adminService -->|"查询任务与结果"| taskApi
+    inputPreparation -->|"读取提交快照"| submissionService
+    inputPreparation -->|"读取题目摘要"| problemService
+    workflow --> commonAi
+    commonAi --> aiGateway
+    scheduler --> reviewDatabase
+    pdfParser --> reviewDatabase
+    resultValidation --> reviewDatabase
+```
+
+submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。虚线表示未来由 ai-evaluation-service 发起的隔离实验运行，不能视为当前已实现功能。
 
 
 ### 职责边界

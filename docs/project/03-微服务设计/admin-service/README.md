@@ -2,6 +2,50 @@
 
 > 管理后台服务是管理端统一入口和跨服务聚合层，不拥有各业务领域的核心数据。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph entry["管理端入口"]
+        adminWeb["管理后台前端"]
+        apiGateway["gateway-service"]
+    end
+
+    subgraph admin["admin-service 聚合与编排"]
+        adminApi["管理端统一 API"]
+        aggregation["跨服务查询聚合"]
+        writeForward["管理写操作转发"]
+        aiControl["AI 测试与评价控制"]
+        resultAssembly["结果组装与局部失败标记"]
+
+        adminApi --> aggregation
+        adminApi --> writeForward
+        adminApi --> aiControl
+        aggregation --> resultAssembly
+        writeForward --> resultAssembly
+        aiControl --> resultAssembly
+    end
+
+    subgraph domains["数据所属服务"]
+        basicServices["user、team、problem、submission"]
+        reviewService["ai-review-service"]
+        evaluationService["ai-evaluation-service，目标设计"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    adminWeb --> apiGateway
+    apiGateway --> adminApi
+    aggregation --> basicServices
+    aggregation --> reviewService
+    aggregation -.-> evaluationService
+    aggregation --> aiGateway
+    writeForward --> basicServices
+    aiControl -.-> reviewService
+    aiControl -.-> evaluationService
+```
+
+管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责转发，最终规则和事务仍由领域服务执行。AI 测试与质量评价链路包含尚未实现的 ai-evaluation-service，因此在图中使用虚线表示目标协作。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
+
 ## 职责边界
 
 ### 负责

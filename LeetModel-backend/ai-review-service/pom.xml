@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>com.leetmodel</groupId><artifactId>LeetModel-backend</artifactId><version>0.0.1-SNAPSHOT</version><relativePath>../pom.xml</relativePath></parent>
-  <artifactId>review-service</artifactId>
+  <artifactId>ai-review-service</artifactId>
   <properties><pdfbox.version>3.0.3</pdfbox.version></properties>
   <dependencies>
     <dependency><groupId>com.leetmodel</groupId><artifactId>common-core</artifactId></dependency>
