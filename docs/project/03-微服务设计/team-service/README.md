@@ -2,6 +2,56 @@
 
 > 团队服务拥有队伍、队伍成员和团队角色数据。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+        submissionService["submission-service"]
+    end
+
+    subgraph team["team-service 团队协作"]
+        teamApi["队伍与招募 API"]
+        internalApi["队伍校验内部 API"]
+        discovery["队伍查询与发现"]
+        lifecycle["队伍创建与生命周期"]
+        recruitment["招募、申请与审核"]
+        membership["成员关系与职责"]
+
+        teamApi --> discovery
+        teamApi --> lifecycle
+        teamApi --> recruitment
+        lifecycle --> membership
+        recruitment --> membership
+        internalApi --> lifecycle
+        internalApi --> membership
+    end
+
+    subgraph dependencies["领域依赖"]
+        userService["user-service 用户摘要"]
+        problemService["problem-service 题目摘要"]
+    end
+
+    subgraph data["团队事实"]
+        teamDatabase[(lm_team)]
+    end
+
+    apiGateway --> teamApi
+    adminService --> teamApi
+    submissionService --> internalApi
+    discovery --> userService
+    membership --> userService
+    lifecycle --> problemService
+    discovery --> teamDatabase
+    lifecycle --> teamDatabase
+    recruitment --> teamDatabase
+    membership --> teamDatabase
+```
+
+用户通过 API 网关完成队伍创建、发现、招募和成员管理；submission-service 在论文上传前调用内部校验接口确认成员、题目和练习状态。team-service 从 user-service 和 problem-service 获取必要摘要，但队伍、成员、招募和申请事实只保存在 `lm_team`。
+
 ## 职责边界
 
 ### 负责

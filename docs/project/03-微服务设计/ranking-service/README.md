@@ -4,6 +4,55 @@ ranking-service 负责根据有效的论文评分建立和查询排行结果。
 
 当前只建立服务边界和功能目录，评审分数口径稳定后再逐个完成功能设计。
 
+> 当前服务尚无 Maven 运行模块，以下结构与职责均为目标设计。
+
+
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方，目标设计"]
+        reviewService["ai-review-service"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+    end
+
+    subgraph ranking["ranking-service 排行计算，目标设计"]
+        scoreInput["有效评分接收"]
+        scorePolicy["排行评分口径"]
+        rankCalculation["题目与赛事排名计算"]
+        rankUpdate["增量更新与重建"]
+        rankSnapshot["排名快照"]
+        queryApi["排行查询 API"]
+
+        scoreInput --> scorePolicy
+        scorePolicy --> rankCalculation
+        rankCalculation --> rankUpdate
+        rankUpdate --> rankSnapshot
+        queryApi --> rankSnapshot
+    end
+
+    subgraph dependencies["摘要依赖"]
+        problemService["problem-service"]
+        teamService["team-service"]
+    end
+
+    subgraph data["排行事实，目标设计"]
+        rankingDatabase[(lm_ranking)]
+    end
+
+    reviewService --> scoreInput
+    apiGateway --> queryApi
+    adminService --> queryApi
+    scorePolicy --> problemService
+    rankCalculation --> teamService
+    scoreInput --> rankingDatabase
+    rankUpdate --> rankingDatabase
+    rankSnapshot --> rankingDatabase
+```
+
+目标流程由 ai-review-service 提供可用于排行的有效论文评分，ranking-service 锁定评分口径后计算题目或赛事排名，并保存可追溯快照。查询只读取排行事实和必要的题目、队伍摘要，不修改原始评审分数。当前整张图均为目标设计。
+
 
 ### 职责边界
 

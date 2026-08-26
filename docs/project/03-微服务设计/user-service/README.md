@@ -2,6 +2,52 @@
 
 > 用户服务拥有用户账号、登录状态和 RBAC 权限数据。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+        teamService["team-service"]
+        otherServices["其他内部业务服务"]
+    end
+
+    subgraph user["user-service 账号与权限"]
+        publicApi["注册、登录与个人资料 API"]
+        adminApi["用户与 RBAC 管理 API"]
+        internalApi["用户摘要内部 API"]
+        authentication["认证与账号安全"]
+        profile["用户资料与头像"]
+        rbac["角色与权限关系"]
+        summary["最低必要用户摘要"]
+
+        publicApi --> authentication
+        publicApi --> profile
+        adminApi --> profile
+        adminApi --> rbac
+        internalApi --> summary
+        profile --> summary
+    end
+
+    subgraph data["用户数据与文件"]
+        userDatabase[(lm_user)]
+        minio["MinIO 头像对象"]
+    end
+
+    apiGateway --> publicApi
+    adminService --> adminApi
+    teamService --> internalApi
+    otherServices --> internalApi
+    authentication --> userDatabase
+    profile --> userDatabase
+    rbac --> userDatabase
+    summary --> userDatabase
+    profile --> minio
+```
+
+用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。
+
 ## 职责边界
 
 ### 负责

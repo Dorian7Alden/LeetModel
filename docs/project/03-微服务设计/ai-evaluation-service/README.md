@@ -7,6 +7,65 @@ ai-evaluation-service 是独立的 AI 业务质量评价微服务。它使用固
 > 分层定位：AI 质量评价层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的目标设计，不表示已经实现。
 
 
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方，目标设计"]
+        adminService["admin-service"]
+    end
+
+    subgraph evaluation["ai-evaluation-service 质量评价，目标设计"]
+        controlApi["评价任务与查询 API"]
+        sampleSet["固定样本集"]
+        evaluationTask["候选版本与重复运行编排"]
+        metricCollection["质量、稳定性与资源指标"]
+        judge["确定性规则与 AI 裁判"]
+        normalize["指标归一化与综合得分"]
+        comparison["版本对比结果"]
+
+        controlApi --> sampleSet
+        sampleSet --> evaluationTask
+        evaluationTask --> metricCollection
+        metricCollection --> judge
+        judge --> normalize
+        normalize --> comparison
+    end
+
+    subgraph business["被评价业务与样本来源"]
+        reviewService["ai-review-service"]
+        suggestionService["ai-suggestion-service，目标设计"]
+        assistantService["ai-assistant-service，目标设计"]
+        problemService["problem-service"]
+        submissionService["submission-service"]
+    end
+
+    subgraph aiSupport["模型与资源数据"]
+        commonAi["common-ai 客户端 Jar"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    subgraph data["评价事实，目标设计"]
+        evaluationDatabase[(lm_ai_evaluation)]
+    end
+
+    adminService --> controlApi
+    sampleSet --> problemService
+    sampleSet --> submissionService
+    evaluationTask --> reviewService
+    evaluationTask --> suggestionService
+    evaluationTask --> assistantService
+    metricCollection --> aiGateway
+    judge --> commonAi
+    commonAi --> aiGateway
+    sampleSet --> evaluationDatabase
+    evaluationTask --> evaluationDatabase
+    comparison --> evaluationDatabase
+```
+
+目标流程由管理员锁定测试集、候选版本和重复次数，再调用被评价业务服务产生隔离结果。评价服务收集质量、稳定性与资源指标，执行固定规则和 AI 裁判，最后形成归一化得分与版本对比。它不代替业务服务生成结果，也不直接访问模型供应商；当前整张图均为目标设计。
+
+
 ### 拆分目标
 
 - 将 AI 功能生成与 AI 质量评价分为两个清晰的职责。

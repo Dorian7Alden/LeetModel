@@ -2,6 +2,50 @@
 
 > API 网关是外部请求进入后端微服务的统一入口。
 
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph clients["外部调用方"]
+        userClient["用户端前端"]
+        adminClient["管理后台前端"]
+        apiConsumer["外部 API 调用方"]
+    end
+
+    subgraph gateway["gateway-service 请求入口治理"]
+        requestEntry["统一请求入口"]
+        corsTrace["跨域与 Trace ID"]
+        accessControl["登录态与通用访问规则"]
+        routeForward["路由与服务发现"]
+        errorResponse["异常与统一响应"]
+        apiDocs["API 文档聚合"]
+
+        requestEntry --> corsTrace
+        corsTrace --> accessControl
+        accessControl --> routeForward
+        routeForward --> errorResponse
+        apiDocs --> routeForward
+    end
+
+    subgraph support["网关运行支撑"]
+        nacos["Nacos 服务发现与路由配置"]
+        redis["Redis Token 黑名单"]
+    end
+
+    subgraph services["后端业务服务"]
+        backendServices["user、problem、team、submission、ai-review、admin"]
+    end
+
+    userClient --> requestEntry
+    adminClient --> requestEntry
+    apiConsumer --> requestEntry
+    accessControl --> redis
+    routeForward --> nacos
+    routeForward <-->|"转发请求与响应"| backendServices
+```
+
+所有外部请求先完成跨域、追踪和通用登录态处理，再根据 Nacos 中的服务实例与路由配置转发到目标业务服务。业务服务仍负责资源归属、状态和细粒度权限校验。gateway-service 不进入服务之间的内部 AI 调用链，也不承担 ai-gateway-service 的模型治理职责。
+
 ## 职责边界
 
 ### 负责
