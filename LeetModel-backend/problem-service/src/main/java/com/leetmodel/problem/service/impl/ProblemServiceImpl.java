@@ -202,11 +202,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * 题目量有限（通常 <= 10000），该编号用于用户展示，不暴露内部雪花主键。
      */
     private int nextProblemCode() {
-        Problem last = getOne(new LambdaQueryWrapper<Problem>()
-                .select(Problem::getCode)
-                .orderByDesc(Problem::getCode)
-                .last("LIMIT 1"));
-        int next = last == null || last.getCode() == null ? 1001 : last.getCode() + 1;
+        Integer maxCode = baseMapper.selectMaxCode();
+        int next = maxCode == null ? 1001 : maxCode + 1;
         BusinessException.throwIf(next > 10000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
         return next;
     }
