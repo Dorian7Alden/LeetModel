@@ -29,8 +29,11 @@
           <!-- History overlay -->
           <template v-if="view === 'history'">
             <div class="ai-history-head">
-              <span>全部会话</span>
-              <el-button size="small" plain @click="newConversation">新建会话</el-button>
+              <div>
+                <div class="ai-history-title">全部会话</div>
+                <div class="ai-history-count" v-if="conversations.length">共 {{ conversations.length }} 个</div>
+              </div>
+              <el-button size="small" type="primary" plain @click="newConversation">新建会话</el-button>
             </div>
             <div class="ai-history" v-loading="loadingConvs">
               <button
@@ -41,16 +44,20 @@
                 :class="{ active: String(conv.id) === String(currentId) }"
                 @click="selectConversation(conv.id)"
               >
-                <div class="ai-history-icon"><el-icon :size="15"><ChatDotRound /></el-icon></div>
+                <div class="ai-history-avatar"><el-icon :size="16"><ChatDotRound /></el-icon></div>
                 <div class="ai-history-text">
                   <span class="ai-history-name">{{ conv.title || '未命名对话' }}</span>
-                  <span class="ai-history-time">{{ shortTime(conv.updateTime) }}<template v-if="conv.messageCount"> · {{ conv.messageCount }} 条</template></span>
+                  <span class="ai-history-meta">
+                    {{ shortTime(conv.updateTime) }}
+                    <template v-if="conv.messageCount"> · {{ conv.messageCount }} 条消息</template>
+                  </span>
                 </div>
-                <span class="ai-history-arrow"><el-icon :size="14"><ArrowRight /></el-icon></span>
+                <span class="ai-history-arrow"><el-icon :size="15"><ArrowRight /></el-icon></span>
               </button>
               <div v-if="!loadingConvs && conversations.length === 0" class="ai-history-empty">
-                <el-icon :size="22"><Message /></el-icon>
+                <div class="ai-empty-icon"><el-icon :size="22"><Message /></el-icon></div>
                 <p>还没有历史会话</p>
+                <el-button size="small" type="primary" plain @click="newConversation">开启第一个会话</el-button>
               </div>
             </div>
           </template>
@@ -59,20 +66,26 @@
           <template v-else>
             <div ref="messagesRef" class="ai-messages">
               <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
+                <div v-if="msg.role === 'assistant'" class="ai-msg-avatar support">
+                  <el-icon :size="15"><ChatDotRound /></el-icon>
+                </div>
                 <div class="ai-bubble">
-                  <p class="ai-content">{{ msg.content || '（无内容）' }}</p>
+                  <div v-if="msg.role === 'assistant'" class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                  <p v-else class="ai-content">{{ msg.content || '（无内容）' }}</p>
                   <div class="ai-meta">
                     <el-tag v-if="msg.status === 'FAILED'" type="danger" size="small" effect="light">{{ msg.errorMessage || '回复失败' }}</el-tag>
                     <el-button v-if="msg.role === 'assistant' && msg.status === 'FAILED'" link type="primary" size="small" @click="retry(msg.id)">重新回答</el-button>
                     <span v-else class="ai-msg-time">{{ shortTime(msg.createTime) }}</span>
                   </div>
                 </div>
+                <div v-if="msg.role === 'user'" class="ai-msg-avatar user">
+                  <span>{{ userInitial }}</span>
+                </div>
               </div>
 
               <div v-if="sending" class="ai-msg assistant">
-                <div class="ai-bubble typing">
-                  <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
-                </div>
+                <div class="ai-msg-avatar support"><el-icon :size="15"><ChatDotRound /></el-icon></div>
+                <div class="ai-bubble typing"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>
               </div>
 
               <div v-if="messages.length === 0 && !sending" class="ai-empty">
@@ -123,6 +136,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { ArrowLeft, ArrowRight, ChatDotRound, Clock, Message, Promotion } from "@element-plus/icons-vue";
 import { useUserStore } from "@/store/user";
+import { renderSafeMarkdown } from "@/utils/markdown";
 import { listConversations, createConversation, getConversation, sendMessage, retryMessage } from "@/api/assistant";
 
 const userStore = useUserStore();
@@ -147,15 +161,15 @@ const quickQuestions = [
   "平台有哪些功能？",
 ];
 
+const md = (value) => renderSafeMarkdown(value);
+
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function shortTime(value) {
-  if (!value) return "";
-  const s = String(value).replace("T", " ").slice(5, 16);
-  return s;
+  return value ? String(value).replace("T", " ").slice(5, 16) : "";
 }
 
 function scrollToBottom() {
@@ -179,11 +193,8 @@ async function open() {
   opened.value = true;
   view.value = "chat";
   await loadConversations();
-  if (conversations.value.length) {
-    await selectConversation(conversations.value[0].id);
-  } else {
-    await newConversation();
-  }
+  if (conversations.value.length) await selectConversation(conversations.value[0].id);
+  else await newConversation();
 }
 
 function toggleOpen() {
@@ -259,14 +270,30 @@ onBeforeUnmount(() => {
 });
 </script>
 
+<style>
+/* GitHub Markdown 样式只在客服气泡内生效 */
+.ai-bubble .markdown-body,
+.ai-bubble .markdown-body *{box-sizing:border-box;}
+.ai-bubble .markdown-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",Arial,sans-serif;font-size:13px;line-height:1.65;color:inherit;word-break:break-word;padding:0;background:transparent;margin:0;}
+.ai-bubble .markdown-body :is(p,ul,ol,pre,blockquote,table){margin:0 0 6px;}
+.ai-bubble .markdown-body :is(ul,ol){padding-left:18px;}
+.ai-bubble .markdown-body :is(li)>p{margin:0;}
+.ai-bubble .markdown-body :is(h1,h2,h3,h4,h5,h6){margin:8px 0 4px;font-size:1em;font-weight:700;line-height:1.4;}
+.ai-bubble .markdown-body strong{font-weight:800;}
+.ai-bubble .markdown-body code{font-size:12px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.06);}
+.ai-bubble .markdown-body pre{overflow:auto;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.06);}
+.ai-bubble .markdown-body pre code{background:transparent;padding:0;}
+.ai-bubble .markdown-body a{color:var(--lm-primary);}
+.ai-bubble .markdown-body blockquote{padding-left:10px;border-left:3px solid var(--lm-border);color:var(--lm-text-muted);}
+.ai-bubble .markdown-body table{border-collapse:collapse;font-size:12px;}
+.ai-bubble .markdown-body th,.ai-bubble .markdown-body td{padding:4px 8px;border:1px solid var(--lm-border);}
+</style>
+
 <style scoped>
 .ai-widget { position: fixed; right: 22px; bottom: 22px; z-index: 4000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-
 .ai-bubble-btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 18px; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.34); transition: transform .2s, box-shadow .2s; }
 .ai-bubble-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(37, 99, 235, 0.42); }
-
-.ai-panel { display: flex; width: 380px; max-width: calc(100vw - 24px); height: 520px; max-height: calc(100vh - 130px); flex-direction: column; overflow: hidden; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 16px; box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16); }
-
+.ai-panel { display: flex; width: 390px; max-width: calc(100vw - 24px); height: 540px; max-height: calc(100vh - 130px); flex-direction: column; overflow: hidden; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 16px; box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16); }
 .ai-header { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--lm-border-light); }
 .ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
 .ai-title-wrap { min-width: 0; flex: 1; }
@@ -281,50 +308,56 @@ onBeforeUnmount(() => {
 .ai-close { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--lm-text-muted); font-size: 20px; line-height: 1; cursor: pointer; }
 .ai-close:hover { background: var(--lm-danger-bg); color: var(--lm-danger); }
 
-.ai-history-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; }
-.ai-history-head span { color: var(--lm-text-secondary); font-size: 13px; font-weight: 600; }
-.ai-history { overflow: auto; flex: 1; padding: 2px 8px 10px; }
-.ai-history-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px; text-align: left; border: 1px solid transparent; border-radius: 10px; background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
+/* History */
+.ai-history-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
+.ai-history-title { color: var(--lm-text-primary); font-size: 14px; font-weight: 600; }
+.ai-history-count { margin-top: 2px; color: var(--lm-text-muted); font-size: 11px; }
+.ai-history { overflow: auto; flex: 1; padding: 4px 8px 12px; }
+.ai-history-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px 10px; margin-bottom: 4px; text-align: left; border: 1px solid transparent; border-radius: 12px; background: transparent; cursor: pointer; transition: background .15s, border-color .15s, transform .15s; }
 .ai-history-item:hover { background: var(--lm-bg-secondary); }
-.ai-history-item.active { border-color: var(--lm-border); background: var(--lm-primary-bg); }
-.ai-history-icon { display: flex; width: 30px; height: 30px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
-.ai-history-item.active .ai-history-icon { background: var(--lm-primary-bg); color: var(--lm-primary); }
-.ai-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.ai-history-item.active { border-color: var(--lm-primary); background: var(--lm-primary-bg); }
+.ai-history-avatar { display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
+.ai-history-item.active .ai-history-avatar { background: var(--lm-surface); color: var(--lm-primary); box-shadow: var(--lm-shadow-xs); }
+.ai-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .ai-history-name { overflow: hidden; color: var(--lm-text-primary); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.ai-history-time { color: var(--lm-text-muted); font-size: 11px; }
+.ai-history-item.active .ai-history-name { color: var(--lm-primary); }
+.ai-history-meta { color: var(--lm-text-muted); font-size: 11px; }
 .ai-history-arrow { color: var(--lm-text-muted); }
-.ai-history-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 0; color: var(--lm-text-muted); font-size: 13px; }
+.ai-history-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 44px 0; color: var(--lm-text-muted); font-size: 13px; }
 .ai-history-empty p { margin: 0; }
 
-.ai-messages { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 10px; overflow: auto; flex: 1; background: var(--lm-bg); }
-.ai-msg { display: flex; }
+/* Chat window */
+.ai-messages { display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 10px; overflow: auto; flex: 1; background: var(--lm-bg); }
+.ai-msg { display: flex; align-items: flex-start; gap: 8px; }
 .ai-msg.assistant { justify-content: flex-start; }
 .ai-msg.user { justify-content: flex-end; }
-.ai-bubble { max-width: 82%; padding: 8px 11px; border-radius: 12px; font-size: 13px; }
-.ai-msg.assistant .ai-bubble { border-bottom-left-radius: 4px; background: var(--lm-surface); border: 1px solid var(--lm-border); color: var(--lm-text-primary); }
-.ai-msg.user .ai-bubble { border-bottom-right-radius: 4px; background: var(--lm-primary); color: #fff; }
+.ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
+.ai-msg-avatar.support { background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
+.ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
+.ai-bubble { max-width: 78%; padding: 8px 11px; border-radius: 12px; font-size: 13px; }
+.ai-msg.assistant .ai-bubble { border-top-left-radius: 4px; background: var(--lm-surface); border: 1px solid var(--lm-border); color: var(--lm-text-primary); }
+.ai-msg.user .ai-bubble { border-top-right-radius: 4px; background: var(--lm-primary); color: #fff; }
 .ai-content { margin: 0; white-space: pre-wrap; line-height: 1.6; }
-.ai-meta { display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.ai-meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .ai-msg.user .ai-meta { color: rgba(255,255,255,0.8); }
 .ai-msg.assistant .ai-meta { color: var(--lm-text-muted); }
 .ai-msg-time { font-size: 10px; }
-
-.ai-bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
+/* Typing */
+.ai-msg-avatar.support + .ai-bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
 .ai-typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lm-text-muted); animation: ai-blink 1.2s infinite ease-in-out; }
 .ai-typing-dot:nth-child(2) { animation-delay: .2s; }
 .ai-typing-dot:nth-child(3) { animation-delay: .4s; }
 @keyframes ai-blink { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
-
 .ai-empty { margin: auto; padding: 16px; text-align: center; color: var(--lm-text-muted); font-size: 13px; line-height: 1.7; }
 .ai-empty-icon { display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center; margin-bottom: 8px; border-radius: 14px; background: var(--lm-primary-bg); color: var(--lm-primary); }
 .ai-empty p { margin: 0; }
 
+/* Quick + input */
 .ai-quick { display: flex; gap: 6px; padding: 8px 12px 2px; overflow-x: auto; scrollbar-width: none; }
 .ai-quick::-webkit-scrollbar { display: none; }
 .ai-quick-chip { flex: 0 0 auto; padding: 5px 10px; border: 1px solid var(--lm-border); border-radius: 999px; background: var(--lm-surface); color: var(--lm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: border-color .16s, color .16s; }
 .ai-quick-chip:hover { color: var(--lm-primary); border-color: var(--lm-primary); }
 .ai-quick-chip:disabled { opacity: .5; cursor: not-allowed; }
-
 .ai-input { display: flex; align-items: flex-end; gap: 8px; padding: 9px 12px 12px; }
 .ai-input :deep(.el-textarea__inner) { padding: 8px 11px; border: 1px solid var(--lm-border); border-radius: 12px; background: var(--lm-bg-secondary); box-shadow: none; font-size: 13px; }
 .ai-input :deep(.el-textarea__inner:focus) { border-color: var(--lm-primary); background: var(--lm-surface); }
@@ -336,9 +369,5 @@ onBeforeUnmount(() => {
 .slide-up-enter-from, .slide-up-leave-to { transform: translateY(12px); opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-
-@media (max-width: 520px) {
-  .ai-widget { right: 12px; bottom: 12px; gap: 10px; }
-  .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; }
-}
+@media (max-width: 520px) { .ai-widget { right: 12px; bottom: 12px; gap: 10px; } .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; } }
 </style>
