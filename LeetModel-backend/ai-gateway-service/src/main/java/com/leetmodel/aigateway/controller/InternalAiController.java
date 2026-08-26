@@ -6,7 +6,11 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiModelInfo;
 import com.leetmodel.common.ai.model.AiProvider;
+import com.leetmodel.common.api.dto.AiCallLogDTO;
+import com.leetmodel.common.api.dto.AiCallQueryDTO;
+import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.aigateway.service.AiCallAuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,6 +35,7 @@ public class InternalAiController {
 
     private final AiChatService aiChatService;
     private final AiModelService aiModelService;
+    private final AiCallAuditService aiCallAuditService;
 
     /**
      * 发起同步 AI 对话。
@@ -54,5 +59,17 @@ public class InternalAiController {
     @GetMapping("/models/{provider}")
     public Result<List<AiModelInfo>> listModels(@PathVariable AiProvider provider) {
         return Result.ok(aiModelService.listModels(provider));
+    }
+
+    @Operation(summary = "查询最近 AI 调用审计")
+    @GetMapping("/calls")
+    public Result<List<AiCallLogDTO>> listCalls(@Valid AiCallQueryDTO query) {
+        return Result.ok(aiCallAuditService.list(query));
+    }
+
+    @Operation(summary = "查询 AI 调用运行摘要")
+    @GetMapping("/calls/stats")
+    public Result<AiCallStatsDTO> callStats() {
+        return Result.ok(aiCallAuditService.stats());
     }
 }
