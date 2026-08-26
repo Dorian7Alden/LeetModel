@@ -72,7 +72,7 @@ class AiCallAuditServiceTest {
 
         ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
         verify(mapper, org.mockito.Mockito.times(2)).insert(captor.capture());
-        assertThat(captor.getAllValues().get(0).getErrorCode()).isEqualTo(51102);
+        assertThat(captor.getAllValues().get(0).getErrorCode()).isEqualTo(51202);
         assertThat(captor.getAllValues().get(0).getErrorMessage()).isEqualTo("AI 供应商暂不可用");
         assertThat(captor.getAllValues().get(1).getErrorCode()).isEqualTo(50001);
         assertThat(captor.getAllValues().get(1).getErrorMessage()).isEqualTo("AI 服务调用失败");

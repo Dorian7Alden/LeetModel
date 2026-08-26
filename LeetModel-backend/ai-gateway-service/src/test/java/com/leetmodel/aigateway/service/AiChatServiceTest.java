@@ -70,7 +70,7 @@ class AiChatServiceTest {
 
         assertThatThrownBy(() -> service().chat(request))
                 .isInstanceOf(BusinessException.class)
-                .extracting("code").isEqualTo(41101);
+                .extracting("code").isEqualTo(41201);
         verify(auditService).recordFailure(any(), eq(request), eq(null), eq(null),
                 any(BusinessException.class), anyLong());
     }
