@@ -170,6 +170,17 @@ public class ReviewService {
         return taskMapper.selectCount(null);
     }
 
+    /** 管理聚合使用的最近评审任务，包含等待、运行和失败状态。 */
+    public List<ReviewSummaryDTO> listRecentSummaries(int limit) {
+        return taskMapper.selectList(new LambdaQueryWrapper<ReviewTask>()
+                        .orderByDesc(ReviewTask::getCreateTime).last("LIMIT " + limit))
+                .stream().map(task -> {
+                    ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                            .eq(ReviewV1Result::getTaskId, task.getId()));
+                    return toSummary(task, result);
+                }).toList();
+    }
+
     /**
      * 查询当前登记的评审版本，供管理端展示和评价任务校验。
      */

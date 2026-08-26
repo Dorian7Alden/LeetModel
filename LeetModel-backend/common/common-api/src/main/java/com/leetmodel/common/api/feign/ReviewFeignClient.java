@@ -28,6 +28,9 @@ public interface ReviewFeignClient {
     @GetMapping("/internal/reviews/count")
     Result<Long> getReviewCount();
 
+    @GetMapping("/internal/reviews/recent")
+    Result<List<ReviewSummaryDTO>> listRecent(@RequestParam("limit") Integer limit);
+
     @PostMapping("/internal/reviews/experiments")
     Result<ReviewExperimentResultDTO> runExperiment(
             @RequestBody ReviewExperimentRequestDTO request);

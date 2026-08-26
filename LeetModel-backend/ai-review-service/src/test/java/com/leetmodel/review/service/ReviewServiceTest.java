@@ -209,6 +209,22 @@ class ReviewServiceTest {
     }
 
     @Test
+    void listRecentSummariesKeepsWaitingAndFailedTasks() {
+        ReviewTask waiting = task(28L, "WAITING");
+        ReviewTask failed = task(29L, "FAILED");
+        failed.setErrorMessage("AI 供应商暂不可用");
+        when(taskMapper.selectList(any())).thenReturn(java.util.List.of(waiting, failed));
+        when(resultMapper.selectOne(any())).thenReturn(null);
+
+        var summaries = service.listRecentSummaries(20);
+
+        assertEquals(2, summaries.size());
+        assertEquals("WAITING", summaries.get(0).getStatus());
+        assertNull(summaries.get(0).getScore());
+        assertEquals("AI 供应商暂不可用", summaries.get(1).getErrorMessage());
+    }
+
+    @Test
     void runExperimentUsesTransientTaskWithoutCreatingFormalReview() throws Exception {
         when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
         when(workflow.versionCode()).thenReturn(ReviewService.WORKFLOW_VERSION);

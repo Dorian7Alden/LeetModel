@@ -127,6 +127,22 @@ class SubmissionServiceTest {
         assertTrue(result.get(0).getFinalVersion());
     }
 
+    @Test
+    void listRecentSnapshotsMarksOnlyLockedSubmissionAsFinal() {
+        SubmissionLock lock = new SubmissionLock();
+        lock.setSubmissionId(102L);
+        when(lockMapper.selectList(null)).thenReturn(List.of(lock));
+        when(submissionMapper.selectList(any())).thenReturn(List.of(
+                submission(102L, 2), submission(101L, 1)));
+
+        List<SubmissionSnapshotDTO> result = service.listRecentSnapshots(20);
+
+        assertEquals(2, result.size());
+        assertTrue(result.get(0).getFinalVersion());
+        assertFalse(result.get(1).getFinalVersion());
+        verify(submissionMapper).selectList(any());
+    }
+
     private TeamDTO team() {
         return new TeamDTO(1L, "team", 10L, 1, 1, 100L, "IN_PROGRESS",
                 LocalDateTime.now().minusMinutes(1), LocalDateTime.now().plusHours(1), null);

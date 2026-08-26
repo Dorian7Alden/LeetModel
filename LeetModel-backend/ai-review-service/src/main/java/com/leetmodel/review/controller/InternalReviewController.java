@@ -9,6 +9,9 @@ import com.leetmodel.review.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.util.List;
 
 @RestController
+@Validated
 @RequestMapping("/internal/reviews")
 @RequiredArgsConstructor
 public class InternalReviewController {
@@ -50,6 +54,15 @@ public class InternalReviewController {
     @GetMapping("/count")
     public Result<Long> count() {
         return Result.ok(reviewService.count());
+    }
+
+    @Operation(summary = "查询最近评审任务")
+    @GetMapping("/recent")
+    public Result<List<ReviewSummaryDTO>> listRecent(
+            @RequestParam(defaultValue = "20")
+            @Min(value = 1, message = "查询数量不能小于1")
+            @Max(value = 100, message = "查询数量不能超过100") Integer limit) {
+        return Result.ok(reviewService.listRecentSummaries(limit));
     }
 
     @Operation(summary = "执行隔离评审实验")

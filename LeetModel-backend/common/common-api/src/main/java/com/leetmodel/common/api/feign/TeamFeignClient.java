@@ -7,6 +7,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -43,6 +44,9 @@ public interface TeamFeignClient {
 
     @GetMapping("/internal/teams/count")
     Result<Long> getActiveTeamCount();
+
+    @GetMapping("/internal/teams/recent")
+    Result<List<TeamDTO>> listRecent(@RequestParam("limit") Integer limit);
 
     @GetMapping("/internal/teams/practice/expired")
     Result<List<TeamDTO>> listExpiredPractices();

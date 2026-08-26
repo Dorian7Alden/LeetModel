@@ -152,6 +152,19 @@ public class SubmissionService {
         return submissionMapper.selectCount(null);
     }
 
+    /** 管理聚合使用的最近提交快照，不暴露下载地址。 */
+    public List<SubmissionSnapshotDTO> listRecentSnapshots(int limit) {
+        Set<Long> finalIds = lockMapper.selectList(null).stream()
+                .map(SubmissionLock::getSubmissionId).collect(java.util.stream.Collectors.toSet());
+        return submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
+                        .orderByDesc(Submission::getCreateTime).last("LIMIT " + limit))
+                .stream().map(value -> {
+                    SubmissionSnapshotDTO snapshot = toSnapshot(value);
+                    snapshot.setFinalVersion(finalIds.contains(value.getId()));
+                    return snapshot;
+                }).toList();
+    }
+
     private TeamDTO requiredMemberTeam(Long teamId, Long userId) {
         Result<TeamDTO> teamResult = teamFeignClient.getTeamInfo(teamId);
         Result<List<Long>> membersResult = teamFeignClient.getMemberIds(teamId);

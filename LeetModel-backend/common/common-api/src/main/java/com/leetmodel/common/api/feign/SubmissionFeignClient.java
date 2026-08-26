@@ -22,4 +22,7 @@ public interface SubmissionFeignClient {
 
     @GetMapping("/internal/submissions/count")
     Result<Long> getSubmissionCount();
+
+    @GetMapping("/internal/submissions/recent")
+    Result<List<SubmissionSnapshotDTO>> listRecent(@RequestParam("limit") Integer limit);
 }
