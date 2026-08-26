@@ -3,6 +3,7 @@ package com.leetmodel.review.controller;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
+import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,5 +58,11 @@ public class InternalReviewController {
             @Valid @RequestBody ReviewExperimentRequestDTO request) {
         return Result.ok(reviewService.runExperiment(
                 request.getSubmissionId(), request.getWorkflowVersion()));
+    }
+
+    @Operation(summary = "查询评审版本")
+    @GetMapping("/versions")
+    public Result<List<ReviewVersionDTO>> listVersions() {
+        return Result.ok(reviewService.listVersions());
     }
 }

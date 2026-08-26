@@ -8,6 +8,7 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
 import com.leetmodel.review.entity.ReviewV1Result;
+import com.leetmodel.review.entity.ReviewVersion;
 import com.leetmodel.review.enums.ReviewErrorCode;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.mapper.ReviewV1ResultMapper;
@@ -260,6 +261,24 @@ class ReviewServiceTest {
 
         assertEquals("OUTPUT", output.getFailureType());
         assertEquals("评审版本未产生符合契约的结果", output.getErrorMessage());
+    }
+
+    @Test
+    void listVersionsReturnsStableVersionFacts() {
+        ReviewVersion version = new ReviewVersion();
+        version.setId(1L);
+        version.setVersionCode("BASIC_REVIEW_V1");
+        version.setName("V1 基础 AI 评审");
+        version.setDescription("一次多模态调用");
+        version.setProcessSummary("PDF 按页渲染后评审");
+        version.setStatus("ENABLED");
+        when(versionMapper.selectList(any())).thenReturn(java.util.List.of(version));
+
+        var versions = service.listVersions();
+
+        assertEquals(1, versions.size());
+        assertEquals("BASIC_REVIEW_V1", versions.get(0).getVersionCode());
+        assertEquals("ENABLED", versions.get(0).getStatus());
     }
 
     private ReviewTask task(Long id, String status) {

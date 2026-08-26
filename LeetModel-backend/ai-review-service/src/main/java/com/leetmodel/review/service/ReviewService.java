@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
+import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -167,6 +168,18 @@ public class ReviewService {
      */
     public long count() {
         return taskMapper.selectCount(null);
+    }
+
+    /**
+     * 查询当前登记的评审版本，供管理端展示和评价任务校验。
+     */
+    public List<ReviewVersionDTO> listVersions() {
+        return versionMapper.selectList(new LambdaQueryWrapper<ReviewVersion>()
+                        .orderByAsc(ReviewVersion::getId))
+                .stream().map(version -> new ReviewVersionDTO(
+                        version.getId(), version.getVersionCode(), version.getName(),
+                        version.getDescription(), version.getProcessSummary(), version.getStatus()))
+                .toList();
     }
 
     /**
