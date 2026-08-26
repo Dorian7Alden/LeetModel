@@ -13,7 +13,10 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
         "com.leetmodel.admin",
         "com.leetmodel.common"
 })
-@EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
+@EnableFeignClients(basePackages = {
+        "com.leetmodel.common.api.feign",
+        "com.leetmodel.admin.client"
+})
 public class AdminApplication {
 
     public static void main(String[] args) {
