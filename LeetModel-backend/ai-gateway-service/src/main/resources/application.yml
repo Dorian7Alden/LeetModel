@@ -29,5 +29,36 @@ ai:
         provider: DEEPSEEK
         model: deepseek-v4-pro
       MULTIMODAL:
-        provider: KIMI
-        model: kimi-k2.6
+        provider: DEEPSEEK
+        model: deepseek-v4-flash-vision-exp
+    models:
+      "[DEEPSEEK/deepseek-v4-pro]":
+        display-name: DeepSeek V4 Pro
+        enabled: true
+        protocol: OPENAI_COMPLETIONS
+        input-types: [TEXT]
+        json-output: true
+        thinking: true
+        tools: true
+        context-tokens: 1000000
+        max-output-tokens: 384000
+      "[DEEPSEEK/deepseek-v4-flash-vision-exp]":
+        display-name: DeepSeek V4 Flash Vision Experimental
+        enabled: true
+        protocol: OPENAI_COMPLETIONS
+        input-types: [TEXT, IMAGE_URL]
+        json-output: true
+        thinking: true
+        tools: false
+        context-tokens: 1000000
+        max-output-tokens: 384000
+        max-images: 600
+        max-total-image-bytes: 209715200
+      "[KIMI/kimi-k2.6]":
+        display-name: Kimi K2.6
+        enabled: true
+        protocol: OPENAI_COMPLETIONS
+        input-types: [TEXT, IMAGE_URL]
+        json-output: true
+        thinking: true
+        tools: true
