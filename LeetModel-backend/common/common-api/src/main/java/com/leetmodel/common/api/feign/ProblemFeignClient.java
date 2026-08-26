@@ -2,6 +2,7 @@ package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
+import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,9 @@ public interface ProblemFeignClient {
 
     @GetMapping("/internal/problems/{problemId}/practice")
     Result<ProblemPracticeDTO> getPracticeProblem(@PathVariable Long problemId);
+
+    @GetMapping("/internal/problems/{problemId}/context")
+    Result<ProblemContextDTO> getProblemContext(@PathVariable Long problemId);
 
     @GetMapping("/internal/problems/practice-summaries")
     Result<List<ProblemPracticeDTO>> getPracticeProblems(@RequestParam("problemIds") List<Long> problemIds);

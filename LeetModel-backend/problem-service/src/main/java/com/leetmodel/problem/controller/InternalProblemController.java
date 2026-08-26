@@ -3,6 +3,7 @@ package com.leetmodel.problem.controller;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
+import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.problem.vo.ProblemVO;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.service.ProblemService;
@@ -41,6 +42,15 @@ public class InternalProblemController {
     public Result<ProblemPracticeDTO> getPracticeProblem(@PathVariable Long problemId) {
         ProblemVO problem = problemService.getPublishedProblemDetail(problemId);
         return Result.ok(new ProblemPracticeDTO(problem.getId(), problem.getTitle(),
+                problem.getDurationMinutes(), problem.getStatus()));
+    }
+
+    @Operation(summary = "获取 AI 业务题目上下文")
+    @GetMapping("/{problemId}/context")
+    public Result<ProblemContextDTO> getProblemContext(@PathVariable Long problemId) {
+        ProblemVO problem = problemService.getPublishedProblemDetail(problemId);
+        return Result.ok(new ProblemContextDTO(
+                problem.getId(), problem.getTitle(), problem.getContentMarkdown(),
                 problem.getDurationMinutes(), problem.getStatus()));
     }
 
