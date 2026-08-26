@@ -74,26 +74,14 @@
                   </div>
                 </div>
 
-                <div class="menu-group">
-                  <router-link to="/ranking" class="menu-link">
-                    <el-dropdown-item class="menu-item">
-                      <el-icon class="menu-icon"><Trophy /></el-icon>
-                      排行榜
-                    </el-dropdown-item>
-                  </router-link>
-                  <router-link to="/suggestion" class="menu-link">
-                    <el-dropdown-item class="menu-item">
-                      <el-icon class="menu-icon"><ChatLineSquare /></el-icon>
-                      论文建议
-                    </el-dropdown-item>
-                  </router-link>
-                  <router-link to="/assistant" class="menu-link">
-                    <el-dropdown-item class="menu-item">
-                      <el-icon class="menu-icon"><Service /></el-icon>
-                      AI 客服
-                    </el-dropdown-item>
-                  </router-link>
-                </div>
+            <div class="menu-group">
+              <router-link to="/ranking" class="menu-link">
+                <el-dropdown-item class="menu-item">
+                  <el-icon class="menu-icon"><Trophy /></el-icon>
+                  排行榜
+                </el-dropdown-item>
+              </router-link>
+            </div>
 
                 <div class="divider"></div>
 
@@ -167,8 +155,6 @@ import { useAuth } from '@/composables/useAuth'
 import { getCurrentAuthorization } from '@/api/user'
 import {
   Trophy,
-  ChatLineSquare,
-  Service,
   UserFilled,
   Setting,
   SwitchButton,
@@ -191,8 +177,6 @@ const navItems = [
   { label: '我的队伍', path: '/team' },
   { label: '队伍广场', path: '/team/square' },
   { label: '排行榜', path: '/ranking' },
-  { label: '论文建议', path: '/suggestion' },
-  { label: 'AI 客服', path: '/assistant' },
 ]
 
 function isActive(path) {

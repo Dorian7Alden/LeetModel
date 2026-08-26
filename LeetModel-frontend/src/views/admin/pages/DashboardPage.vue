@@ -35,6 +35,30 @@
       </div>
     </div>
 
+    <section class="charts-section">
+      <div class="chart-row">
+        <el-card shadow="never" class="chart-card">
+          <template #header>
+            <div class="chart-head">
+              <h3 class="chart-title">各领域业务量</h3>
+              <span class="chart-sub">来自各服务的真实统计</span>
+            </div>
+          </template>
+          <div ref="metricChartRef" class="chart-container"></div>
+        </el-card>
+
+        <el-card shadow="never" class="chart-card">
+          <template #header>
+            <div class="chart-head">
+              <h3 class="chart-title">AI 调用状态</h3>
+              <span class="chart-sub">最近一次统计结果</span>
+            </div>
+          </template>
+          <div ref="aiChartRef" class="chart-container"></div>
+        </el-card>
+      </div>
+    </section>
+
     <section class="quick-section">
       <h3 class="section-title">管理入口</h3>
       <div class="quick-grid">
@@ -55,14 +79,22 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
+import * as echarts from "echarts";
 import { getDashboard } from "@/api/dashboard";
+import { getAdminAiCallStats } from "@/api/admin-ai";
 
 const loading = ref(false);
 const metrics = ref({});
 const partialFailure = ref(false);
 const generatedAt = ref("");
+const aiStats = ref(null);
+
+const metricChartRef = ref(null);
+const aiChartRef = ref(null);
+let metricChart = null;
+let aiChart = null;
 
 const cardConfigs = [
   { key: "users", title: "用户", icon: "User", color: "#2563eb", bgColor: "#eff6ff" },
@@ -121,7 +153,84 @@ async function fetchDashboard() {
   }
 }
 
-onMounted(fetchDashboard);
+async function loadAiStats() {
+  try {
+    aiStats.value = (await getAdminAiCallStats()).data;
+  } catch {
+    aiStats.value = null;
+  }
+}
+
+function renderCharts() {
+  nextTick(() => {
+    // 各领域业务量柱状图
+    if (metricChartRef.value) {
+      metricChart = metricChart ? metricChart : echarts.init(metricChartRef.value);
+      const data = cardConfigs
+        .map((config) => {
+          const metric = metrics.value[config.key];
+          const available = metric && metric.available !== false;
+          return { name: config.title, value: available ? (metric.value ?? 0) : 0, color: config.color, show: available };
+        })
+        .filter((item) => item.show);
+      metricChart.setOption({
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        grid: { left: "3%", right: "4%", bottom: "3%", top: "12%", containLabel: true },
+        xAxis: { type: "category", data: data.map((d) => d.name), axisLabel: { color: "#64748b", fontSize: 11 } },
+        yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#f1f5f9" } } },
+        series: [{
+          type: "bar",
+          data: data.map((d) => ({ value: d.value, itemStyle: { color: d.color, borderRadius: [4, 4, 0, 0] } })),
+          barWidth: "52%",
+        }],
+      }, true);
+    }
+
+    // AI 调用状态环形图
+    if (aiChartRef.value) {
+      aiChart = aiChart ? aiChart : echarts.init(aiChartRef.value);
+      const stats = aiStats.value;
+      const success = stats?.successCount ?? 0;
+      const failed = stats?.failureCount ?? 0;
+      aiChart.setOption({
+        tooltip: { trigger: "item" },
+        legend: { bottom: 4, textStyle: { color: "#64748b" } },
+        series: [{
+          type: "pie",
+          radius: ["52%", "74%"],
+          center: ["50%", "44%"],
+          avoidLabelOverlap: false,
+          label: { show: false },
+          emphasis: { label: { show: true, fontSize: 16, fontWeight: "bold" } },
+          data: [
+            { name: "成功", value: success, itemStyle: { color: "#16a34a" } },
+            { name: "失败", value: failed, itemStyle: { color: "#dc2626" } },
+          ],
+        }],
+      }, true);
+    }
+  });
+}
+
+function handleResize() {
+  metricChart?.resize();
+  aiChart?.resize();
+}
+
+onMounted(async () => {
+  await fetchDashboard();
+  await loadAiStats();
+  renderCharts();
+  window.addEventListener("resize", handleResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", handleResize);
+  metricChart?.dispose();
+  aiChart?.dispose();
+  metricChart = null;
+  aiChart = null;
+});
 </script>
 
 <style scoped>
@@ -138,6 +247,13 @@ onMounted(fetchDashboard);
 .metric-title { font-size: 12px; color: var(--lm-text-muted); }
 .metric-value { font-size: 24px; line-height: 1.2; color: var(--lm-text-primary); }
 .metric-message { font-size: 11px; color: var(--lm-warning); }
+.charts-section { margin-top: 28px; }
+.chart-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.chart-card :deep(.el-card__header) { padding: 14px 18px; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.chart-title { margin: 0; font-size: 16px; color: var(--lm-text-primary); }
+.chart-sub { color: var(--lm-text-muted); font-size: 12px; }
+.chart-container { width: 100%; height: 260px; }
 .quick-section { margin-top: 32px; }
 .section-title { margin: 0 0 14px; font-size: 16px; color: var(--lm-text-primary); }
 .quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
@@ -146,5 +262,6 @@ onMounted(fetchDashboard);
 .note-section { margin-top: 32px; }
 .note-section p { margin: 0; color: var(--lm-text-secondary); font-size: 13px; line-height: 1.7; }
 @media (max-width: 1200px) { .metric-grid, .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1200px) { .chart-row { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .metric-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-page { padding: 16px; } }
 </style>

@@ -138,8 +138,6 @@ const quickLinks = computed(() => {
     { path: "/team/square", title: "队伍广场", icon: "Team", color: "#0891b2", bgColor: "#ecfeff" },
     { path: "/team", title: "我的队伍", icon: "User", color: "#16a34a", bgColor: "#f0fdf4" },
     { path: "/ranking", title: "排行榜", icon: "Trophy", color: "#d97706", bgColor: "#fffbeb" },
-    { path: "/suggestion", title: "论文建议", icon: "ChatDotRound", color: "#db2777", bgColor: "#fdf2f8" },
-    { path: "/assistant", title: "AI 客服", icon: "Collection", color: "#0d9488", bgColor: "#f0fdfa" },
     { path: "/profile/settings", title: "个人设置", icon: "Setting", color: "#475569", bgColor: "#f8fafc" },
   ];
   if (userStore.isAdmin) {
