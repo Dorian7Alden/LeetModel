@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: ranking-service
+  profiles:
+    active: dev
+
+server:
+  shutdown: graceful
