@@ -1,23 +1,30 @@
 ## AI 助手服务
 
-ai-assistant-service 负责与用户进行对话，帮助用户理解平台功能、筛选题目和获得选题建议。
+ai-assistant-service 负责与用户进行受控文本对话，帮助用户理解平台功能、获取基础数学建模学习建议，并在需要时基于已发布题目候选做选题辅助。
 
-当前只建立服务边界和功能目录。该服务不属于当前 AI 评审核心闭环，具体功能后续逐个设计。
+> 分层定位：AI 业务能力层。MVP 运行模块、数据库迁移、用户接口和管理聚合内部接口已经落地；RAG、长期记忆、开放式 Agent、自主写操作、语音和多模态会话不在首版范围内。
 
-> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+
+### MVP 当前实现
+
+- 服务端口为 `8089`，独占 `lm_ai_assistant` 数据库，Flyway 管理会话表、消息表和两项幂等唯一约束。
+- 用户可以创建、列出、恢复和结束自己的会话，发送消息时必须提供 `clientRequestId`；相同请求只保存一条用户消息和一条助手回复。
+- 仅当当前问题包含明确选题意图时，服务才通过 problem-service 查询最多 8 个已发布题目。候选为空时也会把空结果明确交给模型，禁止编造题目。
+- AI 或题目工具失败时保留用户消息和失败回复，前端可对失败回复显式重试；生成或重试中断超过 5 分钟会转为可恢复失败。
+- 对用户返回可操作的失败说明，连接地址等内部异常细节只写服务日志。
+- 管理端通过内部接口查询会话总数和最近会话摘要，不读取模型供应商密钥或修改用户对话。
 
 
 ### 整体结构与工作流程
 
 ```mermaid
 flowchart LR
-    subgraph callers["上游调用方，目标设计"]
+    subgraph callers["上游调用方"]
         apiGateway["gateway-service"]
-        evaluationService["ai-evaluation-service"]
         adminService["admin-service"]
     end
 
-    subgraph assistant["ai-assistant-service 对话与推荐，目标设计"]
+    subgraph assistant["ai-assistant-service 对话与推荐"]
         conversationApi["会话与消息 API"]
         sessionContext["会话状态与上下文"]
         intent["意图与选题条件理解"]
@@ -35,27 +42,24 @@ flowchart LR
 
     subgraph dependencies["平台与模型依赖"]
         problemService["problem-service"]
-        userService["user-service"]
         commonAi["common-ai 客户端 Jar"]
         aiGateway["ai-gateway-service"]
     end
 
-    subgraph data["助手事实，目标设计"]
+    subgraph data["助手事实"]
         assistantDatabase[(lm_ai_assistant)]
     end
 
     apiGateway --> conversationApi
-    evaluationService -->|"质量评价"| conversationApi
     adminService -->|"查询运行结果"| conversationApi
     toolQuery --> problemService
-    toolQuery --> userService
     assistantWorkflow --> commonAi
     commonAi --> aiGateway
     sessionContext --> assistantDatabase
     response --> assistantDatabase
 ```
 
-目标流程从用户会话开始，先维护上下文并理解问题或选题条件，再按需要查询题目与用户摘要，最终通过 AI 网关生成回答和推荐解释。题目与用户事实仍由对应领域服务拥有；当前整张图均为目标设计，不表示已经存在运行模块。
+当前流程从用户会话开始，保存最近 20 条已完成消息作为短期上下文，根据明确选题意图决定是否只读查询题目，最终通过 common-ai 调用 AI 网关并保存回答或失败结果。题目事实仍由 problem-service 拥有；MVP 当前不调用 user-service 获取额外用户摘要。
 
 
 ### 职责边界
@@ -78,21 +82,20 @@ flowchart LR
 
 ### 数据与协作边界
 
-ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息、助手任务和推荐解释。题目数据由 problem-service 提供，用户摘要由 user-service 提供，模型调用通过 ai-gateway-service 完成。
+ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息、工具候选快照和 AI 调用标识。题目数据由 problem-service 提供，模型调用通过 ai-gateway-service 完成。
 
 
 ### 功能清单
 
-| 功能 | 功能说明 |
-|------|----------|
-| 会话管理 | 创建、查询、继续和结束 AI 助手会话 |
-| 消息管理 | 保存用户问题、AI 回复和必要上下文 |
-| 平台使用问答 | 回答平台功能、操作流程和基本规则问题 |
-| 选题条件收集 | 收集赛事、难度、方向、标签和完成时间等偏好 |
-| 题目筛选 | 将用户条件转换为 problem-service 可执行的查询 |
-| AI 题目推荐 | 对候选题目进行排序并解释推荐原因 |
-| 对话安全与失败处理 | 处理超时、无效工具调用和不可回答内容 |
-| 助手质量评价 | 后续由 ai-evaluation-service 对助手回答和推荐质量进行评价 |
+| 功能 | MVP 状态 | 功能说明 |
+|------|----------|----------|
+| 会话管理 | 已实现 | 创建、查询、继续和幂等结束当前用户会话 |
+| 消息管理 | 已实现 | 保存用户问题、AI 回复、最近上下文和调用标识 |
+| 平台使用问答 | 已实现 | 通过版本化 Prompt 回答平台流程和基本规则问题 |
+| 受控选题辅助 | 已实现 | 识别明确选题意图，只注入 problem-service 返回的已发布候选 |
+| 对话安全与失败处理 | 已实现 | 限定能力范围，保存失败、支持抢占重试和中断恢复 |
+| 条件化题目筛选 | 暂不实现 | MVP 不把赛事、标签等自然语言条件转换成开放查询参数 |
+| 助手质量评价 | 独立服务负责 | 由 ai-evaluation-service 建立测试集和版本评价，不归本服务所有 |
 
 
 ### 文档规则
