@@ -38,14 +38,6 @@ export function getContests() {
   return request({ url: "/contests", method: "get" });
 }
 
-export function createContest(data) {
-  return request({ url: "/contests", method: "post", data });
-}
-
-export function updateContest(contestId, data) {
-  return request({ url: `/contests/${contestId}`, method: "put", data });
-}
-
 export function createProblem(data) {
   return request({ url: "/problems", method: "post", data });
 }
