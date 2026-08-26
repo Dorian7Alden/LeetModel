@@ -1,6 +1,6 @@
 spring:
   application:
-    name: review-service
+    name: ai-review-service
   profiles:
     active: dev
 server:

@@ -64,8 +64,8 @@ spring:
           predicates:
             - Path=/api/submissions/**
 
-        - id: review-service
-          uri: lb://review-service
+        - id: ai-review-service
+          uri: lb://ai-review-service
           predicates:
             - Path=/api/reviews/**
 
@@ -124,8 +124,8 @@ knife4j:
         service-name: submission-service
         url: /api/submissions/v3/api-docs
         context-path: /
-      - name: review-service
-        service-name: review-service
+      - name: ai-review-service
+        service-name: ai-review-service
         url: /api/reviews/v3/api-docs
         context-path: /
 
