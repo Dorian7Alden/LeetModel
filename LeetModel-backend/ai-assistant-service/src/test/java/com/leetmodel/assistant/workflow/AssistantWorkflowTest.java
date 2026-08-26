@@ -50,7 +50,7 @@ class AssistantWorkflowTest {
         when(aiClient.chat(any())).thenReturn(response("可以选择 101"));
 
         workflow.reply(List.of(message(1L, "ASSISTANT", "你好"), current), current,
-                List.of(new ProblemOptionDTO(101L, "运输调度", 10L, 2026, "zh-CN", 1, 120)));
+                List.of(new ProblemOptionDTO(101L, 1001, "运输调度", 10L, 2026, "zh-CN", 1, 120)));
 
         ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
         verify(aiClient).chat(captor.capture());
