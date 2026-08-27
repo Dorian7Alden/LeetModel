@@ -10,7 +10,7 @@
             </button>
             <div class="ai-avatar"><el-icon :size="17"><ChatDotRound /></el-icon></div>
             <div class="ai-title-wrap">
-              <div class="ai-title-row"><strong class="ai-title">AI 客服</strong><span class="ai-online"><i></i>在线</span></div>
+              <div class="ai-title-row"><strong class="ai-title">AI 客服</strong><span class="ai-online" :class="serviceStatus"><i></i>{{ serviceStatusLabel }}</span></div>
               <span class="ai-subtitle">{{ view === 'history' ? '历史记录' : '平台操作与选题辅助' }}</span>
             </div>
             <div class="ai-header-actions">
@@ -178,11 +178,13 @@ const draft = ref("");
 const messagesRef = ref(null);
 const recOffset = ref(0);
 const suggestOpen = ref(false);
+const serviceStatus = ref("unknown");
 let suggestTimer = null;
 
 const userInitial = computed(() => (userStore.nickname || userStore.username || "我").charAt(0));
 const userDisplayName = computed(() => userStore.nickname || userStore.username || "我");
 const userAvatar = computed(() => userStore.avatarUrl || "");
+const serviceStatusLabel = computed(() => ({ unknown: "待连接", connected: "已连接", unavailable: "暂不可用" })[serviceStatus.value]);
 
 // 固定推荐问题池（可换一换轮换展示，提问内容固定）
 const recPool = [
@@ -253,8 +255,8 @@ function scrollToBottom() {
 
 async function loadConversations() {
   loadingConvs.value = true;
-  try { conversations.value = (await listConversations()).data || []; }
-  catch (error) { ElMessage.error(error.message || "对话记录加载失败"); }
+  try { conversations.value = (await listConversations()).data || []; if (serviceStatus.value === "unknown") serviceStatus.value = "connected"; }
+  catch (error) { serviceStatus.value = "unavailable"; ElMessage.error(error.message || "对话记录加载失败"); }
   finally { loadingConvs.value = false; }
 }
 
@@ -303,9 +305,11 @@ async function send(text) {
     const { userMessage, assistantMessage } = res.data || {};
     if (userMessage) messages.value.push(userMessage);
     if (assistantMessage) messages.value.push(assistantMessage);
+    serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
     await loadConversations();
     scrollToBottom();
   } catch (error) {
+    serviceStatus.value = "unavailable";
     ElMessage.error(error.message || "发送失败");
     if (!text) draft.value = content;
   } finally {
@@ -358,6 +362,10 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-title { font-size: 14px; color: var(--lm-text-primary); }
 .ai-online { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; background: var(--lm-success-bg); font-size: 10px; color: var(--lm-success); }
 .ai-online i { width: 5px; height: 5px; border-radius: 50%; background: var(--lm-success); }
+.ai-online.unknown { background: var(--lm-warning-bg); color: var(--lm-warning); }
+.ai-online.unknown i { background: var(--lm-warning); }
+.ai-online.unavailable { background: var(--lm-danger-bg); color: var(--lm-danger); }
+.ai-online.unavailable i { background: var(--lm-danger); }
 .ai-subtitle { display: block; margin-top: 1px; font-size: 11px; color: var(--lm-text-muted); }
 .ai-header-actions { display: flex; align-items: center; gap: 2px; }
 .ai-text-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--lm-text-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: background .16s, color .16s; }

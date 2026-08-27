@@ -46,6 +46,8 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !userStore.isLogin) {
     next("/login");
+  } else if (to.meta.guestOnly && userStore.isLogin) {
+    next("/");
   } else if (to.path.startsWith("/admin") && !userStore.isAdmin) {
     next("/");
   } else {

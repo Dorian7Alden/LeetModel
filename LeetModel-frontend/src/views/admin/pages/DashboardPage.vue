@@ -22,15 +22,15 @@
         v-for="item in metricCards"
         :key="item.key"
         class="metric-card"
-        :class="{ unavailable: !item.available }"
+        :class="{ unavailable: !item.available && !item.loading, loading: item.loading }"
       >
         <div class="metric-icon" :style="{ background: item.bgColor, color: item.color }">
           <el-icon :size="20"><component :is="item.icon" /></el-icon>
         </div>
         <div class="metric-body">
           <span class="metric-title">{{ item.title }}</span>
-          <strong class="metric-value">{{ item.available ? item.value : '--' }}</strong>
-          <span v-if="!item.available" class="metric-message">{{ item.message }}</span>
+          <strong class="metric-value">{{ item.loading ? '···' : (item.available ? item.value : '--') }}</strong>
+          <span v-if="!item.available" class="metric-message">{{ item.loading ? '加载中' : item.message }}</span>
         </div>
       </div>
     </div>
@@ -126,7 +126,7 @@ const quickLinks = [
 const metricCards = computed(() =>
   cardConfigs.map((config) => {
     const metric = metrics.value[config.key];
-    if (!metric) return { ...config, available: false, value: "--", message: "暂不可用" };
+    if (!metric) return { ...config, available: false, loading: loading.value, value: "--", message: "暂不可用" };
     return {
       ...config,
       available: metric.available !== false,
