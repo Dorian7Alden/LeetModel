@@ -52,7 +52,7 @@ class SuggestionV1WorkflowTest {
                 + "\"title\":\"补参数检验\",\"action\":\"改变参数并重算\","
                 + "\"evidence\":\"第2页只给出单组结果\",\"page\":2}]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", "provider-1", json,
+                "call-s", AiProvider.NEW_API, "model-s", "provider-1", json,
                 null, "stop", null));
 
         SuggestionWorkflowResult result = workflow.execute(
@@ -75,7 +75,7 @@ class SuggestionV1WorkflowTest {
                 + "\"title\":\"标题\",\"action\":\"行动\","
                 + "\"evidence\":\"依据\",\"page\":99}]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", null, json,
+                "call-s", AiProvider.NEW_API, "model-s", null, json,
                 null, "stop", null));
 
         assertThatThrownBy(() -> workflow.execute(task(), submission(), problem(), review()))
@@ -89,7 +89,7 @@ class SuggestionV1WorkflowTest {
         String json = "{\"summary\":\"建议\",\"items\":["
                 + itemJson("LOW", 1) + "," + itemJson("HIGH", 2) + "]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", null, json,
+                "call-s", AiProvider.NEW_API, "model-s", null, json,
                 null, "stop", null));
 
         assertThatThrownBy(() -> workflow.execute(task(), submission(), problem(), review()))

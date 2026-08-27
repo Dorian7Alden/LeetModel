@@ -60,17 +60,17 @@ RAG V1 归 `ai-assistant-service`。`ai-review-service` 不是第一版知识检
 #### 文档位置
 
 - `docs/project/02-架构设计/new-api第三方网关集成.md` 明确说明 new-api 只完成本地 Docker 部署，尚未接入 LeetModel AI 调用链。
-- 根 `README.md` 的本地运行说明也标明 `ai-gateway-service` 尚未切换调用链。
+- 根 `README.md` 在 D-01 核验时标明 `ai-gateway-service` 尚未切换调用链。
 
 #### 代码与配置证据
 
 - `LeetModel-backend/docker-compose.yml` 定义了 `calciumion/new-api:v1.0.0-rc.26` 和 `127.0.0.1:3000`。
-- `LeetModel-backend/ai-gateway-service/src/main/resources/application.yml` 仍配置 `https://api.deepseek.com` 和 `https://api.moonshot.cn/v1`，并直接读取供应商密钥。
-- `DeepSeekAdapter` 和 `KimiAdapter` 仍是调用链中的生产适配器，尚无 new-api Base URL、Relay Token 或模型映射配置。
+- D-01 核验时，`application.yml` 仍配置供应商官方地址并直接读取供应商密钥。
+- D-01 核验时，`DeepSeekAdapter` 和 `KimiAdapter` 仍是生产适配器；S1 已增加 new-api 配置与模型映射并删除这些旧实现。
 
 #### 采用结论
 
-new-api 的唯一当前状态是“已部署并完成基础可行性验证，但未接入 AI 业务调用链”。D-02 负责重划两层网关责任，S1 负责真实迁移。在 S1 验收前不得宣称 new-api 已承载客服或评审调用。
+D-01 的采用结论是“已部署但未接入”；S1 随后完成真实迁移并以客服文本、论文评审多模态冒烟验收。当前状态以 S1 结果和正式集成文档为准。
 
 
 ### AI 网关并发保护冲突

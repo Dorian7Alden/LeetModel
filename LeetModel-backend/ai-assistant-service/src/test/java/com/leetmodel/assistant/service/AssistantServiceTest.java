@@ -259,7 +259,7 @@ class AssistantServiceTest {
     }
 
     private AiChatResponse response(String content) {
-        return new AiChatResponse("call-1", AiProvider.DEEPSEEK, "model-a", "provider-1",
+        return new AiChatResponse("call-1", AiProvider.NEW_API, "model-a", "provider-1",
                 content, null, "stop", null);
     }
 }

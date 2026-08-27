@@ -12,46 +12,32 @@ common:
     enabled: false
 
 ai:
-  providers:
-    deepseek:
-      provider-id: deepseek
-      display-name: DeepSeek
-      base-url: https://api.deepseek.com
-      protocol: OPENAI_COMPLETIONS
-      secret-ref: DEEPSEEK_API_KEY
-      api-key: ${DEEPSEEK_API_KEY:}
-      connect-timeout: 10s
-      read-timeout: 10m
-    kimi:
-      provider-id: kimi
-      display-name: Kimi
-      base-url: https://api.moonshot.cn/v1
-      protocol: OPENAI_COMPLETIONS
-      secret-ref: KIMI_API_KEY
-      api-key: ${KIMI_API_KEY:}
-      connect-timeout: 10s
-      read-timeout: 10m
+  new-api:
+    base-url: ${NEW_API_BASE_URL:http://127.0.0.1:3000/v1}
+    relay-token: ${NEW_API_RELAY_TOKEN:}
+    connect-timeout: ${NEW_API_CONNECT_TIMEOUT:10s}
+    read-timeout: ${NEW_API_READ_TIMEOUT:10m}
   gateway:
     routes:
       GENERAL_TEXT:
-        provider: DEEPSEEK
-        model: deepseek-v4-pro
+        provider: NEW_API
+        model: deepseek-v4-flash
       MULTIMODAL:
-        provider: DEEPSEEK
+        provider: NEW_API
         model: deepseek-v4-flash-vision-exp
     models:
-      "[DEEPSEEK/deepseek-v4-pro]":
-        display-name: DeepSeek V4 Pro
+      "[NEW_API/deepseek-v4-flash]":
+        display-name: DeepSeek V4 Flash via new-api
         enabled: true
         protocol: OPENAI_COMPLETIONS
         input-types: [TEXT]
         json-output: true
         thinking: true
-        tools: true
+        tools: false
         context-tokens: 1000000
         max-output-tokens: 384000
-      "[DEEPSEEK/deepseek-v4-flash-vision-exp]":
-        display-name: DeepSeek V4 Flash Vision Experimental
+      "[NEW_API/deepseek-v4-flash-vision-exp]":
+        display-name: DeepSeek V4 Flash Vision Experimental via new-api
         enabled: true
         protocol: OPENAI_COMPLETIONS
         input-types: [TEXT, IMAGE_URL]
@@ -62,11 +48,3 @@ ai:
         max-output-tokens: 384000
         max-images: 600
         max-total-image-bytes: 209715200
-      "[KIMI/kimi-k2.6]":
-        display-name: Kimi K2.6
-        enabled: true
-        protocol: OPENAI_COMPLETIONS
-        input-types: [TEXT, IMAGE_URL]
-        json-output: true
-        thinking: true
-        tools: true

@@ -128,6 +128,6 @@ flowchart TB
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
 - ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前稳定性评价只覆盖 AI 评审版本；现有评价实现仍需从极差和综合得分口径调整为方差与标准差口径。建议与客服不规划 AI 二次评价。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
-- new-api 已作为独立 Docker 基础设施部署，但当前代码尚未切换，`ai-gateway-service` 仍通过 DeepSeekAdapter 和 KimiAdapter 直连供应商。该差异由 S1 系列任务收口。
+- new-api 已作为独立 Docker 基础设施部署并承载默认 Chat 链路；`ai-gateway-service` 只保留 NewApiAdapter，旧供应商官方接口直连已删除。
 - 当前代码未实现旧设计声称的本地并发保护。LeetModel 业务优先级、公平调度和背压由后续 S5 系列任务负责；供应商渠道限流和健康由 new-api 负责。
 - 本文只确认分层框架。各服务 README 中的职责边界是后续逐个梳理的起点，不代表全部细节已经确认。

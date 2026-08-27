@@ -12,8 +12,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -154,19 +155,13 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
                     .body(OpenAiCompatibleResponse.class);
             BusinessException.throwIf(response == null, AiGatewayErrorCode.RESPONSE_INVALID);
             BusinessException.throwIf(response.choices() == null || response.choices().isEmpty(), AiGatewayErrorCode.RESPONSE_INVALID);
-            BusinessException.throwIf(response.usage() == null, AiGatewayErrorCode.RESPONSE_INVALID);
             return response;
         } catch (BusinessException exception) {
             throw exception;
-        } catch (HttpClientErrorException.BadRequest exception) {
-            String responseBody = exception.getResponseBodyAsString().toLowerCase();
-            if (responseBody.contains("context") && (responseBody.contains("length") || responseBody.contains("token"))) {
-                throw new BusinessException(AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
-            }
-            if (responseBody.contains("image") && (responseBody.contains("format") || responseBody.contains("media type"))) {
-                throw new BusinessException(AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
-            }
-            throw new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+        } catch (RestClientResponseException exception) {
+            throw mapHttpError(exception);
+        } catch (ResourceAccessException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_TIMEOUT);
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
@@ -188,8 +183,10 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return response.toUnified(provider());
         } catch (BusinessException exception) {
             throw exception;
-        } catch (HttpClientErrorException.BadRequest exception) {
-            throw mapBadRequest(exception);
+        } catch (RestClientResponseException exception) {
+            throw mapHttpError(exception);
+        } catch (ResourceAccessException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_TIMEOUT);
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
@@ -214,8 +211,10 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return response.toUnified(provider());
         } catch (BusinessException exception) {
             throw exception;
-        } catch (HttpClientErrorException.BadRequest exception) {
-            throw mapBadRequest(exception);
+        } catch (RestClientResponseException exception) {
+            throw mapHttpError(exception);
+        } catch (ResourceAccessException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_TIMEOUT);
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
@@ -233,15 +232,35 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
         BusinessException.throwIf(!StringUtils.hasText(response.outputText()), AiGatewayErrorCode.RESPONSE_INVALID);
     }
 
-    private BusinessException mapBadRequest(HttpClientErrorException.BadRequest exception) {
+    private BusinessException mapHttpError(RestClientResponseException exception) {
         String responseBody = exception.getResponseBodyAsString().toLowerCase();
+        int status = exception.getStatusCode().value();
+        if (status == 401 || status == 403 && responseBody.contains("token")) {
+            return new BusinessException(AiGatewayErrorCode.UPSTREAM_AUTHENTICATION_FAILED);
+        }
+        if (status == 429) {
+            return new BusinessException(AiGatewayErrorCode.UPSTREAM_RATE_LIMITED);
+        }
+        if (responseBody.contains("model_not_found") || responseBody.contains("model not found")) {
+            return new BusinessException(AiGatewayErrorCode.UPSTREAM_MODEL_NOT_FOUND);
+        }
+        if (responseBody.contains("quota") || responseBody.contains("insufficient")
+                || responseBody.contains("额度")) {
+            return new BusinessException(AiGatewayErrorCode.UPSTREAM_QUOTA_EXCEEDED);
+        }
         if (responseBody.contains("context") && (responseBody.contains("length") || responseBody.contains("token"))) {
             return new BusinessException(AiGatewayErrorCode.CONTEXT_WINDOW_EXCEEDED);
         }
         if (responseBody.contains("image") && (responseBody.contains("format") || responseBody.contains("media type"))) {
             return new BusinessException(AiGatewayErrorCode.MEDIA_TYPE_UNSUPPORTED);
         }
-        return new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+        if (status == 400 || status == 422) {
+            return new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+        }
+        if (status >= 500) {
+            return new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+        }
+        return new BusinessException(AiGatewayErrorCode.RESPONSE_INVALID);
     }
 
     /**
