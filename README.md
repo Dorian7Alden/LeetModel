@@ -76,7 +76,17 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - Docker Engine 与 Docker Compose
 - 本地 Nacos（默认路径 `~/repo/nacos`），或通过 `NACOS_HOME` 指定安装目录
 
-MySQL、Redis 和 MinIO 由 Docker Compose 启动。首次启动会执行 Flyway 迁移并写入演示数据。
+MySQL、Redis、MinIO 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。new-api 当前已可独立运行，但 `ai-gateway-service` 尚未切换调用链。
+
+#### 启动 new-api
+
+```bash
+cd LeetModel-backend
+docker compose up -d --wait new-api
+curl --fail http://localhost:3000/api/status
+```
+
+首次启动后访问 `http://localhost:3000` 完成管理员初始化，再配置供应商渠道和 LeetModel 专用 Relay Token。数据保存在 Docker 卷 `new-api-data` 中。详细边界、接口和验证方式见 [new-api 第三方网关集成](docs/project/02-架构设计/new-api第三方网关集成.md)。
 
 #### 1. 启动后端
 
