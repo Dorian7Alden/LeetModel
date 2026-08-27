@@ -22,6 +22,7 @@
             <span>更新时间：{{ formatTime(problem.updateTime) }}</span>
           </div>
           <div class="detail-actions">
+            <el-button @click="viewRanking">查看本题排行</el-button>
             <el-button @click="findProblemTeams">寻找队伍</el-button>
             <el-button type="primary" @click="createProblemTeam">创建队伍</el-button>
           </div>
@@ -94,6 +95,7 @@ const renderedMarkdown = computed(() => {
 })
 const createProblemTeam = () => { showCreateDialog.value = true }
 const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
+const viewRanking = () => router.push({ name: 'Ranking', query: { problemId: String(problem.value.id) } })
 const goBack = () => router.push('/problem/problemListPage')
 
 const fetchDetail = async () => {

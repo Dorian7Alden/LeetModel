@@ -7,15 +7,15 @@
       <el-select
         v-model="selectedProblemId"
         filterable
-        placeholder="请选择题目标题"
+        placeholder="请选择题号或标题"
         :loading="loadingProblems"
         class="problem-select"
-        @change="loadRanking"
+        @change="handleProblemChange"
       >
         <el-option
           v-for="problem in problems"
           :key="problem.id"
-          :label="problem.title"
+          :label="`题号 ${problem.code || problem.id} · ${problem.title}`"
           :value="problem.id"
         />
       </el-select>
@@ -66,12 +66,15 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import PageHeader from "@/components/common/PageHeader.vue";
 import { getPublicProblemList } from "@/api/problem";
 import { getRanking } from "@/api/ranking";
 
 const loadingProblems = ref(false);
+const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const problems = ref([]);
 const selectedProblemId = ref(null);
@@ -87,11 +90,19 @@ async function loadProblems() {
   try {
     const res = await getPublicProblemList({ page: 1, pageSize: 100 });
     problems.value = res.data?.rows || [];
+    const routeProblem = problems.value.find((item) => String(item.id) === String(route.query.problemId || ''));
+    selectedProblemId.value = routeProblem?.id || problems.value[0]?.id || null;
+    if (selectedProblemId.value) await loadRanking();
   } catch (error) {
     ElMessage.error(error.message || "题目列表加载失败");
   } finally {
     loadingProblems.value = false;
   }
+}
+
+async function handleProblemChange() {
+  await router.replace({ query: { ...route.query, problemId: String(selectedProblemId.value) } });
+  await loadRanking();
 }
 
 async function loadRanking() {

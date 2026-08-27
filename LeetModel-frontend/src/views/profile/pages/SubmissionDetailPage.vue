@@ -27,6 +27,7 @@
 
         <div class="actions">
           <el-button type="primary" @click="$router.push(`/team/${submission.teamId}`)">返回队伍查看评审</el-button>
+          <el-button @click="$router.push({ name: 'Ranking', query: { problemId: submission.problemId } })">查看本题排行</el-button>
           <router-link class="back-link" to="/profile/history">返回提交历史</router-link>
         </div>
       </template>
