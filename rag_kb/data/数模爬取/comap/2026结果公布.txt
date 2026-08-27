@@ -1,0 +1,272 @@
+URL: https://www.comap.org/blog/item/2026-mcm-icm-results
+标题: 2026结果公布
+
+2026 MCM/ICM Results Are In
+Each year, the Mathematical Contest in Modeling (MCM)® and the Interdisciplinary Contest in Modeling (ICM)® bring together students from around the world for one shared challenge: solve a complex, real-world problem with no single “right” answer.
+In 2026, 32,213 teams representing 28 countries and regions participated, with 93,977 students working in teams of up to three to research, model, and communicate their solutions over four intense days.
+From smartphone battery performance to space infrastructure, sports analytics, sustainable building design, and the impact of generative AI, this year’s problems reflected the kinds of challenges students will encounter beyond the classroom.
+Jump to Results and More
+Problem A: Modeling Smartphone Battery Drain (MCM)
+Teams: 8,574
+Outstanding Teams: 6
+Problem Overview
+Teams were asked to design a mathematical model that predicts how a smartphone’s battery drains over time under different usage conditions. Teams analyzed how factors such as screen brightness, app activity, network usage, and environmental conditions impact battery life, and used their models to estimate time-to-empty and recommend strategies for improving battery performance.
+Outstanding Teams
+Team 2604991, North China University of Technology, China (AMS Award):
+- Xichao Wang, Information & Data Sciences
+- Yuxiao Zhang, Information & Data Sciences
+- Zixu Liu, Information & Data Sciences
+- Advisor: Bin Xiao
+Team 2608346, Southeast University, China (COMAP Scholarship Award):
+- Gaoqian Huang, Computer Science
+- Taoran Zhang, Computer Science
+- Qianheng Yu, Computer Science
+- Advisor: Rui Du
+Team 2608797, Nanjing University of Science and Technology, China:
+- Yumeng Ma, Engineering
+- Hao Ju, Computer Science
+- Xuanyi Cao, Mathematics
+- Advisor: Chungen Xu
+Team 2612473, Tongji University, China (SIAM Award):
+- Can Wang, Mathematics
+- Jianwen Xia, Mathematics
+- Yixuan An, Mathematics
+- Advisor: Teachers Group
+Team 2616026, Northeastern University at Qinhuangdao, China (Ben Fusaro Award):
+- Liu Canlin, Computer Science
+- Zhao Haoting, Mathematics
+- Ou Minjun, Computer Science
+- Advisor: Zhang Shangguo
+Team 2618526, Northeastern University, China (INFORMS Award):
+- Bingcheng Liu, Computer Science
+- Ziming Zhou, Computer Science
+- Hanlin Qian, Computer Science
+- Advisor: Yuli Zhao
+Download the full results for Problem A.
+Return to the top of the page.
+Problem B: Creating a Moon Colony Using a Space Elevator System (MCM)
+Teams: 5,194
+Outstanding Teams: 6
+Problem Overview
+Teams figured out the most effective way to get all the materials needed to build and support a 100,000-person Moon colony. Teams explored different ways to make that happen—like using space elevators or traditional rockets—and compared things like cost, timing, reliability, and environmental impact to recommend the best path forward.
+Outstanding Teams
+Team 2600475, Zhejiang University of Technology, China:
+- Haochen Tian, Computer Science
+- Lejian Yang, Computer Science
+- Yingying Zhou, Computer Science
+- Advisor: Yanmei Di
+Team 2602524, Zhejiang University, China (SIAM Award, COMAP Scholarship Award):
+- Yuxuan Liu, Computer Science
+- Wenzhe Han, Computer Science
+- Ziheng Shen, Computer Science
+- Advisor: Yuxuan Liu
+Team 2605749, Dalian University of Technology, China (AMS Award):
+- Xinyu Liao, Information & Data Sciences
+- Jingwen Liu, Computer Science
+- Zeen Sun, Computer Science
+- Advisor: Yonggang Fan
+Team 2621057, Tongji University, China (INFORMS Award):
+- Xu Cheng, Computer Science
+- Jiayao Li, Computer Science
+- Borui Jia, Computer Science
+- Advisor: Chunyan Duan
+Team 2624189, Shandong University, China (Frank Giordano Award):
+- Tan Shaoting, Computer Science
+- Cai Lirong, Computer Science
+- Qu Wenlu, Computer Science
+- Advisor: LUAN Junfeng
+Team 2625185, Xi’an Jiaotong University, China:
+- Hanfei Dai, Engineering
+- Yufei Li, Engineering
+- Lexuan Zhu, Engineering
+- Advisor: Lei Chen
+Download the full results for Problem B.
+Return to the top of the page.
+Problem C: Data with the Stars (MCM)
+Teams: 13,185
+Outstanding Teams: 19
+Problem Overview
+Teams analyzed how voting systems impact outcomes in a competitive television show using real-world data. Teams developed models to evaluate how judge scores and fan votes are combined, explored fairness and bias in different scoring methods, and proposed improved systems to produce more balanced and transparent results.
+Outstanding Teams
+Team 2601410, China Foreign Affairs University, China (Veena Mendiratta Award):
+- Yihang Li, Economics
+- Kexin Lin, Social Sciences
+- Xiaohan Yu, Economics
+- Advisor: Xiaohan Yu
+Team 2602555, Beijing University of Posts and Telecommunications, China:
+- Tianhao Chen, Engineering
+- Haowen Wang, Computer Science
+- Yufeng Jiang, Engineering
+- Advisor: Li Qing
+Team 2602848, Ningxia University, China:
+- Kai Ma, Computer Science
+- Jiadong Feng, Computer Science
+- Ruiqi Zhang, Computer Science
+- Advisor: Ruonan Zhang
+Team 2607060, Linyi University, China:
+- Peiyang Li, Engineering
+- Mingyang Li, Physical Sciences
+- Advisor: Huanbo Yang
+Team 2608773, Huazhong University of Science & Technology, China:
+- Rongxuan Zhang, Computer Science
+- Zihan Xing, Computer Science
+- Haixu Li, Computer Science
+- Advisor: Haixu Li
+Team 2611034, Hangzhou Dianzi University, China:
+- Xinyue Wu, Computer Science
+- Yan Wu, Computer Science
+- Keyi Sun, Computer Science
+- Advisor: Xiaomin Hu
+Team 2611327, Nanjing University, China:
+- Zhi Di, Engineering
+- Advisor: Lanxin Yang
+Team 2612205, Central South University, China (ASA Award):
+- Runtian Liu, Mathematics
+- Zhenjia Hu, Mathematics
+- Qiyuan Bai, Mathematics
+- Advisor: Runtian Liu
+Team 2612354, Soochow University, China (SIAM Award, COMAP Scholarship Award):
+- Sen Lin, Information & Data Sciences
+- Haowen Hua, Computer Science
+- Junzhe Liu, Computer Science
+- Advisor: Sen Lin
+Team 2614188, China University of Mining and Technology, China:
+- Liang Li, Engineering
+- Yuanhao Xue, Engineering
+- Xinru Wang, Engineering
+- Advisor: Jinbo Li
+Team 2618925, Hangzhou Normal University, China:
+- Qing Li, Computer Science
+- Guangxu Yin, Engineering
+- Jianing Ma, Social Sciences
+- Advisor: Ruigang Wang
+Team 2619544, Southwest University, China (INFORMS Award):
+- Chenlin Jiang, Computer Science
+- Yunwen Chen, Mathematics
+- Shiyu Xie, Mathematics
+- Advisor: Ying Lv
+Team 2620282, Nanjing Tech University, China:
+- Jiawen Zhang, Computer Science
+- Maozhuo Qian, Engineering
+- Muyao Li, Engineering
+- Advisor: Yue Gu
+Team 2621467, Dalian Maritime University, China:
+- Zhongbao Guo, Engineering
+- Yao Song, Engineering
+- Junxin Wan, Engineering
+- Advisor: Lidong Wang
+Team 2622358, Shenzhen University, China (AMS Award):
+- Ruilin Deng, Computer Science
+- Yuxun Chen, Engineering
+- Boxi Chen, Engineering
+- Advisor: Yanhong Gu
+Team 2624030, Xidian University, China:
+- Hui Tianyi, Engineering
+- Ge Fudi, Engineering
+- He Kewen, Engineering
+- Advisor: Li Jinsha
+Team 2624455, Zhuhai Campus, Beijing Institute of Technology, China:
+- Yaorong Huang, Engineering
+- Zhuohang Zhang, Engineering
+- Zhanhao Cai, Information & Data Sciences
+- Advisor: Yuntao Jia
+Team 2627711, Harbin Institute of Technology, Shenzhen, China:
+- Qiao Lin, Computer Science
+- Zhenyao Zheng, Information & Data Sciences
+- Rui Gao, Engineering
+- Advisor: Hui Liang
+Team 2631531, University of Wisconsin-Madison, WI, USA:
+- Jason Dong, Mathematics
+- Yanjun Yang, Computer Science
+- Ryan Gao, Computer Science
+- Advisor: Saverio Eric Spagnolie
+Download the full results for Problem C.
+Return to the top of the page.
+Problem D: Managing Sports for Success (ICM)
+Teams: 1,835
+Outstanding Teams: 3
+Problem Overview
+Teams developed a dynamic decision-making model to help sports franchises optimize financial leverage in response to changing competitive performance and evolving economic conditions. The problem required integrating both team variables (player performance, injuries, and roster decisions) with business variables (revenue streams, costs, valuation, and financing). In addition, teams needed to incorporate league constraints such as salary caps, revenue sharing, and league expansion. Using their models, teams evaluated the strategic impacts of business decisions and player injuries on management strategy. Finally, teams wrote a letter to ownership and management explaining how their plan supports both competitive success and financial health of the team.
+Outstanding Teams
+Team 2610917, Hangzhou Dianzi University, China (AMS Award):
+- Jingyi Gu, Information & Data Sciences
+- Mingyue Zhang, Engineering
+- Xiang Cao, Engineering
+- Advisor: An Zhang
+Team 2615887, National University of Defense Technology, China (SIAM Award):
+- Xijun Shan, Computer Science
+- Xinyi Niu, Computer Science
+- Xuyang Zhang, Computer Science
+- Advisor: Tingjin Luo
+Team 2631725, Duke University, NC, USA (MAA Award, COMAP Scholarship Award, Leonhard Euler Award):
+- Daniel Cheng, Mathematics
+- Zain Radwan, Mathematics
+- Malachy O'Donnabhain, Mathematics
+- Advisor: Veronica Ciocanel
+Download the full results for Problem D.
+Return to the top of the page.
+Problem E: Passive Solar Shading (ICM)
+Teams: 1,649
+Outstanding Teams: 3
+Problem Overview
+Teams provided a model-based feasibility analysis around passive solar shading situations for both the retrofit of existing buildings and the construction of a new building. The buildings in question were located at two notional universities: one in a warm, low-latitude region with high solar exposure and increasingly frequent heat waves; and the other at a high latitude where winter temperatures remain below freezing for months, sunlight hours are limited, and buildings experience heavy heating demands. Teams wrote a letter to the university leadership at their choice of the two universities, outlining the steps the university should take to include passive solar shading in both their retrofit and new building plans
+Outstanding Teams
+Team 2603456, Chengdu University of Information Technology, China (COMAP Scholarship Award, Rachel Carson Award):
+- Zhaoning Jia, Computer Science
+- Yao Wang, Computer Science
+- Guangjun Gu, Computer Science
+- Advisor: Zezhong Wu
+Team 2604153, Zhejiang University of Technology, China (AMS Award):
+- Junkai Li, Information & Data Sciences
+- Chenyu Wu, Computer Science
+- Siyao Wu, Computer Science
+- Advisor: Kai Zhou
+Team 2629656, Xidian University, China (INFORMS Award):
+- Weicheng Jiao, Engineering
+- Zhijie Zhang, Engineering
+- Yajun Sun, Engineering
+- Advisor: Shengli Zhang
+Download the full results for Problem E.
+Return to the top of the page.
+Problem F: To Gen-AI, or Not To Gen-AI (ICM)
+Teams: 1,776
+Outstanding Teams: 4
+Problem Overview
+Teams explored the impacts of generative AI. Specifically, teams were asked to identify careers in three different domains: a STEM career requiring a four-year degree, a trade career that may require training and/or apprenticeship, and a career in the arts. Teams built models designed to illuminate how each career would be impacted by the rising ubiquity of generative AI. Based on the results of their models, teams then provided guidance to an appropriate institution of post-secondary education/training about how their programs should be adjusted to best prepare their graduates for the changes predicted by their models
+Outstanding Teams
+Team 2604045, Harbin Institute of Technology, Weihai, China (Vilfredo Pareto Award):
+- Zhou Tianshu, Engineering
+- Huang Ting, Engineering
+- He Jianing, Engineering
+- Advisor: Xinrui Jiang
+Team 2609232, University of Electronic Science and Technology of China (COMAP Scholarship Award):
+- Dake Shen, Engineering
+- Han Guo, Engineering
+- Jingzhe Zhang, Engineering
+- Advisor: Dake Shen
+Team 2622232, Jiangnan University, China (AMS Award):
+- Yonghui Ding, Engineering
+- Yidan Liu, Engineering
+- Jiayu Zhou, Engineering
+- Advisor: Yonghui Ding
+Team 2631666, The Nueva School, CA, USA (SIAM Award, MAA Award):
+- Daniel Koo, Mathematics
+- Aidin Salimi, Mathematics
+- Parth Agarwal, Mathematics
+- Advisor: Katherine Paur
+Download the full results for Problem F.
+Return to the top of the page.
+Feedback for Teams
+One of the things we hear every year is some version of: “Okay, but how did we actually do?”
+This year, we launched a Feedback Pilot Program. Some teams received feedback tied directly to how their papers were evaluated. Read more about the pilot here.
+Share Your Team’s Experience
+Some of the best parts of MCM/ICM never show up in the final paper. It’s the whiteboards, the last-minute pivots, the “this might actually work” moments at 2:00 am.
+If you captured any of those moments in photos or videos, you can submit them here.
+We use these throughout the year across the site and social.
+Looking Ahead to 2027
+Next year’s contest will run January 28 through February 1, 2027.
+Whether your team is returning or considering participating for the first time, this is an opportunity to engage with real-world problems in a way that goes far beyond a typical classroom experience. Bookmark the official MCM/ICM contest page and watch for registration announcements.
+Congratulations to every team that participated in the 2026 MCM/ICM. The time, collaboration, and critical thinking behind each submission are what make this experience valuable, regardless of the final designation.
+Written by
+COMAP
+The Consortium for Mathematics and Its Applications is an award-winning non-profit organization whose mission is to improve mathematics education for students of all ages. Since 1980, COMAP has worked with teachers, students, and business people to create learning environments where mathematics is used to investigate and model real issues in our world.

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "MCM_ICM主页面",
+    "url": "https://www.comap.org/contests/mcm-icm",
+    "chars": 3285
+  },
+  {
+    "name": "竞赛总览",
+    "url": "https://www.comap.org/contests/contestsoverview",
+    "chars": 4272
+  },
+  {
+    "name": "2026结果公布",
+    "url": "https://www.comap.org/blog/item/2026-mcm-icm-results",
+    "chars": 13702
+  },
+  {
+    "name": "规则注册指南",
+    "url": "https://www.contest.comap.com/undergraduate/contests/mcm/instructions.html",
+    "chars": 40113
+  }
+]
