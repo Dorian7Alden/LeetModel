@@ -27,16 +27,16 @@ AI 业务能力层直接产生用户能够理解和使用的业务结果。
 
 ### AI 调用治理层
 
-`ai-gateway-service` 是所有业务服务访问外部模型供应商的唯一出口。
+`ai-gateway-service` 是所有业务服务访问外部 AI 基础设施的唯一内部出口。目标链路由它统一调用 new-api，再由 new-api 访问模型供应商。
 
-它负责供应商协议、模型能力、路由、密钥、调用稳定性、Token、耗时、价格、成本和单次调用追踪。它不理解论文评审、改善建议、助手问答或稳定性实验的业务语义，也不编排这些业务工作流。
+它负责内部契约、业务调用上下文、逻辑模型绑定、能力校验、业务优先级调度、统一错误、Token 与费用快照以及单次业务调用追踪。new-api 负责供应商协议、供应商密钥、渠道模型映射、渠道选择、渠道级重试、额度、扣费和渠道健康。`ai-gateway-service` 不复制这些渠道治理能力，也不理解论文评审、改善建议、助手问答或稳定性实验的完整业务流程。
 
 
 ### 公共客户端与管理入口
 
 项目确认保留 `common-ai`。它是公共客户端 Jar，不是微服务，向业务服务提供供应商无关的 AI 调用契约、AI 网关客户端、异常转换和测试支持，不拥有业务数据、Prompt、路由或密钥。
 
-`common-ai` 在业务服务进程内执行，负责把 Java 方法调用转换为对 AI 网关的统一 HTTP 请求；ai-gateway-service 独立运行，负责处理该请求并访问外部供应商。因此调用链是“业务服务 → common-ai 客户端 → ai-gateway-service → 模型供应商”，不是两个功能相同的 AI 网关。
+`common-ai` 在业务服务进程内执行，负责把 Java 方法调用转换为对 AI 网关的统一 HTTP 请求；ai-gateway-service 独立运行，负责处理该请求并访问 new-api。因此调用链是“业务服务 → common-ai 客户端 → ai-gateway-service → new-api → 模型供应商”，各层职责不同。
 
 `admin-service` 是管理端入口和跨服务聚合层，不属于 AI 能力执行层。它可以发起管理操作并聚合展示业务结果、稳定性统计和资源指标，但不直接访问各服务数据库，也不代替数据所有者执行领域规则。
 
@@ -72,6 +72,7 @@ flowchart TB
         AI_GATEWAY[ai-gateway-service<br/>模型调用治理]
     end
 
+    NEW_API[new-api<br/>渠道治理与供应商适配]
     MODEL[外部模型供应商]
 
     ADMIN[admin-service<br/>管理聚合入口]
@@ -90,7 +91,8 @@ flowchart TB
     SUGGESTION --> COMMON_AI
     ASSISTANT --> COMMON_AI
     COMMON_AI --> AI_GATEWAY
-    AI_GATEWAY --> MODEL
+    AI_GATEWAY --> NEW_API
+    NEW_API --> MODEL
 
     EVALUATION -->|发起隔离实验并读取业务结果| REVIEW
     EVALUATION -.->|后续评价| SUGGESTION
@@ -124,4 +126,6 @@ flowchart TB
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
 - ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前稳定性评价只覆盖 AI 评审版本；现有评价实现仍需从极差和综合得分口径调整为方差与标准差口径。建议与客服不规划 AI 二次评价。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
+- new-api 已作为独立 Docker 基础设施部署，但当前代码尚未切换，`ai-gateway-service` 仍通过 DeepSeekAdapter 和 KimiAdapter 直连供应商。该差异由 S1 系列任务收口。
+- 当前代码未实现旧设计声称的本地并发保护。LeetModel 业务优先级、公平调度和背压由后续 S5 系列任务负责；供应商渠道限流和健康由 new-api 负责。
 - 本文只确认分层框架。各服务 README 中的职责边界是后续逐个梳理的起点，不代表全部细节已经确认。
