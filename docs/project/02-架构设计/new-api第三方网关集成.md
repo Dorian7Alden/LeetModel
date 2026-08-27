@@ -113,7 +113,7 @@ LeetModel 不维护供应商渠道价格、账号余额或渠道账单。管理�
 
 ## 模型映射
 
-业务服务只引用 `modelExecutionConfigVersion` 和逻辑能力绑定。`ai-gateway-service` 保存绑定对应的 new-api 模型名，并校验文本、多模态、Embedding、结构化输出和上下文限制。
+业务服务只引用 `modelExecutionConfigVersion` 和逻辑能力绑定。`ai-gateway-service` 保存绑定对应的 new-api 模型名，并校验文本、多模态、Embedding、结构化输出和上下文限制。该字段归属和不可变范围遵守 [AI版本标识.md](AI版本标识.md)；new-api 的 `/v1` 协议路径、渠道 ID 或模型别名都不能充当 LeetModel 业务工作流版本。
 
 new-api 管理该模型名到供应商渠道模型的映射。请求不包含供应商、渠道 ID、账号或供应商密钥。new-api 模型列表只证明名称可调用，不能替代 LeetModel 的业务能力档案。
 

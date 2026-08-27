@@ -17,7 +17,7 @@
 
 - 统一同步调用和流式调用入口
 - 定义场景编码、请求、响应、用量和错误契约
-- 透传业务标识、Trace ID、幂等键、工作流版本和 Prompt 版本
+- 透传业务标识、Trace ID、幂等键、`workflowVersion`、`promptVersion`、`modelExecutionConfigVersion` 和适用的 `ragIndexVersion`；字段定义遵守 [AI版本标识.md](../../../02-架构设计/AI版本标识.md)
 - 透传评审步骤、执行轮次、实验批次和策略运行等可选关联标识
 - 透传稳定性实验批次、任务、样本和重复轮次等关联标识
 - 支持结构化输出约束的传递
