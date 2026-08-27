@@ -24,6 +24,9 @@
 - new-api 当前只是独立基础设施；ai-gateway-service 仍通过 DeepSeekAdapter、KimiAdapter 直连供应商。
 - 本地开发 new-api 已创建专用测试 Relay Token，保存在仓库外的 `~/Desktop/new-api-test-key.txt`。该 Token 仅用于本机开发与 S1、S2、S3 的真实接口冒烟，不得把文件内容复制到仓库文档、配置、日志、测试夹具或提交记录。测试时由命令临时读取并注入进程环境，输出必须脱敏。
 - 本地 new-api 已配置可用于测试的 DeepSeek 和 Kimi 相关模型。S1-01、S1-02 开始时仍需通过 `/v1/models` 和最小请求核验实际模型名、渠道状态与 Token 权限，不能只根据本说明假设全部模型可用。
+- 2026-08-28 S1 黑盒核验：new-api `v1.0.0-rc.26` 容器健康，绑定 `127.0.0.1:3000` 并使用持久化卷；测试 Relay Token 调用 `/v1/models` 返回 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-v4-pro`、`kimi-k2.6`、`kimi-k2.7-code`、`kimi-k2.7-code-highspeed`、`kimi-k3`。该列表是当日运行事实，不是永久配置承诺。
+- 2026-08-28 文本协议核验：`deepseek-v4-flash` 支持 OpenAI Chat、`response_format=json_object`、usage 与 `reasoning_content`；`kimi-k2.6` 在较小 `max_tokens` 下可能把额度耗在推理并以空正文 `finish_reason=length` 结束，显式不兼容的 temperature 返回 HTTP 400，省略 temperature 且使用 `thinking.type=disabled` 后可返回 JSON 正文。实现必须按模型能力映射参数，不能向全部模型发送同一默认参数集合。
+- 2026-08-28 多模态协议核验：`deepseek-v4-flash-vision-exp` 接受 OpenAI 内容块中的 HTTPS PNG `image_url` 并成功识别合成图片；过小的 1×1 data URL PNG 被上游以 `invalid_request_error` 拒绝。后续只用合成材料补充尺寸与 data URL 边界，不上传真实论文。
 - ai-gateway-service 尚无 new-api Base URL、Relay Token 和模型映射配置。
 - common-ai 当前只有同步 Chat 客户端和 /internal/ai/chat，没有 Embedding 契约。
 - AiScene 只有 GENERAL_TEXT 和 MULTIMODAL，表示输入模态而非真实业务来源，不能支持优先级和评价归因。
@@ -419,25 +422,25 @@ rag_kb Markdown
 
 ### S1：new-api Chat 接入任务
 
-#### [ ] S1-01 核验 new-api 初始化与测试渠道
+#### [x] S1-01 核验 new-api 初始化与测试渠道
 
 - 依赖：D-02。
 - 工作：只读确认容器版本、持久化、管理员初始化、模型列表、渠道状态和 Relay Token 创建方式；标出需要用户手工完成的控制台操作。
 - 验收：形成无密钥运行记录；若缺渠道或 Token，状态改为阻塞并给出最小人工步骤。
 
-#### [ ] S1-02 黑盒验证文本 Chat 协议
+#### [x] S1-02 黑盒验证文本 Chat 协议
 
 - 依赖：S1-01。
 - 工作：用固定小请求验证认证头、模型名、文本消息、JSON 输出、thinking、超时、响应体和错误体。
 - 验收：输出脱敏字段表；不把真实 Token 写入仓库、日志文件或测试代码。
 
-#### [ ] S1-03 黑盒验证多模态协议
+#### [x] S1-03 黑盒验证多模态协议
 
 - 依赖：S1-02。
 - 工作：使用最小合成图片验证 image_url 或实际兼容格式、图片限制、模型名和失败返回。
 - 验收：得到论文评审可实现的映射结论；不上传 data 中的真实论文。
 
-#### [ ] S1-04 黑盒验证请求 ID、usage、quota 和日志
+#### [x] S1-04 黑盒验证请求 ID、usage、quota 和日志
 
 - 依赖：S1-02。
 - 工作：核验响应头/体中的请求 ID、输入/输出/缓存/推理 Token、quota、日志查询字段和数据出现延迟。
