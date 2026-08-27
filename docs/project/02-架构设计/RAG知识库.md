@@ -128,6 +128,8 @@ V1 不做查询改写、多路召回、关键词混合检索、Rerank 或由 AI 
 
 ## 版本与追踪
 
+这些字段遵守 [AI版本标识.md](AI版本标识.md)。其中 RAG V1/V2 只表示架构代际，不能写入 `ragIndexVersion` 充当某次索引快照。
+
 - `contentVersion` 表示源文档内容哈希。
 - `embeddingModelVersion` 表示生成向量的模型绑定版本。
 - `chunkPolicyVersion` 表示清洗与切分规则版本。
