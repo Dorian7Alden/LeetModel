@@ -71,7 +71,7 @@ class BasicReviewV1WorkflowTest {
         return new SubmissionReviewDTO(2L, 3L, 4L, 1, "paper.pdf");
     }
     private AiChatResponse response(String content) {
-        return new AiChatResponse("call-1", AiProvider.DEEPSEEK, "deepseek-v4-flash-vision-exp",
+        return new AiChatResponse("call-1", AiProvider.NEW_API, "deepseek-v4-flash-vision-exp",
                 "provider-1", content, null, "stop", null);
     }
 }

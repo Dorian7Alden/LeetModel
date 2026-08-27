@@ -42,18 +42,18 @@ class AiCallAuditServiceTest {
 
     @Test
     void shouldPersistOnlySuccessMetadata() {
-        AiChatResponse response = new AiChatResponse("provider-id", AiProvider.DEEPSEEK,
+        AiChatResponse response = new AiChatResponse("provider-id", AiProvider.NEW_API,
                 "deepseek-test", "response-id", "private answer", "private reasoning",
                 "stop", new AiUsage(10L, 0L, 10L, 5L, 1L, 15L, true));
 
-        service.recordSuccess("call-1", request(), "DEEPSEEK", "configured-model", response, 321L);
+        service.recordSuccess("call-1", request(), "NEW_API", "configured-model", response, 321L);
 
         ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
         verify(mapper).insert(captor.capture());
         AiCallLog saved = captor.getValue();
         assertThat(saved.getCallId()).isEqualTo("call-1");
         assertThat(saved.getScene()).isEqualTo("GENERAL_TEXT");
-        assertThat(saved.getProvider()).isEqualTo("DEEPSEEK");
+        assertThat(saved.getProvider()).isEqualTo("NEW_API");
         assertThat(saved.getModel()).isEqualTo("deepseek-test");
         assertThat(saved.getStatus()).isEqualTo("SUCCEEDED");
         assertThat(saved.getTotalTokens()).isEqualTo(15L);
@@ -67,7 +67,7 @@ class AiCallAuditServiceTest {
     void shouldKeepBusinessFailureButSanitizeUnexpectedFailure() {
         service.recordFailure("call-business", request(), null, null,
                 new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE), 9L);
-        service.recordFailure("call-unexpected", request(), "DEEPSEEK", "model",
+        service.recordFailure("call-unexpected", request(), "NEW_API", "model",
                 new IllegalStateException("jdbc:mysql://root:secret@localhost/private"), 10L);
 
         ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
@@ -82,8 +82,8 @@ class AiCallAuditServiceTest {
     void auditFailureMustNotChangeBusinessResult() {
         doThrow(new IllegalStateException("db down")).when(mapper).insert(any(AiCallLog.class));
 
-        service.recordSuccess("call-1", request(), "DEEPSEEK", "model",
-                new AiChatResponse(null, AiProvider.DEEPSEEK, "model", null, "ok", null,
+        service.recordSuccess("call-1", request(), "NEW_API", "model",
+                new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
                         "stop", new AiUsage(null, null, null, null, null, null, false)), 1L);
     }
 
@@ -94,14 +94,14 @@ class AiCallAuditServiceTest {
         row.setId(9007199254740993L);
         row.setCallId("call-1");
         row.setScene("GENERAL_TEXT");
-        row.setProvider("DEEPSEEK");
+        row.setProvider("NEW_API");
         row.setModel("model");
         row.setStatus("SUCCEEDED");
         row.setCreateTime(LocalDateTime.now());
         when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(row));
         when(mapper.selectStats()).thenReturn(null);
 
-        var rows = service.list(new AiCallQueryDTO(" general_text ", "deepseek", " model ",
+        var rows = service.list(new AiCallQueryDTO(" general_text ", "new_api", " model ",
                 "succeeded", 10));
         AiCallStatsDTO stats = service.stats();
 

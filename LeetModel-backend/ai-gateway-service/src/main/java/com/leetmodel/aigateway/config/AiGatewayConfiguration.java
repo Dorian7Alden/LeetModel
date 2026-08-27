@@ -8,8 +8,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties({
-        DeepSeekProperties.class,
-        KimiProperties.class,
         NewApiProperties.class,
         AiRoutingProperties.class,
         AiModelCatalogProperties.class
