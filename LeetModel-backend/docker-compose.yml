@@ -1,5 +1,5 @@
 # ==================== LeetModel 本地开发基础设施 ====================
-# 使用方式：docker compose up -d --wait mysql redis minio
+# 使用方式：docker compose up -d --wait mysql redis minio new-api
 # Nacos 复用本机 ${NACOS_HOME:-~/repo/nacos}，由 scripts/start-mvp.sh 按需启动。
 
 services:
@@ -57,7 +57,28 @@ services:
       timeout: 3s
       retries: 10
 
+  # 第三方 AI 网关。当前只完成独立部署，LeetModel ai-gateway-service 尚未切换到该上游。
+  new-api:
+    image: calciumion/new-api:v1.0.0-rc.26
+    container_name: leetmodel-new-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      TZ: Asia/Shanghai
+      SESSION_SECRET: ${NEW_API_SESSION_SECRET:-leetmodel-local-new-api-session-secret-change-in-shared-environments}
+      ERROR_LOG_ENABLED: "true"
+    volumes:
+      - new-api-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\":true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
 volumes:
   mysql-data:
   redis-data:
   minio-data:
+  new-api-data:
