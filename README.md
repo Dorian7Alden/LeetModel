@@ -41,3 +41,67 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `problem-service` | 题目服务，题目与标签 CRUD、分页筛选 |
 | `admin-service` | 管理后台服务，Feign 聚合统计 |
 | `common` | 公共模块，含 common-core、common-api、common-security |
+
+### 本地运行
+
+#### 环境要求
+
+- JDK 17、Maven 3.9+
+- Node.js 20+、npm 10+
+- Docker Engine 与 Docker Compose
+- 本地 Nacos（默认路径 `~/repo/nacos`），或通过 `NACOS_HOME` 指定安装目录
+
+MySQL、Redis 和 MinIO 由 Docker Compose 启动。首次启动会执行 Flyway 迁移并写入演示数据。
+
+#### 1. 启动后端
+
+```bash
+cd LeetModel-backend
+./scripts/start-mvp.sh
+```
+
+脚本会构建并启动 12 个业务服务，网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+
+AI 对话与评审需要模型密钥，在启动脚本前按需设置：
+
+```bash
+export DEEPSEEK_API_KEY="你的密钥"
+export KIMI_API_KEY="你的密钥"
+```
+
+未配置密钥时，题库、组队、提交等非 AI 功能仍可使用，AI 功能会明确返回不可用状态。不要将密钥写入仓库文件。
+
+#### 2. 启动前端
+
+新建终端窗口：
+
+```bash
+cd LeetModel-frontend
+npm install
+npm run dev
+```
+
+请使用终端输出的 `http://localhost:5173` 访问，避免将 `localhost` 换成 `127.0.0.1`导致本地跨域配置不匹配。演示管理员账号为 `admin`，密码为 `123456`；普通使用者可直接注册。
+
+#### 3. 停止服务
+
+```bash
+cd LeetModel-backend
+./scripts/stop-mvp.sh
+```
+
+该脚本只停止业务服务，保留 MySQL、Redis、MinIO 和 Nacos。如需停止 Docker 基础设施，再执行 `docker compose down`。
+
+### 验证命令
+
+```bash
+# 后端全量测试
+cd LeetModel-backend
+mvn test
+
+# 前端生产构建
+cd ../LeetModel-frontend
+npm run build
+```
+
+运行或评审 AI 流程前，请先阅读 `data/README.md` 中的测试数据对应关系和文件限制。
