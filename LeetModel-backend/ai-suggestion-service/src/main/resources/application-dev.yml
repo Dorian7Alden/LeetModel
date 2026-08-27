@@ -1,0 +1,41 @@
+server:
+  port: 8088
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/lm_ai_suggestion?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+  flyway:
+    enabled: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+
+minio:
+  enabled: true
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: leetmodel
+
+common:
+  ai-client:
+    enabled: true
+    base-url: ${AI_GATEWAY_BASE_URL:http://localhost:8090}
+
+suggestion:
+  v1:
+    max-pages: 40
+    max-characters: 120000
+  worker:
+    delay-ms: 2000
+
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+
+springdoc:
+  api-docs:
+    path: /api/suggestions/v3/api-docs

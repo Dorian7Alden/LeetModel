@@ -25,5 +25,5 @@ export function getRolePermissions(roleId) {
 }
 
 export function assignRolePermissions(roleId, permissionIds) {
-  return request({ url: `/admin/roles/${roleId}/permissions`, method: "put", data: { ids: permissionIds } });
+  return request({ url: `/admin/roles/${roleId}/permissions`, method: "put", data: { permissionIds } });
 }

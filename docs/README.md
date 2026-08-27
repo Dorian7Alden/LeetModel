@@ -1,32 +1,35 @@
-## docs-README
+# docs
 
+> 项目文档中心。按领域分为 5 个顶层类别，通过逐层 README.md 索引实现渐进式内容定位。
 
+---
 
-```
-docs/                                                                
-├─ README.md                    # 文档导航页
-├─ memo.md                      # 临时备忘录与灵感草稿，开发时不看这个，开发新功能时再看
-├─ LeetModelStarUML.mdj         # UML 建模文件，可视化图
-├─ instructions/                # 开发规范目录
-└─ system-design/               # 系统设计文档目录
-```
+## 子目录说明
 
+| 目录 | 定位 | 存放内容 |
+|------|------|---------|
+| [project/](project/) | 本项目特有的设计产物 | 需求分析、架构设计、后端服务与公共 Maven 模块设计 |
+| [troubleshooting/](troubleshooting/) | 开发中遇到的报错与解决 | Bug 修复记录、配置踩坑、错误排查 |
+| [learning/](learning/) | 个人经验心得与方法论 | 开发经验、AI协作经验、项目方法论 |
+| [concepts/](concepts/) | 后端/软件工程理论知识 | 概念辨析、技术原理、面试八股 |
+| [standards/](standards/) | 项目遵循的开发规范 | 文档规范、Git规范、响应码规范 |
 
+---
 
-### 文档说明
+## 分类边界速查
 
-- 开发前必读：`specs/00-development-setup.md`
-- 文档撰写规范：`specs/01-document-spec.md`
-- HTTP 响应规范：`specs/02-response-regulations.md`
-- 开发流程与提交规范：`specs/04-development-workflow.md`
-- Git commit 描述规范：`specs/05-git-commit-regulation.md`
+| 判断维度 | 归属 |
+|---------|------|
+| 有具体报错信息 + 修复过程 | troubleshooting/ |
+| 是通用概念/原理的解答 | concepts/ |
+| 只对本项目有意义的设计 | project/ |
+| 个人经验/反思/启发 | learning/ |
+| 约束性规则，开发时必须执行 | standards/ |
 
-- `specs` 目录下存放的是作用于整个项目的开发规范
-- `proj-dev` 目录存放的是每个版本的计划安排以及功能设计，按照每个版本进行逐渐完善项目
+---
 
+## 管理原则
 
-
-### 开发前同步要求
-
-【强制】每次开始开发前，必须先阅读一次 `specs` 目录中的规范文档，再进入开发流程。
-
+- README.md 索引机制**仅适用于 `docs/` 目录**，源代码目录不使用
+- 文档数量 ≤5 时不强行编号/分组，数量 >5 时再编号
+- 同一目录内文件命名语言统一（不混用中英文）

@@ -1,21 +1,16 @@
-import request from "./request";
+import request from './request'
 
-export function getSubmissionList(params) {
-  return request({ url: "/admin/submissions", method: "get", params });
+export function submitTeamPdf(teamId, file, onUploadProgress) {
+  const data = new FormData()
+  data.append('teamId', teamId)
+  data.append('file', file)
+  return request({ url: '/submissions', method: 'post', data, timeout: 30000, onUploadProgress })
 }
 
-export function getSubmissionDetail(submissionId) {
-  return request({ url: `/admin/submissions/${submissionId}`, method: "get" });
+export function getTeamSubmissionHistory(teamId) {
+  return request.get(`/submissions/teams/${teamId}`)
 }
 
-export function createSubmission(data) {
-  return request({ url: "/admin/submissions", method: "post", data });
-}
-
-export function reEvaluateSubmission(submissionId) {
-  return request({ url: `/admin/submissions/${submissionId}/re-evaluate`, method: "post" });
-}
-
-export function deleteSubmission(submissionId) {
-  return request({ url: `/admin/submissions/${submissionId}`, method: "delete" });
+export function finalizeTeamSubmission(teamId) {
+  return request.post(`/submissions/teams/${teamId}/finalize`)
 }

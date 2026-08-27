@@ -3,13 +3,13 @@ import AppLayout from "@/components/layout/AppLayout.vue";
 
 import homeRoutes from "./modules/home";
 import problemRoutes from "./modules/problem";
-import contestRoutes from "./modules/contest";
-import communityRoutes from "./modules/community";
 import teamRoutes from "./modules/team";
 import profileRoutes from "./modules/profile";
 import authRoutes from "./modules/auth";
 import aboutRoutes from "./modules/about";
+import featureRoutes from "./modules/features";
 import adminRoutes from "./modules/admin";
+import { useUserStore } from "@/store/user";
 
 const routes = [
   {
@@ -18,11 +18,10 @@ const routes = [
     children: [
       ...homeRoutes,
       ...problemRoutes,
-      ...contestRoutes,
-      ...communityRoutes,
       ...teamRoutes,
       ...profileRoutes,
       ...aboutRoutes,
+      ...featureRoutes,
     ],
   },
 
@@ -43,12 +42,13 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role") || "";
+  const userStore = useUserStore();
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !userStore.isLogin) {
     next("/login");
-  } else if (to.path.startsWith("/admin") && role !== "ADMIN" && role !== "SUPER_ADMIN") {
+  } else if (to.meta.guestOnly && userStore.isLogin) {
+    next("/");
+  } else if (to.path.startsWith("/admin") && !userStore.isAdmin) {
     next("/");
   } else {
     next();

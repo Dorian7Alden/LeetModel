@@ -25,22 +25,15 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="settings-form">
         <!-- 用户名 -->
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" maxlength="50" />
+          <el-input v-model="form.username" disabled />
         </el-form-item>
 
-        <!-- 邮箱（只读） -->
-        <el-form-item label="邮箱">
-          <el-input v-model="form.email" disabled />
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="form.nickname" maxlength="32" />
         </el-form-item>
 
-        <!-- 学校 -->
-        <el-form-item label="学校" prop="school">
-          <el-input v-model="form.school" maxlength="100" />
-        </el-form-item>
-
-        <!-- 手机号 -->
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" maxlength="11" placeholder="请输入手机号" />
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="form.email" maxlength="64" />
         </el-form-item>
 
         <!-- 创建时间（只读） -->
@@ -55,63 +48,93 @@
       </el-form>
     </el-card>
 
-    <div class="danger-zone">
-      <h3 class="danger-title">危险操作</h3>
-      <p class="danger-desc">注销账号后所有数据将被永久删除且无法恢复。</p>
-      <el-button type="danger" @click="handleDelete">注销账号</el-button>
-    </div>
+    <el-card class="card password-card" shadow="never">
+      <h3 class="section-title">修改密码</h3>
+      <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" label-width="100px" class="settings-form">
+        <el-form-item label="旧密码" prop="oldPassword">
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="passwordForm.newPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleChangePassword">修改密码</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import { ArrowLeft, Camera, UserFilled } from '@element-plus/icons-vue'
-import { updateUser, uploadAvatar } from "@/api/user";
-import request from "@/api/request";
-import { useRouter } from "vue-router";
-import { deleteUser } from "@/api/user";
+import { changePassword, getCurrentUser, updateCurrentUser, uploadCurrentAvatar } from "@/api/user";
 import { useUserStore } from "@/store/user";
 
-const userId = localStorage.getItem("userId");
 const userStore = useUserStore();
 
 const formRef = ref(null);
+const passwordFormRef = ref(null);
 const avatarInput = ref(null);
 const avatarUrl = ref("");
 
 const form = reactive({
   username: "",
+  nickname: "",
   email: "",
   createTime: "",
-  school: "",
-  phone: "",
 });
 
 const rules = {
-  username: [
-    { required: true, message: "请输入用户名", trigger: "blur" },
-    { max: 50, message: "用户名不能超过50个字符", trigger: "blur" },
+  nickname: [
+    { max: 32, message: "昵称最多32个字符", trigger: "blur" },
   ],
-  school: [
-    { max: 100, message: "学校名称不能超过100个字符", trigger: "blur" },
+  email: [
+    { type: "email", message: "邮箱格式不正确", trigger: ["blur", "change"] },
   ],
-  phone: [
-    { pattern: /^1[3-9]\d{9}$/, message: "手机号格式不正确", trigger: "blur" },
+};
+
+const passwordForm = reactive({
+  oldPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+});
+
+const validateConfirmPassword = (_rule, value, callback) => {
+  if (value !== passwordForm.newPassword) {
+    callback(new Error("两次输入的新密码不一致"));
+    return;
+  }
+  callback();
+};
+
+const passwordRules = {
+  oldPassword: [{ required: true, message: "请输入旧密码", trigger: "blur" }],
+  newPassword: [
+    { required: true, message: "请输入新密码", trigger: "blur" },
+    { min: 6, max: 32, message: "密码长度为6-32位", trigger: "blur" },
+  ],
+  confirmPassword: [
+    { required: true, message: "请再次输入新密码", trigger: "blur" },
+    { validator: validateConfirmPassword, trigger: "blur" },
   ],
 };
 
 async function loadUser() {
   try {
-    const res = await request.get(`/users/${userId}`);
+    const res = await getCurrentUser();
 
     function normalizeUser(user) {
       return {
         username: user.username ?? "",
+        nickname: user.nickname ?? "",
         email: user.email ?? "",
         createTime: user.createTime ?? "",
-        school: user.school ?? "",
-        phone: user.phone ?? "",
       };
     }
     const user = normalizeUser(res.data);
@@ -130,9 +153,9 @@ async function handleAvatarChange(e) {
   const file = e.target.files?.[0];
   if (!file) return;
   try {
-    const res = await uploadAvatar(userId, file);
-    avatarUrl.value = res.data.fileUrl;
-    userStore.updateProfile({ avatarUrl: res.data.fileUrl });
+    const res = await uploadCurrentAvatar(file);
+    avatarUrl.value = res.data.avatarUrl;
+    userStore.updateProfile({ avatarUrl: res.data.avatarUrl });
     ElMessage.success("头像更新成功");
   } catch {
     ElMessage.error("头像上传失败");
@@ -152,45 +175,33 @@ async function handleSubmit() {
     return;
   }
   try {
-    await updateUser(userId, {
-      username: form.username,
-      school: form.school || null,
-      phone: form.phone || null,
+    const res = await updateCurrentUser({
+      nickname: form.nickname || null,
+      email: form.email || null,
     });
-    userStore.updateProfile({ username: form.username });
+    userStore.updateProfile(res.data);
     ElMessage.success("修改成功");
   } catch (e) {
     ElMessage.error("修改失败");
   }
 }
 
-const router = useRouter();
-
-async function handleDelete() {
+async function handleChangePassword() {
   try {
-    await ElMessageBox.confirm("注销账号后将无法恢复，是否继续？", "警告", {
-      confirmButtonText: "确定注销",
-      cancelButtonText: "取消",
-      type: "warning",
+    await passwordFormRef.value.validate();
+  } catch {
+    return;
+  }
+
+  try {
+    await changePassword({
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword,
     });
-
-    await deleteUser(userId);
-
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-
-    ElMessage.success("账号已注销");
-
-    router.push("/");
-
-    setTimeout(() => {
-      location.reload();
-    }, 100);
+    passwordFormRef.value.resetFields();
+    ElMessage.success("密码修改成功");
   } catch (e) {
-    if (e !== "cancel") {
-      console.error(e);
-      ElMessage.error("注销失败");
-    }
+    ElMessage.error(e?.response?.data?.message || e.message || "密码修改失败");
   }
 }
 </script>
@@ -326,6 +337,22 @@ async function handleDelete() {
   background: var(--lm-surface, #fff);
   border: 1px solid #fbc4c4;
   border-radius: 12px;
+}
+
+.password-card {
+  margin-top: 24px;
+}
+
+.section-title {
+  margin: 0 0 24px;
+  font-size: 18px;
+  color: var(--lm-text-primary);
+}
+
+.unavailable-hint {
+  margin-left: 12px;
+  color: var(--lm-text-muted);
+  font-size: 13px;
 }
 
 .danger-title {

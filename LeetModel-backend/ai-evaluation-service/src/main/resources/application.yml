@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: ai-evaluation-service
+  profiles:
+    active: dev
+
+server:
+  shutdown: graceful

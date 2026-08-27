@@ -1,248 +1,153 @@
 <template>
-  <div class="problem-detail" v-if="problem">
-    <!-- Header -->
-    <div class="detail-header">
-      <div class="detail-top">
-        <h1 class="detail-title">{{ problem.problemTitle }}</h1>
-        <div class="detail-badges">
-          <el-tag :type="difficultyType(problem.difficulty)" effect="plain" size="default">
-            {{ problem.difficulty }}
-          </el-tag>
-          <el-tag type="info" effect="plain" size="default">{{ problem.language }}</el-tag>
-        </div>
-      </div>
-
-      <div class="detail-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ problem.aveScore }}</span>
-          <span class="stat-label">平均分</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ problem.submissionCount }}</span>
-          <span class="stat-label">提交数</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ (problem.passRate * 100).toFixed(0) }}%</span>
-          <span class="stat-label">通过率</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tags -->
-    <div class="detail-tags" v-if="problem.tags">
-      <span class="tag-label">标签：</span>
-      <el-tag v-for="t in problem.tags" :key="t" size="small" class="detail-tag">{{ t }}</el-tag>
-    </div>
-
-    <el-divider />
-
-    <!-- Content -->
-    <div class="detail-content">
-      <h3>题目描述</h3>
-      <p>{{ problem.description }}</p>
-
-      <div class="info-grid">
-        <div class="info-card">
-          <el-icon :size="18" color="#2563eb"><Clock /></el-icon>
-          <div>
-            <span class="info-label">创建时间</span>
-            <span class="info-value">{{ problem.createTime }}</span>
+  <div class="problem-detail" v-loading="loading">
+    <template v-if="problem">
+      <div class="detail-header">
+        <button class="back-button" @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>返回题库
+        </button>
+        <div class="detail-top">
+          <h1 class="detail-title">{{ problem.title }}</h1>
+          <div class="detail-badges">
+            <el-tag :type="difficultyType(problem.difficulty)" effect="plain">{{ difficultyLabel(problem.difficulty) }}</el-tag>
+            <el-tag type="info" effect="plain">{{ problem.contestName || '未分类' }}</el-tag>
           </div>
         </div>
-        <div class="info-card">
-          <el-icon :size="18" color="#16a34a"><Refresh /></el-icon>
-          <div>
-            <span class="info-label">最后更新</span>
-            <span class="info-value">{{ problem.updateTime }}</span>
+        <div class="detail-footer-row">
+          <div class="detail-meta">
+            <span>题号：{{ problem.code }}</span>
+            <span>平均分：{{ formatScore(problem.averageScore) }}</span>
+            <span>年份：{{ problem.year }}</span>
+            <span>题面：{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
+            <span>完成时长：{{ formatDuration(problem.durationMinutes) }}</span>
+            <span>更新时间：{{ formatTime(problem.updateTime) }}</span>
+          </div>
+          <div class="detail-actions">
+            <el-button @click="viewRanking">查看本题排行</el-button>
+            <el-button @click="findProblemTeams">寻找队伍</el-button>
+            <el-button type="primary" @click="createProblemTeam">创建队伍</el-button>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Actions -->
-    <div class="detail-actions">
-      <el-button type="primary" size="large" :icon="Upload">
-        提交作品
-      </el-button>
-      <el-button size="large" :icon="StarFilled">
-        收藏题目
-      </el-button>
-      <el-button size="large" :icon="Comment">
-        查看讨论
-      </el-button>
-    </div>
-
-    <!-- Related -->
-    <div class="related-problems" v-if="relatedProblems.length > 0">
-      <h3>相关题目</h3>
-      <div class="related-list">
-        <div
-          class="related-item"
-          v-for="rp in relatedProblems"
-          :key="rp.problemId"
-          @click="$router.push(`/problem/${rp.problemId}`)"
-        >
-          <span class="related-title">{{ rp.problemTitle }}</span>
-          <span class="related-score">{{ rp.aveScore }} 分</span>
-        </div>
+      <div v-if="problem.tagNames?.length" class="detail-tags">
+        <span>标签：</span><el-tag v-for="tag in problem.tagNames" :key="tag" size="small">{{ tag }}</el-tag>
       </div>
-    </div>
+
+      <el-card class="content-card" shadow="never">
+        <article v-if="problem.contentMarkdown" class="markdown-body" v-html="renderedMarkdown" />
+        <el-empty v-else description="暂无题面描述" />
+      </el-card>
+
+      <el-card v-if="problem.attachments?.length" class="resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
+        <div class="resource-list">
+          <div v-for="attachment in problem.attachments" :key="attachment.id" class="attachment-item">
+            <div>
+              <a v-if="attachment.downloadUrl" :href="attachment.downloadUrl" target="_blank" rel="noopener noreferrer">{{ attachment.fileName }}</a>
+              <span v-else>{{ attachment.fileName }}</span>
+              <p v-if="attachment.description">{{ attachment.description }}</p>
+            </div>
+            <span class="attachment-size">{{ formatFileSize(attachment.fileSize) }}</span>
+          </div>
+        </div>
+      </el-card>
+      <el-card v-else class="resource-card empty-resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
+        <el-alert
+          title="本题暂无可下载附件"
+          description="请仅使用当前页面可见的题面信息作答；若题面文字提到数据文件，以此处实际附件列表为准。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </el-card>
+
+    </template>
+    <el-empty v-else-if="!loading" description="题目不存在或尚未发布" />
+    <CreateTeamDialog v-model="showCreateDialog" :preset-problem="problem" />
   </div>
-  <div v-else class="loading-state" v-loading="true" style="min-height: 400px"></div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { Clock, Refresh, Upload, StarFilled, Comment } from '@element-plus/icons-vue'
-import { mockProblems } from '@/mock/data.js'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import 'github-markdown-css/github-markdown.css'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { getPublicProblemDetail } from '@/api/problem'
+import CreateTeamDialog from '@/views/team/components/CreateTeamDialog.vue'
 
 const route = useRoute()
+const router = useRouter()
+const loading = ref(false)
+const showCreateDialog = ref(false)
 const problem = ref(null)
-
-onMounted(() => {
-  const id = Number(route.params.id)
-  problem.value = mockProblems.find(p => p.problemId === id) || mockProblems[0]
-})
-
-const relatedProblems = computed(() => {
-  if (!problem.value) return []
-  return mockProblems
-    .filter(p => p.problemId !== problem.value.problemId)
-    .filter(p => p.tags && problem.value.tags && p.tags.some(t => problem.value.tags.includes(t)))
-    .slice(0, 3)
-})
-
-function difficultyType(d) {
-  const map = { '入门': 'success', '中等': 'warning', '困难': 'danger', '挑战': 'danger' }
-  return map[d] || 'info'
+const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
+const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
+const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN') : '-'
+const formatDuration = (minutes) => minutes ? `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ''}` : '-'
+const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
+const formatFileSize = (bytes) => {
+  if (bytes == null) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
+const renderedMarkdown = computed(() => {
+  if (!problem.value?.contentMarkdown) return ''
+  const html = marked.parse(problem.value.contentMarkdown, {
+    async: false,
+    breaks: true,
+    gfm: true,
+  })
+  return DOMPurify.sanitize(html)
+})
+const createProblemTeam = () => { showCreateDialog.value = true }
+const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
+const viewRanking = () => router.push({ name: 'Ranking', query: { problemId: String(problem.value.id) } })
+const goBack = () => router.push('/problem/problemListPage')
+
+const fetchDetail = async () => {
+  loading.value = true
+  problem.value = null
+  try {
+    const response = await getPublicProblemDetail(route.params.id)
+    problem.value = response.data || null
+  } catch (error) {
+    ElMessage.error(error.message || '获取题目详情失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(() => route.params.id, fetchDetail)
+onMounted(fetchDetail)
 </script>
 
 <style scoped>
-.problem-detail {
-  max-width: 900px;
-}
-
-.detail-header {
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  padding: 24px;
-  margin-bottom: 20px;
-}
-
-.detail-top {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 16px; margin-bottom: 20px;
-}
-
-.detail-title {
-  font-size: 24px; font-weight: 800; color: var(--lm-text-primary);
-  margin: 0; line-height: 1.3;
-}
-
-.detail-badges { display: flex; gap: 8px; flex-shrink: 0; }
-
-.detail-stats {
-  display: flex; gap: 32px;
-}
-
-.stat-item {
-  display: flex; flex-direction: column;
-}
-
-.stat-value {
-  font-size: 22px; font-weight: 700; color: var(--lm-text-primary);
-}
-
-.stat-label {
-  font-size: 12px; color: var(--lm-text-muted); margin-top: 2px;
-}
-
-.detail-tags {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-.tag-label {
-  font-size: 13px; color: var(--lm-text-secondary); font-weight: 500;
-}
-
-.detail-tag { }
-
-.detail-content {
-  padding: 0;
-}
-
-.detail-content h3 {
-  font-size: 17px; font-weight: 700; color: var(--lm-text-primary);
-  margin: 0 0 12px;
-}
-
-.detail-content p {
-  font-size: 14px; line-height: 1.8;
-  color: var(--lm-text-secondary);
-  margin: 0 0 20px;
-}
-
-.info-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-  margin-bottom: 20px;
-}
-
-.info-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px;
-  background: var(--lm-bg);
-  border-radius: var(--lm-radius);
-}
-
-.info-label {
-  display: block; font-size: 12px; color: var(--lm-text-muted);
-}
-
-.info-value {
-  font-size: 14px; font-weight: 600; color: var(--lm-text-primary);
-}
-
-.detail-actions {
-  display: flex; gap: 12px; margin: 24px 0;
-}
-
-.related-problems {
-  margin-top: 32px;
-}
-
-.related-problems h3 {
-  font-size: 16px; font-weight: 700; color: var(--lm-text-primary);
-  margin: 0 0 12px;
-}
-
-.related-list {
-  display: flex; flex-direction: column; gap: 8px;
-}
-
-.related-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px;
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius);
-  cursor: pointer;
-  transition: all var(--lm-transition);
-}
-
-.related-item:hover {
-  border-color: var(--lm-primary);
-  box-shadow: var(--lm-shadow-sm);
-}
-
-.related-title {
-  font-size: 14px; font-weight: 500; color: var(--lm-text-primary);
-}
-
-.related-score {
-  font-size: 13px; color: var(--lm-primary); font-weight: 600;
-}
+.problem-detail { width: 100%; max-width: 960px; min-height: 420px; margin: 0 auto; }
+.detail-header { padding: 24px; margin-bottom: 20px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: var(--lm-radius-lg); }
+.back-button { display: inline-flex; align-items: center; gap: 5px; margin: 0 0 18px; padding: 0; border: 0; background: transparent; color: var(--lm-text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.back-button:hover { color: var(--lm-primary); }
+.detail-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.detail-title { margin: 0; font-size: 24px; color: var(--lm-text-primary); }
+.detail-badges, .detail-tags, .detail-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.detail-footer-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-top: 18px; }
+.detail-actions { display: flex; flex-shrink: 0; gap: 8px; }
+.detail-actions .el-button { margin-left: 0; }
+.detail-meta { flex: 1; gap: 24px; font-size: 13px; color: var(--lm-text-secondary); }
+.detail-tags { margin-bottom: 16px; padding: 12px 16px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: var(--lm-radius-lg); }
+.content-card { border-radius: var(--lm-radius-lg); }
+.content-card :deep(.el-card__body), .resource-card :deep(.el-card__body) { padding: 0; }
+.resource-card { margin-top: 16px; }
+.resource-list { display: flex; flex-direction: column; gap: 8px; padding: 18px 24px; }
+.attachment-item { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--lm-border); }
+.attachment-item:last-child { border-bottom: 0; }
+.attachment-item p { margin: 4px 0 0; color: var(--lm-text-secondary); font-size: 13px; }
+.attachment-size { flex-shrink: 0; color: var(--lm-text-muted); font-size: 12px; }
+.markdown-body { padding: 24px 32px 32px; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif; font-synthesis: weight; overflow-wrap: anywhere; }
+.markdown-body :deep(strong), .markdown-body :deep(b) { font-weight: 800; }
+@media (max-width: 768px) { .markdown-body { padding: 20px; } .detail-header { padding: 18px; } .detail-top { align-items: flex-start; flex-direction: column; } .detail-footer-row { align-items: flex-end; flex-wrap: wrap; } }
 </style>

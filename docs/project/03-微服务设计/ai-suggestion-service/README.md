@@ -1,0 +1,103 @@
+## AI 论文改善服务
+
+ai-suggestion-service 负责根据用户提交的论文 PDF 和可选的已有评审结果，生成面向论文修改的具体建议。
+
+当前只建立服务边界和功能组成，为后续逐项设计预留清晰位置。
+
+> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+
+
+### 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方，目标设计"]
+        apiGateway["gateway-service"]
+        evaluationService["ai-evaluation-service"]
+        adminService["admin-service"]
+    end
+
+    subgraph suggestion["ai-suggestion-service 论文改善，目标设计"]
+        taskApi["改善任务与查询 API"]
+        taskLifecycle["任务调度与状态管理"]
+        inputPreparation["题目、PDF 与评审输入准备"]
+        suggestionWorkflow["版本化建议工作流"]
+        evidence["建议依据与位置关联"]
+        result["建议校验与结果保存"]
+
+        taskApi --> taskLifecycle
+        taskLifecycle --> inputPreparation
+        inputPreparation --> suggestionWorkflow
+        suggestionWorkflow --> evidence
+        evidence --> result
+    end
+
+    subgraph dependencies["业务与模型依赖"]
+        submissionService["submission-service"]
+        problemService["problem-service"]
+        reviewService["ai-review-service"]
+        commonAi["common-ai 客户端 Jar"]
+        aiGateway["ai-gateway-service"]
+    end
+
+    subgraph data["建议事实，目标设计"]
+        suggestionDatabase[(lm_ai_suggestion)]
+    end
+
+    apiGateway --> taskApi
+    evaluationService -->|"实验运行"| taskApi
+    adminService -->|"查询任务与结果"| taskApi
+    inputPreparation --> submissionService
+    inputPreparation --> problemService
+    inputPreparation --> reviewService
+    suggestionWorkflow --> commonAi
+    commonAi --> aiGateway
+    taskLifecycle --> suggestionDatabase
+    evidence --> suggestionDatabase
+    result --> suggestionDatabase
+```
+
+目标流程是创建改善任务后读取提交 PDF、题目和可选评审结果，由版本化建议工作流生成并定位具体改善依据，最后保存建议结果。业务编排归 ai-suggestion-service，模型访问统一经过 `common-ai` 和 ai-gateway-service。当前整张图均为目标设计，不表示已经存在运行模块。
+
+
+### 职责边界
+
+#### 负责
+
+- 创建并执行论文改善建议任务。
+- 组合题目、PDF、AI 评审结果和必要上下文。
+- 生成论文整体、章节、模型、求解、验证和写作方面的改善建议。
+- 保存建议结果、任务状态和生成版本。
+- 向 ai-evaluation-service 提供建议结果和评价关联信息。
+
+#### 不负责
+
+- 不修改或覆盖用户原始 PDF。
+- 不代替 ai-review-service 产生论文评分。
+- 不定义自身输出的质量评价综合口径。
+- 不管理模型供应商和调用密钥。
+
+
+### 数据与协作边界
+
+ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有改善建议任务、生成版本和建议结果。原始 PDF 由 submission-service 拥有，题目由 problem-service 拥有，评审结果由 ai-review-service 拥有，模型调用通过 ai-gateway-service 完成。
+
+
+### 功能清单
+
+| 功能 | 功能说明 |
+|------|----------|
+| 改善任务创建 | 根据提交标识和可选评审结果创建建议任务 |
+| 输入准备 | 获取题目、原始 PDF、解析产物和已有评审结果 |
+| 整体改善建议 | 识别论文最重要的优先改进方向 |
+| 分部分建议 | 按章节或问题类型给出具体建议 |
+| 建议依据定位 | 将建议关联到 PDF 页码、章节或评审问题 |
+| 任务进度与重试 | 查询生成进度并重试可恢复失败 |
+| 建议结果查询 | 查看整体建议、详细建议、优先级和依据 |
+| 建议版本对比 | 后续对不同建议工作流程进行对比 |
+| 建议质量评价 | 由 ai-evaluation-service 评价准确性、具体性、可执行性和忠实性 |
+
+
+### 文档规则
+
+后续先建立 AI 论文改善概述，再逐个设计任务、生成和质量评价功能。当前不创建空文档。

@@ -1,0 +1,99 @@
+# 团队服务
+
+> 团队服务拥有队伍、队伍成员和团队角色数据。
+
+## 整体结构与工作流程
+
+```mermaid
+flowchart LR
+    subgraph callers["上游调用方"]
+        apiGateway["gateway-service"]
+        adminService["admin-service"]
+        submissionService["submission-service"]
+    end
+
+    subgraph team["team-service 团队协作"]
+        teamApi["队伍与招募 API"]
+        internalApi["队伍校验内部 API"]
+        discovery["队伍查询与发现"]
+        lifecycle["队伍创建与生命周期"]
+        recruitment["招募、申请与审核"]
+        membership["成员关系与职责"]
+
+        teamApi --> discovery
+        teamApi --> lifecycle
+        teamApi --> recruitment
+        lifecycle --> membership
+        recruitment --> membership
+        internalApi --> lifecycle
+        internalApi --> membership
+    end
+
+    subgraph dependencies["领域依赖"]
+        userService["user-service 用户摘要"]
+        problemService["problem-service 题目摘要"]
+    end
+
+    subgraph data["团队事实"]
+        teamDatabase[(lm_team)]
+    end
+
+    apiGateway --> teamApi
+    adminService --> teamApi
+    submissionService --> internalApi
+    discovery --> userService
+    membership --> userService
+    lifecycle --> problemService
+    discovery --> teamDatabase
+    lifecycle --> teamDatabase
+    recruitment --> teamDatabase
+    membership --> teamDatabase
+```
+
+用户通过 API 网关完成队伍创建、发现、招募和成员管理；submission-service 在论文上传前调用内部校验接口确认成员、题目和练习状态。team-service 从 user-service 和 problem-service 获取必要摘要，但队伍、成员、招募和申请事实只保存在 `lm_team`。
+
+## 职责边界
+
+### 负责
+
+- 维护队伍创建、详情、组建、练习与解散等生命周期。
+- 维护队长、队伍成员、成员职责和历史参与记录。
+- 校验队长管理权限、队伍容量和成员关系约束。
+- 提供按队伍、题目和招募职位发现缺人队伍的公共查询、我的队伍查询和队伍成员内部校验能力。
+- 维护独立招募位置、入队申请和审核状态。
+
+### 不负责
+
+- 不拥有用户账号、昵称、头像和 RBAC 权限数据。
+- 不拥有题目内容和题目分类数据，只保存队伍绑定的题目标识与必要快照。
+- 不保存论文文件，不执行 PDF 解析和 AI 评审。
+- 不处理管理端跨服务统计。
+
+## 数据与协作边界
+
+team-service 独占 `lm_team` 数据库，队伍、成员关系、团队职责、招募和入队申请以这里的数据为事实源。用户公开资料由 user-service 提供，题目有效性由 problem-service 提供。submission-service 在上传前通过内部契约校验队伍、成员与练习状态。
+
+## 功能清单
+
+| 功能 | 功能说明 |
+|------|----------|
+| [队伍创建](队伍创建/README.md) | 从题目详情或“我的队伍”入口创建固定三人容量的练习队伍，并建立队长成员关系 |
+| [队伍查询](队伍查询/README.md) | 按队伍、题目或招募职位发现缺人队伍，查询我的队伍和队伍详情 |
+| 队伍资料管理 | 维护队伍名称、简介和组队设置 |
+| [成员管理](成员管理/README.md) | 通过申请审核形成成员关系，支持组建中移除成员并保证容量约束 |
+| 成员职责管理 | 维护队长和普通成员在建模、编程和写作等方面的职责 |
+| [招募与入队](招募与入队/README.md) | 维护独立招募位置、入队申请与并发占位约束 |
+| 题目绑定 | 为队伍绑定练习题目和必要快照 |
+| [队伍生命周期](队伍生命周期/README.md) | 维护组建中、练习中、练习结束和已解散的状态流转与操作边界 |
+| 队伍解散与历史 | 结束队伍活动并保留必要历史参与信息 |
+| 内部队伍校验 | 向提交等服务提供成员关系、题目和练习状态摘要 |
+
+## 文档索引
+
+| 文档 | 内容摘要 |
+|------|----------|
+| [队伍创建](队伍创建/README.md) | 创建入口、弹窗交互、输入输出和业务规则 |
+| [队伍生命周期](队伍生命周期/README.md) | 状态流转、权限矩阵、练习结束和我的队伍分组 |
+| [队伍查询](队伍查询/README.md) | 公共队伍、我的队伍和详情查询语义 |
+| [成员管理](成员管理/README.md) | 成员关系、专业职责和容量规则 |
+| [招募与入队](招募与入队/README.md) | 招募位置、申请审核、数据归属和并发规则 |

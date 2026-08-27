@@ -22,16 +22,22 @@
 
     <!-- ==================== 子模块列表（按需逐个添加） ==================== -->
     <modules>
-        <!--
-        模块逐步添加：
-        1. common-core
-        2. common-security
-        3. common-ai
-        4. gateway
-        5. user → team → problem → assistant → submission → review → suggestion → ranking → admin
-        -->
-        <module>LeetModel-user</module>
-        <module>LeetModel-problem</module>
+        <module>common/common-core</module>
+        <module>common/common-api</module>
+        <module>common/common-security</module>
+        <module>common/common-ai</module>
+        <module>user-service</module>
+        <module>problem-service</module>
+        <module>team-service</module>
+        <module>submission-service</module>
+        <module>ai-review-service</module>
+        <module>ranking-service</module>
+        <module>ai-suggestion-service</module>
+        <module>ai-assistant-service</module>
+        <module>ai-evaluation-service</module>
+        <module>gateway-service</module>
+        <module>admin-service</module>
+        <module>ai-gateway-service</module>
     </modules>
 
     <!-- ==================== 集中版本管理 ==================== -->
@@ -132,11 +138,24 @@
                 <artifactId>sa-token-jwt</artifactId>
                 <version>${sa-token.version}</version>
             </dependency>
+            <!-- Sa-Token 响应式版（Gateway 基于 WebFlux，必须用此变体） -->
+            <dependency>
+                <groupId>cn.dev33</groupId>
+                <artifactId>sa-token-reactor-spring-boot3-starter</artifactId>
+                <version>${sa-token.version}</version>
+            </dependency>
 
             <!-- Knife4j（必须用 jakarta 后缀 artifact） -->
             <dependency>
                 <groupId>com.github.xiaoymin</groupId>
                 <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+                <version>${knife4j.version}</version>
+            </dependency>
+
+            <!-- Knife4j Gateway 聚合（将下游服务的 OpenAPI 文档聚合到网关统一展示） -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-gateway-spring-boot-starter</artifactId>
                 <version>${knife4j.version}</version>
             </dependency>
 
@@ -184,6 +203,11 @@
             <dependency>
                 <groupId>com.leetmodel</groupId>
                 <artifactId>common-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.leetmodel</groupId>
+                <artifactId>common-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

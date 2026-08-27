@@ -1,16 +1,79 @@
 <template>
-  <ProblemHeader @change="handleSearch" />
+  <ProblemHeader
+    :contests="filterOptions.contests"
+    :tags="filterOptions.tags"
+    :options-loading="optionsLoading"
+    :random-loading="randomLoading"
+    @change="handleSearch"
+    @random="handleRandom"
+  />
   <ProblemList ref="listRef" />
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { getPublicProblemFilterOptions, getRandomPublicProblem } from '@/api/problem'
 import ProblemHeader from "../components/ProblemHeader.vue";
 import ProblemList from "../components/ProblemList.vue";
 
 const listRef = ref();
+const router = useRouter()
+const route = useRoute()
+const optionsLoading = ref(false)
+const randomLoading = ref(false)
+const filterOptions = reactive({ contests: [], tags: [] })
+
+const fetchFilterOptions = async () => {
+  optionsLoading.value = true
+  try {
+    const response = await getPublicProblemFilterOptions()
+    filterOptions.contests = response.data?.contests || []
+    filterOptions.tags = response.data?.tags || []
+  } catch (error) {
+    ElMessage.error(error.message || '获取筛选项失败')
+  } finally {
+    optionsLoading.value = false
+  }
+}
 
 const handleSearch = (params) => {
   listRef.value.updateQuery(params);
 };
+
+const handleRandom = async (params) => {
+  randomLoading.value = true
+  try {
+    const response = await getRandomPublicProblem(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value != null)))
+    if (response.data?.id) {
+      ElMessage.success('已按当前筛选条件为你抽取一题')
+      await router.push(`/problem/${response.data.id}`)
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '暂时没有符合条件的题目')
+  } finally {
+    randomLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchFilterOptions()
+  if (route.query.keyword) listRef.value?.updateQuery({ keyword: String(route.query.keyword) })
+  if (route.query.tagIds) listRef.value?.updateQuery({ tagIds: [Number(route.query.tagIds)] })
+})
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    if (listRef.value) listRef.value.updateQuery({ keyword: keyword || '' })
+  },
+  { immediate: true },
+)
+watch(
+  () => route.query.tagIds,
+  (tagId) => {
+    if (tagId && listRef.value) listRef.value.updateQuery({ tagIds: [Number(tagId)] })
+  },
+  { immediate: true },
+)
 </script>

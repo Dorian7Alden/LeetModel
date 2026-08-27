@@ -1,7 +1,0 @@
-# ==================== LeetModel-problem 公共配置 ====================
-
-spring:
-  application:
-    name: leetmodel-problem   # Nacos 中的服务名，与其他微服务唯一区分
-  profiles:
-    active: dev            # 默认激活开发环境（可通过命令行 --spring.profiles.active=prod 覆盖）

@@ -1,0 +1,22 @@
+server:
+  port: 8087
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/lm_ranking?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: root
+  flyway:
+    enabled: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+
+jwt:
+  secret-key: leetmodel-dev-secret-key-2026
+  timeout: 604800
+
+springdoc:
+  api-docs:
+    path: /api/rankings/v3/api-docs

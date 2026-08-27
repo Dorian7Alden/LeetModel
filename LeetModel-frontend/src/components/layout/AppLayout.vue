@@ -28,15 +28,20 @@
               管理端
             </router-link>
           </nav>
+          <button type="button" class="mobile-menu-button" aria-label="打开导航菜单" @click="mobileMenuOpen = true">
+            <el-icon><Menu /></el-icon><span>菜单</span>
+          </button>
         </div>
 
         <!-- 右侧 -->
         <div class="right-area">
           <el-input
             v-model="keyword"
-            placeholder="搜索题目 / 比赛 / 帖子"
+            placeholder="搜索题目"
             class="search-input"
             clearable
+            @keyup.enter="submitSearch"
+            @clear="submitSearch"
           />
           <!-- 未登录 -->
           <template v-if="!userStore.isLogin">
@@ -50,34 +55,36 @@
           <el-dropdown v-else trigger="click">
             <div class="user-box">
               <img v-if="userStore.avatarUrl" class="avatar" :src="userStore.avatarUrl" />
-              <span v-else class="avatar avatar-text">{{ (userStore.username || '?').charAt(0) }}</span>
+              <span v-else class="avatar avatar-text">{{ (userStore.nickname || userStore.username || '?').charAt(0) }}</span>
             </div>
 
             <template #dropdown>
               <el-dropdown-menu class="user-card">
                 <div class="user-header">
                   <img v-if="userStore.avatarUrl" class="avatar-big" :src="userStore.avatarUrl" />
-                  <span v-else class="avatar-big avatar-text-big">{{ (userStore.username || '?').charAt(0) }}</span>
+                  <span v-else class="avatar-big avatar-text-big">{{ (userStore.nickname || userStore.username || '?').charAt(0) }}</span>
                   <div class="info">
-                    <div class="name">{{ userStore.username || '用户' }}</div>
+                    <div class="name">{{ userStore.nickname || userStore.username || '用户' }}</div>
                     <div class="desc">{{ userStore.email }}</div>
+                    <el-tag
+                      class="role-tag"
+                      :type="roleTagType"
+                      size="small"
+                      effect="light"
+                    >
+                      {{ userStore.roleLabel }}
+                    </el-tag>
                   </div>
                 </div>
 
-                <div class="menu-group">
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><Collection /></el-icon>
-                    我的题单
-                  </el-dropdown-item>
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><StarFilled /></el-icon>
-                    我的收藏
-                  </el-dropdown-item>
-                  <el-dropdown-item class="menu-item" @click="onFeatureWip">
-                    <el-icon class="menu-icon"><Document /></el-icon>
-                    我的笔记
-                  </el-dropdown-item>
-                </div>
+            <div class="menu-group">
+              <router-link to="/ranking" class="menu-link">
+                <el-dropdown-item class="menu-item">
+                  <el-icon class="menu-icon"><Trophy /></el-icon>
+                  排行榜
+                </el-dropdown-item>
+              </router-link>
+            </div>
 
                 <div class="divider"></div>
 
@@ -86,6 +93,12 @@
                     <el-dropdown-item class="menu-item">
                       <el-icon class="menu-icon"><UserFilled /></el-icon>
                       个人中心
+                    </el-dropdown-item>
+                  </router-link>
+                  <router-link to="/profile/settings" class="menu-link">
+                    <el-dropdown-item class="menu-item">
+                      <el-icon class="menu-icon"><Setting /></el-icon>
+                      个人设置
                     </el-dropdown-item>
                   </router-link>
                 </div>
@@ -103,8 +116,17 @@
       </div>
     </header>
 
+    <el-drawer v-model="mobileMenuOpen" title="导航菜单" direction="ltr" size="280px" class="mobile-nav-drawer">
+      <el-input v-model="keyword" placeholder="搜索题目" clearable class="mobile-search" @keyup.enter="submitMobileSearch" />
+      <nav class="mobile-nav" aria-label="移动端主导航">
+        <router-link to="/" :class="{ active: route.path === '/' }" @click="mobileMenuOpen = false">首页</router-link>
+        <router-link v-for="item in navItems" :key="item.path" :to="item.path" :class="{ active: isActive(item.path) }" @click="mobileMenuOpen = false">{{ item.label }}</router-link>
+        <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="admin-mobile-nav" :class="{ active: isActive('/admin') }" @click="mobileMenuOpen = false">管理端</router-link>
+      </nav>
+    </el-drawer>
+
     <!-- 页面内容 -->
-    <main class="content">
+    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') }">
       <router-view />
     </main>
 
@@ -120,8 +142,6 @@
           <div class="footer-col">
             <h4>平台</h4>
             <router-link to="/problem">题库</router-link>
-            <router-link to="/contest">赛事</router-link>
-            <router-link to="/community">社区</router-link>
             <router-link to="/team">组队</router-link>
           </div>
           <div class="footer-col">
@@ -140,40 +160,66 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
+import { getCurrentAuthorization } from '@/api/user'
 import {
-  Collection,
-  StarFilled,
-  Document,
+  Trophy,
+  Menu,
   UserFilled,
+  Setting,
   SwitchButton,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const { handleLogout } = useAuth()
 
 const keyword = ref('')
+const mobileMenuOpen = ref(false)
+const roleTagType = computed(() => {
+  if (userStore.primaryRole === 'admin') return 'danger'
+  if (userStore.primaryRole === 'vip') return 'warning'
+  return 'info'
+})
 
 const navItems = [
   { label: '题库', path: '/problem' },
-  { label: '赛事', path: '/contest' },
-  { label: '社区', path: '/community' },
-  { label: '组队', path: '/team' },
+  { label: '我的队伍', path: '/team' },
+  { label: '队伍广场', path: '/team/square' },
+  { label: '排行榜', path: '/ranking' },
 ]
 
-function onFeatureWip() {
-  ElMessage.info("该功能正在开发中，敬请期待")
+function isActive(path) {
+  if (path === '/team') {
+    return route.path === path || (route.path.startsWith('/team/') && !route.path.startsWith('/team/square'))
+  }
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 
-function isActive(path) {
-  if (path === '/admin') return route.path.startsWith('/admin')
-  return route.path === path
+function submitSearch() {
+  const value = keyword.value.trim()
+  router.push({ path: '/problem', query: value ? { keyword: value } : {} })
 }
+
+function submitMobileSearch() {
+  mobileMenuOpen.value = false
+  submitSearch()
+}
+
+onMounted(async () => {
+  if (!userStore.isLogin || userStore.roles.length > 0) return
+
+  try {
+    const res = await getCurrentAuthorization()
+    userStore.updateAuthorization(res.data)
+  } catch (error) {
+    console.warn('用户身份信息加载失败', error)
+  }
+})
 </script>
 
 <style scoped>
@@ -233,6 +279,8 @@ function isActive(path) {
   gap: 28px;
 }
 
+.mobile-menu-button { display: none; }
+
 .home-icon img {
   height: 22px;
   transition: opacity 0.2s;
@@ -261,6 +309,17 @@ function isActive(path) {
 
 .nav-item:hover {
   color: var(--lm-primary, #409eff);
+  background: rgba(64, 158, 255, 0.06);
+}
+
+.nav-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.nav-button:hover {
   background: rgba(64, 158, 255, 0.06);
 }
 
@@ -474,6 +533,10 @@ function isActive(path) {
   padding: 20px;
 }
 
+.content.content-flush {
+  padding: 0;
+}
+
 /* ========== Footer ========== */
 .footer {
   background: var(--lm-surface, #fff);
@@ -539,18 +602,29 @@ function isActive(path) {
   color: var(--lm-text-muted, #999);
 }
 
+.mobile-search { margin-bottom: 18px; }
+.mobile-nav { display: flex; flex-direction: column; gap: 6px; }
+.mobile-nav a { padding: 12px 14px; border-radius: 8px; color: var(--lm-text-secondary); text-decoration: none; font-size: 15px; }
+.mobile-nav a:hover, .mobile-nav a.active { background: var(--lm-primary-bg); color: var(--lm-primary); font-weight: 600; }
+.mobile-nav .admin-mobile-nav { color: #b7791f; }
+
 @media (max-width: 768px) {
-  .navbar {
-    gap: 16px;
-  }
-
-  .nav-item {
-    font-size: 13px;
-    padding: 6px 4px;
-  }
-
+  .topbar { height: 56px; padding: 0; }
+  .topbar-inner { gap: 10px; padding: 0 12px; }
+  .left-area { min-width: 0; gap: 12px; }
+  .navbar { gap: 0; }
+  .navbar > .nav-item:not(.home-icon) { display: none; }
+  .home-icon { display: flex; padding: 4px; }
+  .home-icon img { max-width: 124px; height: 20px; object-fit: contain; }
+  .mobile-menu-button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--lm-border); border-radius: 8px; background: var(--lm-surface); color: var(--lm-text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+  .right-area { margin-left: auto; gap: 6px; }
   .search-input {
-    width: 140px;
+    display: none;
+  }
+  .login-btn,
+  .register-btn {
+    margin-right: 0;
+    padding: 6px 8px;
   }
 
   .footer-content {
