@@ -5,7 +5,7 @@
       <div class="heading-actions">
         <el-input v-model="filters.keyword" placeholder="搜索题目标题" :prefix-icon="Search" clearable class="keyword-input" @keyup.enter="emitChange" @clear="emitChange" />
         <el-button type="primary" :icon="Search" @click="emitChange">搜索</el-button>
-        <el-button plain :loading="randomLoading" @click="handleRandom">随机一题</el-button>
+        <el-button plain :loading="randomLoading" @click="emit('random', buildParams())">按当前条件随机</el-button>
       </div>
     </div>
 
@@ -67,10 +67,15 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { Close, Refresh, Search } from '@element-plus/icons-vue'
 
-const props = defineProps({ contests: { type: Array, default: () => [] }, tags: { type: Array, default: () => [] }, optionsLoading: { type: Boolean, default: false } })
+const props = defineProps({
+  contests: { type: Array, default: () => [] },
+  tags: { type: Array, default: () => [] },
+  optionsLoading: { type: Boolean, default: false },
+  randomLoading: { type: Boolean, default: false },
+})
 const emit = defineEmits(['change', 'random'])
 const currentYear = new Date().getFullYear()
 const recentYears = Array.from({ length: 5 }, (_, index) => currentYear - index)
@@ -84,7 +89,6 @@ const scoreOptions = [
   { label: '90 分以上', min: 90, max: null },
 ]
 const filters = reactive({ keyword: '', contestId: null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
-const randomLoading = ref(false)
 const tagGroups = computed(() => [
   { type: 'BACKGROUND_DOMAIN', label: '背景领域', tags: props.tags.filter((tag) => tag.type === 'BACKGROUND_DOMAIN') },
   { type: 'PROBLEM_TYPE', label: '题目类型', tags: props.tags.filter((tag) => tag.type === 'PROBLEM_TYPE') },
@@ -142,7 +146,6 @@ const reset = () => {
   filters.selectedTags.MODEL_ALGORITHM = []
   emitChange()
 }
-const handleRandom = async () => { randomLoading.value = true; try { await emit('random', buildParams()) } finally { randomLoading.value = false } }
 </script>
 
 <style scoped>

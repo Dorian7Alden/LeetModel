@@ -3,6 +3,7 @@
     :contests="filterOptions.contests"
     :tags="filterOptions.tags"
     :options-loading="optionsLoading"
+    :random-loading="randomLoading"
     @change="handleSearch"
     @random="handleRandom"
   />
@@ -21,6 +22,7 @@ const listRef = ref();
 const router = useRouter()
 const route = useRoute()
 const optionsLoading = ref(false)
+const randomLoading = ref(false)
 const filterOptions = reactive({ contests: [], tags: [] })
 
 const fetchFilterOptions = async () => {
@@ -41,10 +43,18 @@ const handleSearch = (params) => {
 };
 
 const handleRandom = async (params) => {
+  randomLoading.value = true
   try {
     const response = await getRandomPublicProblem(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value != null)))
-    if (response.data?.id) router.push(`/problem/${response.data.id}`)
-  } catch (error) { ElMessage.error(error.message || '暂时没有符合条件的题目') }
+    if (response.data?.id) {
+      ElMessage.success('已按当前筛选条件为你抽取一题')
+      await router.push(`/problem/${response.data.id}`)
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '暂时没有符合条件的题目')
+  } finally {
+    randomLoading.value = false
+  }
 }
 
 onMounted(() => {
