@@ -12,8 +12,7 @@
 | 02 | [02-response-spec.md](02-response-spec.md) | HTTP 响应规范：5 位业务状态码编码规则 | 定义新接口响应或新增错误码时 |
 | 03 | [03-error-code-spec.md](03-error-code-spec.md) | 错误码规范：A-BB-CC 五段式编码 + 号段分配表 | 新增错误码时查阅号段和编码规则 |
 | 04 | [04-development-workflow.md](04-development-workflow.md) | 单目标开发规范：任务卡、独立分支、端到端验收与完成定义 | 每次开发前确认流程 |
-| 05 | [05-git-commit-spec.md](05-git-commit-spec.md) | Git commit 描述规范：类型、格式、示例 | 提交代码前确认 commit message 格式 |
-| 06 | [06-git-commit-workflow.md](06-git-commit-workflow.md) | Git commit 提交工作流：提交的完整操作步骤 | 实际执行 git 操作时参照 |
+| 05 | [05-git-workflow-spec.md](05-git-workflow-spec.md) | Git 分支与提交规范：单目标分支、原子提交、合并消息和完整操作流程 | 创建分支、提交或合并前确认 |
 | 07 | [07-version-spec.md](07-version-spec.md) | 版本号规范：版本编号规则 | 发布版本或打 tag 时参照 |
 | 08 | [08-database-spec.md](08-database-spec.md) | 数据库设计规范：命名、独立数据库、表结构、迁移策略 | 设计数据库表结构或新增微服务数据库时 |
 | 09 | [09-knife4j-annotation-spec.md](09-knife4j-annotation-spec.md) | Knife4j 接口注解规范：必须写 @Operation 且置于请求映射注解之前 | 编写 Controller 接口时 |
