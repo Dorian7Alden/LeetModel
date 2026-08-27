@@ -54,7 +54,7 @@
           <span class="list-item-top"><strong>{{ recruitmentText(result.recruitment) }}</strong><small>{{ formatDate(result.recruitment.createTime) }}</small></span>
           <span class="list-item-team">{{ result.team.name }}</span>
           <span class="list-item-problem">{{ result.team.problemTitle || `题号 ${result.team.problemCode || result.team.problemId}` }}</span>
-          <span v-if="result.recruitment.description" class="list-item-description">{{ result.recruitment.description }}</span>
+          <span v-if="result.recruitment.description" class="list-item-description">{{ markdownToPlainText(result.recruitment.description) }}</span>
         </button>
       </aside>
       <section v-if="selectedRecruitment" class="recruitment-detail">
@@ -110,7 +110,7 @@ import { getPublicProblemDetail, getPublicProblemList } from '@/api/problem'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TeamCard from '../components/TeamCard.vue'
 import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
-import { renderSafeMarkdown } from '@/utils/markdown'
+import { markdownToPlainText, renderSafeMarkdown } from '@/utils/markdown'
 
 const route = useRoute()
 const router = useRouter()
