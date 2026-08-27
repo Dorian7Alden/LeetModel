@@ -22,6 +22,8 @@
 
 - LeetModel-backend/docker-compose.yml 已部署 new-api，镜像为 calciumion/new-api:v1.0.0-rc.26。
 - new-api 当前只是独立基础设施；ai-gateway-service 仍通过 DeepSeekAdapter、KimiAdapter 直连供应商。
+- 本地开发 new-api 已创建专用测试 Relay Token，保存在仓库外的 `~/Desktop/new-api-test-key.txt`。该 Token 仅用于本机开发与 S1、S2、S3 的真实接口冒烟，不得把文件内容复制到仓库文档、配置、日志、测试夹具或提交记录。测试时由命令临时读取并注入进程环境，输出必须脱敏。
+- 本地 new-api 已配置可用于测试的 DeepSeek 和 Kimi 相关模型。S1-01、S1-02 开始时仍需通过 `/v1/models` 和最小请求核验实际模型名、渠道状态与 Token 权限，不能只根据本说明假设全部模型可用。
 - ai-gateway-service 尚无 new-api Base URL、Relay Token 和模型映射配置。
 - common-ai 当前只有同步 Chat 客户端和 /internal/ai/chat，没有 Embedding 契约。
 - AiScene 只有 GENERAL_TEXT 和 MULTIMODAL，表示输入模态而非真实业务来源，不能支持优先级和评价归因。
@@ -55,7 +57,7 @@
 - 产物：每项包含文档位置、代码证据、采用结论和后续任务编号。
 - 验收：冲突有唯一结论；不能只在 TODO 留结论而不标出需更新的正式文档。
 
-### [ ] D-02 重划 ai-gateway-service 与 new-api 职责
+### [x] D-02 重划 ai-gateway-service 与 new-api 职责
 
 - 依赖：D-01。
 - 必读：AI系统分层.md、new-api第三方网关集成.md、ai-gateway-service/设计/01 至 19。
@@ -1001,4 +1003,4 @@ RAG V2、生产版本切换和 REST API 版本化已经分别拆为 S9、S10，�
 2. 默认由用户确认任务范围；托管模式下 Agent 按依赖自动领取并在完成后报告代码、测试、文档和未解决风险。
 3. 任务依赖未满足时不得用临时硬编码绕过，应明确标记阻塞。
 4. 新发现的问题若不阻断当前闭环，只记录到后续任务，不扩大当前任务。
-5. 当前建议从 D-01 开始；D-01 至 D-05 完成后，优先顺序为 S0、S1、S2-01 至 S2-06、S3、S4。
+5. 当前 D-01、D-02 已完成；继续完成 D-03 至 D-05 后，优先顺序为 S0、S1、S2-01 至 S2-06、S3、S4。
