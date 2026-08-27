@@ -65,10 +65,15 @@ for index in "${!services[@]}"; do
 
   if [[ -f "${pid_file}" ]]; then
     old_pid="$(<"${pid_file}")"
-    command_line="$(tr '\0' ' ' <"/proc/${old_pid}/cmdline" 2>/dev/null || true)"
-    if kill -0 "${old_pid}" 2>/dev/null && [[ "${command_line}" == *"/${service}-0.0.1-SNAPSHOT.jar"* ]]; then
-      echo "${service} 已在运行（PID ${old_pid}）。" >&2
-      exit 1
+    if [[ "${old_pid}" =~ ^[0-9]+$ ]] && kill -0 "${old_pid}" 2>/dev/null; then
+      command_line=""
+      if [[ -r "/proc/${old_pid}/cmdline" ]]; then
+        command_line="$(tr '\0' ' ' <"/proc/${old_pid}/cmdline")"
+      fi
+      if [[ "${command_line}" == *"/${service}-0.0.1-SNAPSHOT.jar"* ]]; then
+        echo "${service} 已在运行（PID ${old_pid}）。" >&2
+        exit 1
+      fi
     fi
     rm -f "${pid_file}"
   fi
