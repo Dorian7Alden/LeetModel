@@ -10,7 +10,7 @@
 |------|------|
 | [gateway-service/](gateway-service/) | 对外请求路由、认证鉴权、跨域和 API 文档聚合 |
 | [ai-gateway-service/](ai-gateway-service/) | 模型路由、供应商接入、密钥、稳定性、Token 和成本治理 |
-| [ai-evaluation-service/](ai-evaluation-service/) | AI 功能质量评价、指标归一化、综合得分和版本对比 |
+| [ai-evaluation-service/](ai-evaluation-service/) | AI 评审固定样本重复实验、评分稳定性统计和运行诊断 |
 | [ai-assistant-service/](ai-assistant-service/) | AI 对话助手、平台问答和题目推荐 |
 | [ai-suggestion-service/](ai-suggestion-service/) | AI 论文改善建议、建议任务和建议结果 |
 | [user-service/](user-service/) | 用户信息、登录和 RBAC 权限数据 |

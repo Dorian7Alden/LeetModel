@@ -2,7 +2,7 @@
 
 > 设计状态：已确认系统采用分层方式梳理；各服务的详细职责边界仍需由开发者逐个讨论和确认。
 
-LeetModel 的 AI 系统不按照模型供应商或页面数量拆分，而是按照业务事实、质量评价和模型调用治理三类不同职责分层。分层先回答每类服务为什么存在，具体服务内部的工作流、调度、数据模型和接口在对应服务设计中继续细化。
+LeetModel 的 AI 系统不按照模型供应商或页面数量拆分，而是按照业务事实、稳定性评价和模型调用治理三类不同职责分层。分层先回答每类服务为什么存在，具体服务内部的工作流、调度、数据模型和接口在对应服务设计中继续细化。
 
 
 ### AI 业务能力层
@@ -18,18 +18,18 @@ AI 业务能力层直接产生用户能够理解和使用的业务结果。
 这一层拥有业务 Prompt、业务工作流、业务输出契约和业务结果。它不直接适配模型供应商，也不拥有其他领域服务的主数据。
 
 
-### AI 质量评价层
+### AI 稳定性评价层
 
-`ai-evaluation-service` 负责评价 AI 业务能力及其版本，而不代替业务服务生成用户结果。
+`ai-evaluation-service` 负责评价 AI 业务能力及其版本的重复运行稳定性，而不代替业务服务生成用户结果。
 
-它组织固定样本、隔离实验、重复运行、确定性规则、AI 裁判、统计指标、归一化和版本对比。被评价服务仍负责执行自己的业务工作流并解释原始结果；质量评价结果不能覆盖原始业务结果。
+它组织固定样本、隔离实验、重复运行和确定性统计，使用评分方差、标准差和波动范围评价输出稳定性。它不调用另一个 AI 对日志或结果进行二次评价，也不判断主观业务结果的语义正确性。被评价服务仍负责执行自己的业务工作流并解释原始结果；稳定性结果不能覆盖原始业务结果。
 
 
 ### AI 调用治理层
 
 `ai-gateway-service` 是所有业务服务访问外部模型供应商的唯一出口。
 
-它负责供应商协议、模型能力、路由、密钥、调用稳定性、Token、耗时、价格、成本和单次调用追踪。它不理解论文评审、改善建议、助手问答或 AI 裁判的业务语义，也不编排这些业务工作流。
+它负责供应商协议、模型能力、路由、密钥、调用稳定性、Token、耗时、价格、成本和单次调用追踪。它不理解论文评审、改善建议、助手问答或稳定性实验的业务语义，也不编排这些业务工作流。
 
 
 ### 公共客户端与管理入口
@@ -38,7 +38,7 @@ AI 业务能力层直接产生用户能够理解和使用的业务结果。
 
 `common-ai` 在业务服务进程内执行，负责把 Java 方法调用转换为对 AI 网关的统一 HTTP 请求；ai-gateway-service 独立运行，负责处理该请求并访问外部供应商。因此调用链是“业务服务 → common-ai 客户端 → ai-gateway-service → 模型供应商”，不是两个功能相同的 AI 网关。
 
-`admin-service` 是管理端入口和跨服务聚合层，不属于 AI 能力执行层。它可以发起管理操作并聚合展示业务结果、质量评价和资源指标，但不直接访问各服务数据库，也不代替数据所有者执行领域规则。
+`admin-service` 是管理端入口和跨服务聚合层，不属于 AI 能力执行层。它可以发起管理操作并聚合展示业务结果、稳定性统计和资源指标，但不直接访问各服务数据库，也不代替数据所有者执行领域规则。
 
 
 ### 交互流程示意
@@ -60,8 +60,8 @@ flowchart TB
         ASSISTANT[ai-assistant-service<br/>对话与选题推荐]
     end
 
-    subgraph QUALITY[AI 质量评价层]
-        EVALUATION[ai-evaluation-service<br/>实验与质量评价]
+    subgraph QUALITY[AI 稳定性评价层]
+        EVALUATION[ai-evaluation-service<br/>重复实验与稳定性统计]
     end
 
     subgraph CLIENT[公共客户端]
@@ -89,14 +89,13 @@ flowchart TB
     REVIEW --> COMMON_AI
     SUGGESTION --> COMMON_AI
     ASSISTANT --> COMMON_AI
-    EVALUATION -->|调用裁判模型| COMMON_AI
     COMMON_AI --> AI_GATEWAY
     AI_GATEWAY --> MODEL
 
     EVALUATION -->|发起隔离实验并读取业务结果| REVIEW
     EVALUATION -.->|后续评价| SUGGESTION
     EVALUATION -.->|后续评价| ASSISTANT
-    EVALUATION -->|关联调用耗时、用量与成本| AI_GATEWAY
+    EVALUATION -.->|后续关联运行成本| AI_GATEWAY
 
     ADMIN_USER --> API_GATEWAY
     API_GATEWAY --> ADMIN
@@ -105,7 +104,7 @@ flowchart TB
     ADMIN -->|查询资源与稳定性指标| AI_GATEWAY
 ```
 
-实线表示已经明确需要的协作方向，虚线表示目标设计中预留但尚未进入详细设计的质量评价方向。该图只表达服务交互和数据方向，不代表已经确定使用同步调用、消息队列或其他具体调度技术。
+实线表示已经明确需要的协作方向，虚线表示尚未进入实现的成本关联或其他 AI 功能稳定性实验方向。该图只表达服务交互和数据方向，不代表已经确定使用同步调用、消息队列或其他具体调度技术。
 
 
 ### 边界判断原则
@@ -123,6 +122,6 @@ flowchart TB
 ### 当前实现边界
 
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
-- ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前质量评价只覆盖 AI 评审版本的固定自动口径；建议与客服质量评价仍属于后续边界。
+- ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前稳定性评价只覆盖 AI 评审版本；现有评价实现仍需从极差和综合得分口径调整为方差与标准差口径。建议与客服不规划 AI 二次评价。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
 - 本文只确认分层框架。各服务 README 中的职责边界是后续逐个梳理的起点，不代表全部细节已经确认。

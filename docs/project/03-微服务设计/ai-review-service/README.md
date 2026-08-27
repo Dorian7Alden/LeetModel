@@ -76,8 +76,8 @@ submission-service 创建正式评审任务，ai-review-service 锁定版本后�
 - 不拥有题目、赛事、队伍和用户主数据。
 - 不直接管理模型供应商、密钥、价格和路由。
 - 不负责管理端页面聚合和 AI 成本看板。
-- 不定义 AI 质量评价指标，不执行 AI 裁判。
-- 不使用 AI 质量评价结果覆盖原始评审结果。
+- 不定义 AI 稳定性统计口径，不执行评价任务。
+- 不使用稳定性统计结果覆盖原始评审结果。
 
 
 ### 数据与协作边界
@@ -87,7 +87,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审任务、最终评�
 - submission-service 提供提交摘要和 PDF 文件对象路径。
 - problem-service 提供题目和赛事摘要。
 - ai-review-service 通过 common-ai 访问 ai-gateway-service。
-- ai-evaluation-service 通过内部契约获取评审结果并执行质量评价。
+- ai-evaluation-service 通过内部契约发起隔离实验并统计重复评分稳定性。
 - admin-service 通过内部接口分别读取评审数据和质量评价数据。
 
 
