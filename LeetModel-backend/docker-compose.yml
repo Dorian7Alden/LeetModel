@@ -57,7 +57,7 @@ services:
       timeout: 3s
       retries: 10
 
-  # 第三方 AI 网关。当前只完成独立部署，LeetModel ai-gateway-service 尚未切换到该上游。
+  # 第三方 AI 网关。LeetModel ai-gateway-service 的 Chat 调用统一经由该上游。
   new-api:
     image: calciumion/new-api:v1.0.0-rc.26
     container_name: leetmodel-new-api

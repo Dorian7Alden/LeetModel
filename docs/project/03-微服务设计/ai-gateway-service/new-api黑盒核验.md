@@ -67,3 +67,16 @@
 - 黑盒响应中的正文、推理正文、用户/IP/Token 名称和完整 ID 不进入仓库。
 - new-api 日志是渠道治理和计费事实源；LeetModel 审计只保存业务允许的调用标识、模型、状态、用量和时间。
 - S1 只实现同步 Chat 与错误映射；quota/日志异步费用补全留给 S2。
+
+### S1 真实链路验收
+
+2026-08-28 使用仓库外测试 Relay Token 启动 `ai-gateway-service`，并分别执行显式门控的客服文本与论文评审多模态冒烟：
+
+| 链路 | 结果 | 模型 | 可观测结果 |
+|------|------|------|------------|
+| ai-assistant-service → common-ai → ai-gateway-service → new-api | 成功 | `deepseek-v4-flash` | LeetModel `callId`、new-api 响应 ID 与 usage 可得 |
+| ai-review-service → common-ai → ai-gateway-service → new-api | 网关调用成功；合成空白评审材料未强求通过业务输出校验 | `deepseek-v4-flash-vision-exp` | LeetModel `callId`、new-api 响应 ID 与 usage 可得 |
+
+冒烟测试默认关闭，只有显式设置 `RUN_NEW_API_SMOKE=true` 才访问本地网关；Relay Token 由网关进程环境注入，测试代码和业务服务均不读取密钥文件。网关日志只记录 `callId`、逻辑 provider、模型和总 Token，不记录消息、回答、推理正文或图片内容。
+
+删除旧供应商直连后，后端 17 模块 Maven reactor 全量测试通过；网关模块包含配置绑定、适配器、Controller、服务和审计回归。当前生产 Chat 适配器只有 `NewApiAdapter`。

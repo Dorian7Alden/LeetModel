@@ -21,13 +21,13 @@
 ### AI 网关与 new-api
 
 - LeetModel-backend/docker-compose.yml 已部署 new-api，镜像为 calciumion/new-api:v1.0.0-rc.26。
-- new-api 当前只是独立基础设施；ai-gateway-service 仍通过 DeepSeekAdapter、KimiAdapter 直连供应商。
+- new-api 已承载 ai-gateway-service 的默认文本与多模态 Chat 链路；旧 DeepSeek/Kimi 官方接口直连已删除，业务服务和 AI 网关均不保存供应商密钥。
 - 本地开发 new-api 已创建专用测试 Relay Token，保存在仓库外的 `~/Desktop/new-api-test-key.txt`。该 Token 仅用于本机开发与 S1、S2、S3 的真实接口冒烟，不得把文件内容复制到仓库文档、配置、日志、测试夹具或提交记录。测试时由命令临时读取并注入进程环境，输出必须脱敏。
 - 本地 new-api 已配置可用于测试的 DeepSeek 和 Kimi 相关模型。S1-01、S1-02 开始时仍需通过 `/v1/models` 和最小请求核验实际模型名、渠道状态与 Token 权限，不能只根据本说明假设全部模型可用。
 - 2026-08-28 S1 黑盒核验：new-api `v1.0.0-rc.26` 容器健康，绑定 `127.0.0.1:3000` 并使用持久化卷；测试 Relay Token 调用 `/v1/models` 返回 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-v4-pro`、`kimi-k2.6`、`kimi-k2.7-code`、`kimi-k2.7-code-highspeed`、`kimi-k3`。该列表是当日运行事实，不是永久配置承诺。
 - 2026-08-28 文本协议核验：`deepseek-v4-flash` 支持 OpenAI Chat、`response_format=json_object`、usage 与 `reasoning_content`；`kimi-k2.6` 在较小 `max_tokens` 下可能把额度耗在推理并以空正文 `finish_reason=length` 结束，显式不兼容的 temperature 返回 HTTP 400，省略 temperature 且使用 `thinking.type=disabled` 后可返回 JSON 正文。实现必须按模型能力映射参数，不能向全部模型发送同一默认参数集合。
 - 2026-08-28 多模态协议核验：`deepseek-v4-flash-vision-exp` 接受 OpenAI 内容块中的 HTTPS PNG `image_url` 并成功识别合成图片；过小的 1×1 data URL PNG 被上游以 `invalid_request_error` 拒绝。后续只用合成材料补充尺寸与 data URL 边界，不上传真实论文。
-- ai-gateway-service 尚无 new-api Base URL、Relay Token 和模型映射配置。
+- ai-gateway-service 已提供 new-api Base URL、Relay Token、超时和逻辑模型映射配置；Relay Token 仅允许从运行环境注入。
 - common-ai 当前只有同步 Chat 客户端和 /internal/ai/chat，没有 Embedding 契约。
 - AiScene 只有 GENERAL_TEXT 和 MULTIMODAL，表示输入模态而非真实业务来源，不能支持优先级和评价归因。
 - AI 调用审计已有列表、统计及 admin 代理，不应重复从零建设；但字段只有基础 Token、模型、总耗时和错误。
@@ -470,29 +470,31 @@ rag_kb Markdown
 - 工作：将逻辑能力映射到 new-api 模型名；业务服务不选择供应商渠道；分别固定文本和多模态能力绑定。
 - 验收：assistant/review 请求无供应商密钥和渠道 ID；不存在的模型能在启动或调用时明确失败。
 
-#### [ ] S1-09 完成网关 Chat 回归测试
+#### [x] S1-09 完成网关 Chat 回归测试
 
 - 依赖：S1-07、S1-08。
 - 工作：更新 AiChatService、Controller、审计和配置测试，覆盖成功、失败、usage 缺失、长超时与关联 ID。
 - 验收：ai-gateway-service 与 common-ai 测试通过；旧适配器被保留或替换的状态明确。
 
-#### [ ] S1-10 完成真实客服文本冒烟
+#### [x] S1-10 完成真实客服文本冒烟
 
 - 依赖：S1-09。
 - 工作：用 ai-assistant-service 走 common-ai → ai-gateway → new-api 完成一条最小调用链。
 - 验收：记录 callId、new-api ID、模型和 usage；客服失败回复保持原行为；日志无正文。
 
-#### [ ] S1-11 完成真实论文评审多模态冒烟
+#### [x] S1-11 完成真实论文评审多模态冒烟
 
 - 依赖：S1-10。
 - 工作：使用项目允许的最小测试夹具验证 review 调用，不先执行完整大 PDF 批次。
 - 验收：多模态只经 new-api；调用成功或失败均可关联审计；无论文内容日志。
 
-#### [ ] S1-12 完成切换、回退和旧直连收口
+#### [x] S1-12 完成切换、回退和旧直连收口
 
 - 依赖：S1-11。
 - 工作：短期显式回退或删除旧 DeepSeek/Kimi 直连二选一；禁止双写和同请求双调用；同步启动/部署文档。
 - 验收：唯一默认链路为 new-api；回退可审计且不造成重复费用；不存在隐式直连。
+
+S1 验收记录（2026-08-28）：后端 17 模块 Maven reactor 全量测试通过；默认门控下网关 20 项测试通过。设置 `RUN_NEW_API_SMOKE=true` 后，客服文本与论文评审多模态分别经 `common-ai → ai-gateway-service → new-api` 完成真实调用，模型和 usage 可得且日志未输出正文。旧供应商配置、密钥环境变量、生产适配器和模型路由已经删除；运行时不提供隐式直连，发布失败时按 Git 发布流程整体回滚 S1 阶段。
 
 ### S2：调用上下文、用量和费用任务
 

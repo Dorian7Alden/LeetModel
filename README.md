@@ -77,7 +77,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - Docker Engine 与 Docker Compose
 - 本地 Nacos（默认路径 `~/repo/nacos`），或通过 `NACOS_HOME` 指定安装目录
 
-MySQL、Redis、MinIO 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。new-api 当前已可独立运行，但 `ai-gateway-service` 尚未切换调用链。
+MySQL、Redis、MinIO 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
 
 #### 启动 new-api
 
@@ -98,14 +98,15 @@ cd LeetModel-backend
 
 脚本会构建并启动 12 个业务服务，网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
-AI 对话与评审需要模型密钥，在启动脚本前按需设置：
+AI 对话与评审需要 new-api Relay Token，在启动脚本前注入：
 
 ```bash
-export DEEPSEEK_API_KEY="你的密钥"
-export KIMI_API_KEY="你的密钥"
+export NEW_API_RELAY_TOKEN="你的 Relay Token"
+# 可选；默认 http://127.0.0.1:3000/v1
+export NEW_API_BASE_URL="http://127.0.0.1:3000/v1"
 ```
 
-未配置密钥时，题库、组队、提交等非 AI 功能仍可使用，AI 功能会明确返回不可用状态。不要将密钥写入仓库文件。
+未配置 Relay Token 时，题库、组队、提交等非 AI 功能仍可使用，AI 功能会明确返回不可用状态。不要将 Token 写入仓库文件。
 
 #### 2. 启动前端
 
