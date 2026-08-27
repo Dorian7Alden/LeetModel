@@ -1,0 +1,22 @@
+URL: https://www.comap.org/contests/contestsoverview
+标题: 竞赛总览
+
+COMAP Contests
+Turn theory into practice by entering one of COMAP's modeling contests. The study of mathematics as its own subject may have started with Pythagoras, but people have been counting as a necessity of everyday life for tens of thousands of years. It follows that mathematics was invented to help us understand and manage the world around us.
+COMAP’s international modeling contest opportunities at the middle school, high school, and undergraduate levels challenge students to form, organize, and manage a team to model and solve a real-world application problem and present a solution report. In addition, such contests provide an experience in which students develop interpersonal skills through teamwork, develop technical writing and communication skills, feel a sense of accomplishment, and earn an impressive resume credential.
+COMAP Contest Opportunities
+MCM/ICM
+The Mathematical Contest in Modeling (MCM)® and Interdisciplinary Contest in Modeling (ICM)® occurs annually. Designed to provide high school and undergraduate students with the opportunity to work as team members to engage in and improve their modeling, problem solving, and writing skills.
+SCUDEM
+The Student Challenge Using Differential Equations Modeling (SCUDEM) occurs annually. Is a mathematical modeling challenge for teams of up to three students. Each team selects one of three problems and develops a solution using differential or difference equation models.
+HiMCM
+The High School Mathematical Contest in Modeling (HiMCM)® occurs annually in November. Teams apply mathematics to model, develop, and communicate a solution to a real-world problem.
+MidMCM
+The Middle Mathematical Contest in Modeling (MidMCM) occurs annually in November. It is designed to provide middle school/level age students with the opportunity to work as team members to engage in and improve their modeling problem solving, and writing skills.
+IM²C
+The Mathematical Contest in Modeling (MCM)®, an international contest for high school students and college undergraduates, challenges teams of students to analyze, model, solve, and present solution reports to an open-ended application problem. Contest teams of up to three students address one of three problems choices: continuous mathematics, discrete mathematics, and data insights.
+The Interdisciplinary Contest in Modeling (ICM)® is an extension of the MCM designed to develop and advance modeling and problem-solving skills in an interdisciplinary scenario to broaden both the focus of the problems and the methods of solution. Contest teams of up to three students address one of three problems choices: operations research/network science, sustainability, and policy.
+Student Challenge Using Differential Equations Modeling (SCUDEM), is a mathematical modeling challenge for teams of up to three high school and college undergraduate students. Each team selects one of three problems and develops a solution using differential or difference equation models. Each team prepares a 10-minute video presentation on their work.
+The High School Mathematical Contest in Modeling (HiMCM)®, an international contest for high school and middle school level students, provides teams of students with the opportunity to work together to demonstrate and improve their analysis, problem solving, modeling, and writing skills. Teams of up to four students address one of two real-world application problem choices.
+The Middle Mathematical Contest in Modeling (MidMCM) is an extension of the HiMCM designed to provide middle school/level age students 14 ½ years of age and younger with a modeling and problem-solving opportunity. Teams of up to four students apply middle school level mathematics to model, develop, and communicate a solution to a real-world problem.
+The International Mathematical Modeling Challenge (IM2C)® promotes the teaching of mathematical modeling and applications in high school classrooms across the globe based on the firm belief that students and teachers need to experience the power of mathematics to better understand, analyze, and solve real–world problems. Countries/Regions organize local regional rounds in the spring with two teams from each participating country/region advancing to the international round of judging in May.

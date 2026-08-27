@@ -1,0 +1,23 @@
+[
+  {
+    "name": "中国大学生数学建模竞赛",
+    "error": "http failed"
+  },
+  {
+    "name": "美国大学生数学建模竞赛",
+    "error": "http failed"
+  },
+  {
+    "name": "数学建模",
+    "error": "http failed"
+  },
+  {
+    "name": "全国研究生数学建模竞赛",
+    "error": "http failed"
+  },
+  {
+    "name": "深圳杯数学建模",
+    "url": "https://baike.baidu.com/item/深圳杯数学建模挑战赛",
+    "chars": 144
+  }
+]

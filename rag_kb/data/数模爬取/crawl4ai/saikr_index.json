@@ -1,0 +1,13 @@
+[
+  {
+    "name": "赛氪首页",
+    "url": "https://www.saikr.com/",
+    "chars": 52195
+  },
+  {
+    "name": "赛氪数学建模竞赛列表",
+    "url": "https://www.saikr.com/vs/math",
+    "chars": 0,
+    "error": "empty"
+  }
+]
