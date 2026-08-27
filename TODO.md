@@ -392,25 +392,26 @@ rag_kb Markdown
 
 ### S0：LangChain4j 兼容性核验任务
 
-#### [ ] S0-01 建立候选版本兼容矩阵
+#### [x] S0-01 建立候选版本兼容矩阵
 
 - 依赖：D-03。
 - 工作：只依据官方文档、发布说明和 Maven 元数据，对比当前 0.34.0 与候选稳定版的 Java 17、Spring Boot 3.3.5、EmbeddingModel、Ingestor、Retriever、Elasticsearch Store 和 OpenAI 自定义 Base URL 支持。
 - 验收：列出 API 差异、依赖冲突、迁移成本和已知风险，不能只以“版本更高”为升级理由。
 
-#### [ ] S0-02 在 0.34.0 上完成最小 RAG 编译实验
+#### [x] S0-02 在 0.34.0 上完成最小 RAG 编译实验
 
 - 依赖：S0-01。
 - 工作：在隔离测试代码中完成 Markdown → 切分 → 确定性假 Embedding → Store → Top K 召回，并验证项目自定义 EmbeddingModel 适配是否可行。
 - 验收：记录可用 API、缺失组件和编译结果；实验代码不进入正式客服工作流。
 
-#### [ ] S0-03 仅在必要时完成升级实验
+#### [x] S0-03 仅在必要时完成升级实验
 
 - 依赖：S0-02 明确判定当前版本不满足必要能力。
 - 工作：以最小升级范围验证新版本，同时回归 ai-review-service 的 PromptTemplate 使用。
 - 验收：父 POM、review 测试和 RAG 实验通过；若 0.34.0 可满足需求，本任务记录为“不适用”。
+- 结论：不适用。S0-02 已证明 0.34.0 满足必要 API；目标 Elasticsearch 8.x 与 0.34.0 的 8.14.3 客户端同代，当前不升级到使用 9.3.1 客户端的 1.19.0-beta29 集成。
 
-#### [ ] S0-04 固化 LangChain4j 技术基线
+#### [x] S0-04 固化 LangChain4j 技术基线
 
 - 依赖：S0-02，必要时 S0-03。
 - 工作：在技术栈文档固定版本、所需模块、Elasticsearch 客户端、项目 EmbeddingModel 适配方式和升级结论。
