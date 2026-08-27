@@ -44,7 +44,8 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `LeetModel-frontend/` | MVP 唯一前端，基于 Vue 3，与当前后端接口完成真实联调 |
 | `data/` | AI 评审本地测试数据集，按题目目录保存 Markdown 题面和对应论文 PDF；使用前阅读 `data/README.md` |
 | `docs/` | 项目全部文档，按 project / troubleshooting / learning / concepts / standards 五类组织 |
-| `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与暂缓的 RAG 知识库 |
+| `rag_kb/` | 当前 RAG 知识源。V1 只索引 `数学建模/` 下排除 README 后的整理内容 |
+| `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与历史知识库 |
 | `CONTEXT.md` | 给 AI 看的行为说明与协作规则 |
 | `TODO.md` | 开发计划与进度追踪 |
 | `README.md` | 本文件，项目正常说明 |
