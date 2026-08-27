@@ -39,6 +39,7 @@
       </el-card>
 
       <el-card v-if="problem.attachments?.length" class="resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
         <div class="resource-list">
           <div v-for="attachment in problem.attachments" :key="attachment.id" class="attachment-item">
             <div>
@@ -49,6 +50,16 @@
             <span class="attachment-size">{{ formatFileSize(attachment.fileSize) }}</span>
           </div>
         </div>
+      </el-card>
+      <el-card v-else class="resource-card empty-resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
+        <el-alert
+          title="本题暂无可下载附件"
+          description="请仅使用当前页面可见的题面信息作答；若题面文字提到数据文件，以此处实际附件列表为准。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
       </el-card>
 
     </template>
