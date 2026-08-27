@@ -66,7 +66,7 @@ const sortBy = ref('')
 const sortOrder = ref('')
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
-const formatScore = (score) => score == null ? '—' : Number(score).toFixed(1)
+const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
 const fetchProblems = async () => {
   loading.value = true
   try {

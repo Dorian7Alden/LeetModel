@@ -15,7 +15,7 @@
         <div class="detail-footer-row">
           <div class="detail-meta">
             <span>题号：{{ problem.code }}</span>
-            <span>平均分：{{ problem.averageScore ?? 0 }}</span>
+            <span>平均分：{{ formatScore(problem.averageScore) }}</span>
             <span>年份：{{ problem.year }}</span>
             <span>题面：{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
             <span>完成时长：{{ formatDuration(problem.durationMinutes) }}</span>
@@ -76,6 +76,7 @@ const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[v
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
 const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN') : '-'
 const formatDuration = (minutes) => minutes ? `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ''}` : '-'
+const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
 const formatFileSize = (bytes) => {
   if (bytes == null) return '-'
   if (bytes < 1024) return `${bytes} B`
