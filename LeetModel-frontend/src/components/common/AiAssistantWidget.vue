@@ -126,7 +126,7 @@
               </button>
             </div>
 
-            <div class="ai-quick">
+            <div v-if="messages.length" class="ai-quick">
               <button v-for="q in quickQuestions" :key="q" type="button" class="ai-quick-chip" :disabled="sending" @click="send(q)">{{ q }}</button>
             </div>
 
