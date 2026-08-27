@@ -15,9 +15,12 @@ for service in "${services[@]}"; do
   pid_file="${RUNTIME_DIR}/${service}.pid"
   [[ -f "${pid_file}" ]] || continue
   pid="$(<"${pid_file}")"
-  command_line="$(tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null || true)"
+  command_line=""
+  if [[ "${pid}" =~ ^[0-9]+$ ]] && [[ -r "/proc/${pid}/cmdline" ]]; then
+    command_line="$(tr '\0' ' ' <"/proc/${pid}/cmdline")"
+  fi
 
-  if kill -0 "${pid}" 2>/dev/null && [[ "${command_line}" == *"/${service}-0.0.1-SNAPSHOT.jar"* ]]; then
+  if [[ "${pid}" =~ ^[0-9]+$ ]] && kill -0 "${pid}" 2>/dev/null && [[ "${command_line}" == *"/${service}-0.0.1-SNAPSHOT.jar"* ]]; then
     kill "${pid}"
     echo "正在停止 ${service}（PID ${pid}）"
   fi
