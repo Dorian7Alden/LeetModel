@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 /**
  * AI 网关客户端自动配置。
@@ -30,8 +31,12 @@ public class AiClientConfiguration {
     @Bean
     @ConditionalOnMissingBean(AiClient.class)
     public AiClient aiClient(RestClient.Builder builder, AiClientProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout((int) properties.getConnectTimeout().toMillis());
+        requestFactory.setReadTimeout((int) properties.getReadTimeout().toMillis());
         RestClient restClient = builder
                 .baseUrl(properties.getBaseUrl())
+                .requestFactory(requestFactory)
                 .build();
         return new HttpAiClient(restClient);
     }

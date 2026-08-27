@@ -13,11 +13,15 @@ import com.leetmodel.team.service.TeamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -26,6 +30,7 @@ import java.util.List;
  */
 @Tag(name = "内部接口")
 @RestController
+@Validated
 @RequestMapping("/internal/teams")
 @RequiredArgsConstructor
 public class InternalTeamController {
@@ -71,6 +76,23 @@ public class InternalTeamController {
                 new LambdaQueryWrapper<Team>().eq(Team::getStatus, 1)
         );
         return Result.ok(count);
+    }
+
+    @Operation(summary = "查询最近队伍")
+    @GetMapping("/recent")
+    public Result<List<TeamDTO>> listRecent(
+            @RequestParam(defaultValue = "20")
+            @Min(value = 1, message = "查询数量不能小于1")
+            @Max(value = 100, message = "查询数量不能超过100") Integer limit) {
+        List<Team> teams = teamService.list(new LambdaQueryWrapper<Team>()
+                .orderByDesc(Team::getCreateTime).last("LIMIT " + limit));
+        return Result.ok(teams.stream().map(team -> {
+            long memberCount = teamMemberMapper.selectCount(
+                    new LambdaQueryWrapper<TeamMember>().eq(TeamMember::getTeamId, team.getId()));
+            return new TeamDTO(team.getId(), team.getName(), team.getLeaderId(), team.getStatus(),
+                    (int) memberCount, team.getProblemId(), team.getPracticeStatus(),
+                    team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt());
+        }).toList());
     }
 
     @Operation(summary = "查询已到截止时间的练习")

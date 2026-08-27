@@ -218,3 +218,18 @@ AI 网关独占 `lm_ai` 数据库。首版只持久化完成运行时追溯和�
 | 21 | [数据模型](21-数据模型.md) | 拟议表、字段、约束、索引、关系和生命周期 | 0-1 只设计最小调用事实 |
 | 22 | [测试与验收](22-测试与验收.md) | 契约、调度、稳定性、计量和故障场景验证 | 0-1 缩减为同步主链验收 |
 | 23 | [参考项目横向对比](23-参考项目横向对比.md) | 可借鉴设计、不可照搬实现与演进边界 | 参考材料，不属于 0-1 功能 |
+
+## 本地运行与密钥
+
+开启真实 AI 调用需要为 `ai-gateway-service` 注入供应商密钥，并启用 AI 客户端：
+
+```bash
+export DEEPSEEK_API_KEY=<你的DeepSeek密钥>
+export COMMON_AI_CLIENT_ENABLED=true
+java -jar ai-gateway-service/target/ai-gateway-service-0.0.1-SNAPSHOT.jar
+```
+
+- 密钥只通过运行环境变量注入，不写入仓库、配置文件或提交记录。
+- `COMMON_AI_CLIENT_ENABLED=true` 覆盖 `application.yml` 中 `common.ai-client.enabled: false` 的默认值。
+- 若未配置密钥或客户端未启用，评审/建议/客服/质量评价会明确返回“AI 供应商未配置/请稍后重试”，属于预期边界。
+- 建议任务生成较慢，`common-ai` 客户端默认读取超时已放宽到 5 分钟（可通过 `common.ai-client.read-timeout` 调整）。

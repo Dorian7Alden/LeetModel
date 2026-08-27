@@ -1,0 +1,21 @@
+package com.leetmodel.assistant.vo;
+
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+public class ConversationVO {
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long id;
+    private String title;
+    private String status;
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
+    private List<AssistantMessageVO> messages;
+}

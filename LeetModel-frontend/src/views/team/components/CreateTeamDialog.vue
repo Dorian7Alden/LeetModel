@@ -11,7 +11,7 @@
     <el-form :model="form" label-width="88px" @submit.prevent>
       <el-form-item label="练习题目" required>
         <div v-if="presetProblem" class="preset-problem">
-          <span class="problem-number">题号 {{ presetProblem.id }}</span>
+          <span class="problem-number">题号 {{ presetProblem.code }}</span>
           <span class="problem-title">{{ presetProblem.title }}</span>
         </div>
         <el-select
@@ -32,11 +32,11 @@
           <el-option
             v-for="problem in problemOptions"
             :key="problem.id"
-            :label="`题号 ${problem.id} · ${problem.title}`"
+            :label="`题号 ${problem.code} · ${problem.title}`"
             :value="String(problem.id)"
           >
             <div class="problem-option">
-              <span class="problem-number">题号 {{ problem.id }}</span>
+              <span class="problem-number">题号 {{ problem.code }}</span>
               <span class="problem-title">{{ problem.title }}</span>
             </div>
           </el-option>

@@ -5,11 +5,16 @@
       <div class="heading-actions">
         <el-input v-model="filters.keyword" placeholder="搜索题目标题" :prefix-icon="Search" clearable class="keyword-input" @keyup.enter="emitChange" @clear="emitChange" />
         <el-button type="primary" :icon="Search" @click="emitChange">搜索</el-button>
-        <el-button plain :loading="randomLoading" @click="handleRandom">随机一题</el-button>
+        <el-button plain :loading="randomLoading" @click="emit('random', buildParams())">按当前条件随机</el-button>
       </div>
     </div>
 
-    <div class="filter-options" v-loading="optionsLoading">
+    <button type="button" class="mobile-filter-toggle" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+      <span>筛选条件{{ selectedConditions.length ? `（已选 ${selectedConditions.length}）` : '' }}</span>
+      <el-icon :class="{ expanded: filtersExpanded }"><ArrowDown /></el-icon>
+    </button>
+
+    <div class="filter-options" :class="{ 'mobile-collapsed': !filtersExpanded }" v-loading="optionsLoading">
       <div class="option-row">
         <span class="option-label">赛事</span>
         <div class="option-list">
@@ -68,9 +73,14 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { Close, Refresh, Search } from '@element-plus/icons-vue'
+import { ArrowDown, Close, Refresh, Search } from '@element-plus/icons-vue'
 
-const props = defineProps({ contests: { type: Array, default: () => [] }, tags: { type: Array, default: () => [] }, optionsLoading: { type: Boolean, default: false } })
+const props = defineProps({
+  contests: { type: Array, default: () => [] },
+  tags: { type: Array, default: () => [] },
+  optionsLoading: { type: Boolean, default: false },
+  randomLoading: { type: Boolean, default: false },
+})
 const emit = defineEmits(['change', 'random'])
 const currentYear = new Date().getFullYear()
 const recentYears = Array.from({ length: 5 }, (_, index) => currentYear - index)
@@ -84,7 +94,7 @@ const scoreOptions = [
   { label: '90 分以上', min: 90, max: null },
 ]
 const filters = reactive({ keyword: '', contestId: null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
-const randomLoading = ref(false)
+const filtersExpanded = ref(false)
 const tagGroups = computed(() => [
   { type: 'BACKGROUND_DOMAIN', label: '背景领域', tags: props.tags.filter((tag) => tag.type === 'BACKGROUND_DOMAIN') },
   { type: 'PROBLEM_TYPE', label: '题目类型', tags: props.tags.filter((tag) => tag.type === 'PROBLEM_TYPE') },
@@ -142,7 +152,6 @@ const reset = () => {
   filters.selectedTags.MODEL_ALGORITHM = []
   emitChange()
 }
-const handleRandom = async () => { randomLoading.value = true; try { await emit('random', buildParams()) } finally { randomLoading.value = false } }
 </script>
 
 <style scoped>
@@ -154,6 +163,7 @@ const handleRandom = async () => { randomLoading.value = true; try { await emit(
 .heading-actions { display: flex; align-items: center; gap: 8px; }
 .keyword-input { width: 280px; }
 .filter-options { overflow: hidden; background: var(--lm-surface); border: 1px solid #dbe3ef; border-radius: 14px; box-shadow: 0 12px 35px rgba(30, 64, 175, 0.07); }
+.mobile-filter-toggle { display: none; }
 .option-row { display: grid; grid-template-columns: 76px 1fr; min-height: 38px; border-bottom: 1px solid var(--lm-border-light); }
 .option-row:last-child { border-bottom: 0; }
 .option-label { display: flex; align-items: center; justify-content: center; padding: 10px 8px; background: linear-gradient(90deg, #f1f5f9, #f8fafc); border-right: 1px solid var(--lm-border-light); font-size: 11px; font-weight: 700; color: #475569; text-align: center; }
@@ -170,5 +180,17 @@ const handleRandom = async () => { randomLoading.value = true; try { await emit(
 .clear-button { margin-left: auto; padding: 5px 8px; background: transparent; color: var(--lm-text-muted); font-size: 12px; }
 .clear-button:hover { color: var(--lm-primary); }
 @media (max-width: 900px) { .filter-heading { align-items: flex-start; flex-direction: column; } .heading-actions { width: 100%; flex-wrap: wrap; } .keyword-input { flex: 1; min-width: 220px; } }
-@media (max-width: 600px) { .filter-heading h1 { font-size: 22px; } .option-row { grid-template-columns: 72px 1fr; } .option-label { padding: 14px 10px; } .option-list { padding: 8px; gap: 3px; } .option-item { padding: 5px 7px; font-size: 12px; } .keyword-input { flex-basis: 100%; } .clear-button { margin-left: 0; } }
+@media (max-width: 600px) {
+  .filter-heading h1 { font-size: 22px; }
+  .mobile-filter-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 11px 13px; border: 1px solid var(--lm-border); border-radius: 10px; background: var(--lm-surface); color: var(--lm-text-secondary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .mobile-filter-toggle .el-icon { transition: transform var(--lm-transition); }
+  .mobile-filter-toggle .el-icon.expanded { transform: rotate(180deg); }
+  .filter-options.mobile-collapsed { display: none; }
+  .option-row { grid-template-columns: 72px 1fr; }
+  .option-label { padding: 14px 10px; }
+  .option-list { padding: 8px; gap: 3px; }
+  .option-item { padding: 5px 7px; font-size: 12px; }
+  .keyword-input { flex-basis: 100%; }
+  .clear-button { margin-left: 0; }
+}
 </style>

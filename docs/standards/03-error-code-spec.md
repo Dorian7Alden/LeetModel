@@ -37,6 +37,8 @@ A - BB - CC
 | 08 | 改进建议 | 预留 |
 | 09 | 排行榜 | 预留 |
 | 10 | 管理后台 | 预留 |
+| 11 | AI 质量评价 | 固定数据集、评价任务与依赖错误 |
+| 12 | AI 网关 | 模型路由、能力校验与供应商错误 |
 
 ---
 
@@ -113,6 +115,36 @@ A - BB - CC
 | INVALID_DIFFICULTY | 40405 | 难度值不合法 |
 | INVALID_STATUS | 40406 | 题目状态不合法 |
 | TAG_IN_USE | 40407 | 标签仍被题目使用 |
+
+### BB=11：AI 质量评价
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| DATASET_NOT_FOUND | 41101 | 评价数据集不存在 |
+| DUPLICATE_SAMPLE | 41102 | 评价数据集重复引用同一提交 |
+| SAMPLE_UNAVAILABLE | 41103 | 评价样本不存在或信息不完整 |
+| VERSION_UNAVAILABLE | 41104 | 评审版本不存在或不可执行 |
+| TASK_NOT_FOUND | 41105 | 质量评价任务不存在 |
+| TASK_NOT_FAILED | 41106 | 当前任务不可重试 |
+| IDEMPOTENCY_CONFLICT | 41107 | 请求标识已用于其他评价配置 |
+| DEPENDENCY_UNAVAILABLE | 51101 | 质量评价依赖服务暂不可用 |
+
+### BB=12：AI 网关
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| ROUTE_NOT_FOUND | 41201 | AI 调用场景未配置 |
+| CAPABILITY_NOT_SUPPORTED | 41202 | 当前模型不支持请求的能力 |
+| MODEL_DISABLED | 41203 | 当前模型未配置或已停用 |
+| INPUT_TYPE_UNSUPPORTED | 41204 | 当前模型不支持请求的输入类型 |
+| MEDIA_TYPE_UNSUPPORTED | 41205 | 当前模型不支持该媒体类型 |
+| IMAGE_COUNT_EXCEEDED | 41206 | 图片数量超过当前模型上限 |
+| IMAGE_BYTES_EXCEEDED | 41207 | 图片总体积超过当前模型上限 |
+| CONTEXT_WINDOW_EXCEEDED | 41208 | 请求可能超过当前模型上下文窗口 |
+| OUTPUT_LIMIT_EXCEEDED | 41209 | 最大输出超过当前模型上限 |
+| PROVIDER_NOT_CONFIGURED | 51201 | AI 供应商未配置 |
+| PROVIDER_UNAVAILABLE | 51202 | AI 供应商暂不可用 |
+| RESPONSE_INVALID | 51203 | AI 供应商响应无效 |
 
 ---
 

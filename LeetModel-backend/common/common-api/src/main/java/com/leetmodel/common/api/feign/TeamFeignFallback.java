@@ -42,6 +42,11 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
             }
 
             @Override
+            public Result<List<TeamDTO>> listRecent(Integer limit) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
             public Result<List<TeamDTO>> listExpiredPractices() {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }

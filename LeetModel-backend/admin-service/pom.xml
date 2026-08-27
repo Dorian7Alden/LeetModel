@@ -36,6 +36,12 @@
             <groupId>com.leetmodel</groupId>
             <artifactId>common-api</artifactId>
         </dependency>
+        <!-- 仅提供 IPage 类以链接 PageResult 方法签名；不引入 starter，不触发 MyBatis-Plus 自动配置与 DataSource -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-core</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

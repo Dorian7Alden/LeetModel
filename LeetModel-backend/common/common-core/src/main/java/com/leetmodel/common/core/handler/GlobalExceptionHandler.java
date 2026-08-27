@@ -3,10 +3,15 @@ package com.leetmodel.common.core.handler;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -41,6 +46,44 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         log.warn("[参数校验失败] {}", msg);
         return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
+    }
+
+    /**
+     * 方法参数约束异常 —— 处理 @PathVariable、@RequestParam 上的校验注解。
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public Result<?> handleConstraintViolation(ConstraintViolationException e) {
+        String msg = e.getConstraintViolations().stream()
+                .map(violation -> violation.getMessage())
+                .distinct()
+                .collect(Collectors.joining("; "));
+        log.warn("[方法参数校验失败] {}", msg);
+        return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
+    }
+
+    /**
+     * 查询对象绑定异常。
+     */
+    @ExceptionHandler(BindException.class)
+    public Result<?> handleBindException(BindException e) {
+        String msg = e.getBindingResult().getFieldErrors().stream()
+                .map(f -> f.getField() + ": " + f.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        log.warn("[参数绑定失败] {}", msg);
+        return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
+    }
+
+    /**
+     * 参数类型、必填参数和 JSON 结构错误。
+     */
+    @ExceptionHandler({
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
+            HttpMessageNotReadableException.class
+    })
+    public Result<?> handleRequestFormatException(Exception e) {
+        log.warn("[请求格式错误] type={}, message={}", e.getClass().getSimpleName(), e.getMessage());
+        return Result.fail(ErrorCodeEnum.PARAM_INVALID);
     }
 
     /**

@@ -2,6 +2,9 @@ package com.leetmodel.review.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.ReviewSummaryDTO;
+import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
+import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 
 @Slf4j @Service
@@ -120,6 +124,112 @@ public class ReviewService {
                 }).toList();
     }
 
+    /**
+     * 按提交 ID 查询最新评审摘要。
+     * @param submissionId 提交 ID
+     * @return 评审摘要
+     */
+    public ReviewSummaryDTO getSummaryBySubmission(Long submissionId) {
+        ReviewTask task = taskMapper.selectOne(new LambdaQueryWrapper<ReviewTask>()
+                .eq(ReviewTask::getSubmissionId, submissionId)
+                .orderByDesc(ReviewTask::getCreateTime)
+                .last("LIMIT 1"));
+        BusinessException.throwIf(task == null, ReviewErrorCode.TASK_NOT_FOUND);
+        ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                .eq(ReviewV1Result::getTaskId, task.getId()));
+        return toSummary(task, result);
+    }
+
+    /**
+     * 查询已完成且已产生结果的评审摘要。
+     * @param problemId 可选题目 ID
+     * @return 评审摘要列表
+     */
+    public List<ReviewSummaryDTO> listCompletedSummaries(Long problemId) {
+        // 评审结果表只在任务完成时写入
+        LambdaQueryWrapper<ReviewV1Result> query = new LambdaQueryWrapper<>();
+        if (problemId != null) query.eq(ReviewV1Result::getProblemId, problemId);
+        query.orderByDesc(ReviewV1Result::getCreateTime);
+        List<ReviewV1Result> results = resultMapper.selectList(query);
+
+        // 使用稳定 taskId 关联任务状态，不依赖列表顺序
+        return results.stream()
+                .map(result -> {
+                    ReviewTask task = taskMapper.selectById(result.getTaskId());
+                    return task == null ? null : toSummary(task, result);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * 获取评审任务数量。
+     * @return 评审任务数量
+     */
+    public long count() {
+        return taskMapper.selectCount(null);
+    }
+
+    /** 管理聚合使用的最近评审任务，包含等待、运行和失败状态。 */
+    public List<ReviewSummaryDTO> listRecentSummaries(int limit) {
+        return taskMapper.selectList(new LambdaQueryWrapper<ReviewTask>()
+                        .orderByDesc(ReviewTask::getCreateTime).last("LIMIT " + limit))
+                .stream().map(task -> {
+                    ReviewV1Result result = resultMapper.selectOne(new LambdaQueryWrapper<ReviewV1Result>()
+                            .eq(ReviewV1Result::getTaskId, task.getId()));
+                    return toSummary(task, result);
+                }).toList();
+    }
+
+    /**
+     * 查询当前登记的评审版本，供管理端展示和评价任务校验。
+     */
+    public List<ReviewVersionDTO> listVersions() {
+        return versionMapper.selectList(new LambdaQueryWrapper<ReviewVersion>()
+                        .orderByAsc(ReviewVersion::getId))
+                .stream().map(version -> new ReviewVersionDTO(
+                        version.getId(), version.getVersionCode(), version.getName(),
+                        version.getDescription(), version.getProcessSummary(), version.getStatus()))
+                .toList();
+    }
+
+    /**
+     * 执行一次不写入正式评审任务的版本实验，供质量评价服务使用。
+     *
+     * @param submissionId 已有提交标识
+     * @param workflowVersion 待评价评审版本
+     * @return 隔离实验结果或分类失败
+     */
+    public ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion) {
+        LocalDateTime startedAt = LocalDateTime.now();
+        try {
+            ReviewWorkflow workflow = workflowRegistry.required(workflowVersion);
+            SubmissionReviewDTO submission = requiredSubmission(submissionId);
+            ReviewTask transientTask = new ReviewTask();
+            transientTask.setSubmissionId(submissionId);
+            transientTask.setTeamId(submission.getTeamId());
+            transientTask.setProblemId(submission.getProblemId());
+            transientTask.setVersionId(workflow.versionId());
+            transientTask.setWorkflowVersion(workflow.versionCode());
+            transientTask.setPromptSnapshot(workflow.currentPrompt());
+            transientTask.setAttemptNo(1);
+            ReviewWorkflowResult result = workflow.execute(transientTask, submission);
+            return new ReviewExperimentResultDTO(
+                    submissionId, submission.getProblemId(), workflow.versionCode(), "SUCCEEDED", null,
+                    result.score(), result.resultJson(), result.modelName(), result.aiCallId(),
+                    Duration.between(startedAt, LocalDateTime.now()).toMillis(), null);
+        } catch (Exception exception) {
+            log.warn("隔离评审实验失败 submissionId={}, workflowVersion={}, message={}",
+                    submissionId, workflowVersion, exception.getMessage());
+            String failureType = classifyExperimentFailure(exception);
+            return new ReviewExperimentResultDTO(
+                    submissionId, null, workflowVersion, "FAILED", failureType,
+                    null, null, null, null,
+                    Duration.between(startedAt, LocalDateTime.now()).toMillis(),
+                    experimentErrorMessage(failureType));
+        }
+    }
+
     @Transactional
     public ReviewVO retry(Long taskId, Long userId) {
         ReviewTask task = requiredTask(taskId);
@@ -161,8 +271,48 @@ public class ReviewService {
                 .resultJson(result == null ? null : result.getResultJson())
                 .modelName(result == null ? null : result.getModelName()).build();
     }
+
+    /**
+     * 转换跨服务评审摘要。
+     * @param task 评审任务
+     * @param result 可空评审结果
+     * @return 评审摘要
+     */
+    private ReviewSummaryDTO toSummary(ReviewTask task, ReviewV1Result result) {
+        return new ReviewSummaryDTO(
+                task.getId(),
+                task.getSubmissionId(),
+                task.getTeamId(),
+                task.getProblemId(),
+                task.getStatus(),
+                task.getWorkflowVersion(),
+                result == null ? null : result.getScore(),
+                result == null ? null : result.getResultJson(),
+                result == null ? null : result.getModelName(),
+                result == null ? null : result.getAiCallId(),
+                task.getErrorMessage(),
+                task.getFinishedAt()
+        );
+    }
     private String truncate(String message) {
         if (message == null || message.isBlank()) return "未知错误";
         return message.substring(0, Math.min(message.length(), 500));
+    }
+
+    private String classifyExperimentFailure(Exception exception) {
+        String message = exception.getMessage() == null ? "" : exception.getMessage();
+        if (message.startsWith("未知评审版本")) return "CONFIGURATION";
+        if (message.contains("模型输出不符合") || message.contains("AI 网关未返回评审内容")) {
+            return "OUTPUT";
+        }
+        return "ENVIRONMENT";
+    }
+
+    private String experimentErrorMessage(String failureType) {
+        return switch (failureType) {
+            case "CONFIGURATION" -> "评审版本不存在或不可执行";
+            case "OUTPUT" -> "评审版本未产生符合契约的结果";
+            default -> "实验评审依赖暂不可用";
+        };
     }
 }

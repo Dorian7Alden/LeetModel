@@ -88,5 +88,23 @@ export function getUserRoles(userId) {
 }
 
 export function assignUserRoles(userId, roleIds) {
-  return request({ url: `/admin/users/${userId}/roles`, method: "put", data: { ids: roleIds } });
+  return request({ url: `/admin/users/${userId}/roles`, method: "put", data: { roleIds } });
+}
+
+// ==================== 管理端用户管理（与 admin-service 契约对齐） ====================
+
+export function adminPageUsers(params) {
+  return request({ url: "/admin/users", method: "get", params });
+}
+
+export function adminUserDetail(userId) {
+  return request({ url: `/admin/users/${userId}`, method: "get" });
+}
+
+export function adminUpdateUserStatus(userId, status) {
+  return request({ url: `/admin/users/${userId}/status`, method: "put", data: { status } });
+}
+
+export function adminUpdateUserRoles(userId, roleIds) {
+  return request({ url: `/admin/users/${userId}/roles`, method: "put", data: { roleIds } });
 }

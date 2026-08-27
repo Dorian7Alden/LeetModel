@@ -31,6 +31,10 @@
         <module>team-service</module>
         <module>submission-service</module>
         <module>ai-review-service</module>
+        <module>ranking-service</module>
+        <module>ai-suggestion-service</module>
+        <module>ai-assistant-service</module>
+        <module>ai-evaluation-service</module>
         <module>gateway-service</module>
         <module>admin-service</module>
         <module>ai-gateway-service</module>

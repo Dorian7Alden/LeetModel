@@ -35,7 +35,7 @@ flowchart LR
         problemService["problem-service"]
         reviewService["ai-review-service"]
         suggestionService["ai-suggestion-service，目标设计"]
-        evaluationService["ai-evaluation-service，目标设计"]
+        evaluationService["ai-evaluation-service"]
     end
 
     subgraph data["提交数据与文件"]
@@ -56,7 +56,7 @@ flowchart LR
     snapshotApi -.-> evaluationService
 ```
 
-论文先完成分片、文件和提交资格校验，再形成可追溯的提交版本并保存原始 PDF。提交成功后触发 ai-review-service，同时向后续 AI 服务提供不可变快照。虚线表示尚未形成运行模块的改善建议和质量评价读取方向；评审执行状态仍由 ai-review-service 自己维护。
+论文先完成分片、文件和提交资格校验，再形成可追溯的提交版本并保存原始 PDF。提交成功后触发 ai-review-service，同时向 AI 建议、排行和质量评价服务提供稳定的最终提交契约。评审执行状态仍由 ai-review-service 自己维护。
 
 ## 职责边界
 

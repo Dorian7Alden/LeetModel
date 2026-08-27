@@ -45,7 +45,7 @@
               <span class="section-kicker">PRACTICE BRIEF</span>
               <h3 class="section-title">练习题目</h3>
               <p class="problem-title">{{ problem?.title || '题目信息加载中' }}</p>
-              <div class="problem-meta-list"><span>题号 {{ team.problemId }}</span><span v-if="problem?.difficulty">{{ difficultyLabel(problem.difficulty) }}</span><span v-if="problem?.durationMinutes">{{ formatDuration(problem.durationMinutes) }}</span></div>
+              <div class="problem-meta-list"><span>题号 {{ problem?.code || team.problemCode }}</span><span v-if="problem?.difficulty">{{ difficultyLabel(problem.difficulty) }}</span><span v-if="problem?.durationMinutes">{{ formatDuration(problem.durationMinutes) }}</span></div>
             </div>
             <el-button v-if="canManage && team.practiceStatus === 'PREPARING'" type="primary" :loading="startingPractice" @click="handleStartPractice">开始练习</el-button>
             <el-button v-if="canManage && team.practiceStatus === 'IN_PROGRESS'" type="danger" plain :loading="endingPractice" @click="handleEndPractice">提前结束</el-button>
@@ -99,7 +99,7 @@
             <el-table-column label="评审状态" width="110"><template #default="scope"><el-tag :type="reviewStatusType(scope.row.review?.status)" size="small" effect="light">{{ reviewStatusLabel(scope.row.review?.status) }}</el-tag></template></el-table-column>
             <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.score != null" class="table-score">{{ scope.row.review.score }}</strong><span v-else>--</span></template></el-table-column>
             <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
-            <el-table-column label="操作" width="210"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试</el-button></template></el-table-column>
+            <el-table-column label="操作" width="300"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button><el-button v-if="scope.row.review?.status === 'COMPLETED'" type="success" link @click="showSuggestion(scope.row)">改进建议</el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试</el-button></template></el-table-column>
           </el-table>
         </div>
 
@@ -220,6 +220,7 @@
       </div>
     </el-dialog>
     <UserMiniCardDialog v-model="showMiniCard" :member="selectedMember" />
+    <SubmissionSuggestionDialog v-model="showSuggestionDialog" :submission="suggestionSubmission" />
   </div>
 </template>
 
@@ -235,6 +236,7 @@ import { finalizeTeamSubmission, getTeamSubmissionHistory, submitTeamPdf } from 
 import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { useUserStore } from '@/store/user'
 import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
+import SubmissionSuggestionDialog from '../components/SubmissionSuggestionDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -258,6 +260,8 @@ const submissions = ref([])
 const reviews = ref([])
 const showReviewDialog = ref(false)
 const selectedReview = ref(null)
+const showSuggestionDialog = ref(false)
+const suggestionSubmission = ref(null)
 const selectedPdf = ref(null)
 const submitting = ref(false)
 const uploadProgress = ref(0)
@@ -402,6 +406,10 @@ async function refreshSubmissionReviews() { await Promise.all([loadSubmissions()
 function showReviewResult(review) {
   selectedReview.value = review
   showReviewDialog.value = true
+}
+function showSuggestion(row) {
+  suggestionSubmission.value = row
+  showSuggestionDialog.value = true
 }
 async function handleRetryReview(taskId) {
   try { await retryReviewTask(taskId); await refreshSubmissionReviews(); ElMessage.success('评审任务已重新排队') }

@@ -123,6 +123,6 @@ flowchart TB
 ### 当前实现边界
 
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
-- ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 当前只有目标设计，没有对应 Maven 运行模块。
+- ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前质量评价只覆盖 AI 评审版本的固定自动口径；建议与客服质量评价仍属于后续边界。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
 - 本文只确认分层框架。各服务 README 中的职责边界是后续逐个梳理的起点，不代表全部细节已经确认。

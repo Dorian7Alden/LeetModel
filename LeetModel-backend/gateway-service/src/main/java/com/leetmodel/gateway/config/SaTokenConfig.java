@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 
 /**
  * Sa-Token 响应式配置 —— JWT 无状态认证 + 路由鉴权规则。
@@ -92,6 +93,9 @@ public class SaTokenConfig {
                         "/api/teams/v3/api-docs",
                         "/api/submissions/v3/api-docs",
                         "/api/reviews/v3/api-docs",
+                        "/api/rankings/v3/api-docs",
+                        "/api/suggestions/v3/api-docs",
+                        "/api/assistant/v3/api-docs",
                         "/api/admin/v3/api-docs"
                 )
                 // 浏览器 CORS 预检不携带登录态，实际业务请求仍必须登录
@@ -106,12 +110,13 @@ public class SaTokenConfig {
 
     private String buildUnauthorizedResponse() {
         SaHolder.getResponse().setHeader("Content-Type", "application/json;charset=UTF-8");
+        SaHolder.getResponse().setStatus(HttpStatus.UNAUTHORIZED.value());
         try {
             return objectMapper.writeValueAsString(
-                    Result.fail(40100, "未登录或 Token 已失效，请重新登录")
+                    Result.fail(40101, "未登录或 Token 已失效，请重新登录")
             );
         } catch (JsonProcessingException e) {
-            return "{\"code\":40100,\"message\":\"未登录或 Token 已失效，请重新登录\",\"data\":null}";
+            return "{\"code\":40101,\"message\":\"未登录或 Token 已失效，请重新登录\",\"data\":null}";
         }
     }
 }

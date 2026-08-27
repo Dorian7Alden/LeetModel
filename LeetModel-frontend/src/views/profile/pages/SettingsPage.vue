@@ -36,16 +36,6 @@
           <el-input v-model="form.email" maxlength="64" />
         </el-form-item>
 
-        <!-- 学校 -->
-        <el-form-item label="学校" prop="school">
-          <el-input v-model="form.school" maxlength="100" disabled placeholder="后端暂未支持" />
-        </el-form-item>
-
-        <!-- 手机号 -->
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" maxlength="11" disabled placeholder="后端暂未支持" />
-        </el-form-item>
-
         <!-- 创建时间（只读） -->
         <el-form-item label="注册时间">
           <el-input v-model="form.createTime" disabled />
@@ -76,12 +66,6 @@
       </el-form>
     </el-card>
 
-    <div class="danger-zone">
-      <h3 class="danger-title">危险操作</h3>
-      <p class="danger-desc">注销账号后所有数据将被永久删除且无法恢复。</p>
-      <el-button type="danger" disabled>注销账号</el-button>
-      <span class="unavailable-hint">后端暂未支持</span>
-    </div>
   </div>
 </template>
 
@@ -104,8 +88,6 @@ const form = reactive({
   nickname: "",
   email: "",
   createTime: "",
-  school: "",
-  phone: "",
 });
 
 const rules = {
@@ -114,12 +96,6 @@ const rules = {
   ],
   email: [
     { type: "email", message: "邮箱格式不正确", trigger: ["blur", "change"] },
-  ],
-  school: [
-    { max: 100, message: "学校名称不能超过100个字符", trigger: "blur" },
-  ],
-  phone: [
-    { pattern: /^1[3-9]\d{9}$/, message: "手机号格式不正确", trigger: "blur" },
   ],
 };
 
@@ -159,8 +135,6 @@ async function loadUser() {
         nickname: user.nickname ?? "",
         email: user.email ?? "",
         createTime: user.createTime ?? "",
-        school: user.school ?? "",
-        phone: user.phone ?? "",
       };
     }
     const user = normalizeUser(res.data);

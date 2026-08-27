@@ -7,12 +7,15 @@ import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
+import com.leetmodel.review.entity.ReviewV1Result;
+import com.leetmodel.review.entity.ReviewVersion;
 import com.leetmodel.review.enums.ReviewErrorCode;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.mapper.ReviewV1ResultMapper;
 import com.leetmodel.review.mapper.ReviewVersionMapper;
 import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
+import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.argThat;
@@ -158,6 +162,139 @@ class ReviewServiceTest {
         verify(logService).fail(any(), any());
         verify(taskMapper).updateById(argThat((ReviewTask value) -> "FAILED".equals(value.getStatus())
                 && value.getFinishedAt() != null && value.getErrorMessage() != null));
+    }
+
+    @Test
+    void returnWaitingSummaryByStableSubmissionId() {
+        ReviewTask task = task(26L, "WAITING");
+        when(taskMapper.selectOne(any())).thenReturn(task);
+        when(resultMapper.selectOne(any())).thenReturn(null);
+
+        var summary = service.getSummaryBySubmission(31L);
+
+        assertEquals(26L, summary.getTaskId());
+        assertEquals(31L, summary.getSubmissionId());
+        assertEquals("WAITING", summary.getStatus());
+        assertNull(summary.getScore());
+    }
+
+    @Test
+    void rejectSummaryQueryWhenSubmissionHasNoReviewTask() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.getSummaryBySubmission(99L));
+
+        assertEquals(ReviewErrorCode.TASK_NOT_FOUND.getCode(), error.getCode());
+    }
+
+    @Test
+    void listCompletedSummariesSkipsOrphanResult() {
+        ReviewV1Result valid = new ReviewV1Result();
+        valid.setTaskId(27L);
+        valid.setSubmissionId(31L);
+        valid.setTeamId(41L);
+        valid.setProblemId(51L);
+        valid.setScore(new java.math.BigDecimal("88.50"));
+        ReviewV1Result orphan = new ReviewV1Result();
+        orphan.setTaskId(999L);
+        when(resultMapper.selectList(any())).thenReturn(java.util.List.of(valid, orphan));
+        when(taskMapper.selectById(27L)).thenReturn(task(27L, "COMPLETED"));
+        when(taskMapper.selectById(999L)).thenReturn(null);
+
+        var summaries = service.listCompletedSummaries(51L);
+
+        assertEquals(1, summaries.size());
+        assertEquals(new java.math.BigDecimal("88.50"), summaries.get(0).getScore());
+    }
+
+    @Test
+    void listRecentSummariesKeepsWaitingAndFailedTasks() {
+        ReviewTask waiting = task(28L, "WAITING");
+        ReviewTask failed = task(29L, "FAILED");
+        failed.setErrorMessage("AI 供应商暂不可用");
+        when(taskMapper.selectList(any())).thenReturn(java.util.List.of(waiting, failed));
+        when(resultMapper.selectOne(any())).thenReturn(null);
+
+        var summaries = service.listRecentSummaries(20);
+
+        assertEquals(2, summaries.size());
+        assertEquals("WAITING", summaries.get(0).getStatus());
+        assertNull(summaries.get(0).getScore());
+        assertEquals("AI 供应商暂不可用", summaries.get(1).getErrorMessage());
+    }
+
+    @Test
+    void runExperimentUsesTransientTaskWithoutCreatingFormalReview() throws Exception {
+        when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
+        when(workflow.versionCode()).thenReturn(ReviewService.WORKFLOW_VERSION);
+        when(workflow.versionId()).thenReturn(1L);
+        when(workflow.currentPrompt()).thenReturn("locked prompt");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("86.50"), "{\"score\":86.5}", "model-a", "call-1"));
+
+        var result = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        assertEquals(new java.math.BigDecimal("86.50"), result.getScore());
+        assertEquals("call-1", result.getAiCallId());
+        verify(workflow).execute(argThat(task -> task.getId() == null
+                && "locked prompt".equals(task.getPromptSnapshot())
+                && task.getAttemptNo() == 1), any());
+        verify(taskMapper, never()).insert(any(ReviewTask.class));
+        verify(resultMapper, never()).insert(any(ReviewV1Result.class));
+    }
+
+    @Test
+    void runExperimentRejectsUnknownVersionBeforeReadingSubmission() {
+        when(workflowRegistry.required("UNKNOWN"))
+                .thenThrow(new IllegalArgumentException("未知评审版本: UNKNOWN"));
+
+        var result = service.runExperiment(31L, "UNKNOWN");
+
+        assertEquals("FAILED", result.getStatus());
+        assertEquals("CONFIGURATION", result.getFailureType());
+        assertEquals("评审版本不存在或不可执行", result.getErrorMessage());
+        verify(submissionFeignClient, never()).getForReview(any());
+    }
+
+    @Test
+    void runExperimentClassifiesDependencyAndOutputFailures() throws Exception {
+        when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(null);
+
+        var dependency = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("ENVIRONMENT", dependency.getFailureType());
+        assertEquals("实验评审依赖暂不可用", dependency.getErrorMessage());
+
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any()))
+                .thenThrow(new IllegalArgumentException("模型输出不符合 BASIC_REVIEW_V1 JSON 契约"));
+
+        var output = service.runExperiment(31L, ReviewService.WORKFLOW_VERSION);
+
+        assertEquals("OUTPUT", output.getFailureType());
+        assertEquals("评审版本未产生符合契约的结果", output.getErrorMessage());
+    }
+
+    @Test
+    void listVersionsReturnsStableVersionFacts() {
+        ReviewVersion version = new ReviewVersion();
+        version.setId(1L);
+        version.setVersionCode("BASIC_REVIEW_V1");
+        version.setName("V1 基础 AI 评审");
+        version.setDescription("一次多模态调用");
+        version.setProcessSummary("PDF 按页渲染后评审");
+        version.setStatus("ENABLED");
+        when(versionMapper.selectList(any())).thenReturn(java.util.List.of(version));
+
+        var versions = service.listVersions();
+
+        assertEquals(1, versions.size());
+        assertEquals("BASIC_REVIEW_V1", versions.get(0).getVersionCode());
+        assertEquals("ENABLED", versions.get(0).getStatus());
     }
 
     private ReviewTask task(Long id, String status) {

@@ -140,7 +140,7 @@ async function handleLogin() {
       ElMessage.error(res.message || "登录失败");
     }
   } catch (error) {
-    ElMessage.error(error?.response?.data?.message || error.message || "登录失败");
+    ElMessage.error(error.message || "登录失败，请检查网络后重试");
   } finally {
     loading.value = false;
   }

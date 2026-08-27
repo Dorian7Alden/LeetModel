@@ -1,117 +1,29 @@
 <template>
   <div class="contact-page">
-    <PageHeader title="联系我们" description="我们非常乐意听到你的声音，无论是问题反馈、建议还是合作洽谈" />
-
-    <el-row :gutter="30">
-      <!-- 联系表单 -->
-      <el-col :lg="16" :sm="24">
-        <div class="form-card">
-          <h3 class="card-title">发送消息</h3>
-          <el-form :model="form" label-width="80px" class="contact-form">
-            <el-form-item label="你的邮箱" required>
-              <el-input v-model="form.email" placeholder="请输入你的邮箱地址" />
-            </el-form-item>
-            <el-form-item label="消息类型">
-              <el-select v-model="form.type" placeholder="请选择" style="width: 100%">
-                <el-option label="问题反馈" value="bug" />
-                <el-option label="功能建议" value="feature" />
-                <el-option label="合作洽谈" value="cooperation" />
-                <el-option label="其他" value="other" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="消息标题" required>
-              <el-input v-model="form.title" placeholder="请简要描述你的问题或建议" />
-            </el-form-item>
-            <el-form-item label="详细描述" required>
-              <el-input v-model="form.content" type="textarea" :rows="6" placeholder="请详细描述你的问题或建议..." />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" size="large" @click="handleSubmit" :loading="submitting">
-                发送消息
-              </el-button>
-              <el-button size="large" @click="handleReset">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-      </el-col>
-
-      <!-- 联系信息卡片 -->
-      <el-col :lg="8" :sm="24">
-        <div class="info-cards">
-          <div class="info-card email-card">
-            <div class="info-icon">
-              <el-icon :size="24"><Message /></el-icon>
-            </div>
-            <div class="info-body">
-              <h4>电子邮箱</h4>
-              <p>support@leetmodel.com</p>
-              <span class="info-hint">工作日 24 小时内回复</span>
-            </div>
-          </div>
-
-          <div class="info-card qq-card">
-            <div class="info-icon">
-              <el-icon :size="24"><ChatDotRound /></el-icon>
-            </div>
-            <div class="info-body">
-              <h4>QQ 交流群</h4>
-              <p>123456789</p>
-              <span class="info-hint">5000+ 建模爱好者在线交流</span>
-            </div>
-          </div>
-
-          <div class="info-card github-card">
-            <div class="info-icon">
-              <el-icon :size="24"><Link /></el-icon>
-            </div>
-            <div class="info-body">
-              <h4>GitHub</h4>
-              <p><a href="https://github.com/leetmodel" target="_blank">github.com/leetmodel</a></p>
-              <span class="info-hint">欢迎 Star &amp; PR</span>
-            </div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
+    <PageHeader title="支持渠道" description="只展示当前真实可用的帮助与反馈方式" />
+    <el-alert title="当前版本尚未接入站内反馈表单" type="info" :closable="false" show-icon>
+      <template #default>我们不会模拟“发送成功”。登录用户可先使用右下角 AI 客服查询平台操作；缺陷与建议请通过项目 GitHub 提交。</template>
+    </el-alert>
+    <div class="info-cards support-grid">
+      <div class="info-card">
+        <div class="info-icon"><el-icon :size="24"><ChatDotRound /></el-icon></div>
+        <div class="info-body"><h4>AI 客服</h4><p>登录后从页面右下角打开</p><span class="info-hint">用于平台操作说明与受控选题辅助</span></div>
+      </div>
+      <div class="info-card github-card">
+        <div class="info-icon"><el-icon :size="24"><Link /></el-icon></div>
+        <div class="info-body"><h4>GitHub Issues</h4><p><a href="https://github.com/Dorian7Alden/LeetModel/issues" target="_blank" rel="noopener noreferrer">提交缺陷或建议</a></p><span class="info-hint">请勿在公开 Issue 中提交密码、密钥或个人隐私</span></div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Message, ChatDotRound, Link } from '@element-plus/icons-vue'
+import { ChatDotRound, Link } from '@element-plus/icons-vue'
 import PageHeader from '@/components/common/PageHeader.vue'
-
-const submitting = ref(false)
-
-const form = reactive({
-  email: '',
-  type: '',
-  title: '',
-  content: '',
-})
-
-function handleSubmit() {
-  if (!form.email || !form.title || !form.content) {
-    ElMessage.warning('请填写完整的消息内容')
-    return
-  }
-  submitting.value = true
-  setTimeout(() => {
-    submitting.value = false
-    ElMessage.success('消息已发送，我们会尽快回复你！')
-    handleReset()
-  }, 1200)
-}
-
-function handleReset() {
-  form.email = ''
-  form.type = ''
-  form.title = ''
-  form.content = ''
-}
 </script>
 
 <style scoped>
 @import './style.css';
+.support-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 24px; }
+@media (max-width: 720px) { .support-grid { grid-template-columns: 1fr; } }
 </style>

@@ -2,8 +2,11 @@ package com.leetmodel.submission.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -24,7 +27,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +42,7 @@ public class SubmissionService {
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
     private final ReviewFeignClient reviewFeignClient;
+    private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
 
     @Transactional
@@ -66,9 +75,27 @@ public class SubmissionService {
         SubmissionLock lock = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
                 .eq(SubmissionLock::getTeamId, teamId));
         Long finalSubmissionId = lock == null ? null : lock.getSubmissionId();
-        return submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTeamId, teamId).orderByDesc(Submission::getVersion))
-                .stream().map(value -> toVO(value, finalSubmissionId)).toList();
+        List<Submission> submissions = submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTeamId, teamId).orderByDesc(Submission::getVersion));
+        Map<Long, Integer> codeByProblem = loadProblemCodes(submissions.stream()
+                .map(Submission::getProblemId).distinct().toList());
+        return submissions.stream().map(value -> {
+            SubmissionVO vo = toVO(value, finalSubmissionId);
+            vo.setProblemCode(codeByProblem.get(value.getProblemId()));
+            return vo;
+        }).toList();
+    }
+
+    /**
+     * 批量查询题目题号（短顺序编号），用于提交记录展示。
+     */
+    private Map<Long, Integer> loadProblemCodes(List<Long> problemIds) {
+        if (problemIds.isEmpty()) return Map.of();
+        Result<List<ProblemPracticeDTO>> result = problemFeignClient.getPracticeProblems(problemIds);
+        if (result == null || !result.isSuccess() || result.getData() == null) return Map.of();
+        return result.getData().stream()
+                .filter(problem -> problem.getCode() != null)
+                .collect(Collectors.toMap(ProblemPracticeDTO::getId, ProblemPracticeDTO::getCode));
     }
 
     @Transactional
@@ -113,6 +140,52 @@ public class SubmissionService {
         Submission value = requiredSubmission(id);
         return new SubmissionReviewDTO(value.getId(), value.getTeamId(), value.getProblemId(),
                 value.getVersion(), value.getObjectName());
+    }
+
+    /**
+     * 查询已经锁定的最终提交快照。
+     * @param problemId 可选题目 ID
+     * @return 最终提交快照
+     */
+    public List<SubmissionSnapshotDTO> listFinalSnapshots(Long problemId) {
+        // 最终版本事实只来自 submission_lock
+        List<SubmissionLock> locks = lockMapper.selectList(null);
+        if (locks.isEmpty()) return List.of();
+
+        Set<Long> finalIds = new HashSet<>();
+        for (SubmissionLock lock : locks) finalIds.add(lock.getSubmissionId());
+        List<Submission> submissions = submissionMapper.selectBatchIds(finalIds);
+
+        // 可选按题目过滤，并按提交时间倒序输出
+        return submissions.stream()
+                .filter(value -> problemId == null || problemId.equals(value.getProblemId()))
+                .sorted(Comparator.comparing(
+                        Submission::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
+                .map(this::toSnapshot)
+                .toList();
+    }
+
+    /**
+     * 获取提交记录数量。
+     * @return 提交数量
+     */
+    public long count() {
+        return submissionMapper.selectCount(null);
+    }
+
+    /** 管理聚合使用的最近提交快照，不暴露下载地址。 */
+    public List<SubmissionSnapshotDTO> listRecentSnapshots(int limit) {
+        Set<Long> finalIds = lockMapper.selectList(null).stream()
+                .map(SubmissionLock::getSubmissionId).collect(java.util.stream.Collectors.toSet());
+        return submissionMapper.selectList(new LambdaQueryWrapper<Submission>()
+                        .orderByDesc(Submission::getCreateTime).last("LIMIT " + limit))
+                .stream().map(value -> {
+                    SubmissionSnapshotDTO snapshot = toSnapshot(value);
+                    snapshot.setFinalVersion(finalIds.contains(value.getId()));
+                    return snapshot;
+                }).toList();
     }
 
     private TeamDTO requiredMemberTeam(Long teamId, Long userId) {
@@ -178,5 +251,25 @@ public class SubmissionService {
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
                 .finalVersion(value.getId().equals(finalSubmissionId))
                 .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
+    }
+
+    /**
+     * 转换最终提交快照。
+     * @param value 提交实体
+     * @return 最终提交快照
+     */
+    private SubmissionSnapshotDTO toSnapshot(Submission value) {
+        return new SubmissionSnapshotDTO(
+                value.getId(),
+                value.getTeamId(),
+                value.getProblemId(),
+                value.getSubmitterId(),
+                value.getVersion(),
+                value.getOriginalFilename(),
+                value.getObjectName(),
+                value.getStatus(),
+                true,
+                value.getCreateTime()
+        );
     }
 }

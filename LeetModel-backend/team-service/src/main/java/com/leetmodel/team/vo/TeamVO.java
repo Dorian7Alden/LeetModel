@@ -27,6 +27,8 @@ public class TeamVO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long problemId;
     private String problemTitle;
+    /** 题号：短顺序编号，面向用户展示。 */
+    private Integer problemCode;
     private Integer maxMembers;
     private Integer status;
     private String practiceStatus;

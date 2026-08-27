@@ -2,6 +2,8 @@ package com.leetmodel.problem.controller;
 
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.ProblemOptionDTO;
+import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.problem.vo.ProblemVO;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.service.ProblemService;
@@ -39,7 +41,16 @@ public class InternalProblemController {
     @GetMapping("/{problemId}/practice")
     public Result<ProblemPracticeDTO> getPracticeProblem(@PathVariable Long problemId) {
         ProblemVO problem = problemService.getPublishedProblemDetail(problemId);
-        return Result.ok(new ProblemPracticeDTO(problem.getId(), problem.getTitle(),
+        return Result.ok(new ProblemPracticeDTO(problem.getId(), problem.getCode(), problem.getTitle(),
+                problem.getDurationMinutes(), problem.getStatus()));
+    }
+
+    @Operation(summary = "获取 AI 业务题目上下文")
+    @GetMapping("/{problemId}/context")
+    public Result<ProblemContextDTO> getProblemContext(@PathVariable Long problemId) {
+        ProblemVO problem = problemService.getPublishedProblemDetail(problemId);
+        return Result.ok(new ProblemContextDTO(
+                problem.getId(), problem.getTitle(), problem.getContentMarkdown(),
                 problem.getDurationMinutes(), problem.getStatus()));
     }
 
@@ -52,9 +63,47 @@ public class InternalProblemController {
                 .in(Problem::getId, problemIds.stream().distinct().toList())
                 .eq(Problem::getStatus, 1));
         List<ProblemPracticeDTO> summaries = problems.stream()
-                .map(problem -> new ProblemPracticeDTO(problem.getId(), problem.getTitle(),
+                .map(problem -> new ProblemPracticeDTO(problem.getId(), problem.getCode(), problem.getTitle(),
                         problem.getDurationMinutes(), problem.getStatus()))
                 .toList();
         return Result.ok(summaries);
+    }
+
+    @Operation(summary = "查询已发布题目选项")
+    @GetMapping("/options")
+    public Result<List<ProblemOptionDTO>> getPublishedOptions(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "20") Integer limit
+    ) {
+        int safeLimit = normalizeLimit(limit);
+        LambdaQueryWrapper<Problem> query = new LambdaQueryWrapper<Problem>()
+                .eq(Problem::getStatus, 1)
+                .like(keyword != null && !keyword.isBlank(), Problem::getTitle,
+                        keyword == null ? null : keyword.trim())
+                .orderByDesc(Problem::getYear)
+                .orderByDesc(Problem::getId)
+                .last("LIMIT " + safeLimit);
+        List<ProblemOptionDTO> options = problemService.list(query).stream()
+                .map(problem -> new ProblemOptionDTO(
+                        problem.getId(),
+                        problem.getCode(),
+                        problem.getTitle(),
+                        problem.getContestId(),
+                        problem.getYear(),
+                        problem.getStatementLanguage(),
+                        problem.getDifficulty(),
+                        problem.getDurationMinutes()
+                ))
+                .toList();
+        return Result.ok(options);
+    }
+
+    /**
+     * 将内部题目选项数量限制在安全范围内。
+     * @param limit 请求数量
+     * @return 1 到 50 的安全数量
+     */
+    static int normalizeLimit(Integer limit) {
+        return Math.max(1, Math.min(limit == null ? 20 : limit, 50));
     }
 }

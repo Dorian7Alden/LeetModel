@@ -1,334 +1,151 @@
 <template>
   <div class="history-page">
     <div class="page-header-row">
-      <h2 class="page-title">提交历史</h2>
-      <div class="filter-row">
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          size="default"
-          format="YYYY-MM-DD"
-          value-format="YYYY-MM-DD"
-          class="date-picker"
-        />
-        <el-select
-          v-model="statusFilter"
-          placeholder="状态筛选"
-          size="default"
-          class="status-select"
-          clearable
-        >
-          <el-option label="全部状态" value="" />
-          <el-option label="已完成" value="COMPLETED" />
-          <el-option label="评审中" value="EVALUATING" />
-        </el-select>
+      <div>
+        <h2 class="page-title">提交历史</h2>
+        <p class="page-subtitle">汇总你在各支队伍中的论文提交与评审状态</p>
       </div>
-      <router-link to="/profile" class="back-link">
-        <el-icon :size="16"><ArrowLeft /></el-icon>
-        <span>返回</span>
+      <el-button :loading="loading" @click="load">刷新</el-button>
+    </div>
+
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      class="load-alert"
+    >
+      <template #default><el-button type="primary" link @click="load">重新加载</el-button></template>
+    </el-alert>
+
+    <div v-loading="loading" class="card-grid">
+      <router-link
+        v-for="item in visibleList"
+        :key="`${item.teamId}-${item.id}`"
+        :to="`/team/${item.teamId}`"
+        class="submission-card"
+      >
+        <div class="card-top">
+          <span class="team-name">{{ item.teamName || `队伍 #${item.teamId}` }}</span>
+          <el-tag :type="statusType(item.reviewStatus)" size="small" effect="light">{{ statusLabel(item.reviewStatus) }}</el-tag>
+        </div>
+        <h3 class="file-name">{{ item.originalFilename || '未命名 PDF' }}</h3>
+        <div class="card-meta">
+          <span>题号 {{ item.problemCode || item.problemId }}</span>
+          <span>V{{ item.version }}</span>
+          <el-tag v-if="item.finalVersion" type="success" size="small">最终版</el-tag>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">{{ formatTime(item.createTime) }}</span>
+          <span v-if="item.score != null" class="card-score" :class="scoreClass(item.score)">{{ item.score }} 分</span>
+          <span v-else class="card-score evaluating">-- 分</span>
+        </div>
       </router-link>
     </div>
 
-    <div class="card-grid" v-if="visibleList.length > 0">
-      <div
-        v-for="item in visibleList"
-        :key="item.submissionId"
-        class="submission-card"
-      >
-        <h3 class="card-problem-title">{{ item.problemTitle || '题目 #' + item.problemId }}</h3>
-        <p class="card-submission-title">{{ item.title }}</p>
-
-        <div class="card-footer">
-          <span class="card-time">{{ item.submitTime }}</span>
-          <div class="card-right">
-            <el-tag
-              :type="item.status === 'COMPLETED' ? 'success' : 'warning'"
-              size="small"
-              effect="plain"
-            >
-              {{ item.status === 'COMPLETED' ? '已完成' : '评审中' }}
-            </el-tag>
-            <span
-              v-if="item.totalScore !== null"
-              class="card-score"
-              :class="scoreClass(item.totalScore)"
-            >
-              {{ item.totalScore.toFixed(1) }} 分
-            </span>
-            <span v-else class="card-score evaluating">-- 分</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="filteredAll.length === 0" class="empty-state">
-      <el-empty description="暂无提交记录" />
-    </div>
-
-    <div
-      v-if="hasMore"
-      ref="loadMoreRef"
-      class="load-more"
-      v-loading="loadingMore"
-    >
-      <span v-if="!loadingMore">下拉加载更多</span>
-    </div>
-
-    <div v-else-if="visibleList.length > 0" class="load-more done">
-      已加载全部记录
-    </div>
+    <el-empty v-if="!loading && !loadError && visibleList.length === 0" description="暂无提交记录" :image-size="90" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { ArrowLeft } from '@element-plus/icons-vue'
-import { mockSubmissions } from '@/mock/data.js'
+import { computed, onMounted, ref } from "vue";
+import { ElMessage } from "element-plus";
+import { getAllMyTeams } from "@/api/team";
+import { getTeamSubmissionHistory } from "@/api/submission";
+import { getTeamReviews } from "@/api/review";
 
-const BATCH_SIZE = 8
+const loading = ref(false);
+const loadError = ref("");
+const items = ref([]);
 
-const dateRange = ref(null)
-const statusFilter = ref('')
-const loadingMore = ref(false)
-const loadMoreRef = ref(null)
-
-const submissions = ref([...mockSubmissions].sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime)))
-
-const displayCount = ref(BATCH_SIZE)
-let observer = null
-
-const filteredAll = computed(() => {
-  let list = submissions.value
-  if (statusFilter.value) {
-    list = list.filter((s) => s.status === statusFilter.value)
-  }
-  if (dateRange.value && dateRange.value.length === 2) {
-    const [start, end] = dateRange.value
-    list = list.filter((s) => s.submitTime >= start && s.submitTime <= end)
-  }
-  return list
-})
-
-const visibleList = computed(() => filteredAll.value.slice(0, displayCount.value))
-
-const hasMore = computed(() => displayCount.value < filteredAll.value.length)
-
-function loadMore() {
-  if (!hasMore.value || loadingMore.value) return
-  loadingMore.value = true
-  setTimeout(() => {
-    displayCount.value = Math.min(displayCount.value + BATCH_SIZE, filteredAll.value.length)
-    loadingMore.value = false
-  }, 400)
+function formatTime(value) {
+  return value ? String(value).replace("T", " ").slice(0, 16) : "-";
 }
 
-watch([dateRange, statusFilter], () => {
-  displayCount.value = BATCH_SIZE
-})
+function statusLabel(status) {
+  return ({ WAITING: "等待评审", RUNNING: "评审中", COMPLETED: "已完成", FAILED: "评审失败", NONE: "未评审" })[status] || status || "未评审";
+}
 
-onMounted(async () => {
-  await nextTick()
-  if (loadMoreRef.value) {
-    observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore.value) {
-        loadMore()
-      }
-    }, { threshold: 0.1 })
-    observer.observe(loadMoreRef.value)
-  }
-})
-
-onBeforeUnmount(() => {
-  if (observer) observer.disconnect()
-})
+function statusType(status) {
+  return ({ COMPLETED: "success", FAILED: "danger", RUNNING: "warning" })[status] || "info";
+}
 
 function scoreClass(score) {
-  if (score >= 90) return 'score-high'
-  if (score >= 80) return 'score-mid'
-  return 'score-low'
+  if (score >= 90) return "score-high";
+  if (score >= 80) return "score-mid";
+  return "score-low";
 }
+
+const visibleList = computed(() => items.value);
+
+async function load() {
+  loading.value = true;
+  loadError.value = "";
+  try {
+    const { rows: teams } = await getAllMyTeams({ page: 1, pageSize: 50 });
+    const results = [];
+    for (const team of teams) {
+      try {
+        const [subRes, reviewRes] = await Promise.all([
+          getTeamSubmissionHistory(team.id),
+          getTeamReviews(team.id),
+        ]);
+        const reviews = reviewRes.data || [];
+        const reviewBySubmission = new Map(reviews.map((r) => [String(r.submissionId), r]));
+        for (const sub of subRes.data || []) {
+          const review = reviewBySubmission.get(String(sub.id));
+          results.push({
+            teamId: team.id,
+            teamName: team.name,
+            id: sub.id,
+            problemId: sub.problemId,
+            version: sub.version,
+            originalFilename: sub.originalFilename,
+            finalVersion: sub.finalVersion,
+            createTime: sub.createTime,
+            reviewStatus: review?.status || "NONE",
+            score: review?.score ?? null,
+          });
+        }
+      } catch {
+        // 单个队伍加载失败不影响整体
+      }
+    }
+    results.sort((a, b) => String(b.createTime).localeCompare(String(a.createTime)));
+    items.value = results;
+  } catch (error) {
+    loadError.value = error.message || "提交历史加载失败";
+    items.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(load);
 </script>
 
 <style scoped>
-.history-page {
-  padding: 24px 30px 40px;
-}
-
-.page-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-.back-link {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--lm-text-secondary);
-  text-decoration: none;
-  font-size: 14px;
-  padding: 6px 10px;
-  border-radius: var(--lm-radius-sm);
-  transition: color var(--lm-transition), background var(--lm-transition);
-}
-
-.back-link:hover {
-  color: var(--lm-primary);
-  background: var(--lm-primary-bg);
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--lm-text-primary, #1a1a2e);
-  margin: 0;
-}
-
-.filter-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.date-picker {
-  width: 250px;
-}
-
-.status-select {
-  width: 130px;
-}
-
-/* ===== Card Grid ===== */
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.submission-card {
-  background: var(--lm-surface, #fff);
-  border: 1px solid var(--lm-border, #e8ecf1);
-  border-radius: var(--lm-radius-lg);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: transform var(--lm-transition), box-shadow var(--lm-transition);
-}
-
-.submission-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--lm-shadow-lg);
-}
-
-.card-problem-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--lm-primary);
-  margin: 0;
-}
-
-.card-submission-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lm-text-primary);
-  margin: 0;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* ===== Card Footer ===== */
-.card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--lm-border-light);
-}
-
-.card-time {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-}
-
-.card-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card-score {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.score-high { color: #67c23a; }
-.score-mid { color: var(--lm-primary, #409eff); }
-.score-low { color: #f56c6c; }
-
-.evaluating {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  font-weight: 500;
-}
-
-/* ===== Empty ===== */
-.empty-state {
-  padding: 60px 0;
-}
-
-/* ===== Load More ===== */
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: 28px 0 8px;
-  font-size: 13px;
-  color: var(--lm-text-muted);
-}
-
-.load-more.done {
-  color: var(--lm-text-muted);
-}
-
-/* ===== Responsive ===== */
-@media (max-width: 1400px) {
-  .card-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (max-width: 1000px) {
-  .card-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 768px) {
-  .history-page {
-    padding: 16px 20px 32px;
-  }
-
-  .page-header-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .filter-row {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .date-picker,
-  .status-select {
-    width: 100%;
-  }
-
-  .card-grid { grid-template-columns: 1fr; }
-}
+.history-page { padding: 24px; }
+.page-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 24px; }
+.page-title { margin: 0; font-size: 22px; color: var(--lm-text-primary); }
+.page-subtitle { margin: 6px 0 0; color: var(--lm-text-muted); font-size: 13px; }
+.load-alert { margin-bottom: 20px; }
+.card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.submission-card { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: var(--lm-radius-lg); text-decoration: none; transition: transform var(--lm-transition), box-shadow var(--lm-transition); }
+.submission-card:hover { transform: translateY(-2px); box-shadow: var(--lm-shadow-lg); }
+.card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.team-name { overflow: hidden; color: var(--lm-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.file-name { margin: 0; color: var(--lm-text-primary); font-size: 15px; line-height: 1.4; }
+.card-meta { display: flex; align-items: center; gap: 10px; color: var(--lm-text-muted); font-size: 12px; }
+.card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--lm-border-light); }
+.card-time { color: var(--lm-text-muted); font-size: 12px; }
+.card-score { font-size: 15px; font-weight: 700; }
+.score-high { color: #16a34a; }
+.score-mid { color: var(--lm-primary); }
+.score-low { color: #dc2626; }
+.evaluating { color: var(--lm-text-muted); font-size: 12px; font-weight: 500; }
+@media (max-width: 1400px) { .card-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1000px) { .card-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .history-page { padding: 16px; } .card-grid { grid-template-columns: 1fr; } .page-header-row { flex-direction: column; } }
 </style>

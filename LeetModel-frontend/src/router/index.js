@@ -7,6 +7,7 @@ import teamRoutes from "./modules/team";
 import profileRoutes from "./modules/profile";
 import authRoutes from "./modules/auth";
 import aboutRoutes from "./modules/about";
+import featureRoutes from "./modules/features";
 import adminRoutes from "./modules/admin";
 import { useUserStore } from "@/store/user";
 
@@ -20,6 +21,7 @@ const routes = [
       ...teamRoutes,
       ...profileRoutes,
       ...aboutRoutes,
+      ...featureRoutes,
     ],
   },
 
@@ -44,6 +46,8 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !userStore.isLogin) {
     next("/login");
+  } else if (to.meta.guestOnly && userStore.isLogin) {
+    next("/");
   } else if (to.path.startsWith("/admin") && !userStore.isAdmin) {
     next("/");
   } else {

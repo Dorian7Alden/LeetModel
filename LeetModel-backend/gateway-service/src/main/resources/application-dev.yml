@@ -14,7 +14,7 @@ spring:
     # Nacos 服务发现
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${NACOS_ADDR:localhost:8848}
 
     # === 路由规则 ===
     # lb:// 前缀 = 从 Nacos 按服务名拉取实例列表 + 负载均衡
@@ -68,6 +68,21 @@ spring:
           uri: lb://ai-review-service
           predicates:
             - Path=/api/reviews/**
+
+        - id: ranking-service
+          uri: lb://ranking-service
+          predicates:
+            - Path=/api/rankings/**
+
+        - id: ai-suggestion-service
+          uri: lb://ai-suggestion-service
+          predicates:
+            - Path=/api/suggestions/**
+
+        - id: ai-assistant-service
+          uri: lb://ai-assistant-service
+          predicates:
+            - Path=/api/assistant/**
 
         # ---- 管理后台 ----
         - id: admin-service
@@ -127,6 +142,18 @@ knife4j:
       - name: ai-review-service
         service-name: ai-review-service
         url: /api/reviews/v3/api-docs
+        context-path: /
+      - name: ranking-service
+        service-name: ranking-service
+        url: /api/rankings/v3/api-docs
+        context-path: /
+      - name: ai-suggestion-service
+        service-name: ai-suggestion-service
+        url: /api/suggestions/v3/api-docs
+        context-path: /
+      - name: ai-assistant-service
+        service-name: ai-assistant-service
+        url: /api/assistant/v3/api-docs
         context-path: /
 
 # 鉴权白名单在 SaTokenConfig.java 中通过 .addExclude() 配置，此处不重复声明

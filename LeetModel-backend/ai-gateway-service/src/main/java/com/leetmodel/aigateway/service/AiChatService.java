@@ -27,6 +27,7 @@ public class AiChatService {
     private final AiRoutingProperties routingProperties;
     private final AiProviderRegistry providerRegistry;
     private final AiModelCatalogProperties modelCatalog;
+    private final AiCallAuditService callAuditService;
 
     /**
      * 创建统一 AI 对话服务。
@@ -37,11 +38,13 @@ public class AiChatService {
     public AiChatService(
             AiRoutingProperties routingProperties,
             AiProviderRegistry providerRegistry,
-            AiModelCatalogProperties modelCatalog
+            AiModelCatalogProperties modelCatalog,
+            AiCallAuditService callAuditService
     ) {
         this.routingProperties = routingProperties;
         this.providerRegistry = providerRegistry;
         this.modelCatalog = modelCatalog;
+        this.callAuditService = callAuditService;
     }
 
     /**
@@ -51,28 +54,38 @@ public class AiChatService {
      * @return 统一响应
      */
     public AiChatResponse chat(AiChatRequest request) {
-        // 读取场景路由
-        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.scene());
-        BusinessException.throwIf(
-                route == null || route.getProvider() == null || route.getModel() == null,
-                AiGatewayErrorCode.ROUTE_NOT_FOUND
-        );
-        AiModelCatalogProperties.ModelProfile profile = validateCapabilities(route, request);
-
-        // 调用供应商适配器
         String callId = UUID.randomUUID().toString();
-        AiProviderAdapter adapter = providerRegistry.get(route.getProvider());
-        AiChatResponse providerResponse = adapter.chat(route.getModel(), profile.getProtocol(), request);
+        long startedAt = System.currentTimeMillis();
+        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.scene());
+        String routeProvider = route == null || route.getProvider() == null
+                ? null : route.getProvider().name();
+        String routeModel = route == null ? null : route.getModel();
+        try {
+            BusinessException.throwIf(
+                    route == null || route.getProvider() == null || route.getModel() == null,
+                    AiGatewayErrorCode.ROUTE_NOT_FOUND
+            );
+            AiModelCatalogProperties.ModelProfile profile = validateCapabilities(route, request);
 
-        // 记录不含业务内容和密钥的调用摘要
-        log.info(
-                "AI 调用完成 callId={}, provider={}, model={}, totalTokens={}",
-                callId,
-                providerResponse.provider(),
-                providerResponse.model(),
-                providerResponse.usage().totalTokens()
-        );
-        return withCallId(callId, providerResponse);
+            AiProviderAdapter adapter = providerRegistry.get(route.getProvider());
+            AiChatResponse providerResponse = adapter.chat(route.getModel(), profile.getProtocol(), request);
+            long durationMs = System.currentTimeMillis() - startedAt;
+            callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
+                    providerResponse, durationMs);
+
+            log.info(
+                    "AI 调用完成 callId={}, provider={}, model={}, totalTokens={}",
+                    callId,
+                    providerResponse.provider(),
+                    providerResponse.model(),
+                    providerResponse.usage().totalTokens()
+            );
+            return withCallId(callId, providerResponse);
+        } catch (RuntimeException exception) {
+            callAuditService.recordFailure(callId, request, routeProvider, routeModel,
+                    exception, System.currentTimeMillis() - startedAt);
+            throw exception;
+        }
     }
 
     private AiModelCatalogProperties.ModelProfile validateCapabilities(

@@ -12,8 +12,8 @@
 
     <div v-if="displayMode === 'problems'" class="problem-focus">
       <span>当前题目</span>
-      <strong>{{ team.problemTitle || `题目 ${team.problemId}` }}</strong>
-      <small>题目 {{ team.problemId }}</small>
+      <strong>{{ team.problemTitle || `题目 ${team.problemCode || team.problemId}` }}</strong>
+      <small>题目 {{ team.problemCode || team.problemId }}</small>
     </div>
 
     <div class="card-header">
@@ -23,7 +23,7 @@
 
     <p class="team-desc">{{ team.description }}</p>
     <div v-if="displayMode !== 'problems'" class="team-context">
-      <el-tag size="small" type="info">题目 {{ team.problemId }} · {{ team.problemTitle || '标题加载中' }}</el-tag>
+      <el-tag size="small" type="info">题号 {{ team.problemCode || team.problemId }} · {{ team.problemTitle || '标题加载中' }}</el-tag>
       <el-tag size="small" :type="practiceType">{{ practiceLabel }}</el-tag>
     </div>
 

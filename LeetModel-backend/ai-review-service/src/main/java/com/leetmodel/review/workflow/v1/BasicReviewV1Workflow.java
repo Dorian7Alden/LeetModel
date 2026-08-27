@@ -47,7 +47,7 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
         this.logService = logService;
-        String source = new ClassPathResource("prompts/basic-review-v1.txt")
+        String source = new ClassPathResource("prompts/basic-review-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
         this.prompt = PromptTemplate.from(source).apply(Map.of()).text();
     }

@@ -2,5 +2,6 @@
 **/target/
 **/node_modules/
 **/.vscode/
+LeetModel-backend/.mvp-runtime/
 
 **/**superpowers**/**

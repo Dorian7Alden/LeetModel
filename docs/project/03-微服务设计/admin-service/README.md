@@ -29,7 +29,7 @@ flowchart LR
     subgraph domains["数据所属服务"]
         basicServices["user、team、problem、submission"]
         reviewService["ai-review-service"]
-        evaluationService["ai-evaluation-service，目标设计"]
+        evaluationService["ai-evaluation-service"]
         aiGateway["ai-gateway-service"]
     end
 
@@ -44,7 +44,7 @@ flowchart LR
     aiControl -.-> evaluationService
 ```
 
-管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责转发，最终规则和事务仍由领域服务执行。AI 测试与质量评价链路包含尚未实现的 ai-evaluation-service，因此在图中使用虚线表示目标协作。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
+管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责转发，最终规则和事务仍由领域服务执行。ai-evaluation-service 已提供固定数据集、评价任务和版本对比内部契约；admin-service 需对其增加管理员权限保护与对外转发。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
 
 ## 职责边界
 

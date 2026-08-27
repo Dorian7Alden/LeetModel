@@ -187,6 +187,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         problem.setStatus(request.getStatus() != null ? request.getStatus() : 0);
         problem.setAverageScore(BigDecimal.ZERO);
         problem.setCreatorId(creatorId);
+        problem.setCode(nextProblemCode());
 
         save(problem);
         log.info("创建题目: {} [ID: {}]", problem.getTitle(), problem.getId());
@@ -194,6 +195,17 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         // 保存标签
         List<String> tagNames = saveTags(problem.getId(), request.getTagIds());
         return toVO(problem, tagNames, List.of());
+    }
+
+    /**
+     * 生成下一个短题号：基于现有最大 code + 1，起始 1001，上限 10000。
+     * 题目量有限（通常 <= 10000），该编号用于用户展示，不暴露内部雪花主键。
+     */
+    private int nextProblemCode() {
+        Integer maxCode = baseMapper.selectMaxCode();
+        int next = maxCode == null ? 1001 : maxCode + 1;
+        BusinessException.throwIf(next > 10000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
+        return next;
     }
 
     // ==================== 更新 ====================
@@ -515,6 +527,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     ) {
         ProblemVO.ProblemVOBuilder builder = ProblemVO.builder()
                 .id(p.getId())
+                .code(p.getCode())
                 .title(p.getTitle())
                 .contentMarkdown(attachments == null ? null : p.getContentMarkdown())
                 .contestId(p.getContestId())

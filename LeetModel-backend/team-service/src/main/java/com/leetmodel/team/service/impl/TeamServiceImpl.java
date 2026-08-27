@@ -173,7 +173,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         Map<Long, UserPublicSummaryDTO> summaries = getUserSummaries(memberUserIds(members));
         Set<Long> pendingTeamIds = getPendingTeamIds(currentUserId, List.of(teamId));
         TeamVO result = assembleTeamVO(team, members, currentUserId, summaries, pendingTeamIds);
-        result.setProblemTitle(getPracticeProblem(team.getProblemId()).getTitle());
+        ProblemPracticeDTO practice = getPracticeProblem(team.getProblemId());
+        result.setProblemTitle(practice.getTitle());
+        result.setProblemCode(practice.getCode());
         return result;
     }
 
@@ -183,7 +185,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         Team team = getRequiredTeam(teamId);
         List<TeamMember> members = getMembersByTeamId(teamId);
         TeamVO result = assembleTeamVO(team, members, null, getUserSummaries(memberUserIds(members)), Set.of());
-        result.setProblemTitle(getPracticeProblem(team.getProblemId()).getTitle());
+        ProblemPracticeDTO practice = getPracticeProblem(team.getProblemId());
+        result.setProblemTitle(practice.getTitle());
+        result.setProblemCode(practice.getCode());
         return result;
     }
 
@@ -588,7 +592,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         for (Team team : teams) {
             TeamVO view = assembleTeamVO(team, memberMap.getOrDefault(team.getId(), List.of()),
                     currentUserId, summaries, pendingTeamIds);
-            view.setProblemTitle(problems.get(team.getProblemId()).getTitle());
+            ProblemPracticeDTO practice = problems.get(team.getProblemId());
+            view.setProblemTitle(practice.getTitle());
+            view.setProblemCode(practice.getCode());
             result.add(view);
         }
         return result;

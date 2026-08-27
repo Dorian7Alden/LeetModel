@@ -8,6 +8,21 @@ export function getMyTeams(params) {
   return request.get("/teams/mine/page", { params });
 }
 
+// 队伍分页接口要求任意一次调用都指定单个练习状态；此处合并三种状态。
+export async function getAllMyTeams(params = {}) {
+  const statuses = ["IN_PROGRESS", "PREPARING", "ENDED"];
+  const groups = await Promise.all(
+    statuses.map((status) => getMyTeams({ ...params, practiceStatus: status })),
+  );
+  const rows = [];
+  let total = 0;
+  for (const group of groups) {
+    rows.push(...(group.data?.rows || []));
+    total += group.data?.total || 0;
+  }
+  return { rows, total };
+}
+
 export function getPublicTeams(params) {
   return request.get("/teams/public", { params });
 }

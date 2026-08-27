@@ -24,7 +24,7 @@
       </div>
       <div v-loading="problemLoading" class="problem-results">
         <button v-for="problem in problems" :key="problem.id" type="button" class="problem-result" :class="{ selected: String(problem.id) === String(problemId) }" @click="selectProblem(problem)">
-          <span>题目 {{ problem.id }}</span>
+          <span>题号 {{ problem.code || problem.id }}</span>
           <strong>{{ problem.title }}</strong>
           <small>{{ difficultyLabel(problem.difficulty) }} · {{ formatDuration(problem.durationMinutes) }}</small>
         </button>
@@ -53,8 +53,8 @@
         >
           <span class="list-item-top"><strong>{{ recruitmentText(result.recruitment) }}</strong><small>{{ formatDate(result.recruitment.createTime) }}</small></span>
           <span class="list-item-team">{{ result.team.name }}</span>
-          <span class="list-item-problem">{{ result.team.problemTitle || `题目 ${result.team.problemId}` }}</span>
-          <span v-if="result.recruitment.description" class="list-item-description">{{ result.recruitment.description }}</span>
+          <span class="list-item-problem">{{ result.team.problemTitle || `题号 ${result.team.problemCode || result.team.problemId}` }}</span>
+          <span v-if="result.recruitment.description" class="list-item-description">{{ markdownToPlainText(result.recruitment.description) }}</span>
         </button>
       </aside>
       <section v-if="selectedRecruitment" class="recruitment-detail">
@@ -72,7 +72,7 @@
         </div>
         <div class="detail-section"><small>招募说明</small><div v-if="selectedRecruitment.recruitment.description" class="recruitment-markdown" v-html="renderSafeMarkdown(selectedRecruitment.recruitment.description)" /><p v-else>队长暂未填写招募说明。</p></div>
         <div class="detail-section"><small>所属队伍</small><h3>{{ selectedRecruitment.team.name }}</h3><p>{{ selectedRecruitment.team.description || '队伍暂未填写简介。' }}</p></div>
-        <div class="detail-section"><small>练习题目</small><h3>{{ selectedRecruitment.team.problemTitle || `题目 ${selectedRecruitment.team.problemId}` }}</h3><p>题目 {{ selectedRecruitment.team.problemId }}</p></div>
+        <div class="detail-section"><small>练习题目</small><h3>{{ selectedRecruitment.team.problemTitle || `题号 ${selectedRecruitment.team.problemCode || selectedRecruitment.team.problemId}` }}</h3><p>题号 {{ selectedRecruitment.team.problemCode || selectedRecruitment.team.problemId }}</p></div>
         <div class="detail-section">
           <small>当前成员</small>
           <div class="detail-members">
@@ -110,7 +110,7 @@ import { getPublicProblemDetail, getPublicProblemList } from '@/api/problem'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TeamCard from '../components/TeamCard.vue'
 import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
-import { renderSafeMarkdown } from '@/utils/markdown'
+import { markdownToPlainText, renderSafeMarkdown } from '@/utils/markdown'
 
 const route = useRoute()
 const router = useRouter()

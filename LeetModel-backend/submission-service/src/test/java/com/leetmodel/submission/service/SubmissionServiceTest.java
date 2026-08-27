@@ -2,8 +2,10 @@ package com.leetmodel.submission.service;
 
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.*;
 class SubmissionServiceTest {
     @Mock SubmissionMapper submissionMapper; @Mock SubmissionLockMapper lockMapper;
     @Mock TeamFeignClient teamFeignClient; @Mock ReviewFeignClient reviewFeignClient;
+    @Mock ProblemFeignClient problemFeignClient;
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
 
     @Test
@@ -94,6 +97,52 @@ class SubmissionServiceTest {
 
         assertTrue(history.get(0).getFinalVersion());
         assertFalse(history.get(1).getFinalVersion());
+    }
+
+    @Test
+    void returnEmptyFinalSnapshotsWhenNoSubmissionIsLocked() {
+        when(lockMapper.selectList(null)).thenReturn(List.of());
+
+        List<SubmissionSnapshotDTO> result = service.listFinalSnapshots(null);
+
+        assertTrue(result.isEmpty());
+        verifyNoInteractions(submissionMapper);
+    }
+
+    @Test
+    void filterFinalSnapshotsByProblemUsingStableSubmissionIds() {
+        SubmissionLock firstLock = new SubmissionLock();
+        firstLock.setSubmissionId(101L);
+        SubmissionLock secondLock = new SubmissionLock();
+        secondLock.setSubmissionId(102L);
+        when(lockMapper.selectList(null)).thenReturn(List.of(firstLock, secondLock));
+        Submission first = submission(101L, 1);
+        first.setProblemId(100L);
+        Submission second = submission(102L, 2);
+        second.setProblemId(200L);
+        when(submissionMapper.selectBatchIds(anyCollection())).thenReturn(List.of(first, second));
+
+        List<SubmissionSnapshotDTO> result = service.listFinalSnapshots(200L);
+
+        assertEquals(1, result.size());
+        assertEquals(102L, result.get(0).getId());
+        assertTrue(result.get(0).getFinalVersion());
+    }
+
+    @Test
+    void listRecentSnapshotsMarksOnlyLockedSubmissionAsFinal() {
+        SubmissionLock lock = new SubmissionLock();
+        lock.setSubmissionId(102L);
+        when(lockMapper.selectList(null)).thenReturn(List.of(lock));
+        when(submissionMapper.selectList(any())).thenReturn(List.of(
+                submission(102L, 2), submission(101L, 1)));
+
+        List<SubmissionSnapshotDTO> result = service.listRecentSnapshots(20);
+
+        assertEquals(2, result.size());
+        assertTrue(result.get(0).getFinalVersion());
+        assertFalse(result.get(1).getFinalVersion());
+        verify(submissionMapper).selectList(any());
     }
 
     private TeamDTO team() {

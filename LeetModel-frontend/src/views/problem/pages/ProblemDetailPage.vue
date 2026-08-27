@@ -14,14 +14,15 @@
         </div>
         <div class="detail-footer-row">
           <div class="detail-meta">
-            <span>题号：{{ problem.id }}</span>
-            <span>平均分：{{ problem.averageScore ?? 0 }}</span>
+            <span>题号：{{ problem.code }}</span>
+            <span>平均分：{{ formatScore(problem.averageScore) }}</span>
             <span>年份：{{ problem.year }}</span>
             <span>题面：{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
             <span>完成时长：{{ formatDuration(problem.durationMinutes) }}</span>
             <span>更新时间：{{ formatTime(problem.updateTime) }}</span>
           </div>
           <div class="detail-actions">
+            <el-button @click="viewRanking">查看本题排行</el-button>
             <el-button @click="findProblemTeams">寻找队伍</el-button>
             <el-button type="primary" @click="createProblemTeam">创建队伍</el-button>
           </div>
@@ -38,6 +39,7 @@
       </el-card>
 
       <el-card v-if="problem.attachments?.length" class="resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
         <div class="resource-list">
           <div v-for="attachment in problem.attachments" :key="attachment.id" class="attachment-item">
             <div>
@@ -48,6 +50,16 @@
             <span class="attachment-size">{{ formatFileSize(attachment.fileSize) }}</span>
           </div>
         </div>
+      </el-card>
+      <el-card v-else class="resource-card empty-resource-card" shadow="never">
+        <template #header><strong>题目附件</strong></template>
+        <el-alert
+          title="本题暂无可下载附件"
+          description="请仅使用当前页面可见的题面信息作答；若题面文字提到数据文件，以此处实际附件列表为准。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
       </el-card>
 
     </template>
@@ -76,6 +88,7 @@ const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[v
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
 const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN') : '-'
 const formatDuration = (minutes) => minutes ? `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ''}` : '-'
+const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
 const formatFileSize = (bytes) => {
   if (bytes == null) return '-'
   if (bytes < 1024) return `${bytes} B`
@@ -93,6 +106,7 @@ const renderedMarkdown = computed(() => {
 })
 const createProblemTeam = () => { showCreateDialog.value = true }
 const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
+const viewRanking = () => router.push({ name: 'Ranking', query: { problemId: String(problem.value.id) } })
 const goBack = () => router.push('/problem/problemListPage')
 
 const fetchDetail = async () => {

@@ -17,7 +17,9 @@
       </div>
 
       <el-table :data="tableData" style="width: 100%" stripe v-loading="tableLoading">
-        <el-table-column prop="id" label="ID" width="180" />
+        <el-table-column label="题号" width="90">
+          <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
+        </el-table-column>
         <el-table-column prop="title" label="题目名称" min-width="200" />
         <el-table-column prop="contestName" label="赛事" width="180" />
         <el-table-column prop="year" label="年份" width="80" />
@@ -74,9 +76,8 @@
           <el-input v-model="form.title" placeholder="请输入题目标题" />
         </el-form-item>
 
-        <el-form-item label="题面文件 ID" prop="contentFileId">
-          <el-input-number v-model="form.contentFileId" :min="1" controls-position="right" />
-          <span class="field-tip">文件上传接口尚未实现，可暂不填写</span>
+        <el-form-item label="题面(Markdown)" prop="contentMarkdown">
+          <el-input v-model="form.contentMarkdown" type="textarea" :rows="6" placeholder="填写可直接渲染的 Markdown 题面，可为空" />
         </el-form-item>
 
         <el-form-item label="所属赛事" prop="contestId">
@@ -92,6 +93,12 @@
         <el-form-item label="难度" prop="difficulty">
           <el-select v-model="form.difficulty" style="width: 100%">
             <el-option label="简单" :value="1" /><el-option label="中等" :value="2" /><el-option label="困难" :value="3" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="标签">
+          <el-select v-model="form.tagIds" multiple clearable placeholder="请选择标签" style="width: 100%">
+            <el-option v-for="tag in tags" :key="tag.id" :label="`${tag.name}（${tag.type}）`" :value="tag.id" />
           </el-select>
         </el-form-item>
 
@@ -127,7 +134,15 @@ const formatTime = (val) => {
 };
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { getProblemList, getProblemDetail, createProblem, updateProblem, deleteProblem, getContests } from '@/api/problem';
+import {
+  getAdminContentProblems,
+  getAdminContentProblem,
+  createAdminContentProblem,
+  updateAdminContentProblem,
+  deleteAdminContentProblem,
+  getAdminContentContests,
+  getAdminContentTags,
+} from '@/api/problem';
 
 const searchQuery = ref('');
 const tableData = ref([]);
@@ -136,6 +151,7 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
 const contests = ref([]);
+const tags = ref([]);
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -145,13 +161,14 @@ const formRef = ref();
 
 const form = reactive({
   title: '',
-  contentFileId: null,
+  contentMarkdown: '',
   contestId: null,
   year: new Date().getFullYear(),
   statementLanguage: 'ZH',
   durationMinutes: 4320,
   difficulty: 1,
-  status: 0
+  status: 0,
+  tagIds: [],
 });
 
 const rules = {
@@ -181,7 +198,7 @@ const fetchList = async () => {
     if (searchQuery.value.trim()) {
       params.keyword = searchQuery.value.trim();
     }
-    const res = await getProblemList(params);
+    const res = await getAdminContentProblems(params);
     if (res.code === 20000 && res.data) {
       tableData.value = res.data.rows || [];
       total.value = res.data.total || 0;
@@ -206,17 +223,18 @@ const openEditDialog = async (row) => {
   isEdit.value = true;
   editId.value = row.id;
   try {
-    const res = await getProblemDetail(row.id);
+    const res = await getAdminContentProblem(row.id);
     if (res.code === 20000 && res.data) {
       const d = res.data;
       form.title = d.title;
-      form.contentFileId = d.contentFileId;
+      form.contentMarkdown = d.contentMarkdown || '';
       form.contestId = d.contestId;
       form.year = d.year;
       form.statementLanguage = d.statementLanguage;
       form.durationMinutes = d.durationMinutes;
       form.difficulty = d.difficulty;
       form.status = d.status;
+      form.tagIds = d.tagIds || [];
     } else {
       ElMessage.error(res.msg || '获取题目详情失败');
       return;
@@ -236,7 +254,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await deleteProblem(row.id);
+      await deleteAdminContentProblem(row.id);
       ElMessage.success('删除成功');
       fetchList();
     } catch (error) {
@@ -248,13 +266,14 @@ const handleDelete = (row) => {
 
 const resetForm = () => {
   form.title = '';
-  form.contentFileId = null;
+  form.contentMarkdown = '';
   form.contestId = null;
   form.year = new Date().getFullYear();
   form.statementLanguage = 'ZH';
   form.durationMinutes = 4320;
   form.difficulty = 1;
   form.status = 0;
+  form.tagIds = [];
   formRef.value?.resetFields();
 };
 
@@ -267,19 +286,21 @@ const onSubmit = async () => {
   try {
     const payload = {
       title: form.title,
-      contentFileId: form.contentFileId,
+      contentMarkdown: form.contentMarkdown,
       contestId: form.contestId,
       year: form.year,
       statementLanguage: form.statementLanguage,
       durationMinutes: form.durationMinutes,
       difficulty: form.difficulty,
-      status: form.status
+      status: form.status,
     };
+    // 详情接口仅返回 tagNames，编辑时未选择标签则不带 tagIds，避免误清空既有标签
+    if (!isEdit.value || form.tagIds.length > 0) payload.tagIds = form.tagIds;
     if (isEdit.value) {
-      await updateProblem(editId.value, payload);
+      await updateAdminContentProblem(editId.value, payload);
       ElMessage.success('更新成功');
     } else {
-      await createProblem(payload);
+      await createAdminContentProblem(payload);
       ElMessage.success('创建成功');
     }
     dialogVisible.value = false;
@@ -294,7 +315,8 @@ const onSubmit = async () => {
 
 onMounted(() => {
   fetchList();
-  getContests().then(res => { contests.value = (res.data || []).filter(item => item.status === 1); }).catch(error => ElMessage.error(error.message || '赛事数据加载失败'));
+  getAdminContentContests().then(res => { contests.value = (res.data || []); }).catch(error => ElMessage.error(error.message || '赛事数据加载失败'));
+  getAdminContentTags().then(res => { tags.value = (res.data || []); }).catch(() => {});
 });
 </script>
 
