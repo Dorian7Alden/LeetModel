@@ -73,18 +73,25 @@ public class AiChatService {
             callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
                     providerResponse, durationMs);
 
+            AiUsageLog usageLog = AiUsageLog.from(providerResponse);
             log.info(
                     "AI 调用完成 callId={}, provider={}, model={}, totalTokens={}",
                     callId,
                     providerResponse.provider(),
                     providerResponse.model(),
-                    providerResponse.usage().totalTokens()
+                    usageLog.totalTokens()
             );
             return withCallId(callId, providerResponse);
         } catch (RuntimeException exception) {
             callAuditService.recordFailure(callId, request, routeProvider, routeModel,
                     exception, System.currentTimeMillis() - startedAt);
             throw exception;
+        }
+    }
+
+    private record AiUsageLog(Long totalTokens) {
+        private static AiUsageLog from(AiChatResponse response) {
+            return new AiUsageLog(response.usage() == null ? null : response.usage().totalTokens());
         }
     }
 

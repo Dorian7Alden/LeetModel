@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({
         DeepSeekProperties.class,
         KimiProperties.class,
+        NewApiProperties.class,
         AiRoutingProperties.class,
         AiModelCatalogProperties.class
 })

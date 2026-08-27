@@ -50,8 +50,8 @@ class AiChatServiceTest {
     @Test
     void shouldAssignCallIdAndAuditSuccessfulCall() {
         configureRoute();
-        when(registry.get(AiProvider.DEEPSEEK)).thenReturn(adapter);
-        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.DEEPSEEK,
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
                 "deepseek-test", "provider-id", "answer", null, "stop",
                 new AiUsage(2L, 0L, 2L, 3L, 0L, 5L, true));
         when(adapter.chat(eq("deepseek-test"), eq(AiApiProtocol.OPENAI_COMPLETIONS), any()))
@@ -60,7 +60,24 @@ class AiChatServiceTest {
         AiChatResponse response = service().chat(request());
 
         assertThat(response.callId()).isNotBlank();
-        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("DEEPSEEK"),
+        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
+                eq("deepseek-test"), eq(providerResponse), anyLong());
+    }
+
+    @Test
+    void shouldKeepSuccessfulCallWhenUsageIsMissing() {
+        configureRoute();
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
+                "deepseek-test", "provider-id", "answer", null, "stop", null);
+        when(adapter.chat(eq("deepseek-test"), eq(AiApiProtocol.OPENAI_COMPLETIONS), any()))
+                .thenReturn(providerResponse);
+
+        AiChatResponse response = service().chat(request());
+
+        assertThat(response.callId()).isNotBlank();
+        assertThat(response.usage()).isNull();
+        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
                 eq("deepseek-test"), eq(providerResponse), anyLong());
     }
 
@@ -81,7 +98,7 @@ class AiChatServiceTest {
 
     private void configureRoute() {
         AiRoutingProperties.Route route = new AiRoutingProperties.Route();
-        route.setProvider(AiProvider.DEEPSEEK);
+        route.setProvider(AiProvider.NEW_API);
         route.setModel("deepseek-test");
         routes.setRoutes(Map.of(AiScene.GENERAL_TEXT, route));
 
@@ -90,7 +107,7 @@ class AiChatServiceTest {
         profile.setInputTypes(Set.of(AiContentType.TEXT));
         profile.setMaxOutputTokens(100);
         profile.setContextTokens(1000);
-        models.setModels(Map.of("DEEPSEEK/deepseek-test", profile));
+        models.setModels(Map.of("NEW_API/deepseek-test", profile));
     }
 
     private AiChatRequest request() {
