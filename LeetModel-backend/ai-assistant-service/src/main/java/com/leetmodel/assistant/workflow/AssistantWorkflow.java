@@ -38,7 +38,7 @@ public class AssistantWorkflow {
     public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper) throws Exception {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
-        this.systemPrompt = new ClassPathResource("prompts/assistant-v1.txt")
+        this.systemPrompt = new ClassPathResource("prompts/assistant-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
 

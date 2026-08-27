@@ -49,7 +49,7 @@ public class SuggestionV1Workflow {
         this.textExtractor = textExtractor;
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
-        this.prompt = new ClassPathResource("prompts/improvement-v1.txt")
+        this.prompt = new ClassPathResource("prompts/improvement-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
 
