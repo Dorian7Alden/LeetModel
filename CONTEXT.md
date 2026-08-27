@@ -75,7 +75,7 @@ README 只负责导航，不能代替任务相关文档和当前实现。
 | 全部强制规范 | `docs/standards/README.md` |
 | 单目标、任务卡、分支、验收和完成定义 | `docs/standards/04-development-workflow.md` |
 | 文档写作、解释保留、原子化和 README 职责 | `docs/standards/01-document-spec.md` |
-| Git 提交格式与操作流程 | `docs/standards/05-git-commit-spec.md`、`docs/standards/06-git-commit-workflow.md` |
+| Git 分支、提交与合并流程 | `docs/standards/05-git-workflow-spec.md` |
 | 数据库、数据隔离和 Flyway 规则 | `docs/standards/08-database-spec.md` |
 | 微服务设计文档、功能目录和原子文档规则 | `docs/standards/12-microservice-design-document-spec.md` |
 | 最小闭环与独立开发方法 | `docs/learning/系统分析经验.md` |
