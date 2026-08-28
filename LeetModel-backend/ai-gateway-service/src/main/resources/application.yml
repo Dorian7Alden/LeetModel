@@ -19,7 +19,7 @@ ai:
     read-timeout: ${NEW_API_READ_TIMEOUT:10m}
   gateway:
     routes:
-      GENERAL_TEXT:
+      TEXT:
         provider: NEW_API
         model: deepseek-v4-flash
       MULTIMODAL:

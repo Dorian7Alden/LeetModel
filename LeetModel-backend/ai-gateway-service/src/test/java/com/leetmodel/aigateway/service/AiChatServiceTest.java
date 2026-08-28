@@ -11,6 +11,7 @@ import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -100,7 +101,7 @@ class AiChatServiceTest {
         AiRoutingProperties.Route route = new AiRoutingProperties.Route();
         route.setProvider(AiProvider.NEW_API);
         route.setModel("deepseek-test");
-        routes.setRoutes(Map.of(AiScene.GENERAL_TEXT, route));
+        routes.setRoutes(Map.of(AiModality.TEXT, route));
 
         AiModelCatalogProperties.ModelProfile profile = new AiModelCatalogProperties.ModelProfile();
         profile.setProtocol(AiApiProtocol.OPENAI_COMPLETIONS);

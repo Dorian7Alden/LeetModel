@@ -2,14 +2,18 @@ package com.leetmodel.suggestion.workflow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
-import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
@@ -20,9 +24,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 基于题面、评审结果和 PDF 原文生成结构化改善建议。
@@ -79,8 +85,17 @@ public class SuggestionV1Workflow {
         }
         PdfTextExtractor.ExtractedPaper paper = textExtractor.extract(pdf);
         String userPrompt = buildUserPrompt(problem, review, paper);
+        String taskId = task.getId() == null ? "transient:" + UUID.randomUUID() : "task:" + task.getId();
+        String attempt = task.getRetryCount() == null ? "0" : task.getRetryCount().toString();
+        AiCallContext context = new AiCallContext(
+                "ai-suggestion-service", AiFeatureCode.PAPER_SUGGESTION,
+                AiOperationCode.GENERATE_SUGGESTION, taskId, task.getWorkflowVersion(),
+                "PROMPT_PAPER_SUGGESTION_0001", "MODEL_CFG_SUGGESTION_TEXT_0001", null,
+                AiCallPriority.P1, "suggestion:" + taskId + ":attempt:" + attempt,
+                Instant.now().plusSeconds(270));
         AiChatRequest request = new AiChatRequest(
-                AiScene.GENERAL_TEXT,
+                AiModality.TEXT,
+                context,
                 List.of(
                         message(AiRole.SYSTEM, task.getPromptSnapshot()),
                         message(AiRole.USER, userPrompt)

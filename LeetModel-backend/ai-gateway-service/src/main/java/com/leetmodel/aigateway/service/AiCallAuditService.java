@@ -72,7 +72,7 @@ public class AiCallAuditService {
                                  String routeModel, long durationMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
-        record.setScene(request.scene() == null ? UNKNOWN : request.scene().name());
+        record.setScene(request.effectiveModality() == null ? UNKNOWN : request.effectiveModality().name());
         record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
         record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
         record.setDurationMs(Math.max(0L, durationMs));

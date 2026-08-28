@@ -29,7 +29,7 @@
 - 2026-08-28 多模态协议核验：`deepseek-v4-flash-vision-exp` 接受 OpenAI 内容块中的 HTTPS PNG `image_url` 并成功识别合成图片；过小的 1×1 data URL PNG 被上游以 `invalid_request_error` 拒绝。后续只用合成材料补充尺寸与 data URL 边界，不上传真实论文。
 - ai-gateway-service 已提供 new-api Base URL、Relay Token、超时和逻辑模型映射配置；Relay Token 仅允许从运行环境注入。
 - common-ai 当前只有同步 Chat 客户端和 /internal/ai/chat，没有 Embedding 契约。
-- AiScene 只有 GENERAL_TEXT 和 MULTIMODAL，表示输入模态而非真实业务来源，不能支持优先级和评价归因。
+- 旧 AiScene 仅保留 JSON 兼容；新请求已使用 modality 与 AiCallContext 分离路由能力和业务来源，审计字段由 S2-05 完成持久化。
 - AI 调用审计已有列表、统计及 admin 代理，不应重复从零建设；但字段只有基础 Token、模型、总耗时和错误。
 - 网关设计文档曾描述本地并发保护，但当前 AiChatService 未发现对应实现，后续调度不能建立在该假设上。
 
@@ -510,7 +510,7 @@ S1 验收记录（2026-08-28）：后端 17 模块 Maven reactor 全量测试通
 - 工作：定义 callerService、featureCode、operationCode、businessTaskId、workflowVersion、promptVersion、modelConfigVersion、evaluationTaskId、priority、idempotencyKey、deadline。
 - 验收：必填、长度、脱敏和传递边界明确；网关不解释业务 ID 的实体语义。
 
-#### [ ] S2-03 扩展 common-ai Chat 契约和消费者
+#### [x] S2-03 扩展 common-ai Chat 契约和消费者
 
 - 依赖：S2-02。
 - 工作：更新请求、客户端和序列化测试，逐个修改 assistant、review、suggestion 调用入口。

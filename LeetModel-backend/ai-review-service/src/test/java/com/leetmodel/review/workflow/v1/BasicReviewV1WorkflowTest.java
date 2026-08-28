@@ -3,6 +3,9 @@ package com.leetmodel.review.workflow.v1;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatRequest;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.core.storage.StorageService;
@@ -12,6 +15,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -20,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BasicReviewV1WorkflowTest {
@@ -54,12 +59,36 @@ class BasicReviewV1WorkflowTest {
                 "strengths":["结构完整"],"weaknesses":["验证较少"],"suggestions":["补充敏感性分析"]}
                 """));
         assertEquals("82.5", workflow.execute(task(), submission()).score().toPlainString());
+        ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
+        verify(aiClient).chat(captor.capture());
+        assertEquals(AiModality.MULTIMODAL, captor.getValue().modality());
+        assertEquals(AiOperationCode.FORMAL_REVIEW, captor.getValue().context().operationCode());
     }
 
     @Test
     void rejectJsonWithoutRequiredDimensions() {
         when(aiClient.chat(any())).thenReturn(response("{\"score\":82.5,\"summary\":\"ok\"}"));
         assertThrows(IllegalArgumentException.class, () -> workflow.execute(task(), submission()));
+    }
+
+    @Test
+    void marksTransientReviewAsExperimentSource() throws Exception {
+        when(aiClient.chat(any())).thenReturn(response("""
+                {"score":82.5,"summary":"完整且自洽","dimensions":{
+                "assumptionRationality":{"score":80,"comment":"假设清楚"},
+                "modelCreativity":{"score":83,"comment":"方法合适"},
+                "resultCorrectness":{"score":82,"comment":"结果有支撑"},
+                "expressionClarity":{"score":85,"comment":"表达清晰"}},
+                "strengths":["结构完整"],"weaknesses":["验证较少"],"suggestions":["补充敏感性分析"]}
+                """));
+        ReviewTask transientTask = task();
+        transientTask.setId(null);
+
+        workflow.execute(transientTask, submission());
+
+        ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
+        verify(aiClient).chat(captor.capture());
+        assertEquals(AiOperationCode.EXPERIMENT_REVIEW, captor.getValue().context().operationCode());
     }
 
     private ReviewTask task() {

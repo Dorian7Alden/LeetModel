@@ -52,7 +52,7 @@ class AiCallAuditServiceTest {
         verify(mapper).insert(captor.capture());
         AiCallLog saved = captor.getValue();
         assertThat(saved.getCallId()).isEqualTo("call-1");
-        assertThat(saved.getScene()).isEqualTo("GENERAL_TEXT");
+        assertThat(saved.getScene()).isEqualTo("TEXT");
         assertThat(saved.getProvider()).isEqualTo("NEW_API");
         assertThat(saved.getModel()).isEqualTo("deepseek-test");
         assertThat(saved.getStatus()).isEqualTo("SUCCEEDED");
@@ -93,7 +93,7 @@ class AiCallAuditServiceTest {
         AiCallLog row = new AiCallLog();
         row.setId(9007199254740993L);
         row.setCallId("call-1");
-        row.setScene("GENERAL_TEXT");
+        row.setScene("TEXT");
         row.setProvider("NEW_API");
         row.setModel("model");
         row.setStatus("SUCCEEDED");
