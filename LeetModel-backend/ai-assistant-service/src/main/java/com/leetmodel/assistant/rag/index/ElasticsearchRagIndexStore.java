@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,7 +47,8 @@ public class ElasticsearchRagIndexStore implements RagIndexStore {
                 body.append(objectMapper.writeValueAsString(document(item, embeddings.get(index)))).append('\n');
             }
             Request request = new Request("POST", "/_bulk?refresh=wait_for");
-            request.setEntity(new NStringEntity(body.toString(), ContentType.create("application/x-ndjson")));
+            request.setEntity(new NStringEntity(body.toString(),
+                    ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
             Response response = client.performRequest(request);
             JsonNode json = objectMapper.readTree(EntityUtils.toString(response.getEntity()));
             if (!json.path("errors").asBoolean(false)) {
