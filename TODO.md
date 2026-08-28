@@ -574,7 +574,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 工作：新增 Controller、Service、逻辑模型配置、批量/长度/维度校验，区分 RAG_INDEX 与 RAG_QUERY。
 - 验收：错误模型、超批量、空输入和维度不符均明确拒绝。
 
-#### [ ] S3-04 实现 new-api /v1/embeddings 适配
+#### [x] S3-04 实现 new-api /v1/embeddings 适配
 
 - 依赖：S3-03。
 - 工作：映射数组输入、模型名、encoding_format、usage 和错误。

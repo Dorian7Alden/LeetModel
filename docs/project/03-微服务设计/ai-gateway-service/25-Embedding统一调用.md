@@ -15,3 +15,5 @@
 `AiClient.embed` 固定调用 `/internal/ai/embeddings`。现有 Chat-only 实现继续保持函数式接口兼容，默认明确返回“不支持 Embedding”；正式 `HttpAiClient` 覆盖该方法，并把业务失败、空响应、HTTP 失败和连接/读取超时统一转换为 `AiClientException`，异常消息不拼接请求原文。
 
 网关通过 `ai.gateway.embedding-models.<logicalModel>` 绑定 new-api 物理模型，并配置启用状态、预期维度、最大批量、单条字符上限和批次总字符上限。接口仅接受 `RAG/INDEX_DOCUMENTS` 与 `RAG/RETRIEVE_CONTEXT` 上下文；未知或停用模型、越界输入、响应条数/索引/维度异常均在网关边界明确拒绝。
+
+new-api 适配固定调用 `/v1/embeddings`，请求使用数组 `input` 和 `encoding_format=float`。响应按 `data.index` 归一化，Embedding 协议中明确不存在的输出 Token 记为 0；上游未提供 usage 时整体保持 UNKNOWN。认证、限流、额度、超时、模型缺失和畸形响应沿用网关统一错误分类，不透明重试。

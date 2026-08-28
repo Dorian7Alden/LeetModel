@@ -6,6 +6,9 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiModelInfo;
 import com.leetmodel.common.ai.model.AiProvider;
+import com.leetmodel.common.ai.model.AiEmbeddingVector;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -111,6 +114,36 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             throw exception;
         } catch (RestClientException exception) {
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+        }
+    }
+
+    @Override
+    public ProviderEmbeddingResponse embed(String model, List<String> inputs) {
+        validateApiKey();
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", model);
+        body.put("input", inputs);
+        body.put("encoding_format", "float");
+        try {
+            OpenAiEmbeddingResponse response = restClient.post()
+                    .uri("/embeddings")
+                    .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                    .body(body)
+                    .retrieve()
+                    .body(OpenAiEmbeddingResponse.class);
+            validateEmbedding(response, inputs.size());
+            List<AiEmbeddingVector> vectors = response.data().stream()
+                    .map(item -> new AiEmbeddingVector(item.index(), item.embedding())).toList();
+            return new ProviderEmbeddingResponse(response.model(), response.id(), vectors,
+                    embeddingUsage(response.usage()), null);
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RestClientResponseException exception) {
+            throw mapHttpError(exception);
+        } catch (ResourceAccessException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_TIMEOUT);
+        } catch (RestClientException exception) {
+            throw new BusinessException(AiGatewayErrorCode.RESPONSE_INVALID);
         }
     }
 
@@ -230,6 +263,30 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
         BusinessException.throwIf(response == null || response.content() == null || response.usage() == null,
                 AiGatewayErrorCode.RESPONSE_INVALID);
         BusinessException.throwIf(!StringUtils.hasText(response.outputText()), AiGatewayErrorCode.RESPONSE_INVALID);
+    }
+
+    private void validateEmbedding(OpenAiEmbeddingResponse response, int expectedCount) {
+        BusinessException.throwIf(response == null || !StringUtils.hasText(response.model())
+                        || response.data() == null || response.data().size() != expectedCount,
+                AiGatewayErrorCode.RESPONSE_INVALID);
+        for (OpenAiEmbeddingResponse.Item item : response.data()) {
+            boolean invalid = item == null || item.embedding() == null || item.embedding().isEmpty()
+                    || item.embedding().stream().anyMatch(value -> value == null || !Float.isFinite(value));
+            BusinessException.throwIf(invalid, AiGatewayErrorCode.RESPONSE_INVALID);
+        }
+    }
+
+    private AiUsage embeddingUsage(OpenAiEmbeddingResponse.Usage usage) {
+        if (usage == null) {
+            return new AiUsage(null, null, null, null, null, null, null,
+                    AiMetricCompleteness.UNKNOWN);
+        }
+        if (usage.promptTokens() == null || usage.totalTokens() == null) {
+            return new AiUsage(usage.promptTokens(), 0L, null, null, null, null,
+                    usage.totalTokens(), AiMetricCompleteness.PARTIAL);
+        }
+        return new AiUsage(usage.promptTokens(), 0L, null, null, null, null,
+                usage.totalTokens(), AiMetricCompleteness.COMPLETE);
     }
 
     private BusinessException mapHttpError(RestClientResponseException exception) {
