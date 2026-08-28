@@ -621,7 +621,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：迁移 CLAUDE.md，保留结构、笔记和维护规范；明确向量 V1 与 AI 导航 V2；移除 Claude Code 专属表述。
 - 验收：CONTEXT.md 可独立指导 Agent；内部链接有效；旧 CLAUDE.md 删除或只保留无冲突迁移提示。
 
-#### [ ] S4-05 实现 Markdown 加载与元数据提取
+#### [x] S4-05 实现 Markdown 加载与元数据提取
 
 - 依赖：S4-03、S4-04。
 - 工作：提取相对路径、标题、YAML tags/summary、目录层级、内容哈希和修改信息；安全处理缺字段和坏文件。
