@@ -24,6 +24,7 @@ public class AiCallLog extends BaseEntity {
     private String promptVersion;
     private String modelExecutionConfigVersion;
     private String evaluationTaskId;
+    private String ragIndexVersion;
     private String priority;
     private String idempotencyKey;
     private LocalDateTime deadline;

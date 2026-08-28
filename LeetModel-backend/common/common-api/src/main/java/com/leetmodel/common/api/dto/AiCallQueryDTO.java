@@ -22,6 +22,7 @@ public class AiCallQueryDTO {
     @Size(max = 64) private String callId;
     @Size(max = 128) private String businessTaskId;
     @Size(max = 128) private String evaluationTaskId;
+    @Size(max = 128) private String ragIndexVersion;
     @Size(max = 64) private String workflowVersion;
     @Size(max = 100) private String promptVersion;
     @Size(max = 100) private String modelExecutionConfigVersion;

@@ -11,6 +11,7 @@
         <if test="callId != null and callId.trim() != ''">AND call_id = TRIM(#{callId})</if>
         <if test="businessTaskId != null and businessTaskId.trim() != ''">AND business_task_id = TRIM(#{businessTaskId})</if>
         <if test="evaluationTaskId != null and evaluationTaskId.trim() != ''">AND evaluation_task_id = TRIM(#{evaluationTaskId})</if>
+        <if test="ragIndexVersion != null and ragIndexVersion.trim() != ''">AND rag_index_version = TRIM(#{ragIndexVersion})</if>
         <if test="workflowVersion != null and workflowVersion.trim() != ''">AND workflow_version = TRIM(#{workflowVersion})</if>
         <if test="promptVersion != null and promptVersion.trim() != ''">AND prompt_version = TRIM(#{promptVersion})</if>
         <if test="modelExecutionConfigVersion != null and modelExecutionConfigVersion.trim() != ''">AND model_execution_config_version = TRIM(#{modelExecutionConfigVersion})</if>

@@ -109,7 +109,12 @@ class AiMeteringIntegrationTest {
             assertThat(row.getProviderResponseId()).isEqualTo("relay-complete");
             assertThat(row.getNewApiRequestId()).isNull();
             assertThat(row.getCostSource()).isEqualTo("UNKNOWN");
+            assertThat(row.getRagIndexVersion()).isEqualTo("rag-v1-metering");
         });
+        AiCallQueryDTO ragQuery = new AiCallQueryDTO();
+        ragQuery.setEvaluationTaskId("evaluation:1");
+        ragQuery.setRagIndexVersion("rag-v1-metering");
+        assertThat(auditService.list(ragQuery)).singleElement();
 
         costEnrichmentService.enrichDue();
         costEnrichmentService.enrichDue();
@@ -158,7 +163,7 @@ class AiMeteringIntegrationTest {
         AiCallContext context = new AiCallContext("ai-review-service", AiFeatureCode.PAPER_REVIEW,
                 AiOperationCode.EXPERIMENT_REVIEW, businessTaskId, "BASIC_REVIEW_V1",
                 "PROMPT_BASIC_REVIEW_0001", "MODEL_CFG_REVIEW_TEXT_TEST_0001",
-                evaluationTaskId, AiCallPriority.P3, "integration:" + businessTaskId,
+                evaluationTaskId, "rag-v1-metering", AiCallPriority.P3, "integration:" + businessTaskId,
                 Instant.parse("2099-01-01T00:00:00Z"));
         return new AiChatRequest(AiModality.TEXT, context,
                 List.of(new AiMessage(AiRole.USER,

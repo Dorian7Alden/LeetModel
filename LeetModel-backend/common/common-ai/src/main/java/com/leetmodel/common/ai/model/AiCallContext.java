@@ -24,10 +24,19 @@ public record AiCallContext(
         @Size(max = 100) String promptVersion,
         @Size(max = 100) String modelExecutionConfigVersion,
         @Size(max = 128) String evaluationTaskId,
+        @Size(max = 128) String ragIndexVersion,
         @NotNull AiCallPriority priority,
         @NotBlank @Size(max = 128) String idempotencyKey,
         @NotNull @Future Instant deadline
 ) {
+    public AiCallContext(String callerService, AiFeatureCode featureCode, AiOperationCode operationCode,
+                         String businessTaskId, String workflowVersion, String promptVersion,
+                         String modelExecutionConfigVersion, String evaluationTaskId,
+                         AiCallPriority priority, String idempotencyKey, Instant deadline) {
+        this(callerService, featureCode, operationCode, businessTaskId, workflowVersion, promptVersion,
+                modelExecutionConfigVersion, evaluationTaskId, null, priority, idempotencyKey, deadline);
+    }
+
     @JsonIgnore
     @AssertTrue(message = "operationCode 与 featureCode 不匹配")
     public boolean isOperationCompatible() {

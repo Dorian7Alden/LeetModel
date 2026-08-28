@@ -108,6 +108,8 @@ public class AiCallAuditService {
                         trimmed(query.getBusinessTaskId()))
                 .eq(StringUtils.hasText(query.getEvaluationTaskId()), AiCallLog::getEvaluationTaskId,
                         trimmed(query.getEvaluationTaskId()))
+                .eq(StringUtils.hasText(query.getRagIndexVersion()), AiCallLog::getRagIndexVersion,
+                        trimmed(query.getRagIndexVersion()))
                 .eq(StringUtils.hasText(query.getWorkflowVersion()), AiCallLog::getWorkflowVersion,
                         trimmed(query.getWorkflowVersion()))
                 .eq(StringUtils.hasText(query.getPromptVersion()), AiCallLog::getPromptVersion,
@@ -200,6 +202,7 @@ public class AiCallAuditService {
         record.setPromptVersion(context.promptVersion());
         record.setModelExecutionConfigVersion(context.modelExecutionConfigVersion());
         record.setEvaluationTaskId(context.evaluationTaskId());
+        record.setRagIndexVersion(context.ragIndexVersion());
         record.setPriority(context.priority().name());
         record.setIdempotencyKey(context.idempotencyKey());
         record.setDeadline(LocalDateTime.ofInstant(context.deadline(), ZoneOffset.UTC));
