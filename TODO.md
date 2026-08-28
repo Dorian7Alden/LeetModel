@@ -615,7 +615,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：只纳入 rag_kb/数学建模 的内容 Markdown；排除各级 README、.kb、.claude、CONTEXT、data、docs、scripts、.git、数模评审参考资料和 PDF。
 - 验收：从实际目录生成确定性文件清单；新增未声明目录不会自动进入索引。
 
-#### [ ] S4-04 将 rag_kb 行为说明迁移为 CONTEXT.md
+#### [x] S4-04 将 rag_kb 行为说明迁移为 CONTEXT.md
 
 - 依赖：D-03、S4-03。
 - 工作：迁移 CLAUDE.md，保留结构、笔记和维护规范；明确向量 V1 与 AI 导航 V2；移除 Claude Code 专属表述。
