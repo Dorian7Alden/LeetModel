@@ -689,11 +689,13 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 
 - 2026-08-28 验收：`RAG_ES_INTEGRATION=true` 下 assistant 模块 57 项测试通过（仅 2 项需真实 new-api 的门控冒烟跳过），确定性 Embedding/内存 Store 与独立 ES 已覆盖命中、无命中、错误阈值、Embedding/ES/超时故障、全量重复索引、增量新增/修改/删除和中断恢复。另以仓库外 Relay Token 执行 `RUN_RAG_E2E_SMOKE=true`，独立测试知识库经 `common-ai → ai-gateway-service → new-api qwen3.7-text-embedding → Elasticsearch → RAG` 完成真实建索引和召回；本机基线为 1550 ms、2 次 Embedding 调用、100 个 Embedding 输入 Token、35 个上下文 Token 增量，目标文档 `recall@1=1/1`。测试仅清理 `leetmodel-rag-s4-15-e2e-*` 独立索引，未操作正式别名。
 
-#### [ ] S4-16 同步 RAG 运维与模块文档
+#### [x] S4-16 同步 RAG 运维与模块文档
 
 - 依赖：S4-15。
 - 工作：更新 assistant README、RAG 架构、Docker、配置、索引、回滚、测试索引清理和故障说明。
 - 验收：按文档可从空 ES 完成一次索引和客服问答，正式索引无破坏性清理命令。
+
+S4 验收记录（2026-08-28）：RAG V1 已在 `ai-assistant-service` 完成 73 个受控内容 Markdown 的确定性选择、清洗切分、稳定版本、1024 维向量索引、全量/增量更新、基础召回、工作流注入、`ragIndexVersion` 审计和安全降级。后端 17 模块在独立 ES 集成测试开启时全量通过；真实 new-api 端到端基线与自动清理结果见 S4-15。assistant README 与 RAG 架构文档已给出从空 ES 建索引、启用问答、原子别名回滚和故障处理步骤，正式索引不提供破坏性清理命令。
 
 ### S5：AI 网关优先级调度任务
 
