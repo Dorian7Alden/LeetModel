@@ -1,15 +1,18 @@
 package com.leetmodel.assistant.rag.workflow;
 
 import com.leetmodel.assistant.rag.config.RagProperties;
+import com.leetmodel.assistant.rag.retrieval.RagRetrievalException;
 import com.leetmodel.assistant.rag.retrieval.RagRetrievalResult;
 import com.leetmodel.assistant.rag.retrieval.RagRetrievedChunk;
 import com.leetmodel.assistant.rag.retrieval.RagRetriever;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
 
 /** 将检索结果封装为不可信、带来源边界的系统参考资料。 */
 @Component
+@Slf4j
 public class RagWorkflowContextProvider {
 
     private static final String BOUNDARY = "UNTRUSTED_RAG_KNOWLEDGE";
@@ -26,7 +29,25 @@ public class RagWorkflowContextProvider {
         if (!properties.isEnabled()) {
             return RagWorkflowContext.empty();
         }
-        RagRetrievalResult result = retriever.retrieve(query);
+        long startedAt = System.nanoTime();
+        try {
+            RagRetrievalResult result = retriever.retrieve(query);
+            RagWorkflowContext context = toContext(result);
+            log.info("rag-retrieval status=SUCCEEDED type=NONE durationMs={} ragIndexVersion={} recallCount={}",
+                    elapsedMillis(startedAt), safeVersion(result.ragIndexVersion()), result.chunks().size());
+            return context;
+        } catch (RagRetrievalException exception) {
+            log.warn("rag-retrieval status=DEGRADED type={} durationMs={} ragIndexVersion=UNAVAILABLE recallCount=0",
+                    exception.getType(), elapsedMillis(startedAt));
+            return RagWorkflowContext.empty();
+        } catch (RuntimeException exception) {
+            log.warn("rag-retrieval status=DEGRADED type=PARSING durationMs={} ragIndexVersion=UNAVAILABLE recallCount=0",
+                    elapsedMillis(startedAt));
+            return RagWorkflowContext.empty();
+        }
+    }
+
+    private RagWorkflowContext toContext(RagRetrievalResult result) {
         if (result.chunks().isEmpty()) {
             return RagWorkflowContext.empty();
         }
@@ -43,6 +64,14 @@ public class RagWorkflowContextProvider {
             context.append("END_").append(BOUNDARY).append('_').append(index + 1).append('\n');
         }
         return new RagWorkflowContext(context.toString().strip(), result.ragIndexVersion());
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
+    }
+
+    private String safeVersion(String version) {
+        return version == null || version.isBlank() ? "UNAVAILABLE" : version;
     }
 
     private String escapeBoundary(String content) {

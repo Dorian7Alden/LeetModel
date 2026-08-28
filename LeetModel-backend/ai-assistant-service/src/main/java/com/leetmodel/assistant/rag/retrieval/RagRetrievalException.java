@@ -18,6 +18,7 @@ public class RagRetrievalException extends RuntimeException {
         EMBEDDING,
         ELASTICSEARCH,
         TIMEOUT,
-        DIMENSION
+        DIMENSION,
+        PARSING
     }
 }
