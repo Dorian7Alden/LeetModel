@@ -3,6 +3,8 @@ package com.leetmodel.assistant.workflow;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.assistant.entity.AssistantMessage;
+import com.leetmodel.assistant.rag.workflow.RagWorkflowContext;
+import com.leetmodel.assistant.rag.workflow.RagWorkflowContextProvider;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCallPriority;
@@ -18,6 +20,7 @@ import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -39,11 +42,19 @@ public class AssistantWorkflow {
 
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
+    private final RagWorkflowContextProvider ragContextProvider;
     private final String systemPrompt;
 
     public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper) throws Exception {
+        this(aiClient, objectMapper, RagWorkflowContextProvider.disabled());
+    }
+
+    @Autowired
+    public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper,
+                             RagWorkflowContextProvider ragContextProvider) throws Exception {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
+        this.ragContextProvider = ragContextProvider;
         this.systemPrompt = new ClassPathResource("prompts/assistant-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
@@ -69,8 +80,12 @@ public class AssistantWorkflow {
      */
     public AiChatResponse reply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
                                 List<ProblemOptionDTO> candidates) throws JsonProcessingException {
+        RagWorkflowContext ragContext = ragContextProvider.retrieve(currentUserMessage.getContent());
         List<AiMessage> messages = new ArrayList<>();
         messages.add(message(AiRole.SYSTEM, systemPrompt));
+        if (ragContext.present()) {
+            messages.add(message(AiRole.SYSTEM, ragContext.text()));
+        }
         for (AssistantMessage item : history) {
             AiRole role = "ASSISTANT".equals(item.getRole()) ? AiRole.ASSISTANT : AiRole.USER;
             String content = item.getContent();
@@ -85,7 +100,7 @@ public class AssistantWorkflow {
         AiCallContext context = new AiCallContext(
                 "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
                 taskId, "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
-                "MODEL_CFG_ASSISTANT_TEXT_0001", null, AiCallPriority.P0,
+                "MODEL_CFG_ASSISTANT_TEXT_0001", null, ragContext.ragIndexVersion(), AiCallPriority.P0,
                 "assistant:" + taskId, Instant.now().plusSeconds(240));
         AiChatResponse response = aiClient.chat(new AiChatRequest(
                 AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
