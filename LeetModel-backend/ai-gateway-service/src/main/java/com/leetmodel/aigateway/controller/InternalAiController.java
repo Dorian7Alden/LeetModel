@@ -2,8 +2,11 @@ package com.leetmodel.aigateway.controller;
 
 import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiModelService;
+import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiEmbeddingRequest;
+import com.leetmodel.common.ai.model.AiEmbeddingResponse;
 import com.leetmodel.common.ai.model.AiModelInfo;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
@@ -34,6 +37,7 @@ import java.util.List;
 public class InternalAiController {
 
     private final AiChatService aiChatService;
+    private final AiEmbeddingService aiEmbeddingService;
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
 
@@ -47,6 +51,12 @@ public class InternalAiController {
     @PostMapping("/chat")
     public Result<AiChatResponse> chat(@Valid @RequestBody AiChatRequest request) {
         return Result.ok(aiChatService.chat(request));
+    }
+
+    @Operation(summary = "发起同步 Embedding 调用")
+    @PostMapping("/embeddings")
+    public Result<AiEmbeddingResponse> embeddings(@Valid @RequestBody AiEmbeddingRequest request) {
+        return Result.ok(aiEmbeddingService.embed(request));
     }
 
     /**

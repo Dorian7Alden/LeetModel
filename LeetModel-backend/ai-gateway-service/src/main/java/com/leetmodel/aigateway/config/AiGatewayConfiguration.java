@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
         NewApiProperties.class,
         CostEnrichmentProperties.class,
         AiRoutingProperties.class,
+        AiEmbeddingProperties.class,
         AiModelCatalogProperties.class
 })
 public class AiGatewayConfiguration {

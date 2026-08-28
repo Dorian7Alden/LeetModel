@@ -25,6 +25,14 @@ ai:
     # snapshots 默认为空；只有核验并发布不可变价格版本后才能配置估算价格。
     snapshots: {}
   gateway:
+    embedding-models:
+      RAG_V1:
+        provider: NEW_API
+        model: qwen3.7-text-embedding
+        dimension: 1024
+        max-batch-size: 32
+        max-input-chars: 8192
+        max-total-chars: 65536
     routes:
       TEXT:
         provider: NEW_API

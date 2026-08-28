@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @TableName("ai_call_log")
 public class AiCallLog extends BaseEntity {
     private String callId;
+    private String callType;
     private String scene;
     private String modality;
     private String callerService;
@@ -42,6 +43,8 @@ public class AiCallLog extends BaseEntity {
     private Long totalTokens;
     private Boolean usageComplete;
     private String usageCompleteness;
+    private Integer inputCount;
+    private Integer vectorDimension;
     private Long queueMs;
     private Long executionMs;
     private Long totalMs;

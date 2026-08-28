@@ -20,4 +20,9 @@ public class AiClientException extends RuntimeException {
         super(message);
         this.code = code;
     }
+
+    public AiClientException(int code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
 }

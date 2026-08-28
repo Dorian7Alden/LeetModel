@@ -556,41 +556,44 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 
 ### S3：Embedding 统一调用任务
 
-#### [ ] S3-01 定义 common-ai Embedding 契约
+#### [x] S3-01 定义 common-ai Embedding 契约
 
 - 依赖：S0-04、S2-02。
 - 工作：定义单条/批量输入、逻辑模型、AiCallContext、向量、维度、usage、callId 及输入限制。
 - 验收：校验和序列化测试通过；不暴露渠道和密钥。
 
-#### [ ] S3-02 实现 common-ai Embedding HTTP 客户端
+#### [x] S3-02 实现 common-ai Embedding HTTP 客户端
 
 - 依赖：S3-01。
 - 工作：调用 /internal/ai/embeddings；选择扩展 AiClient 或独立 EmbeddingClient，并保持 Chat 兼容。
 - 验收：成功、统一错误、空响应和超时测试通过。
 
-#### [ ] S3-03 实现网关 Embedding 接口和能力校验
+#### [x] S3-03 实现网关 Embedding 接口和能力校验
 
 - 依赖：S1-08、S3-02。
 - 工作：新增 Controller、Service、逻辑模型配置、批量/长度/维度校验，区分 RAG_INDEX 与 RAG_QUERY。
 - 验收：错误模型、超批量、空输入和维度不符均明确拒绝。
 
-#### [ ] S3-04 实现 new-api /v1/embeddings 适配
+#### [x] S3-04 实现 new-api /v1/embeddings 适配
 
 - 依赖：S3-03。
 - 工作：映射数组输入、模型名、encoding_format、usage 和错误。
 - 验收：Mock new-api 覆盖单条、批量、限流、额度、畸形向量和维度变化。
 
-#### [ ] S3-05 实现 LangChain4j 项目 EmbeddingModel 适配器
+#### [x] S3-05 实现 LangChain4j 项目 EmbeddingModel 适配器
 
 - 依赖：S0-04、S3-04。
 - 工作：通过 common-ai 调用，处理批量、TokenCount、响应 metadata 和异常；不得直接连接 new-api。
 - 验收：确定性向量单测通过；assistant 配置中不存在 new-api 地址或 Token。
 
-#### [ ] S3-06 接入审计并完成中文真实冒烟
+#### [x] S3-06 接入审计并完成中文真实冒烟
 
 - 依赖：S2-06、S3-05。
 - 工作：记录模型、维度、条数、Token、费用、耗时和失败，不记录原文与向量；执行一次小批量中文调用。
 - 验收：维度稳定、callId 可查、敏感输入不进日志。
+- 2026-08-28 验收：新增的 `qwen3.7-text-embedding` 已通过 `common-ai → ai-gateway-service → new-api /v1/embeddings` 两条中文输入真实冒烟，稳定返回 2 个 1024 维向量和 53 个输入/总 Token。calls 接口及 MySQL 审计行均以同一 callId 记录 `EMBEDDING`、模型、条数、维度、Token、耗时和上游响应 ID，表结构及接口响应不包含输入原文或向量。
+
+S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-text-embedding`，预期维度 1024；单条/批量、输入上限、超时、上游错误、usage、畸形向量、维度漂移、LangChain4j 适配和统一审计测试通过。真实中文调用由本地 Relay Token 注入执行，密钥未进入仓库或日志。
 
 ### S4：Elasticsearch 与客服 RAG V1 任务
 

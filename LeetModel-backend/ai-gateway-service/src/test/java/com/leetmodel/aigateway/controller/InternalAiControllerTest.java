@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.controller;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiModelService;
+import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
@@ -28,6 +29,7 @@ class InternalAiControllerTest {
     void shouldReturnUnifiedChatResponse() {
         AiChatService chatService = mock(AiChatService.class);
         InternalAiController controller = new InternalAiController(chatService,
+                mock(AiEmbeddingService.class),
                 mock(AiModelService.class), mock(AiCallAuditService.class));
         AiChatRequest request = new AiChatRequest(AiScene.GENERAL_TEXT,
                 List.of(new AiMessage(AiRole.USER,
