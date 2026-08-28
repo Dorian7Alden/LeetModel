@@ -64,4 +64,16 @@ class AiCallLogMigrationTest {
                         "idx_call_type_time")
                 .doesNotContain("input_text", "embedding_vector", "request_body", "response_body");
     }
+
+    @Test
+    void v5ShouldAddQueryableRagVersionWithoutKnowledgeContent() throws Exception {
+        String sql;
+        try (var input = getClass().getResourceAsStream(
+                "/db/migration/V5__add_rag_index_version.sql")) {
+            assertThat(input).isNotNull();
+            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+        }
+        assertThat(sql).contains("`rag_index_version`", "idx_rag_index_version_time")
+                .doesNotContain("knowledge_content", "query_text", "embedding_vector");
+    }
 }

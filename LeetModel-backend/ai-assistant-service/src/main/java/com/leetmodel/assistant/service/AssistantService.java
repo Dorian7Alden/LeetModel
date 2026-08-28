@@ -207,8 +207,8 @@ public class AssistantService {
             return persistReply(existingReply, conversation, userMessage, "COMPLETED",
                     response.content(), null, toolContextJson, response.model(), response.callId());
         } catch (Exception exception) {
-            log.warn("AI 客服回复失败 conversationId={}, message={}",
-                    conversation.getId(), exception.getMessage());
+            log.warn("assistant-chat status=FAILED conversationId={} errorType={}",
+                    conversation.getId(), exception.getClass().getSimpleName());
             return persistReply(existingReply, conversation, userMessage, "FAILED",
                     null, userFacingError(exception), toolContextJson, null, null);
         }

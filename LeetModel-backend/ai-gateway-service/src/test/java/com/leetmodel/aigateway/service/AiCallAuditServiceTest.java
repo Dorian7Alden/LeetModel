@@ -65,6 +65,7 @@ class AiCallAuditServiceTest {
         assertThat(saved.getFeatureCode()).isEqualTo("AI_ASSISTANT");
         assertThat(saved.getOperationCode()).isEqualTo("CHAT_REPLY");
         assertThat(saved.getBusinessTaskId()).isEqualTo("message:1");
+        assertThat(saved.getRagIndexVersion()).isEqualTo("rag-v1-test");
         assertThat(saved.getProviderResponseId()).isEqualTo("response-id");
         assertThat(saved.getNewApiRequestId()).isNull();
         assertThat(saved.getProvider()).isEqualTo("NEW_API");
@@ -172,7 +173,7 @@ class AiCallAuditServiceTest {
         AiCallContext context = new AiCallContext("ai-assistant-service",
                 AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY, "message:1",
                 "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
-                "MODEL_CFG_ASSISTANT_TEXT_0001", null, AiCallPriority.P0,
+                "MODEL_CFG_ASSISTANT_TEXT_0001", null, "rag-v1-test", AiCallPriority.P0,
                 "assistant:message:1", Instant.parse("2099-01-01T00:00:00Z"));
         return new AiChatRequest(AiModality.TEXT, context, List.of(), 10, null, null, false);
     }

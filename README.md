@@ -89,6 +89,18 @@ curl --fail http://localhost:3000/api/status
 
 首次启动后访问 `http://localhost:3000` 完成管理员初始化，再配置供应商渠道和 LeetModel 专用 Relay Token。数据保存在 Docker 卷 `new-api-data` 中。详细边界、接口和验证方式见 [new-api 第三方网关集成](docs/project/02-架构设计/new-api第三方网关集成.md)。
 
+#### 启动 Elasticsearch
+
+RAG V1 使用固定版本 Elasticsearch `8.14.3`。它可独立启动并保留索引数据：
+
+```bash
+cd LeetModel-backend
+docker compose up -d --wait elasticsearch
+curl -fsS http://127.0.0.1:9200/_cluster/health
+```
+
+本地端口仅绑定 `127.0.0.1:9200`，JVM 堆限制为 512 MiB，容器内存限制为 1 GiB。常规停止使用 `docker compose stop elasticsearch`；`docker compose down` 默认保留命名卷。不要使用 `down -v` 或删除 `elasticsearch-data`，除非明确要清空本地索引。
+
 #### 1. 启动后端
 
 ```bash

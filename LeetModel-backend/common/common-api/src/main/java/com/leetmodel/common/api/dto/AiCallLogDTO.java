@@ -23,6 +23,7 @@ public class AiCallLogDTO {
     private String promptVersion;
     private String modelExecutionConfigVersion;
     private String evaluationTaskId;
+    private String ragIndexVersion;
     private String priority;
     private String provider;
     private String model;
