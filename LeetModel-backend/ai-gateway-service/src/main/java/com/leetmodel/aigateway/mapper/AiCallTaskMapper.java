@@ -8,9 +8,30 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
+
+    @Select("""
+            SELECT * FROM ai_call_task
+             WHERE deleted = 0 AND state = 'QUEUED'
+             ORDER BY queued_at ASC
+             LIMIT #{limit}
+            """)
+    List<AiCallTask> selectQueued(@Param("limit") int limit);
+
+    @Select("SELECT * FROM ai_call_task WHERE deleted = 0 AND task_id = #{taskId} LIMIT 1")
+    AiCallTask selectByTaskId(@Param("taskId") String taskId);
+
+    @Select("SELECT COUNT(*) FROM ai_call_task WHERE deleted = 0 AND state IN ('QUEUED','LEASED','RUNNING')")
+    long countActive();
+
+    @Select("""
+            SELECT COUNT(*) FROM ai_call_task
+             WHERE deleted = 0 AND state IN ('QUEUED','LEASED','RUNNING') AND effective_priority <> 'P0'
+            """)
+    long countActiveNonP0();
 
     @Select("""
             SELECT * FROM ai_call_task
@@ -34,6 +55,7 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
     @Update("""
             UPDATE ai_call_task
                SET state = #{toState}, version = version + 1, update_time = #{now},
+                   attempt_count = CASE WHEN #{toState} = 'RUNNING' THEN attempt_count + 1 ELSE attempt_count END,
                    started_at = CASE WHEN #{toState} = 'RUNNING' THEN #{now} ELSE started_at END,
                    finished_at = CASE WHEN #{toState} IN ('SUCCEEDED','FAILED','CANCELLED','EXPIRED')
                                       THEN #{now} ELSE finished_at END
@@ -55,4 +77,45 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
             """)
     int releaseExpiredLeaseWithoutAttempt(@Param("taskId") String taskId,
                                           @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task
+               SET state = 'EXPIRED', error_code = 'AI_QUEUE_EXPIRED', finished_at = #{now},
+                   version = version + 1, update_time = #{now}
+             WHERE task_id = #{taskId} AND deleted = 0 AND state IN ('QUEUED','LEASED')
+               AND version = #{version}
+            """)
+    int expireBeforeDispatch(@Param("taskId") String taskId, @Param("version") long version,
+                             @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task
+               SET lease_expiry = #{leaseExpiry}, version = version + 1, update_time = #{now}
+             WHERE task_id = #{taskId} AND deleted = 0 AND state = 'RUNNING' AND lease_owner = #{owner}
+            """)
+    int renewRunningLease(@Param("taskId") String taskId, @Param("owner") String owner,
+                          @Param("leaseExpiry") LocalDateTime leaseExpiry, @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task
+               SET state = #{terminalState}, result_payload = #{resultPayload}, error_code = #{errorCode},
+                   request_payload = '', finished_at = #{now}, lease_expiry = NULL,
+                   version = version + 1, update_time = #{now}
+             WHERE task_id = #{taskId} AND deleted = 0 AND state = 'RUNNING' AND lease_owner = #{owner}
+            """)
+    int completeRunning(@Param("taskId") String taskId, @Param("owner") String owner,
+                        @Param("terminalState") String terminalState,
+                        @Param("resultPayload") String resultPayload, @Param("errorCode") String errorCode,
+                        @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task
+               SET cancel_requested = 1,
+                   state = CASE WHEN state IN ('QUEUED','LEASED') THEN 'CANCELLED' ELSE state END,
+                   finished_at = CASE WHEN state IN ('QUEUED','LEASED') THEN #{now} ELSE finished_at END,
+                   version = version + 1, update_time = #{now}
+             WHERE task_id = #{taskId} AND deleted = 0
+               AND state IN ('QUEUED','LEASED','RUNNING')
+            """)
+    int requestCancel(@Param("taskId") String taskId, @Param("now") LocalDateTime now);
 }

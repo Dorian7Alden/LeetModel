@@ -1,0 +1,41 @@
+package com.leetmodel.aigateway.scheduling;
+
+import com.leetmodel.aigateway.config.AiSchedulingProperties;
+import com.leetmodel.aigateway.entity.AiCallTask;
+import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+
+/** 队列准入与调用方幂等入口。 */
+@Service
+public class AiQueueAdmissionService {
+
+    private final AiCallTaskMapper mapper;
+    private final AiSchedulingProperties properties;
+
+    public AiQueueAdmissionService(AiCallTaskMapper mapper, AiSchedulingProperties properties) {
+        this.mapper = mapper;
+        this.properties = properties;
+    }
+
+    public AdmissionResult enqueue(AiCallTask task) {
+        AiCallTask existing = mapper.selectByIdempotency(task.getCallerService(), task.getIdempotencyKey());
+        if (existing != null) return new AdmissionResult(existing, false, null);
+        long active = mapper.countActive();
+        if (active >= properties.getMaxQueueSize()) return new AdmissionResult(null, false, "AI_QUEUE_FULL");
+        if (!"P0".equals(task.getEffectivePriority())
+                && mapper.countActiveNonP0() >= properties.getMaxQueueSize() - properties.getReservedP0QueueSize()) {
+            return new AdmissionResult(null, false, "AI_QUEUE_FULL");
+        }
+        try {
+            mapper.insert(task);
+            return new AdmissionResult(task, true, null);
+        } catch (DuplicateKeyException exception) {
+            existing = mapper.selectByIdempotency(task.getCallerService(), task.getIdempotencyKey());
+            if (existing != null) return new AdmissionResult(existing, false, null);
+            throw exception;
+        }
+    }
+
+    public record AdmissionResult(AiCallTask task, boolean created, String errorCode) {}
+}
