@@ -31,6 +31,9 @@ public class RagProperties {
     @Pattern(regexp = "[a-z0-9][a-z0-9_-]{2,254}")
     private String indexAlias = "leetmodel-rag-v1-read";
 
+    @NotBlank
+    private String embeddingModelVersion = "qwen3.7-text-embedding@1024";
+
     @Min(1)
     @Max(100)
     private int topK = 8;
