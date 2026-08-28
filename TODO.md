@@ -755,11 +755,13 @@ S4 验收记录（2026-08-28）：RAG V1 已在 `ai-assistant-service` 完成 73
 - 工作：解析实际 Retry-After/错误信号，实现有上限的调度退避，不复制 new-api 渠道重试。
 - 验收：持续 429 时降低派发，恢复后逐步放量，无无限重试。
 
-#### [ ] S5-10 改造同步 Chat 和 Embedding 调用
+#### [x] S5-10 改造同步 Chat 和 Embedding 调用
 
 - 依赖：S5-09。
 - 工作：Chat 入队后有界等待；RAG_QUERY 使用实时优先级，RAG_INDEX 使用后台最低优先级；保留 callId。
 - 验收：assistant/review/suggestion 语义不变，大量索引不能阻断客服，超时不重复调用。
+
+S5-10 验收记录（2026-08-28）：`/internal/ai/chat` 与 `/internal/ai/embeddings` 保持原路径和统一响应契约，改为先按调用方幂等键写入持久化任务，再通过 `CompletableFuture` 有界等待；实际执行沿用任务生成的 `callId`，审计拆分排队、执行和总耗时。确定性测试证明 RAG 查询即使错误声明也按 P0、索引 Embedding 即使提权声明也按 P4，三个 P4 占满非实时许可时仍可派发保留的 P0，结果等待超时后以同一幂等键重试只插入一个任务。调度默认开启，网关及直接公共依赖共 55 项测试通过。
 
 #### [ ] S5-11 完成恢复、取消和混合负载验收
 
