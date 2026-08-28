@@ -108,6 +108,30 @@ class AiCallAuditServiceTest {
     }
 
     @Test
+    void shouldPersistPartialAndUnknownUsageWithoutZeroFilling() {
+        service.recordSuccess("call-partial", request(), "NEW_API", "model",
+                new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
+                        "stop", new AiUsage(8L, null, null, 2L, null, null, null,
+                        AiMetricCompleteness.PARTIAL)), 2L);
+        service.recordSuccess("call-unknown", request(), "NEW_API", "model",
+                new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
+                        "stop", null), 3L);
+
+        ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
+        verify(mapper, org.mockito.Mockito.times(2)).insert(captor.capture());
+        AiCallLog partial = captor.getAllValues().get(0);
+        AiCallLog unknown = captor.getAllValues().get(1);
+        assertThat(partial.getUsageCompleteness()).isEqualTo("PARTIAL");
+        assertThat(partial.getInputTokens()).isEqualTo(8L);
+        assertThat(partial.getCacheHitTokens()).isEqualTo(2L);
+        assertThat(partial.getOutputTokens()).isNull();
+        assertThat(partial.getTotalTokens()).isNull();
+        assertThat(unknown.getUsageCompleteness()).isEqualTo("UNKNOWN");
+        assertThat(unknown.getInputTokens()).isNull();
+        assertThat(unknown.getTotalTokens()).isNull();
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void shouldReturnRecentRowsAndEmptyStats() {
         AiCallLog row = new AiCallLog();

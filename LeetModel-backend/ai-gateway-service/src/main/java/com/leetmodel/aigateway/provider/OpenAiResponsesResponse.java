@@ -32,15 +32,13 @@ record OpenAiResponsesResponse(
 
     AiChatResponse toUnified(AiProvider provider) {
         Long cached = usage.inputTokensDetails() == null ? null : usage.inputTokensDetails().cachedTokens();
-        Long cacheMiss = cached == null || usage.inputTokens() == null
-                ? null : Math.max(0, usage.inputTokens() - cached);
         Long reasoning = usage.outputTokensDetails() == null
                 ? null : usage.outputTokensDetails().reasoningTokens();
         String finishReason = incompleteDetails == null || incompleteDetails.reason() == null
                 ? status : incompleteDetails.reason();
         return new AiChatResponse(null, provider, model, id, outputText(), null, finishReason,
                 new AiUsage(usage.inputTokens(), usage.outputTokens(), reasoning, cached, null,
-                        cacheMiss, usage.totalTokens(), AiMetricCompleteness.COMPLETE));
+                        null, usage.totalTokens(), AiMetricCompleteness.COMPLETE));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

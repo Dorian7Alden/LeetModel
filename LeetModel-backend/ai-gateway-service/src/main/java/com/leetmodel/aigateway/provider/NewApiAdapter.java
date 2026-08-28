@@ -59,9 +59,6 @@ public class NewApiAdapter extends AbstractOpenAiCompatibleAdapter {
         Long cacheHit = source.promptCacheHitTokens() != null
                 ? source.promptCacheHitTokens() : source.cachedTokens();
         Long cacheMiss = source.promptCacheMissTokens();
-        if (cacheMiss == null && cacheHit != null && source.promptTokens() != null) {
-            cacheMiss = Math.max(0, source.promptTokens() - cacheHit);
-        }
         Long reasoning = source.completionTokensDetails() == null
                 ? null : source.completionTokensDetails().reasoningTokens();
         boolean complete = source.promptTokens() != null
