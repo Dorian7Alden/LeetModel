@@ -609,7 +609,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：配置开关、知识库路径、索引别名、Top K、阈值、Token 预算、批量和超时；测试允许内存 Store。
 - 验收：非法配置测试通过；RAG 关闭时完全保持现有行为。
 
-#### [ ] S4-03 固化知识源纳入与排除规则
+#### [x] S4-03 固化知识源纳入与排除规则
 
 - 依赖：D-03。
 - 工作：只纳入 rag_kb/数学建模 的内容 Markdown；排除各级 README、.kb、.claude、CONTEXT、data、docs、scripts、.git、数模评审参考资料和 PDF。
