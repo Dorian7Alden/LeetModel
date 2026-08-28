@@ -26,6 +26,11 @@ class RagPropertiesTest {
             assertThat(properties.getScoreThreshold()).isEqualTo(0.65);
             assertThat(properties.getTokenBudget()).isEqualTo(3000);
             assertThat(properties.getEmbeddingBatchSize()).isEqualTo(16);
+            assertThat(properties.getChunkMinTokens()).isEqualTo(80);
+            assertThat(properties.getChunkTargetTokens()).isEqualTo(320);
+            assertThat(properties.getChunkMaxTokens()).isEqualTo(480);
+            assertThat(properties.getChunkOverlapTokens()).isEqualTo(48);
+            assertThat(properties.getMaxEmbeddingInputChars()).isEqualTo(8192);
             assertThat(properties.getRequestTimeout()).isEqualTo(Duration.ofSeconds(5));
             assertThat(properties.getStoreType()).isEqualTo(RagProperties.StoreType.ELASTICSEARCH);
         });
@@ -55,6 +60,9 @@ class RagPropertiesTest {
         assertInvalid("assistant.rag.index-alias=INVALID Alias");
         assertInvalid("assistant.rag.knowledge-base-path= ");
         assertInvalid("assistant.rag.request-timeout=0s");
+        assertInvalid("assistant.rag.chunk-min-tokens=321");
+        assertInvalid("assistant.rag.chunk-overlap-tokens=80");
+        assertInvalid("assistant.rag.max-embedding-input-chars=0");
     }
 
     private void assertInvalid(String property) {
