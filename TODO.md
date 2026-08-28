@@ -504,7 +504,7 @@ S1 验收记录（2026-08-28）：后端 17 模块 Maven reactor 全量测试通
 - 工作：设计 featureCode、operationCode、modality；首批覆盖客服、正式评审、实验评审、建议、RAG 索引和 RAG 查询。
 - 验收：GENERAL_TEXT/MULTIMODAL 有兼容迁移；路由能力和统计来源可以分别查询。
 
-#### [ ] S2-02 定义统一 AiCallContext
+#### [x] S2-02 定义统一 AiCallContext
 
 - 依赖：S2-01。
 - 工作：定义 callerService、featureCode、operationCode、businessTaskId、workflowVersion、promptVersion、modelConfigVersion、evaluationTaskId、priority、idempotencyKey、deadline。
