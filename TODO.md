@@ -586,12 +586,14 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 工作：通过 common-ai 调用，处理批量、TokenCount、响应 metadata 和异常；不得直接连接 new-api。
 - 验收：确定性向量单测通过；assistant 配置中不存在 new-api 地址或 Token。
 
-#### [ ] S3-06 接入审计并完成中文真实冒烟
+#### [x] S3-06 接入审计并完成中文真实冒烟
 
 - 依赖：S2-06、S3-05。
 - 工作：记录模型、维度、条数、Token、费用、耗时和失败，不记录原文与向量；执行一次小批量中文调用。
 - 验收：维度稳定、callId 可查、敏感输入不进日志。
-- 2026-08-28 进度：Embedding 审计、H2/MyBatis 集成和 callId 追踪已完成；Mock new-api 中文批量调用验证通过。使用本地 Relay Token 真实探测当前全部可见模型时，DeepSeek 的 `/v1/embeddings` 返回 500，Kimi 返回 403，均未返回向量；`/v1/models` 也只有 Chat/视觉模型。待 new-api 增加一个真实 Embedding 渠道和模型后执行最终中文冒烟，本项在此之前保持未完成，不能用确定性假向量替代验收。
+- 2026-08-28 验收：新增的 `qwen3.7-text-embedding` 已通过 `common-ai → ai-gateway-service → new-api /v1/embeddings` 两条中文输入真实冒烟，稳定返回 2 个 1024 维向量和 53 个输入/总 Token。calls 接口及 MySQL 审计行均以同一 callId 记录 `EMBEDDING`、模型、条数、维度、Token、耗时和上游响应 ID，表结构及接口响应不包含输入原文或向量。
+
+S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-text-embedding`，预期维度 1024；单条/批量、输入上限、超时、上游错误、usage、畸形向量、维度漂移、LangChain4j 适配和统一审计测试通过。真实中文调用由本地 Relay Token 注入执行，密钥未进入仓库或日志。
 
 ### S4：Elasticsearch 与客服 RAG V1 任务
 

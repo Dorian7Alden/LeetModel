@@ -20,4 +20,6 @@ new-api 适配固定调用 `/v1/embeddings`，请求使用数组 `input` 和 `en
 
 `ai-assistant-service` 的 `CommonAiEmbeddingModel` 实现 LangChain4j 0.34.0 `EmbeddingModel`，通过注入的 `AiClient` 批量调用并校验完整索引、维度和有限数值，再映射为 LangChain4j `Embedding` 与 `TokenUsage`。0.34.0 的 `Response` 没有任意 metadata 容器，因此 `callId` 保存在网关审计事实中供业务任务关联，不伪造到 LangChain4j 元数据；客服服务配置中不出现 new-api 地址或 Token。
 
-Embedding 与 Chat 共用 `ai_call_log`。新增 `callType=EMBEDDING`、输入条数和向量维度，只保存上下文、模型、usage、费用、耗时、错误和调用 ID；输入原文与向量不得落库。2026-08-28 对本地 new-api 的真实探测显示当前 DeepSeek/Kimi 渠道没有可用 Embedding 模型，因此最终中文真实冒烟必须等真实 Embedding 渠道加入后执行，不能以 Mock 或确定性向量冒充完成。
+Embedding 与 Chat 共用 `ai_call_log`。新增 `callType=EMBEDDING`、输入条数和向量维度，只保存上下文、模型、usage、费用、耗时、错误和调用 ID；输入原文与向量不得落库。
+
+2026-08-28 的正式绑定与实测基线为：逻辑模型 `RAG_V1`、new-api 模型 `qwen3.7-text-embedding`、向量维度 1024。两条中文输入经完整内部链路返回 2 个等维向量和 53 个输入/总 Token，响应 callId 可在 calls 接口与 MySQL 审计行中追踪到同一条 `EMBEDDING` 事实。更换模型或维度必须更新不可变模型配置版本并重建对应 RAG 索引，不能静默沿用旧索引。
