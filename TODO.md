@@ -597,7 +597,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 
 ### S4：Elasticsearch 与客服 RAG V1 任务
 
-#### [ ] S4-01 增加 Elasticsearch 本地基础设施
+#### [x] S4-01 增加 Elasticsearch 本地基础设施
 
 - 依赖：S0-04。
 - 工作：选择兼容的 Elasticsearch 8.x 固定版本，加入 Compose、健康检查、持久卷和开发资源限制。
