@@ -2,6 +2,7 @@ package com.leetmodel.aigateway.provider;
 
 import com.leetmodel.aigateway.config.AiEmbeddingProperties;
 import com.leetmodel.aigateway.service.AiEmbeddingService;
+import com.leetmodel.aigateway.service.AiCallAuditService;
 import com.leetmodel.aigateway.service.AiProviderRegistry;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCallPriority;
@@ -24,6 +25,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -97,7 +99,7 @@ class NewApiEmbeddingAdapterTest {
         binding.setDimension(3);
         properties.getEmbeddingModels().put("RAG_V1", binding);
         AiEmbeddingService service = new AiEmbeddingService(properties,
-                new AiProviderRegistry(List.of(fixture.adapter)));
+                new AiProviderRegistry(List.of(fixture.adapter)), mock(AiCallAuditService.class));
         AiCallContext context = new AiCallContext("ai-assistant-service", AiFeatureCode.RAG,
                 AiOperationCode.RETRIEVE_CONTEXT, "query:1", null, null, "MODEL_CFG_RAG_V1",
                 null, AiCallPriority.P0, "query:1", Instant.parse("2099-01-01T00:00:00Z"));

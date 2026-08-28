@@ -9,6 +9,8 @@ import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCost;
 import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiEmbeddingRequest;
+import com.leetmodel.aigateway.provider.ProviderEmbeddingResponse;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
@@ -35,6 +37,7 @@ public class AiCallAuditService {
     public void recordSuccess(String callId, AiChatRequest request, String routeProvider,
                               String routeModel, AiChatResponse response, long durationMs) {
         AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs);
+        record.setCallType("CHAT");
         record.setStatus("SUCCEEDED");
         record.setProvider(response.provider() == null ? record.getProvider() : response.provider().name());
         record.setModel(StringUtils.hasText(response.model()) ? response.model() : record.getModel());
@@ -47,6 +50,7 @@ public class AiCallAuditService {
     public void recordFailure(String callId, AiChatRequest request, String routeProvider,
                               String routeModel, RuntimeException exception, long durationMs) {
         AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs);
+        record.setCallType("CHAT");
         record.setStatus("FAILED");
         if (exception instanceof BusinessException businessException) {
             record.setErrorCode(businessException.getCode());
@@ -55,6 +59,35 @@ public class AiCallAuditService {
             record.setErrorCode(50001);
             record.setErrorMessage("AI 服务调用失败");
         }
+        safeInsert(record);
+    }
+
+    public void recordEmbeddingSuccess(String callId, AiEmbeddingRequest request, String provider,
+                                       String model, ProviderEmbeddingResponse response,
+                                       int dimension, long durationMs) {
+        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs);
+        record.setCallType("EMBEDDING");
+        record.setScene("EMBEDDING");
+        record.setModality("EMBEDDING");
+        record.setInputCount(request.inputs().size());
+        record.setVectorDimension(dimension);
+        record.setStatus("SUCCEEDED");
+        record.setModel(StringUtils.hasText(response.model()) ? response.model() : model);
+        record.setProviderResponseId(response.providerResponseId());
+        applyUsage(record, response.usage());
+        applyCost(record, response.cost());
+        safeInsert(record);
+    }
+
+    public void recordEmbeddingFailure(String callId, AiEmbeddingRequest request, String provider,
+                                       String model, RuntimeException exception, long durationMs) {
+        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs);
+        record.setCallType("EMBEDDING");
+        record.setScene("EMBEDDING");
+        record.setModality("EMBEDDING");
+        record.setInputCount(request.inputs().size());
+        record.setStatus("FAILED");
+        applyError(record, exception);
         safeInsert(record);
     }
 
@@ -122,6 +155,33 @@ public class AiCallAuditService {
         record.setUsageCompleteness(AiMetricCompleteness.UNKNOWN.name());
         applyCost(record, null);
         return record;
+    }
+
+    private AiCallLog baseRecord(String callId, AiCallContext context, String routeProvider,
+                                 String routeModel, long durationMs) {
+        AiCallLog record = new AiCallLog();
+        record.setCallId(callId);
+        applyContext(record, context, callId);
+        record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
+        record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
+        record.setDurationMs(Math.max(0L, durationMs));
+        record.setQueueMs(0L);
+        record.setExecutionMs(Math.max(0L, durationMs));
+        record.setTotalMs(Math.max(0L, durationMs));
+        record.setUsageComplete(false);
+        record.setUsageCompleteness(AiMetricCompleteness.UNKNOWN.name());
+        applyCost(record, null);
+        return record;
+    }
+
+    private void applyError(AiCallLog record, RuntimeException exception) {
+        if (exception instanceof BusinessException businessException) {
+            record.setErrorCode(businessException.getCode());
+            record.setErrorMessage(limit(businessException.getMessage()));
+        } else {
+            record.setErrorCode(50001);
+            record.setErrorMessage("AI 服务调用失败");
+        }
     }
 
     private void applyContext(AiCallLog record, AiCallContext context, String callId) {

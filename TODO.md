@@ -591,6 +591,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 依赖：S2-06、S3-05。
 - 工作：记录模型、维度、条数、Token、费用、耗时和失败，不记录原文与向量；执行一次小批量中文调用。
 - 验收：维度稳定、callId 可查、敏感输入不进日志。
+- 2026-08-28 进度：Embedding 审计、H2/MyBatis 集成和 callId 追踪已完成；Mock new-api 中文批量调用验证通过。使用本地 Relay Token 真实探测当前全部可见模型时，DeepSeek 的 `/v1/embeddings` 返回 500，Kimi 返回 403，均未返回向量；`/v1/models` 也只有 Chat/视觉模型。待 new-api 增加一个真实 Embedding 渠道和模型后执行最终中文冒烟，本项在此之前保持未完成，不能用确定性假向量替代验收。
 
 ### S4：Elasticsearch 与客服 RAG V1 任务
 

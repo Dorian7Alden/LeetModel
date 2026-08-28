@@ -13,6 +13,7 @@ public class AiCallLogDTO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
     private String callId;
+    private String callType;
     private String modality;
     private String callerService;
     private String featureCode;
@@ -36,6 +37,8 @@ public class AiCallLogDTO {
     private Long cacheMissTokens;
     private Long totalTokens;
     private String usageCompleteness;
+    private Integer inputCount;
+    private Integer vectorDimension;
     private Long queueMs;
     private Long executionMs;
     private Long totalMs;

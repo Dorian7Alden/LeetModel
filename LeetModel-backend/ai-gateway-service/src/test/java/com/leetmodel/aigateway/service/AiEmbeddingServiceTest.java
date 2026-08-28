@@ -33,7 +33,8 @@ class AiEmbeddingServiceTest {
 
         adapter = mock(AiProviderAdapter.class);
         when(adapter.provider()).thenReturn(AiProvider.NEW_API);
-        service = new AiEmbeddingService(properties, new AiProviderRegistry(List.of(adapter)));
+        service = new AiEmbeddingService(properties, new AiProviderRegistry(List.of(adapter)),
+                mock(AiCallAuditService.class));
     }
 
     @Test

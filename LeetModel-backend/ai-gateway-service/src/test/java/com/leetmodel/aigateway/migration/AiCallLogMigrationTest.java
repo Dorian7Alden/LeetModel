@@ -51,4 +51,17 @@ class AiCallLogMigrationTest {
                 .contains("cost_source = 'UNKNOWN'")
                 .doesNotContain("cost_amount + #{amount}");
     }
+
+    @Test
+    void v4ShouldAddEmbeddingFactsWithoutContentColumns() throws Exception {
+        String sql;
+        try (var input = getClass().getResourceAsStream(
+                "/db/migration/V4__add_embedding_audit_facts.sql")) {
+            assertThat(input).isNotNull();
+            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+        }
+        assertThat(sql).contains("`call_type`", "`input_count`", "`vector_dimension`",
+                        "idx_call_type_time")
+                .doesNotContain("input_text", "embedding_vector", "request_body", "response_body");
+    }
 }

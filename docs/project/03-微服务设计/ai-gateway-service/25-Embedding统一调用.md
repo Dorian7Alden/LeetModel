@@ -19,3 +19,5 @@
 new-api 适配固定调用 `/v1/embeddings`，请求使用数组 `input` 和 `encoding_format=float`。响应按 `data.index` 归一化，Embedding 协议中明确不存在的输出 Token 记为 0；上游未提供 usage 时整体保持 UNKNOWN。认证、限流、额度、超时、模型缺失和畸形响应沿用网关统一错误分类，不透明重试。
 
 `ai-assistant-service` 的 `CommonAiEmbeddingModel` 实现 LangChain4j 0.34.0 `EmbeddingModel`，通过注入的 `AiClient` 批量调用并校验完整索引、维度和有限数值，再映射为 LangChain4j `Embedding` 与 `TokenUsage`。0.34.0 的 `Response` 没有任意 metadata 容器，因此 `callId` 保存在网关审计事实中供业务任务关联，不伪造到 LangChain4j 元数据；客服服务配置中不出现 new-api 地址或 Token。
+
+Embedding 与 Chat 共用 `ai_call_log`。新增 `callType=EMBEDDING`、输入条数和向量维度，只保存上下文、模型、usage、费用、耗时、错误和调用 ID；输入原文与向量不得落库。2026-08-28 对本地 new-api 的真实探测显示当前 DeepSeek/Kimi 渠道没有可用 Embedding 模型，因此最终中文真实冒烟必须等真实 Embedding 渠道加入后执行，不能以 Mock 或确定性向量冒充完成。

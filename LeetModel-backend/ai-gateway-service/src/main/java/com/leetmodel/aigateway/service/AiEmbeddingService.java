@@ -20,24 +20,39 @@ import java.util.UUID;
 public class AiEmbeddingService {
     private final AiEmbeddingProperties properties;
     private final AiProviderRegistry providerRegistry;
+    private final AiCallAuditService callAuditService;
 
-    public AiEmbeddingService(AiEmbeddingProperties properties, AiProviderRegistry providerRegistry) {
+    public AiEmbeddingService(AiEmbeddingProperties properties, AiProviderRegistry providerRegistry,
+                              AiCallAuditService callAuditService) {
         this.properties = properties;
         this.providerRegistry = providerRegistry;
+        this.callAuditService = callAuditService;
     }
 
     public AiEmbeddingResponse embed(AiEmbeddingRequest request) {
+        String callId = UUID.randomUUID().toString();
+        long startedAt = System.currentTimeMillis();
         AiEmbeddingProperties.Binding binding = properties.getEmbeddingModels().get(request.logicalModel());
-        BusinessException.throwIf(binding == null || !binding.isEnabled(), AiGatewayErrorCode.MODEL_DISABLED);
-        validateContext(request);
-        validateInputs(request.inputs(), binding);
-
-        ProviderEmbeddingResponse providerResponse = providerRegistry.get(binding.getProvider())
-                .embed(binding.getModel(), request.inputs());
-        validateResponse(request.inputs().size(), binding.getDimension(), providerResponse);
-        return new AiEmbeddingResponse(UUID.randomUUID().toString(), request.logicalModel(),
-                providerResponse.model(), binding.getDimension(), providerResponse.vectors(),
-                providerResponse.usage(), providerResponse.cost());
+        String provider = binding == null || binding.getProvider() == null
+                ? null : binding.getProvider().name();
+        String model = binding == null ? null : binding.getModel();
+        try {
+            BusinessException.throwIf(binding == null || !binding.isEnabled(), AiGatewayErrorCode.MODEL_DISABLED);
+            validateContext(request);
+            validateInputs(request.inputs(), binding);
+            ProviderEmbeddingResponse providerResponse = providerRegistry.get(binding.getProvider())
+                    .embed(binding.getModel(), request.inputs());
+            validateResponse(request.inputs().size(), binding.getDimension(), providerResponse);
+            callAuditService.recordEmbeddingSuccess(callId, request, provider, model, providerResponse,
+                    binding.getDimension(), System.currentTimeMillis() - startedAt);
+            return new AiEmbeddingResponse(callId, request.logicalModel(), providerResponse.model(),
+                    binding.getDimension(), providerResponse.vectors(), providerResponse.usage(),
+                    providerResponse.cost());
+        } catch (RuntimeException exception) {
+            callAuditService.recordEmbeddingFailure(callId, request, provider, model, exception,
+                    System.currentTimeMillis() - startedAt);
+            throw exception;
+        }
     }
 
     private void validateContext(AiEmbeddingRequest request) {

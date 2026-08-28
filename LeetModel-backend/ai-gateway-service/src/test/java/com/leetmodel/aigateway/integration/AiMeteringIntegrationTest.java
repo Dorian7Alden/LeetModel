@@ -3,12 +3,14 @@ package com.leetmodel.aigateway.integration;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiCostEnrichmentService;
+import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.common.ai.model.AiMessage;
 import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiOperationCode;
@@ -51,6 +53,7 @@ class AiMeteringIntegrationTest {
     @Autowired private AiChatService chatService;
     @Autowired private AiCallAuditService auditService;
     @Autowired private AiCostEnrichmentService costEnrichmentService;
+    @Autowired private AiEmbeddingService embeddingService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -68,6 +71,9 @@ class AiMeteringIntegrationTest {
         registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].currency", () -> "CNY");
         registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].input-per-million-tokens", () -> "2.00");
         registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].output-per-million-tokens", () -> "4.00");
+        registry.add("ai.gateway.embedding-models[RAG_V1].provider", () -> "NEW_API");
+        registry.add("ai.gateway.embedding-models[RAG_V1].model", () -> "embedding-model");
+        registry.add("ai.gateway.embedding-models[RAG_V1].dimension", () -> "2");
     }
 
     @AfterAll
@@ -124,6 +130,28 @@ class AiMeteringIntegrationTest {
         assertThat(stats.getUnknownCostCount()).isEqualTo(2L);
         assertThat(stats.getKnownCostAmount()).isEqualByComparingTo("0.000040000000");
         assertThat(stats.getCostCurrency()).isEqualTo("CNY");
+
+        RESPONSE.set(new MockResponse(200, """
+                {"model":"embedding-model","data":[
+                  {"index":0,"embedding":[0.1,0.2]},
+                  {"index":1,"embedding":[0.3,0.4]}],
+                 "usage":{"prompt_tokens":6,"total_tokens":6}}
+                """));
+        AiCallContext embeddingContext = new AiCallContext("ai-assistant-service", AiFeatureCode.RAG,
+                AiOperationCode.INDEX_DOCUMENTS, "rag-index:1", null, null,
+                "MODEL_CFG_RAG_V1", null, AiCallPriority.P4, "rag-index:1",
+                Instant.parse("2099-01-01T00:00:00Z"));
+        var embedding = embeddingService.embed(new AiEmbeddingRequest("RAG_V1", embeddingContext,
+                List.of("中文片段一", "中文片段二")));
+        AiCallQueryDTO embeddingQuery = new AiCallQueryDTO();
+        embeddingQuery.setBusinessTaskId("rag-index:1");
+        assertThat(auditService.list(embeddingQuery)).singleElement().satisfies(row -> {
+            assertThat(row.getCallId()).isEqualTo(embedding.callId());
+            assertThat(row.getCallType()).isEqualTo("EMBEDDING");
+            assertThat(row.getInputCount()).isEqualTo(2);
+            assertThat(row.getVectorDimension()).isEqualTo(2);
+            assertThat(row.getInputTokens()).isEqualTo(6L);
+        });
     }
 
     private AiChatRequest request(String businessTaskId, String evaluationTaskId) {
@@ -143,6 +171,7 @@ class AiMeteringIntegrationTest {
         try {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/v1/chat/completions", AiMeteringIntegrationTest::respond);
+            server.createContext("/v1/embeddings", AiMeteringIntegrationTest::respond);
             server.start();
         } catch (IOException exception) {
             throw new IllegalStateException("无法启动 mock new-api", exception);
