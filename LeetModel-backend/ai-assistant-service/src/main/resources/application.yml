@@ -13,6 +13,7 @@ assistant:
     enabled: ${ASSISTANT_RAG_ENABLED:false}
     knowledge-base-path: ${ASSISTANT_RAG_KB_PATH:../rag_kb}
     index-alias: ${ASSISTANT_RAG_INDEX_ALIAS:leetmodel-rag-v1-read}
+    embedding-model-version: ${ASSISTANT_RAG_EMBEDDING_MODEL_VERSION:qwen3.7-text-embedding@1024}
     top-k: ${ASSISTANT_RAG_TOP_K:8}
     score-threshold: ${ASSISTANT_RAG_SCORE_THRESHOLD:0.65}
     token-budget: ${ASSISTANT_RAG_TOKEN_BUDGET:3000}
