@@ -12,6 +12,16 @@ common:
     enabled: false
 
 ai:
+  scheduling:
+    enabled: ${AI_SCHEDULING_ENABLED:false}
+    concurrency: ${AI_SCHEDULING_CONCURRENCY:4}
+    reserved-p0-concurrency: ${AI_SCHEDULING_RESERVED_P0_CONCURRENCY:1}
+    max-queue-size: ${AI_SCHEDULING_MAX_QUEUE_SIZE:500}
+    reserved-p0-queue-size: ${AI_SCHEDULING_RESERVED_P0_QUEUE_SIZE:50}
+    lease-duration: ${AI_SCHEDULING_LEASE_DURATION:15s}
+    heartbeat-interval: ${AI_SCHEDULING_HEARTBEAT_INTERVAL:5s}
+    result-retention: ${AI_SCHEDULING_RESULT_RETENTION:24h}
+    poll-delay-ms: ${AI_SCHEDULING_POLL_DELAY_MS:50}
   new-api:
     base-url: ${NEW_API_BASE_URL:http://127.0.0.1:3000/v1}
     relay-token: ${NEW_API_RELAY_TOKEN:}
