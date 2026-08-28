@@ -562,7 +562,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 工作：定义单条/批量输入、逻辑模型、AiCallContext、向量、维度、usage、callId 及输入限制。
 - 验收：校验和序列化测试通过；不暴露渠道和密钥。
 
-#### [ ] S3-02 实现 common-ai Embedding HTTP 客户端
+#### [x] S3-02 实现 common-ai Embedding HTTP 客户端
 
 - 依赖：S3-01。
 - 工作：调用 /internal/ai/embeddings；选择扩展 AiClient 或独立 EmbeddingClient，并保持 Chat 兼容。
