@@ -20,7 +20,7 @@ class RagPropertiesTest {
             assertThat(context).hasNotFailed();
             RagProperties properties = context.getBean(RagProperties.class);
             assertThat(properties.isEnabled()).isFalse();
-            assertThat(properties.getKnowledgeBasePath()).isEqualTo("../rag_kb/数学建模");
+            assertThat(properties.getKnowledgeBasePath()).isEqualTo("../rag_kb");
             assertThat(properties.getIndexAlias()).isEqualTo("leetmodel-rag-v1-read");
             assertThat(properties.getTopK()).isEqualTo(8);
             assertThat(properties.getScoreThreshold()).isEqualTo(0.65);

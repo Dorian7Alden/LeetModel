@@ -25,7 +25,7 @@ public class RagProperties {
     private boolean enabled;
 
     @NotBlank
-    private String knowledgeBasePath = "../rag_kb/数学建模";
+    private String knowledgeBasePath = "../rag_kb";
 
     @NotBlank
     @Pattern(regexp = "[a-z0-9][a-z0-9_-]{2,254}")
