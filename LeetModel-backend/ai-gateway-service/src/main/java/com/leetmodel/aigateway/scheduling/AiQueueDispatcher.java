@@ -8,7 +8,6 @@ import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import jakarta.annotation.PreDestroy;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** 单实例派发器；数据库条件领取保证同一任务只有一个 owner。 */
 @Component
-@ConditionalOnBean(AiQueuedTaskExecutor.class)
 @ConditionalOnProperty(prefix = "ai.scheduling", name = "enabled", havingValue = "true")
 public class AiQueueDispatcher {
 
@@ -39,6 +37,7 @@ public class AiQueueDispatcher {
     private final AiQueuedTaskExecutor taskExecutor;
     private final AiSchedulingProperties properties;
     private final AiRateLimitBackoff rateLimitBackoff;
+    private final AiTaskWaitRegistry waitRegistry;
     private final String owner = "ai-gateway-" + UUID.randomUUID();
     private final AtomicInteger cursor = new AtomicInteger();
     private final Semaphore totalPermits;
@@ -48,13 +47,15 @@ public class AiQueueDispatcher {
 
     public AiQueueDispatcher(AiCallTaskMapper taskMapper, AiCallAttemptMapper attemptMapper,
                              AiFairSchedulingPolicy policy, AiQueuedTaskExecutor taskExecutor,
-                             AiSchedulingProperties properties, AiRateLimitBackoff rateLimitBackoff) {
+                             AiSchedulingProperties properties, AiRateLimitBackoff rateLimitBackoff,
+                             AiTaskWaitRegistry waitRegistry) {
         this.taskMapper = taskMapper;
         this.attemptMapper = attemptMapper;
         this.policy = policy;
         this.taskExecutor = taskExecutor;
         this.properties = properties;
         this.rateLimitBackoff = rateLimitBackoff;
+        this.waitRegistry = waitRegistry;
         this.totalPermits = new Semaphore(properties.getConcurrency());
         this.nonP0Permits = new Semaphore(Math.max(0,
                 properties.getConcurrency() - properties.getReservedP0Concurrency()));
@@ -69,7 +70,7 @@ public class AiQueueDispatcher {
     public boolean dispatchOnce() {
         if (!rateLimitBackoff.allowDispatch()) return false;
         Instant now = Instant.now();
-        LocalDateTime localNow = LocalDateTime.ofInstant(now, ZoneId.systemDefault());
+        LocalDateTime localNow = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
         List<AiCallTask> queued = taskMapper.selectQueued(500);
         queued.forEach(task -> expireIfNeeded(task, now, localNow));
         queued = queued.stream().filter(task -> !expired(task, now)).toList();
@@ -95,36 +96,41 @@ public class AiQueueDispatcher {
         AiCallAttempt attempt = null;
         try {
             AiCallTask task = selectTask(taskId);
-            if (Boolean.TRUE.equals(task.getCancelRequested())) return;
+            if (Boolean.TRUE.equals(task.getCancelRequested())) {
+                waitRegistry.complete(task);
+                return;
+            }
             attempt = attempt(task);
             attemptMapper.insert(attempt);
             if (taskMapper.transition(taskId, task.getVersion(), "LEASED", "RUNNING", owner,
-                    LocalDateTime.now()) != 1) {
+                    utcNow()) != 1) {
                 attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "FAILED",
-                        "AI_STATE_CONFLICT", LocalDateTime.now());
+                        "AI_STATE_CONFLICT", utcNow());
                 return;
             }
             heartbeatTask = heartbeat.scheduleAtFixedRate(() -> renew(taskId),
                     properties.getHeartbeatInterval().toMillis(), properties.getHeartbeatInterval().toMillis(),
                     TimeUnit.MILLISECONDS);
             attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "DISPATCHING", null,
-                    LocalDateTime.now());
+                    utcNow());
             String result = taskExecutor.execute(selectTask(taskId));
             rateLimitBackoff.onSuccess();
             AiCallTask completed = selectTask(taskId);
             String terminal = Boolean.TRUE.equals(completed.getCancelRequested()) ? "CANCELLED" : "SUCCEEDED";
             taskMapper.completeRunning(taskId, owner, terminal, terminal.equals("SUCCEEDED") ? result : null,
-                    null, LocalDateTime.now());
+                    null, utcNow());
             attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "SUCCEEDED", null,
-                    LocalDateTime.now());
+                    utcNow());
+            waitRegistry.complete(selectTask(taskId));
         } catch (RuntimeException exception) {
             if (exception instanceof AiUpstreamRateLimitException rateLimited) {
                 rateLimitBackoff.onRateLimited(rateLimited.getRetryAfter());
             }
             String error = "AI_EXECUTION_" + exception.getClass().getSimpleName().toUpperCase();
-            taskMapper.completeRunning(taskId, owner, "FAILED", null, error, LocalDateTime.now());
+            taskMapper.completeRunning(taskId, owner, "FAILED", null, error, utcNow());
             if (attempt != null) attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "FAILED",
-                    error, LocalDateTime.now());
+                    error, utcNow());
+            waitRegistry.fail(taskId, exception);
         } finally {
             if (heartbeatTask != null) heartbeatTask.cancel(false);
             release(p0);
@@ -146,7 +152,7 @@ public class AiQueueDispatcher {
     }
 
     private void renew(String taskId) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = utcNow();
         taskMapper.renewRunningLease(taskId, owner, now.plus(properties.getLeaseDuration()), now);
     }
 
@@ -167,7 +173,7 @@ public class AiQueueDispatcher {
     }
 
     private Instant toInstant(LocalDateTime value) {
-        return value.atZone(ZoneId.systemDefault()).toInstant();
+        return value.toInstant(ZoneOffset.UTC);
     }
 
     private AiCallTask selectTask(String taskId) {
@@ -175,7 +181,7 @@ public class AiQueueDispatcher {
     }
 
     private AiCallAttempt attempt(AiCallTask task) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = utcNow();
         AiCallAttempt attempt = new AiCallAttempt();
         attempt.setAttemptId(UUID.randomUUID().toString());
         attempt.setTaskId(task.getTaskId());
@@ -193,5 +199,9 @@ public class AiQueueDispatcher {
     void shutdown() {
         workers.shutdownNow();
         heartbeat.shutdownNow();
+    }
+
+    private LocalDateTime utcNow() {
+        return LocalDateTime.now(ZoneOffset.UTC);
     }
 }

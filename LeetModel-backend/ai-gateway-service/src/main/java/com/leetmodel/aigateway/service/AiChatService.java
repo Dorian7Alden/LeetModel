@@ -54,7 +54,10 @@ public class AiChatService {
      * @return 统一响应
      */
     public AiChatResponse chat(AiChatRequest request) {
-        String callId = UUID.randomUUID().toString();
+        return chat(request, UUID.randomUUID().toString(), 0L);
+    }
+
+    public AiChatResponse chat(AiChatRequest request, String callId, long queueMs) {
         long startedAt = System.currentTimeMillis();
         AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.effectiveModality());
         String routeProvider = route == null || route.getProvider() == null
@@ -71,7 +74,7 @@ public class AiChatService {
             AiChatResponse providerResponse = adapter.chat(route.getModel(), profile.getProtocol(), request);
             long durationMs = System.currentTimeMillis() - startedAt;
             callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
-                    providerResponse, durationMs);
+                    providerResponse, durationMs, queueMs);
 
             AiUsageLog usageLog = AiUsageLog.from(providerResponse);
             log.info(
@@ -84,7 +87,7 @@ public class AiChatService {
             return withCallId(callId, providerResponse);
         } catch (RuntimeException exception) {
             callAuditService.recordFailure(callId, request, routeProvider, routeModel,
-                    exception, System.currentTimeMillis() - startedAt);
+                    exception, System.currentTimeMillis() - startedAt, queueMs);
             throw exception;
         }
     }

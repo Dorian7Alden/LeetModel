@@ -1,9 +1,8 @@
 package com.leetmodel.aigateway.controller;
 
 import com.leetmodel.aigateway.service.AiCallAuditService;
-import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiModelService;
-import com.leetmodel.aigateway.service.AiEmbeddingService;
+import com.leetmodel.aigateway.service.AiScheduledCallService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
@@ -17,6 +16,7 @@ import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -27,9 +27,8 @@ class InternalAiControllerTest {
 
     @Test
     void shouldReturnUnifiedChatResponse() {
-        AiChatService chatService = mock(AiChatService.class);
-        InternalAiController controller = new InternalAiController(chatService,
-                mock(AiEmbeddingService.class),
+        AiScheduledCallService scheduledCallService = mock(AiScheduledCallService.class);
+        InternalAiController controller = new InternalAiController(scheduledCallService,
                 mock(AiModelService.class), mock(AiCallAuditService.class));
         AiChatRequest request = new AiChatRequest(AiScene.GENERAL_TEXT,
                 List.of(new AiMessage(AiRole.USER,
@@ -39,11 +38,11 @@ class InternalAiControllerTest {
                 "deepseek-v4-flash", "relay-1", "ok", null, "stop",
                 new AiUsage(1L, 1L, null, null, null, 1L, 2L,
                         AiMetricCompleteness.COMPLETE));
-        when(chatService.chat(request)).thenReturn(response);
+        when(scheduledCallService.chat(request)).thenReturn(CompletableFuture.completedFuture(response));
 
-        var result = controller.chat(request);
+        var result = controller.chat(request).join();
 
         assertThat(result.getData()).isSameAs(response);
-        verify(chatService).chat(request);
+        verify(scheduledCallService).chat(request);
     }
 }

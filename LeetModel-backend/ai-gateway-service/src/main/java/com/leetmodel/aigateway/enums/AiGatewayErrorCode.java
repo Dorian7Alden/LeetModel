@@ -30,7 +30,11 @@ public enum AiGatewayErrorCode implements ErrorCode {
     EMBEDDING_BATCH_EXCEEDED(41210, "Embedding 批量超过逻辑模型上限"),
     EMBEDDING_INPUT_EXCEEDED(41211, "Embedding 单条输入超过逻辑模型上限"),
     EMBEDDING_TOTAL_INPUT_EXCEEDED(41212, "Embedding 输入总量超过逻辑模型上限"),
-    EMBEDDING_DIMENSION_MISMATCH(51209, "Embedding 响应维度与模型配置不一致");
+    EMBEDDING_DIMENSION_MISMATCH(51209, "Embedding 响应维度与模型配置不一致"),
+    AI_QUEUE_FULL(51210, "AI 调用队列已满"),
+    AI_QUEUE_EXPIRED(51211, "AI 调用在派发前已过期"),
+    AI_RESULT_PENDING(51212, "AI 调用仍在处理中，请使用相同请求标识重试"),
+    AI_UPSTREAM_RESULT_UNKNOWN(51213, "AI 上游执行结果未知，禁止自动重试");
 
     private final int code;
     private final String message;

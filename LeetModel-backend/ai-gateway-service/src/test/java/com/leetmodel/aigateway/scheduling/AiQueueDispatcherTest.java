@@ -8,6 +8,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -26,10 +27,12 @@ import static org.mockito.Mockito.when;
 class AiQueueDispatcherTest {
 
     private AiQueueDispatcher dispatcher;
+    private final AiTaskWaitRegistry waitRegistry = new AiTaskWaitRegistry();
 
     @AfterEach
     void shutdown() {
         if (dispatcher != null) dispatcher.shutdown();
+        waitRegistry.shutdown();
     }
 
     @Test
@@ -37,7 +40,7 @@ class AiQueueDispatcherTest {
         AiCallTaskMapper tasks = mock(AiCallTaskMapper.class);
         AiCallAttemptMapper attempts = mock(AiCallAttemptMapper.class);
         AiCallTask expired = task("expired", "P0");
-        expired.setDeadline(LocalDateTime.now().minusSeconds(1));
+        expired.setDeadline(LocalDateTime.now(ZoneOffset.UTC).minusSeconds(1));
         when(tasks.selectQueued(500)).thenReturn(List.of(expired));
         when(tasks.expireBeforeDispatch(anyString(), anyLong(), any())).thenReturn(1);
         dispatcher = dispatcher(tasks, attempts, ignored -> "result", new AiSchedulingProperties());
@@ -95,11 +98,11 @@ class AiQueueDispatcherTest {
     private AiQueueDispatcher dispatcher(AiCallTaskMapper tasks, AiCallAttemptMapper attempts,
                                          AiQueuedTaskExecutor executor, AiSchedulingProperties properties) {
         return new AiQueueDispatcher(tasks, attempts, new AiFairSchedulingPolicy(), executor, properties,
-                new AiRateLimitBackoff());
+                new AiRateLimitBackoff(), waitRegistry);
     }
 
     private AiCallTask task(String id, String priority) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         AiCallTask task = new AiCallTask();
         task.setTaskId(id);
         task.setEffectivePriority(priority);

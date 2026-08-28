@@ -36,7 +36,12 @@ public class AiCallAuditService {
 
     public void recordSuccess(String callId, AiChatRequest request, String routeProvider,
                               String routeModel, AiChatResponse response, long durationMs) {
-        AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs);
+        recordSuccess(callId, request, routeProvider, routeModel, response, durationMs, 0L);
+    }
+
+    public void recordSuccess(String callId, AiChatRequest request, String routeProvider,
+                              String routeModel, AiChatResponse response, long durationMs, long queueMs) {
+        AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs, queueMs);
         record.setCallType("CHAT");
         record.setStatus("SUCCEEDED");
         record.setProvider(response.provider() == null ? record.getProvider() : response.provider().name());
@@ -49,7 +54,12 @@ public class AiCallAuditService {
 
     public void recordFailure(String callId, AiChatRequest request, String routeProvider,
                               String routeModel, RuntimeException exception, long durationMs) {
-        AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs);
+        recordFailure(callId, request, routeProvider, routeModel, exception, durationMs, 0L);
+    }
+
+    public void recordFailure(String callId, AiChatRequest request, String routeProvider,
+                              String routeModel, RuntimeException exception, long durationMs, long queueMs) {
+        AiCallLog record = baseRecord(callId, request, routeProvider, routeModel, durationMs, queueMs);
         record.setCallType("CHAT");
         record.setStatus("FAILED");
         if (exception instanceof BusinessException businessException) {
@@ -65,7 +75,13 @@ public class AiCallAuditService {
     public void recordEmbeddingSuccess(String callId, AiEmbeddingRequest request, String provider,
                                        String model, ProviderEmbeddingResponse response,
                                        int dimension, long durationMs) {
-        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs);
+        recordEmbeddingSuccess(callId, request, provider, model, response, dimension, durationMs, 0L);
+    }
+
+    public void recordEmbeddingSuccess(String callId, AiEmbeddingRequest request, String provider,
+                                       String model, ProviderEmbeddingResponse response,
+                                       int dimension, long durationMs, long queueMs) {
+        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs, queueMs);
         record.setCallType("EMBEDDING");
         record.setScene("EMBEDDING");
         record.setModality("EMBEDDING");
@@ -81,7 +97,12 @@ public class AiCallAuditService {
 
     public void recordEmbeddingFailure(String callId, AiEmbeddingRequest request, String provider,
                                        String model, RuntimeException exception, long durationMs) {
-        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs);
+        recordEmbeddingFailure(callId, request, provider, model, exception, durationMs, 0L);
+    }
+
+    public void recordEmbeddingFailure(String callId, AiEmbeddingRequest request, String provider,
+                                       String model, RuntimeException exception, long durationMs, long queueMs) {
+        AiCallLog record = baseRecord(callId, request.context(), provider, model, durationMs, queueMs);
         record.setCallType("EMBEDDING");
         record.setScene("EMBEDDING");
         record.setModality("EMBEDDING");
@@ -141,6 +162,11 @@ public class AiCallAuditService {
 
     private AiCallLog baseRecord(String callId, AiChatRequest request, String routeProvider,
                                  String routeModel, long durationMs) {
+        return baseRecord(callId, request, routeProvider, routeModel, durationMs, 0L);
+    }
+
+    private AiCallLog baseRecord(String callId, AiChatRequest request, String routeProvider,
+                                 String routeModel, long durationMs, long queueMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
         String modality = request.effectiveModality() == null ? UNKNOWN : request.effectiveModality().name();
@@ -150,9 +176,9 @@ public class AiCallAuditService {
         record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
         record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
         record.setDurationMs(Math.max(0L, durationMs));
-        record.setQueueMs(0L);
+        record.setQueueMs(Math.max(0L, queueMs));
         record.setExecutionMs(Math.max(0L, durationMs));
-        record.setTotalMs(Math.max(0L, durationMs));
+        record.setTotalMs(Math.max(0L, queueMs) + Math.max(0L, durationMs));
         record.setUsageComplete(false);
         record.setUsageCompleteness(AiMetricCompleteness.UNKNOWN.name());
         applyCost(record, null);
@@ -161,15 +187,20 @@ public class AiCallAuditService {
 
     private AiCallLog baseRecord(String callId, AiCallContext context, String routeProvider,
                                  String routeModel, long durationMs) {
+        return baseRecord(callId, context, routeProvider, routeModel, durationMs, 0L);
+    }
+
+    private AiCallLog baseRecord(String callId, AiCallContext context, String routeProvider,
+                                 String routeModel, long durationMs, long queueMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
         applyContext(record, context, callId);
         record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
         record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
         record.setDurationMs(Math.max(0L, durationMs));
-        record.setQueueMs(0L);
+        record.setQueueMs(Math.max(0L, queueMs));
         record.setExecutionMs(Math.max(0L, durationMs));
-        record.setTotalMs(Math.max(0L, durationMs));
+        record.setTotalMs(Math.max(0L, queueMs) + Math.max(0L, durationMs));
         record.setUsageComplete(false);
         record.setUsageCompleteness(AiMetricCompleteness.UNKNOWN.name());
         applyCost(record, null);

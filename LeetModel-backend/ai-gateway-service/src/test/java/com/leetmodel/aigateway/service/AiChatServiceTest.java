@@ -64,7 +64,7 @@ class AiChatServiceTest {
 
         assertThat(response.callId()).isNotBlank();
         verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
-                eq("deepseek-test"), eq(providerResponse), anyLong());
+                eq("deepseek-test"), eq(providerResponse), anyLong(), eq(0L));
     }
 
     @Test
@@ -81,7 +81,7 @@ class AiChatServiceTest {
         assertThat(response.callId()).isNotBlank();
         assertThat(response.usage()).isNull();
         verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
-                eq("deepseek-test"), eq(providerResponse), anyLong());
+                eq("deepseek-test"), eq(providerResponse), anyLong(), eq(0L));
     }
 
     @Test
@@ -92,7 +92,7 @@ class AiChatServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41201);
         verify(auditService).recordFailure(any(), eq(request), eq(null), eq(null),
-                any(BusinessException.class), anyLong());
+                any(BusinessException.class), anyLong(), eq(0L));
     }
 
     private AiChatService service() {

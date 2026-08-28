@@ -1,8 +1,7 @@
 package com.leetmodel.aigateway.controller;
 
-import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiModelService;
-import com.leetmodel.aigateway.service.AiEmbeddingService;
+import com.leetmodel.aigateway.service.AiScheduledCallService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
@@ -26,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 业务服务调用 AI 网关的内部接口。
@@ -36,8 +36,7 @@ import java.util.List;
 @Tag(name = "AI 网关内部调用")
 public class InternalAiController {
 
-    private final AiChatService aiChatService;
-    private final AiEmbeddingService aiEmbeddingService;
+    private final AiScheduledCallService aiScheduledCallService;
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
 
@@ -49,14 +48,15 @@ public class InternalAiController {
      */
     @Operation(summary = "发起同步 AI 对话")
     @PostMapping("/chat")
-    public Result<AiChatResponse> chat(@Valid @RequestBody AiChatRequest request) {
-        return Result.ok(aiChatService.chat(request));
+    public CompletableFuture<Result<AiChatResponse>> chat(@Valid @RequestBody AiChatRequest request) {
+        return aiScheduledCallService.chat(request).thenApply(Result::ok);
     }
 
     @Operation(summary = "发起同步 Embedding 调用")
     @PostMapping("/embeddings")
-    public Result<AiEmbeddingResponse> embeddings(@Valid @RequestBody AiEmbeddingRequest request) {
-        return Result.ok(aiEmbeddingService.embed(request));
+    public CompletableFuture<Result<AiEmbeddingResponse>> embeddings(
+            @Valid @RequestBody AiEmbeddingRequest request) {
+        return aiScheduledCallService.embed(request).thenApply(Result::ok);
     }
 
     /**
