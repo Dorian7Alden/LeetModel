@@ -27,4 +27,14 @@ public class RagEmbeddingConfiguration {
                     null, AiCallPriority.P4, taskId, Instant.now().plus(properties.getRequestTimeout()));
         });
     }
+
+    @Bean("ragQueryEmbeddingModel")
+    EmbeddingModel ragQueryEmbeddingModel(AiClient aiClient, RagProperties properties) {
+        return new CommonAiEmbeddingModel(aiClient, "RAG_V1", properties.getEmbeddingDimension(), segments -> {
+            String taskId = "rag-query:" + UUID.randomUUID();
+            return new AiCallContext("ai-assistant-service", AiFeatureCode.RAG,
+                    AiOperationCode.RETRIEVE_CONTEXT, taskId, null, null, "MODEL_CFG_RAG_V1",
+                    null, AiCallPriority.P0, taskId, Instant.now().plus(properties.getRequestTimeout()));
+        });
+    }
 }
