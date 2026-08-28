@@ -26,7 +26,11 @@ public enum AiGatewayErrorCode implements ErrorCode {
     IMAGE_COUNT_EXCEEDED(41206, "图片数量超过当前模型上限"),
     IMAGE_BYTES_EXCEEDED(41207, "图片总体积超过当前模型上限"),
     CONTEXT_WINDOW_EXCEEDED(41208, "请求可能超过当前模型上下文窗口"),
-    OUTPUT_LIMIT_EXCEEDED(41209, "最大输出超过当前模型上限");
+    OUTPUT_LIMIT_EXCEEDED(41209, "最大输出超过当前模型上限"),
+    EMBEDDING_BATCH_EXCEEDED(41210, "Embedding 批量超过逻辑模型上限"),
+    EMBEDDING_INPUT_EXCEEDED(41211, "Embedding 单条输入超过逻辑模型上限"),
+    EMBEDDING_TOTAL_INPUT_EXCEEDED(41212, "Embedding 输入总量超过逻辑模型上限"),
+    EMBEDDING_DIMENSION_MISMATCH(51209, "Embedding 响应维度与模型配置不一致");
 
     private final int code;
     private final String message;

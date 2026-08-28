@@ -568,7 +568,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 工作：调用 /internal/ai/embeddings；选择扩展 AiClient 或独立 EmbeddingClient，并保持 Chat 兼容。
 - 验收：成功、统一错误、空响应和超时测试通过。
 
-#### [ ] S3-03 实现网关 Embedding 接口和能力校验
+#### [x] S3-03 实现网关 Embedding 接口和能力校验
 
 - 依赖：S1-08、S3-02。
 - 工作：新增 Controller、Service、逻辑模型配置、批量/长度/维度校验，区分 RAG_INDEX 与 RAG_QUERY。

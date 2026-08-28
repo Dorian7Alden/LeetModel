@@ -13,3 +13,5 @@
 请求与响应均不包含 Base URL、渠道标识或密钥。原文和向量只在调用链中传输，不进入审计日志；审计仅保存条数、维度、用量、费用、耗时和调用标识。
 
 `AiClient.embed` 固定调用 `/internal/ai/embeddings`。现有 Chat-only 实现继续保持函数式接口兼容，默认明确返回“不支持 Embedding”；正式 `HttpAiClient` 覆盖该方法，并把业务失败、空响应、HTTP 失败和连接/读取超时统一转换为 `AiClientException`，异常消息不拼接请求原文。
+
+网关通过 `ai.gateway.embedding-models.<logicalModel>` 绑定 new-api 物理模型，并配置启用状态、预期维度、最大批量、单条字符上限和批次总字符上限。接口仅接受 `RAG/INDEX_DOCUMENTS` 与 `RAG/RETRIEVE_CONTEXT` 上下文；未知或停用模型、越界输入、响应条数/索引/维度异常均在网关边界明确拒绝。

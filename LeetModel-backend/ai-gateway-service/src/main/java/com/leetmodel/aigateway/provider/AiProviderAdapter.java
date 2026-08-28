@@ -5,6 +5,8 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiModelInfo;
 import com.leetmodel.common.ai.model.AiProvider;
+import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
+import com.leetmodel.common.core.exception.BusinessException;
 
 import java.util.List;
 
@@ -40,6 +42,11 @@ public interface AiProviderAdapter {
      * @return 统一响应
      */
     AiChatResponse chat(String model, AiApiProtocol protocol, AiChatRequest request);
+
+    /** 调用 Embedding 接口；不支持的适配器明确失败。 */
+    default ProviderEmbeddingResponse embed(String model, List<String> inputs) {
+        throw new BusinessException(AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+    }
 
     /**
      * 调用供应商官方模型列表接口。
