@@ -21,6 +21,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -296,7 +298,7 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return new BusinessException(AiGatewayErrorCode.UPSTREAM_AUTHENTICATION_FAILED);
         }
         if (status == 429) {
-            return new BusinessException(AiGatewayErrorCode.UPSTREAM_RATE_LIMITED);
+            return new AiUpstreamRateLimitException(retryAfter(exception));
         }
         if (responseBody.contains("model_not_found") || responseBody.contains("model not found")) {
             return new BusinessException(AiGatewayErrorCode.UPSTREAM_MODEL_NOT_FOUND);
@@ -318,6 +320,23 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             return new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
         return new BusinessException(AiGatewayErrorCode.RESPONSE_INVALID);
+    }
+
+    private Duration retryAfter(RestClientResponseException exception) {
+        if (exception.getResponseHeaders() == null) return null;
+        String value = exception.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER);
+        if (!StringUtils.hasText(value)) return null;
+        try {
+            return Duration.ofSeconds(Math.max(0, Long.parseLong(value.strip())));
+        } catch (NumberFormatException ignored) {
+            try {
+                ZonedDateTime target = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME);
+                return Duration.between(ZonedDateTime.now(target.getZone()), target).isNegative()
+                        ? Duration.ZERO : Duration.between(ZonedDateTime.now(target.getZone()), target);
+            } catch (RuntimeException invalidDate) {
+                return null;
+            }
+        }
     }
 
     /**

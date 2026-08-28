@@ -5,6 +5,7 @@ import com.leetmodel.aigateway.entity.AiCallAttempt;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -37,6 +38,7 @@ public class AiQueueDispatcher {
     private final AiFairSchedulingPolicy policy;
     private final AiQueuedTaskExecutor taskExecutor;
     private final AiSchedulingProperties properties;
+    private final AiRateLimitBackoff rateLimitBackoff;
     private final String owner = "ai-gateway-" + UUID.randomUUID();
     private final AtomicInteger cursor = new AtomicInteger();
     private final Semaphore totalPermits;
@@ -46,12 +48,13 @@ public class AiQueueDispatcher {
 
     public AiQueueDispatcher(AiCallTaskMapper taskMapper, AiCallAttemptMapper attemptMapper,
                              AiFairSchedulingPolicy policy, AiQueuedTaskExecutor taskExecutor,
-                             AiSchedulingProperties properties) {
+                             AiSchedulingProperties properties, AiRateLimitBackoff rateLimitBackoff) {
         this.taskMapper = taskMapper;
         this.attemptMapper = attemptMapper;
         this.policy = policy;
         this.taskExecutor = taskExecutor;
         this.properties = properties;
+        this.rateLimitBackoff = rateLimitBackoff;
         this.totalPermits = new Semaphore(properties.getConcurrency());
         this.nonP0Permits = new Semaphore(Math.max(0,
                 properties.getConcurrency() - properties.getReservedP0Concurrency()));
@@ -64,6 +67,7 @@ public class AiQueueDispatcher {
     }
 
     public boolean dispatchOnce() {
+        if (!rateLimitBackoff.allowDispatch()) return false;
         Instant now = Instant.now();
         LocalDateTime localNow = LocalDateTime.ofInstant(now, ZoneId.systemDefault());
         List<AiCallTask> queued = taskMapper.selectQueued(500);
@@ -106,6 +110,7 @@ public class AiQueueDispatcher {
             attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "DISPATCHING", null,
                     LocalDateTime.now());
             String result = taskExecutor.execute(selectTask(taskId));
+            rateLimitBackoff.onSuccess();
             AiCallTask completed = selectTask(taskId);
             String terminal = Boolean.TRUE.equals(completed.getCancelRequested()) ? "CANCELLED" : "SUCCEEDED";
             taskMapper.completeRunning(taskId, owner, terminal, terminal.equals("SUCCEEDED") ? result : null,
@@ -113,6 +118,9 @@ public class AiQueueDispatcher {
             attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "SUCCEEDED", null,
                     LocalDateTime.now());
         } catch (RuntimeException exception) {
+            if (exception instanceof AiUpstreamRateLimitException rateLimited) {
+                rateLimitBackoff.onRateLimited(rateLimited.getRetryAfter());
+            }
             String error = "AI_EXECUTION_" + exception.getClass().getSimpleName().toUpperCase();
             taskMapper.completeRunning(taskId, owner, "FAILED", null, error, LocalDateTime.now());
             if (attempt != null) attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "FAILED",

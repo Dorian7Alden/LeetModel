@@ -94,7 +94,8 @@ class AiQueueDispatcherTest {
 
     private AiQueueDispatcher dispatcher(AiCallTaskMapper tasks, AiCallAttemptMapper attempts,
                                          AiQueuedTaskExecutor executor, AiSchedulingProperties properties) {
-        return new AiQueueDispatcher(tasks, attempts, new AiFairSchedulingPolicy(), executor, properties);
+        return new AiQueueDispatcher(tasks, attempts, new AiFairSchedulingPolicy(), executor, properties,
+                new AiRateLimitBackoff());
     }
 
     private AiCallTask task(String id, String priority) {
