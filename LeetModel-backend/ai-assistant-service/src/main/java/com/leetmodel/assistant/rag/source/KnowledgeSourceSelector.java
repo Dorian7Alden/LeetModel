@@ -32,6 +32,10 @@ public class KnowledgeSourceSelector {
         return select(Path.of(properties.getKnowledgeBasePath()));
     }
 
+    String knowledgeBasePath() {
+        return properties.getKnowledgeBasePath();
+    }
+
     /**
      * 返回相对于知识库根目录的路径，使用统一排序保证重复构建得到相同清单。
      */
