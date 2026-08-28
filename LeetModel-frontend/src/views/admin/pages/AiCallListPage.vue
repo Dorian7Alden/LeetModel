@@ -11,11 +11,13 @@
       <div class="toolbar">
         <h2 class="panel-title">AI 调用日志</h2>
         <div class="toolbar-actions">
-          <el-input v-model="filters.scene" placeholder="场景" clearable style="width: 140px" />
+          <el-input v-model="filters.featureCode" placeholder="功能编码" clearable style="width: 150px" />
+          <el-input v-model="filters.operationCode" placeholder="操作编码" clearable style="width: 150px" />
+          <el-input v-model="filters.evaluationTaskId" placeholder="评价任务 ID" clearable style="width: 160px" />
           <el-input v-model="filters.provider" placeholder="供应商" clearable style="width: 140px" />
           <el-input v-model="filters.model" placeholder="模型" clearable style="width: 160px" />
           <el-select v-model="filters.status" placeholder="状态" clearable style="width: 120px">
-            <el-option label="成功" value="SUCCESS" />
+            <el-option label="成功" value="SUCCEEDED" />
             <el-option label="失败" value="FAILED" />
             <el-option label="运行中" value="RUNNING" />
           </el-select>
@@ -24,19 +26,21 @@
       </div>
       <el-table :data="rows" stripe v-loading="loading" style="width: 100%">
         <el-table-column prop="callId" label="调用 ID" min-width="180" />
-        <el-table-column prop="scene" label="场景" width="130" />
+        <el-table-column prop="featureCode" label="功能" width="140" />
+        <el-table-column prop="operationCode" label="操作" width="160" />
+        <el-table-column prop="modality" label="模态" width="120" />
         <el-table-column prop="provider" label="供应商" width="130" />
         <el-table-column prop="model" label="模型" width="160" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small" effect="light">{{ row.status }}</el-tag>
+            <el-tag :type="row.status === 'SUCCEEDED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small" effect="light">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="Tokens" width="150" align="center">
-          <template #default="{ row }">{{ row.totalTokens != null ? row.totalTokens : (row.promptTokens + (row.completionTokens || 0)) }}</template>
+          <template #default="{ row }">{{ row.totalTokens != null ? row.totalTokens : '-' }}</template>
         </el-table-column>
         <el-table-column label="耗时" width="110" align="center">
-          <template #default="{ row }">{{ row.durationMs != null ? `${row.durationMs}ms` : '-' }}</template>
+          <template #default="{ row }">{{ row.totalMs != null ? `${row.totalMs}ms` : '-' }}</template>
         </el-table-column>
         <el-table-column label="创建时间" width="170">
           <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
@@ -56,14 +60,14 @@ const rows = ref([]);
 const loading = ref(false);
 const loadingStats = ref(false);
 const stats = ref(null);
-const filters = reactive({ scene: "", provider: "", model: "", status: "" });
+const filters = reactive({ featureCode: "", operationCode: "", evaluationTaskId: "", provider: "", model: "", status: "" });
 
 const statCards = computed(() => [
   { label: "总调用", value: stats.value?.totalCount ?? "-" },
   { label: "成功", value: stats.value?.successCount ?? "-" },
   { label: "失败", value: stats.value?.failureCount ?? "-" },
   { label: "总 Tokens", value: stats.value?.totalTokens ?? "-" },
-  { label: "平均耗时", value: stats.value?.averageDurationMs != null ? `${stats.value.averageDurationMs}ms` : "-" },
+  { label: "平均耗时", value: stats.value?.averageTotalMs != null ? `${stats.value.averageTotalMs}ms` : "-" },
 ]);
 
 function formatTime(value) {
@@ -84,8 +88,10 @@ async function loadStats() {
 async function load() {
   loading.value = true;
   const params = { limit: 50 };
-  const { scene, provider, model, status } = filters;
-  if (scene) params.scene = scene;
+  const { featureCode, operationCode, evaluationTaskId, provider, model, status } = filters;
+  if (featureCode) params.featureCode = featureCode;
+  if (operationCode) params.operationCode = operationCode;
+  if (evaluationTaskId) params.evaluationTaskId = evaluationTaskId;
   if (provider) params.provider = provider;
   if (model) params.model = model;
   if (status) params.status = status;

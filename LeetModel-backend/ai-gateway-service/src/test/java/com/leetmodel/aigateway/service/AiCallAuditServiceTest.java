@@ -138,12 +138,16 @@ class AiCallAuditServiceTest {
         row.setId(9007199254740993L);
         row.setCallId("call-1");
         row.setScene("TEXT");
+        row.setModality("TEXT");
+        row.setFeatureCode("PAPER_REVIEW");
+        row.setOperationCode("EXPERIMENT_REVIEW");
+        row.setEvaluationTaskId("evaluation:7");
         row.setProvider("NEW_API");
         row.setModel("model");
         row.setStatus("SUCCEEDED");
         row.setCreateTime(LocalDateTime.now());
         when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(row));
-        when(mapper.selectStats()).thenReturn(null);
+        when(mapper.selectStats(any(AiCallQueryDTO.class))).thenReturn(null);
 
         var rows = service.list(new AiCallQueryDTO(" general_text ", "new_api", " model ",
                 "succeeded", 10));
@@ -151,6 +155,7 @@ class AiCallAuditServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getId()).isEqualTo(9007199254740993L);
+        assertThat(rows.get(0).getEvaluationTaskId()).isEqualTo("evaluation:7");
         assertThat(stats).usingRecursiveComparison()
                 .isEqualTo(new AiCallStatsDTO(0L, 0L, 0L, 0L, 0L));
     }

@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.leetmodel.admin.vo.AdminDashboardVO;
 import com.leetmodel.admin.vo.AdminMetricVO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
@@ -65,7 +66,7 @@ public class DashboardController {
 
     private AdminMetricVO aiCallMetric() {
         try {
-            Result<AiCallStatsDTO> result = aiGatewayFeignClient.getCallStats();
+            Result<AiCallStatsDTO> result = aiGatewayFeignClient.getCallStats(new AiCallQueryDTO());
             if (result != null && result.isSuccess() && result.getData() != null) {
                 return AdminMetricVO.available(result.getData().getTotalCount());
             }

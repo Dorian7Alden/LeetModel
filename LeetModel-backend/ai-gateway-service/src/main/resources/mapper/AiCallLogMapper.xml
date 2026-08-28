@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.leetmodel.aigateway.mapper.AiCallLogMapper">
+    <sql id="queryConditions">
+        deleted = 0
+        <if test="scene != null and scene.trim() != ''">AND scene = UPPER(TRIM(#{scene}))</if>
+        <if test="modality != null and modality.trim() != ''">AND modality = UPPER(TRIM(#{modality}))</if>
+        <if test="callerService != null and callerService.trim() != ''">AND caller_service = TRIM(#{callerService})</if>
+        <if test="featureCode != null and featureCode.trim() != ''">AND feature_code = UPPER(TRIM(#{featureCode}))</if>
+        <if test="operationCode != null and operationCode.trim() != ''">AND operation_code = UPPER(TRIM(#{operationCode}))</if>
+        <if test="callId != null and callId.trim() != ''">AND call_id = TRIM(#{callId})</if>
+        <if test="businessTaskId != null and businessTaskId.trim() != ''">AND business_task_id = TRIM(#{businessTaskId})</if>
+        <if test="evaluationTaskId != null and evaluationTaskId.trim() != ''">AND evaluation_task_id = TRIM(#{evaluationTaskId})</if>
+        <if test="workflowVersion != null and workflowVersion.trim() != ''">AND workflow_version = TRIM(#{workflowVersion})</if>
+        <if test="promptVersion != null and promptVersion.trim() != ''">AND prompt_version = TRIM(#{promptVersion})</if>
+        <if test="modelExecutionConfigVersion != null and modelExecutionConfigVersion.trim() != ''">AND model_execution_config_version = TRIM(#{modelExecutionConfigVersion})</if>
+        <if test="provider != null and provider.trim() != ''">AND provider = UPPER(TRIM(#{provider}))</if>
+        <if test="model != null and model.trim() != ''">AND model = TRIM(#{model})</if>
+        <if test="status != null and status.trim() != ''">AND status = UPPER(TRIM(#{status}))</if>
+        <if test="costSource != null and costSource.trim() != ''">AND cost_source = UPPER(TRIM(#{costSource}))</if>
+        <if test="createdFrom != null">AND create_time &gt;= #{createdFrom}</if>
+        <if test="createdTo != null">AND create_time &lt;= #{createdTo}</if>
+    </sql>
+
+    <select id="selectStats" parameterType="com.leetmodel.common.api.dto.AiCallQueryDTO"
+            resultType="com.leetmodel.common.api.dto.AiCallStatsDTO">
+        SELECT COUNT(*) AS total_count,
+               COALESCE(SUM(status = 'SUCCEEDED'), 0) AS success_count,
+               COALESCE(SUM(status = 'FAILED'), 0) AS failure_count,
+               SUM(input_tokens) AS input_tokens,
+               SUM(output_tokens) AS output_tokens,
+               SUM(reasoning_tokens) AS reasoning_tokens,
+               SUM(cache_hit_tokens) AS cache_hit_tokens,
+               SUM(cache_creation_tokens) AS cache_creation_tokens,
+               SUM(total_tokens) AS total_tokens,
+               ROUND(AVG(queue_ms)) AS average_queue_ms,
+               ROUND(AVG(execution_ms)) AS average_execution_ms,
+               ROUND(AVG(total_ms)) AS average_total_ms,
+               CASE WHEN COUNT(DISTINCT CASE WHEN cost_amount IS NOT NULL THEN cost_currency END) &lt;= 1
+                    THEN SUM(cost_amount) ELSE NULL END AS known_cost_amount,
+               CASE WHEN COUNT(DISTINCT CASE WHEN cost_amount IS NOT NULL THEN cost_currency END) &lt;= 1
+                    THEN MAX(CASE WHEN cost_amount IS NOT NULL THEN cost_currency END) ELSE NULL END AS cost_currency,
+               COALESCE(SUM(cost_source = 'NEW_API_ACTUAL'), 0) AS actual_cost_count,
+               COALESCE(SUM(cost_source = 'PRICE_SNAPSHOT_ESTIMATED'), 0) AS estimated_cost_count,
+               COALESCE(SUM(cost_source = 'UNKNOWN' OR cost_source IS NULL), 0) AS unknown_cost_count
+          FROM ai_call_log
+         WHERE <include refid="queryConditions"/>
+    </select>
+</mapper>

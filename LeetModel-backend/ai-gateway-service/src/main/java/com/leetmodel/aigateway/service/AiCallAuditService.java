@@ -59,20 +59,49 @@ public class AiCallAuditService {
     }
 
     public List<AiCallLogDTO> list(AiCallQueryDTO query) {
+        if (query == null) query = new AiCallQueryDTO();
         int limit = query.getLimit() == null ? 20 : query.getLimit();
         LambdaQueryWrapper<AiCallLog> wrapper = new LambdaQueryWrapper<AiCallLog>()
                 .eq(StringUtils.hasText(query.getScene()), AiCallLog::getScene, normalized(query.getScene()))
+                .eq(StringUtils.hasText(query.getModality()), AiCallLog::getModality, normalized(query.getModality()))
+                .eq(StringUtils.hasText(query.getCallerService()), AiCallLog::getCallerService,
+                        trimmed(query.getCallerService()))
+                .eq(StringUtils.hasText(query.getFeatureCode()), AiCallLog::getFeatureCode,
+                        normalized(query.getFeatureCode()))
+                .eq(StringUtils.hasText(query.getOperationCode()), AiCallLog::getOperationCode,
+                        normalized(query.getOperationCode()))
+                .eq(StringUtils.hasText(query.getCallId()), AiCallLog::getCallId, trimmed(query.getCallId()))
+                .eq(StringUtils.hasText(query.getBusinessTaskId()), AiCallLog::getBusinessTaskId,
+                        trimmed(query.getBusinessTaskId()))
+                .eq(StringUtils.hasText(query.getEvaluationTaskId()), AiCallLog::getEvaluationTaskId,
+                        trimmed(query.getEvaluationTaskId()))
+                .eq(StringUtils.hasText(query.getWorkflowVersion()), AiCallLog::getWorkflowVersion,
+                        trimmed(query.getWorkflowVersion()))
+                .eq(StringUtils.hasText(query.getPromptVersion()), AiCallLog::getPromptVersion,
+                        trimmed(query.getPromptVersion()))
+                .eq(StringUtils.hasText(query.getModelExecutionConfigVersion()),
+                        AiCallLog::getModelExecutionConfigVersion,
+                        trimmed(query.getModelExecutionConfigVersion()))
                 .eq(StringUtils.hasText(query.getProvider()), AiCallLog::getProvider, normalized(query.getProvider()))
                 .eq(StringUtils.hasText(query.getModel()), AiCallLog::getModel, trimmed(query.getModel()))
                 .eq(StringUtils.hasText(query.getStatus()), AiCallLog::getStatus, normalized(query.getStatus()))
+                .eq(StringUtils.hasText(query.getCostSource()), AiCallLog::getCostSource,
+                        normalized(query.getCostSource()))
+                .ge(query.getCreatedFrom() != null, AiCallLog::getCreateTime, query.getCreatedFrom())
+                .le(query.getCreatedTo() != null, AiCallLog::getCreateTime, query.getCreatedTo())
                 .orderByDesc(AiCallLog::getCreateTime)
                 .last("LIMIT " + limit);
         return callLogMapper.selectList(wrapper).stream().map(this::toDto).toList();
     }
 
-    public AiCallStatsDTO stats() {
-        AiCallStatsDTO stats = callLogMapper.selectStats();
+    public AiCallStatsDTO stats(AiCallQueryDTO query) {
+        if (query == null) query = new AiCallQueryDTO();
+        AiCallStatsDTO stats = callLogMapper.selectStats(query);
         return stats == null ? new AiCallStatsDTO(0L, 0L, 0L, 0L, 0L) : stats;
+    }
+
+    public AiCallStatsDTO stats() {
+        return stats(new AiCallQueryDTO());
     }
 
     private AiCallLog baseRecord(String callId, AiChatRequest request, String routeProvider,

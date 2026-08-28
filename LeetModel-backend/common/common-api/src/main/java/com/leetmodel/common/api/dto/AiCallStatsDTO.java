@@ -1,17 +1,43 @@
 package com.leetmodel.common.api.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** AI 调用运行摘要；MVP 不虚构尚未获得的价格成本。 */
+import java.math.BigDecimal;
+
+/** 可按调用元数据过滤的 AI 调用聚合，不跨币种强行合计费用。 */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class AiCallStatsDTO {
     private Long totalCount;
     private Long successCount;
     private Long failureCount;
+    private Long inputTokens;
+    private Long outputTokens;
+    private Long reasoningTokens;
+    private Long cacheHitTokens;
+    private Long cacheCreationTokens;
     private Long totalTokens;
-    private Long averageDurationMs;
+    private Long averageQueueMs;
+    private Long averageExecutionMs;
+    private Long averageTotalMs;
+    private BigDecimal knownCostAmount;
+    private String costCurrency;
+    private Long actualCostCount;
+    private Long estimatedCostCount;
+    private Long unknownCostCount;
+
+    public AiCallStatsDTO(Long totalCount, Long successCount, Long failureCount,
+                          Long totalTokens, Long averageDurationMs) {
+        this.totalCount = totalCount;
+        this.successCount = successCount;
+        this.failureCount = failureCount;
+        this.totalTokens = totalTokens;
+        this.averageTotalMs = averageDurationMs;
+    }
+
+    @Deprecated
+    public Long getAverageDurationMs() {
+        return averageTotalMs;
+    }
 }
