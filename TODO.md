@@ -645,7 +645,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：基于相对路径、内容哈希和片段序号生成 ID；定义 contentVersion、embeddingModelVersion、chunkPolicyVersion、ragIndexVersion。
 - 验收：重复索引不产生重复片段；改单文档只影响该文档；版本字段可查。
 
-#### [ ] S4-09 创建 Elasticsearch 向量索引与别名
+#### [x] S4-09 创建 Elasticsearch 向量索引与别名
 
 - 依赖：S3-06、S4-08。
 - 工作：定义 dense_vector、相似度、元数据 mapping、物理索引命名和读别名；启动时校验向量维度。
