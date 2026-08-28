@@ -580,7 +580,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 - 工作：映射数组输入、模型名、encoding_format、usage 和错误。
 - 验收：Mock new-api 覆盖单条、批量、限流、额度、畸形向量和维度变化。
 
-#### [ ] S3-05 实现 LangChain4j 项目 EmbeddingModel 适配器
+#### [x] S3-05 实现 LangChain4j 项目 EmbeddingModel 适配器
 
 - 依赖：S0-04、S3-04。
 - 工作：通过 common-ai 调用，处理批量、TokenCount、响应 metadata 和异常；不得直接连接 new-api。
