@@ -556,7 +556,7 @@ S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试
 
 ### S3：Embedding 统一调用任务
 
-#### [ ] S3-01 定义 common-ai Embedding 契约
+#### [x] S3-01 定义 common-ai Embedding 契约
 
 - 依赖：S0-04、S2-02。
 - 工作：定义单条/批量输入、逻辑模型、AiCallContext、向量、维度、usage、callId 及输入限制。
