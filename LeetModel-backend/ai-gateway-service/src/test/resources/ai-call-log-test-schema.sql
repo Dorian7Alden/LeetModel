@@ -7,6 +7,7 @@ CREATE TABLE ai_call_log (
   feature_code VARCHAR(64), operation_code VARCHAR(64), business_task_id VARCHAR(128),
   workflow_version VARCHAR(64), prompt_version VARCHAR(100),
   model_execution_config_version VARCHAR(100), evaluation_task_id VARCHAR(128),
+  rag_index_version VARCHAR(128),
   priority VARCHAR(10), idempotency_key VARCHAR(128), deadline TIMESTAMP,
   provider VARCHAR(30), model VARCHAR(100), provider_response_id VARCHAR(128),
   new_api_request_id VARCHAR(128), status VARCHAR(20),
