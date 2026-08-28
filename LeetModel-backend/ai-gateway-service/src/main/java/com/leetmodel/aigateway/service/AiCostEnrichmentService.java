@@ -4,6 +4,7 @@ import com.leetmodel.aigateway.config.CostEnrichmentProperties;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +24,7 @@ public class AiCostEnrichmentService {
     private final CostEnrichmentProperties properties;
     private final Clock clock;
 
+    @Autowired
     public AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties) {
         this(mapper, properties, Clock.systemUTC());
     }
@@ -33,7 +35,7 @@ public class AiCostEnrichmentService {
         this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${ai.cost-enrichment.poll-delay:60s}")
+    @Scheduled(fixedDelayString = "${ai.cost-enrichment.poll-delay-ms:60000}")
     public void enrichDue() {
         if (!properties.isEnabled()) return;
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);

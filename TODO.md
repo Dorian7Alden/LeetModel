@@ -546,11 +546,13 @@ S1 验收记录（2026-08-28）：后端 17 模块 Maven reactor 全量测试通
 - 工作：在已有 calls、stats 接口上增加来源、任务、版本、费用、用量、耗时和 ID 过滤/聚合。
 - 验收：可从 evaluationTaskId 追踪 callId；保持管理员鉴权；不建立重复查询接口。
 
-#### [ ] S2-09 完成计量集成测试
+#### [x] S2-09 完成计量集成测试
 
 - 依赖：S2-08。
 - 工作：使用 Mock new-api 覆盖成功、失败、usage 缺失、费用延迟、重复补全和查询聚合。
 - 验收：ai-gateway、common-ai、admin 相关测试通过，形成评价平台可依赖的稳定契约。
+
+S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试覆盖成功、429 失败、usage 缺失、费用延迟、重复补全、evaluationTaskId 追踪和聚合口径；后端 17 模块 `mvn clean test` 全量通过，前端生产构建通过。ai-gateway 使用本地 Relay Token 启动验证时，Flyway 在 MySQL 8.0 上成功校验 3 个迁移并由 v1 升级至 v3；测试密钥仅从本地文件注入，未写入仓库或日志。
 
 ### S3：Embedding 统一调用任务
 
