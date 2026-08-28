@@ -1,6 +1,6 @@
 # RAG 知识库
 
-> 设计状态：D-03 已确认正式架构。常规向量检索定义为 RAG V1，AI 目录导航定义为 RAG V2。当前尚未实现运行时检索，后续由 S0、S3 和 S4 依次完成框架核验、Embedding 调用和客服接入。
+> 实现状态：S4 已完成 RAG V1 的受控知识加载、统一 Embedding、Elasticsearch 索引、基础向量检索、客服接入、版本审计和安全降级。AI 目录导航仍定义为 RAG V2，仅保留设计。
 
 ## 设计目标
 
@@ -13,7 +13,7 @@ RAG 不替代助手的会话、历史上下文、题目工具和回答工作流�
 
 | 名称 | 定义 | 当前状态 |
 |------|------|----------|
-| RAG V1 | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 正式目标，S4 实现 |
+| RAG V1 | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 已实现 |
 | RAG V2 | AI 读取目录与元数据，自主选择受控文档，可与向量召回组合 | 仅保留设计，S9 评估 |
 
 V1 和 V2 表示检索工作流，不是 REST API 版本、Prompt 版本或索引版本。具体索引使用独立的 `ragIndexVersion` 标识。
@@ -62,7 +62,7 @@ flowchart TB
 
 ## 知识源边界
 
-V1 只索引 `rag_kb/数学建模/` 下整理后的内容 Markdown。当前目录实测有 88 个 Markdown，其中 15 个为各级 README；README 只用于人工导航，不进入向量索引。
+V1 只索引 `rag_kb/数学建模/` 下整理后的内容 Markdown。当前确定性清单为 73 个内容 Markdown；各级 README 只用于人工导航，不进入向量索引。
 
 明确排除：
 
@@ -143,6 +143,97 @@ V1 不做查询改写、多路召回、关键词混合检索、Rerank 或由 AI 
 `rag_kb/.kb/` 保存人工整理、目录导航和笔记维护规则。这些规则仍指导知识内容生产，但不等同于在线 RAG V1 算法。`rag_kb/CONTEXT.md` 是 Agent 进入该目录时的稳定入口，并明确人工维护、V1 索引和 V2 导航之间的区别。
 
 知识内容由 Git 管理，V1 不建设在线上传、发布或回滚页面。索引是可重建的派生数据，不是知识内容的事实源。
+
+
+## 运行与运维
+
+### 基础设施和配置
+
+本地 Elasticsearch 固定为 `8.14.3`，由根后端编排文件启动：
+
+```bash
+cd LeetModel-backend
+docker compose up -d elasticsearch
+curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow'
+```
+
+运行参数集中在 `ai-assistant-service/src/main/resources/application.yml`。正式启用至少核对以下环境变量：
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `ASSISTANT_RAG_ENABLED` | `false` | 读别名可用后才改为 `true` |
+| `ASSISTANT_RAG_KB_PATH` | `../rag_kb` | 知识库根目录 |
+| `ASSISTANT_RAG_INDEX_ALIAS` | `leetmodel-rag-v1-read` | 稳定读别名 |
+| `ASSISTANT_RAG_ELASTICSEARCH_URI` | `http://127.0.0.1:9200` | Elasticsearch 地址 |
+| `ASSISTANT_RAG_EMBEDDING_MODEL_VERSION` | `qwen3.7-text-embedding@1024` | 不可静默修改的模型版本 |
+| `ASSISTANT_RAG_EMBEDDING_DIMENSION` | `1024` | 必须与模型和索引 mapping 一致 |
+| `ASSISTANT_RAG_INDEX_COMMAND` | `NONE` | 单次启动任务：`FULL`、`INCREMENTAL` 或 `NONE` |
+
+assistant 不持有 new-api Relay Token；索引和查询都要求 `ai-gateway-service` 已启动并能访问 new-api。共享或生产环境还必须启用 Elasticsearch 认证与网络隔离，不能照搬本地关闭安全插件的配置。
+
+### 从空 Elasticsearch 建立索引
+
+1. 启动 Elasticsearch、new-api 和 `ai-gateway-service`，确认逻辑模型 `RAG_V1` 固定绑定 `qwen3.7-text-embedding`，维度为 1024。
+2. 在项目后端目录启动一次 assistant 索引任务：
+
+```bash
+cd LeetModel-backend
+ASSISTANT_RAG_INDEX_COMMAND=FULL \
+ASSISTANT_RAG_ENABLED=false \
+mvn -pl ai-assistant-service spring-boot:run
+```
+
+3. 等待安全摘要日志出现 `rag-index failures=0`，记录其中的 `version`；停止该索引进程。若失败数非零，读别名不会切换，应先排查原因再重跑。
+4. 核对稳定别名已指向新物理索引，然后以 `ASSISTANT_RAG_INDEX_COMMAND=NONE`、`ASSISTANT_RAG_ENABLED=true` 正常启动服务：
+
+```bash
+curl -fsS 'http://127.0.0.1:9200/_alias/leetmodel-rag-v1-read'
+```
+
+知识内容发生新增、修改或删除时可把命令改为 `INCREMENTAL`。增量任务使用稳定 ID 幂等更新，并处理源文件删除；中断后重跑会收敛到同一版本。Embedding 模型版本、维度或切分策略变化时必须执行 `FULL`，不能在旧索引上增量混用。
+
+### 回滚
+
+知识内容以 Git 版本为事实源。回滚内容后重新执行全量索引是首选路径。需要立即恢复上一套已验证索引时，只原子切换读别名，不删除当前或历史物理索引：
+
+```bash
+curl -fsS -X POST 'http://127.0.0.1:9200/_aliases' \
+  -H 'Content-Type: application/json' \
+  -d '{"actions":[{"remove":{"index":"CURRENT_VERIFIED_INDEX","alias":"leetmodel-rag-v1-read"}},{"add":{"index":"PREVIOUS_VERIFIED_INDEX","alias":"leetmodel-rag-v1-read"}}]}'
+```
+
+执行前必须先用 `/_alias/leetmodel-rag-v1-read` 核对当前目标，并把两个占位符替换成明确的、已验证的物理索引名。正式索引没有通配符删除或自动清理命令；容量治理应另建受审核的保留策略。
+
+### 测试与测试索引清理
+
+默认测试使用确定性 Embedding 和内存 Store。独立 Elasticsearch 集成测试显式启用：
+
+```bash
+cd LeetModel-backend
+RAG_ES_INTEGRATION=true mvn -pl ai-assistant-service test
+```
+
+真实端到端冒烟要求本地 AI 网关已安全注入仓库外 Relay Token，再执行：
+
+```bash
+RUN_RAG_E2E_SMOKE=true mvn -pl ai-assistant-service \
+  -Dtest=RagNewApiEndToEndSmokeTest test
+```
+
+冒烟只创建并自动清理前缀为 `leetmodel-rag-s4-15-e2e-` 的独立索引。若进程被强制终止，可先用 `_cat/indices/leetmodel-rag-s4-15-e2e-*` 列出残留项，再逐个核对并按完整索引名删除；不得使用正式别名、宽泛通配符或 Elasticsearch 全库作为清理目标。
+
+### 故障排查
+
+| 现象 | 核对项 | 行为 |
+|------|--------|------|
+| `rag-index failures` 大于零 | 知识路径、解析、AI 网关、模型绑定、ES 健康 | 不切换别名；修复后幂等重跑 |
+| `type=EMBEDDING` | AI 网关可达性、逻辑模型状态、维度 | 在线请求降级为无 RAG Chat |
+| `type=ELASTICSEARCH` 或 `type=TIMEOUT` | ES 健康、别名、网络和超时 | 在线请求降级为无 RAG Chat |
+| `type=DIMENSION` | 模型版本、1024 维配置和 mapping | 停止混用；全量重建索引 |
+| `type=PARSING` | 召回文档字段和上下文组装 | 在线请求降级，并检查索引数据 |
+| `assistant-chat status=FAILED` | Chat 网关或题目工具 | 保留现有失败回复与显式重试 |
+
+`rag-retrieval` 日志中的 `status`、`type`、`durationMs`、`ragIndexVersion` 和 `recallCount` 用于区分降级原因；日志不得增加用户问题、知识正文、Prompt、回答、向量或上游异常 message。
 
 
 ## 独立服务触发条件
