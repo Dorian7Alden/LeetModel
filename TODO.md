@@ -681,11 +681,13 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：捕获可降级的 Embedding、ES、解析和超时异常；记录类型、耗时、索引版本和召回数量，不记录问题或知识正文。
 - 验收：检索失败继续现有 Chat；Chat 失败仍返回现有失败回复；两类失败可区分。
 
-#### [ ] S4-15 完成自动化与真实验收
+#### [x] S4-15 完成自动化与真实验收
 
 - 依赖：S4-11、S4-14。
 - 工作：单测用确定性 Embedding/内存 Store，集成测试用独立 ES；覆盖命中、无命中、错误阈值、ES/Embedding 故障、重复索引和删除。
 - 验收：全链路通过并记录延迟、Token 增量与召回基线。
+
+- 2026-08-28 验收：`RAG_ES_INTEGRATION=true` 下 assistant 模块 57 项测试通过（仅 2 项需真实 new-api 的门控冒烟跳过），确定性 Embedding/内存 Store 与独立 ES 已覆盖命中、无命中、错误阈值、Embedding/ES/超时故障、全量重复索引、增量新增/修改/删除和中断恢复。另以仓库外 Relay Token 执行 `RUN_RAG_E2E_SMOKE=true`，独立测试知识库经 `common-ai → ai-gateway-service → new-api qwen3.7-text-embedding → Elasticsearch → RAG` 完成真实建索引和召回；本机基线为 1550 ms、2 次 Embedding 调用、100 个 Embedding 输入 Token、35 个上下文 Token 增量，目标文档 `recall@1=1/1`。测试仅清理 `leetmodel-rag-s4-15-e2e-*` 独立索引，未操作正式别名。
 
 #### [ ] S4-16 同步 RAG 运维与模块文档
 
