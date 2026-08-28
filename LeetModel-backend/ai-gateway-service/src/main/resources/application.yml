@@ -13,7 +13,7 @@ common:
 
 ai:
   scheduling:
-    enabled: ${AI_SCHEDULING_ENABLED:false}
+    enabled: ${AI_SCHEDULING_ENABLED:true}
     concurrency: ${AI_SCHEDULING_CONCURRENCY:4}
     reserved-p0-concurrency: ${AI_SCHEDULING_RESERVED_P0_CONCURRENCY:1}
     max-queue-size: ${AI_SCHEDULING_MAX_QUEUE_SIZE:500}
