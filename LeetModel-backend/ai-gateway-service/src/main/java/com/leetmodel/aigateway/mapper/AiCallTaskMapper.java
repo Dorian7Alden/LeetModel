@@ -33,6 +33,22 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
             """)
     List<AiCallTask> selectExpiredLeases(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
+    @Select("""
+            <script>
+            SELECT * FROM ai_call_task
+             WHERE deleted = 0
+             <if test='state != null and state != ""'>AND state = #{state}</if>
+             <if test='priority != null and priority != ""'>AND effective_priority = #{priority}</if>
+             <if test='callerService != null and callerService != ""'>AND caller_service = #{callerService}</if>
+             ORDER BY CASE WHEN state IN ('QUEUED','LEASED','RUNNING') THEN 0 ELSE 1 END,
+                      queued_at ASC
+             LIMIT 500
+            </script>
+            """)
+    List<AiCallTask> selectForMonitoring(@Param("state") String state,
+                                         @Param("priority") String priority,
+                                         @Param("callerService") String callerService);
+
     @Select("SELECT COUNT(*) FROM ai_call_task WHERE deleted = 0 AND state IN ('QUEUED','LEASED','RUNNING')")
     long countActive();
 

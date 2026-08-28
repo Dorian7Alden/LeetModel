@@ -2,6 +2,7 @@ package com.leetmodel.aigateway.controller;
 
 import com.leetmodel.aigateway.service.AiModelService;
 import com.leetmodel.aigateway.service.AiScheduledCallService;
+import com.leetmodel.aigateway.service.AiQueueOperationsService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
@@ -11,6 +12,8 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiQueueQueryDTO;
+import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +42,7 @@ public class InternalAiController {
     private final AiScheduledCallService aiScheduledCallService;
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
+    private final AiQueueOperationsService aiQueueOperationsService;
 
     /**
      * 发起同步 AI 对话。
@@ -81,5 +85,17 @@ public class InternalAiController {
     @GetMapping("/calls/stats")
     public Result<AiCallStatsDTO> callStats(@Valid AiCallQueryDTO query) {
         return Result.ok(aiCallAuditService.stats(query));
+    }
+
+    @Operation(summary = "查询 AI 调用队列元数据")
+    @GetMapping("/tasks")
+    public Result<List<AiQueueTaskDTO>> queueTasks(@Valid AiQueueQueryDTO query) {
+        return Result.ok(aiQueueOperationsService.list(query));
+    }
+
+    @Operation(summary = "取消可取消的 AI 调用任务")
+    @PostMapping("/tasks/{taskId}/cancel")
+    public Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable String taskId) {
+        return Result.ok(aiQueueOperationsService.cancel(taskId));
     }
 }

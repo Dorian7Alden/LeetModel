@@ -34,7 +34,9 @@ public enum AiGatewayErrorCode implements ErrorCode {
     AI_QUEUE_FULL(51210, "AI 调用队列已满"),
     AI_QUEUE_EXPIRED(51211, "AI 调用在派发前已过期"),
     AI_RESULT_PENDING(51212, "AI 调用仍在处理中，请使用相同请求标识重试"),
-    AI_UPSTREAM_RESULT_UNKNOWN(51213, "AI 上游执行结果未知，禁止自动重试");
+    AI_UPSTREAM_RESULT_UNKNOWN(51213, "AI 上游执行结果未知，禁止自动重试"),
+    AI_TASK_NOT_FOUND(41213, "AI 调用任务不存在"),
+    AI_TASK_NOT_CANCELLABLE(41214, "AI 调用任务已结束，不能取消");
 
     private final int code;
     private final String message;

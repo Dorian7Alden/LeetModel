@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.controller;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import com.leetmodel.aigateway.service.AiModelService;
 import com.leetmodel.aigateway.service.AiScheduledCallService;
+import com.leetmodel.aigateway.service.AiQueueOperationsService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
@@ -29,7 +30,8 @@ class InternalAiControllerTest {
     void shouldReturnUnifiedChatResponse() {
         AiScheduledCallService scheduledCallService = mock(AiScheduledCallService.class);
         InternalAiController controller = new InternalAiController(scheduledCallService,
-                mock(AiModelService.class), mock(AiCallAuditService.class));
+                mock(AiModelService.class), mock(AiCallAuditService.class),
+                mock(AiQueueOperationsService.class));
         AiChatRequest request = new AiChatRequest(AiScene.GENERAL_TEXT,
                 List.of(new AiMessage(AiRole.USER,
                         List.of(new AiContentPart(AiContentType.TEXT, "hello", null)))),

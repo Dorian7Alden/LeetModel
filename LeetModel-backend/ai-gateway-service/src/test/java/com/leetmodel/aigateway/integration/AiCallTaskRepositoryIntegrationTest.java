@@ -156,6 +156,18 @@ class AiCallTaskRepositoryIntegrationTest {
         assertThat(marked.getCancelRequested()).isTrue();
     }
 
+    @Test
+    void monitoringQueryFiltersOnlyStructuredMetadata() {
+        AiCallTask task = task("task-monitor-p4", "idem-monitor-p4");
+        task.setEffectivePriority("P4");
+        task.setRequestPayload("must-not-be-projected-by-api");
+        mapper.insert(task);
+
+        List<AiCallTask> rows = mapper.selectForMonitoring("QUEUED", "P4", "ai-assistant-service");
+
+        assertThat(rows).extracting(AiCallTask::getTaskId).contains("task-monitor-p4");
+    }
+
     private AiQueueRecoveryService recovery() {
         return new AiQueueRecoveryService(mapper, attemptMapper, new AiTaskWaitRegistry());
     }
