@@ -639,7 +639,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：先按标题/段落，再按长度带重叠切分；固定最小、目标、最大 Token 和重叠量。
 - 验收：长短文、表格、代码块和中文标点测试通过；片段不超过 Embedding 上限。
 
-#### [ ] S4-08 定义稳定文档 ID、片段 ID 与索引版本
+#### [x] S4-08 定义稳定文档 ID、片段 ID 与索引版本
 
 - 依赖：S4-07。
 - 工作：基于相对路径、内容哈希和片段序号生成 ID；定义 contentVersion、embeddingModelVersion、chunkPolicyVersion、ragIndexVersion。
