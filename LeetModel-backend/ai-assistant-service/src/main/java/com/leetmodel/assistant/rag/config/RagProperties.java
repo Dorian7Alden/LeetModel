@@ -79,6 +79,9 @@ public class RagProperties {
     @NotNull
     private StoreType storeType = StoreType.ELASTICSEARCH;
 
+    @NotNull
+    private IndexCommand indexCommand = IndexCommand.NONE;
+
     @AssertTrue(message = "requestTimeout must be greater than zero")
     public boolean isRequestTimeoutValid() {
         return requestTimeout != null && !requestTimeout.isZero() && !requestTimeout.isNegative();
@@ -94,5 +97,11 @@ public class RagProperties {
     public enum StoreType {
         ELASTICSEARCH,
         IN_MEMORY
+    }
+
+    public enum IndexCommand {
+        NONE,
+        FULL,
+        INCREMENTAL
     }
 }
