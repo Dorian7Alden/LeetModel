@@ -6,3 +6,16 @@ spring:
 
 server:
   shutdown: graceful
+
+assistant:
+  rag:
+    # RAG V1 默认关闭；启用前需完成索引构建并切换读别名。
+    enabled: ${ASSISTANT_RAG_ENABLED:false}
+    knowledge-base-path: ${ASSISTANT_RAG_KB_PATH:../rag_kb/数学建模}
+    index-alias: ${ASSISTANT_RAG_INDEX_ALIAS:leetmodel-rag-v1-read}
+    top-k: ${ASSISTANT_RAG_TOP_K:8}
+    score-threshold: ${ASSISTANT_RAG_SCORE_THRESHOLD:0.65}
+    token-budget: ${ASSISTANT_RAG_TOKEN_BUDGET:3000}
+    embedding-batch-size: ${ASSISTANT_RAG_EMBEDDING_BATCH_SIZE:16}
+    request-timeout: ${ASSISTANT_RAG_REQUEST_TIMEOUT:5s}
+    store-type: ${ASSISTANT_RAG_STORE_TYPE:ELASTICSEARCH}
