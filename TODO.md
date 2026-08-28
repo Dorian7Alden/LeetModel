@@ -713,7 +713,7 @@ S4 验收记录（2026-08-28）：RAG V1 已在 `ai-assistant-service` 完成 73
 - 工作：区分业务任务、逻辑 AI 调用和上游 attempt；定义 QUEUED、LEASED、RUNNING、SUCCEEDED、FAILED、CANCELLED、EXPIRED 及合法转换。
 - 验收：同步 Chat、异步评价和 Embedding 批次均能映射，网关不复制完整业务流程。
 
-#### [ ] S5-03 固化优先级分类
+#### [x] S5-03 固化优先级分类
 
 - 依赖：S2-01、S5-02。
 - 工作：P0 客服，P1 正式评审/建议，P2 管理员单次测试，P3 批量评价，P4 RAG 批量索引。
