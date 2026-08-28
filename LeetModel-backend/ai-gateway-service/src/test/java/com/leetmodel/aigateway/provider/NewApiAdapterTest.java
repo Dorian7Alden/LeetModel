@@ -6,9 +6,11 @@ import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.ai.model.AiScene;
+import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -80,6 +82,29 @@ class NewApiAdapterTest {
 
         assertThat(response.usage().complete()).isFalse();
         assertThat(response.usage().totalTokens()).isNull();
+        assertThat(response.usage().completeness()).isEqualTo(AiMetricCompleteness.UNKNOWN);
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldKeepPartialUsageMissingFieldsUnknown() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andRespond(withSuccess("""
+                        {"id":"relay-partial","model":"deepseek-v4-flash",
+                         "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
+                         "usage":{"prompt_tokens":10,"prompt_cache_hit_tokens":3}}
+                        """, MediaType.APPLICATION_JSON));
+
+        AiUsage usage = fixture.adapter.chat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, textRequest()).usage();
+
+        assertThat(usage.completeness()).isEqualTo(AiMetricCompleteness.PARTIAL);
+        assertThat(usage.inputTokens()).isEqualTo(10L);
+        assertThat(usage.cacheHitTokens()).isEqualTo(3L);
+        assertThat(usage.cacheMissTokens()).isNull();
+        assertThat(usage.outputTokens()).isNull();
+        assertThat(usage.totalTokens()).isNull();
         fixture.server.verify();
     }
 

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 
 import java.util.List;
 import java.util.Objects;
@@ -31,15 +32,13 @@ record OpenAiResponsesResponse(
 
     AiChatResponse toUnified(AiProvider provider) {
         Long cached = usage.inputTokensDetails() == null ? null : usage.inputTokensDetails().cachedTokens();
-        Long cacheMiss = cached == null || usage.inputTokens() == null
-                ? null : Math.max(0, usage.inputTokens() - cached);
         Long reasoning = usage.outputTokensDetails() == null
                 ? null : usage.outputTokensDetails().reasoningTokens();
         String finishReason = incompleteDetails == null || incompleteDetails.reason() == null
                 ? status : incompleteDetails.reason();
         return new AiChatResponse(null, provider, model, id, outputText(), null, finishReason,
-                new AiUsage(usage.inputTokens(), cached, cacheMiss, usage.outputTokens(), reasoning,
-                        usage.totalTokens(), true));
+                new AiUsage(usage.inputTokens(), usage.outputTokens(), reasoning, cached, null,
+                        null, usage.totalTokens(), AiMetricCompleteness.COMPLETE));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

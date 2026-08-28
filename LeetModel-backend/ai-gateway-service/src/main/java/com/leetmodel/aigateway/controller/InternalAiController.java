@@ -69,7 +69,7 @@ public class InternalAiController {
 
     @Operation(summary = "查询 AI 调用运行摘要")
     @GetMapping("/calls/stats")
-    public Result<AiCallStatsDTO> callStats() {
-        return Result.ok(aiCallAuditService.stats());
+    public Result<AiCallStatsDTO> callStats(@Valid AiCallQueryDTO query) {
+        return Result.ok(aiCallAuditService.stats(query));
     }
 }

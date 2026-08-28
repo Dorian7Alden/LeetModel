@@ -32,7 +32,7 @@ public class AiChatService {
     /**
      * 创建统一 AI 对话服务。
      *
-     * @param routingProperties 场景路由配置
+     * @param routingProperties 输入模态路由配置
      * @param providerRegistry 供应商注册表
      */
     public AiChatService(
@@ -48,7 +48,7 @@ public class AiChatService {
     }
 
     /**
-     * 根据场景路由发起同步 AI 对话。
+     * 根据输入模态路由发起同步 AI 对话。
      *
      * @param request 统一请求
      * @return 统一响应
@@ -56,7 +56,7 @@ public class AiChatService {
     public AiChatResponse chat(AiChatRequest request) {
         String callId = UUID.randomUUID().toString();
         long startedAt = System.currentTimeMillis();
-        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.scene());
+        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.effectiveModality());
         String routeProvider = route == null || route.getProvider() == null
                 ? null : route.getProvider().name();
         String routeModel = route == null ? null : route.getModel();
@@ -171,7 +171,8 @@ public class AiChatService {
                 response.content(),
                 response.reasoningContent(),
                 response.finishReason(),
-                response.usage()
+                response.usage(),
+                response.cost()
         );
     }
 }

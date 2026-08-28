@@ -4,23 +4,29 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.assistant.entity.AssistantMessage;
 import com.leetmodel.common.ai.client.AiClient;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
-import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * AI 客服首版文本对话与受控题目候选注入工作流。
@@ -74,8 +80,15 @@ public class AssistantWorkflow {
             }
             messages.add(message(role, content));
         }
+        String taskId = currentUserMessage.getId() == null
+                ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
+                taskId, "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
+                "MODEL_CFG_ASSISTANT_TEXT_0001", null, AiCallPriority.P0,
+                "assistant:" + taskId, Instant.now().plusSeconds(240));
         AiChatResponse response = aiClient.chat(new AiChatRequest(
-                AiScene.GENERAL_TEXT, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
+                AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
         if (response == null || response.content() == null || response.content().isBlank()) {
             throw new IllegalArgumentException("AI 网关未返回客服回复");
         }

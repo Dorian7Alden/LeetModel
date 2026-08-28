@@ -29,7 +29,7 @@
 - 2026-08-28 多模态协议核验：`deepseek-v4-flash-vision-exp` 接受 OpenAI 内容块中的 HTTPS PNG `image_url` 并成功识别合成图片；过小的 1×1 data URL PNG 被上游以 `invalid_request_error` 拒绝。后续只用合成材料补充尺寸与 data URL 边界，不上传真实论文。
 - ai-gateway-service 已提供 new-api Base URL、Relay Token、超时和逻辑模型映射配置；Relay Token 仅允许从运行环境注入。
 - common-ai 当前只有同步 Chat 客户端和 /internal/ai/chat，没有 Embedding 契约。
-- AiScene 只有 GENERAL_TEXT 和 MULTIMODAL，表示输入模态而非真实业务来源，不能支持优先级和评价归因。
+- 旧 AiScene 仅保留 JSON 兼容；新请求已使用 modality 与 AiCallContext 分离路由能力和业务来源，审计字段由 S2-05 完成持久化。
 - AI 调用审计已有列表、统计及 admin 代理，不应重复从零建设；但字段只有基础 Token、模型、总耗时和错误。
 - 网关设计文档曾描述本地并发保护，但当前 AiChatService 未发现对应实现，后续调度不能建立在该假设上。
 
@@ -498,59 +498,61 @@ S1 验收记录（2026-08-28）：后端 17 模块 Maven reactor 全量测试通
 
 ### S2：调用上下文、用量和费用任务
 
-#### [ ] S2-01 分离业务来源与输入模态
+#### [x] S2-01 分离业务来源与输入模态
 
 - 依赖：D-05、S1-12。
 - 工作：设计 featureCode、operationCode、modality；首批覆盖客服、正式评审、实验评审、建议、RAG 索引和 RAG 查询。
 - 验收：GENERAL_TEXT/MULTIMODAL 有兼容迁移；路由能力和统计来源可以分别查询。
 
-#### [ ] S2-02 定义统一 AiCallContext
+#### [x] S2-02 定义统一 AiCallContext
 
 - 依赖：S2-01。
 - 工作：定义 callerService、featureCode、operationCode、businessTaskId、workflowVersion、promptVersion、modelConfigVersion、evaluationTaskId、priority、idempotencyKey、deadline。
 - 验收：必填、长度、脱敏和传递边界明确；网关不解释业务 ID 的实体语义。
 
-#### [ ] S2-03 扩展 common-ai Chat 契约和消费者
+#### [x] S2-03 扩展 common-ai Chat 契约和消费者
 
 - 依赖：S2-02。
 - 工作：更新请求、客户端和序列化测试，逐个修改 assistant、review、suggestion 调用入口。
 - 验收：common-ai 与三个消费者编译通过；不存在所有调用继续归 GENERAL_TEXT 的兼容偷懒。
 
-#### [ ] S2-04 扩展 Token 与费用值对象
+#### [x] S2-04 扩展 Token 与费用值对象
 
 - 依赖：S1-04。
 - 工作：表达输入、输出、推理、缓存命中/创建、总 Token，以及币种、Decimal 金额、费用来源、价格快照和完整性。
 - 验收：未知值不是零；单位、精度、完整/部分/未知都有序列化测试。
 
-#### [ ] S2-05 迁移 AI 调用审计表
+#### [x] S2-05 迁移 AI 调用审计表
 
 - 依赖：S2-03、S2-04。
 - 工作：新增 Flyway 和索引，保存 newApiRequestId、业务上下文、queueMs、executionMs、totalMs、费用及来源；保留历史行兼容。
 - 验收：旧数据可读；支持按 callId、业务任务、评价任务、时间和状态查询；无正文列。
 
-#### [ ] S2-06 实现同步 usage 归一化
+#### [x] S2-06 实现同步 usage 归一化
 
 - 依赖：S2-05。
 - 工作：按 S1-04 的真实响应映射完整、部分和缺失 usage；审计写入失败不改变业务成功结果。
 - 验收：三类 usage 测试通过；不臆造 new-api 未提供的字段。
 
-#### [ ] S2-07 设计并实现费用补全
+#### [x] S2-07 设计并实现费用补全
 
 - 依赖：S1-04、S2-05。
 - 工作：在日志查询、回调或本地价格快照中选择实际可行方案；实现幂等补全、重试上限、最终未知和费用来源。
 - 验收：不会重复累计；new-api 日志不可用不影响业务；实际与估算费用可区分。
 
-#### [ ] S2-08 扩展现有调用查询和 admin 代理
+#### [x] S2-08 扩展现有调用查询和 admin 代理
 
 - 依赖：S2-07。
 - 工作：在已有 calls、stats 接口上增加来源、任务、版本、费用、用量、耗时和 ID 过滤/聚合。
 - 验收：可从 evaluationTaskId 追踪 callId；保持管理员鉴权；不建立重复查询接口。
 
-#### [ ] S2-09 完成计量集成测试
+#### [x] S2-09 完成计量集成测试
 
 - 依赖：S2-08。
 - 工作：使用 Mock new-api 覆盖成功、失败、usage 缺失、费用延迟、重复补全和查询聚合。
 - 验收：ai-gateway、common-ai、admin 相关测试通过，形成评价平台可依赖的稳定契约。
+
+S2 验收记录（2026-08-28）：Mock new-api 与真实 MyBatis/H2 集成测试覆盖成功、429 失败、usage 缺失、费用延迟、重复补全、evaluationTaskId 追踪和聚合口径；后端 17 模块 `mvn clean test` 全量通过，前端生产构建通过。ai-gateway 使用本地 Relay Token 启动验证时，Flyway 在 MySQL 8.0 上成功校验 3 个迁移并由 v1 升级至 v3；测试密钥仅从本地文件注入，未写入仓库或日志。
 
 ### S3：Embedding 统一调用任务
 

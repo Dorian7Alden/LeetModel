@@ -11,8 +11,10 @@ import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +55,8 @@ class AiChatServiceTest {
         when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
         AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
                 "deepseek-test", "provider-id", "answer", null, "stop",
-                new AiUsage(2L, 0L, 2L, 3L, 0L, 5L, true));
+                new AiUsage(2L, 3L, 0L, 0L, null, 2L, 5L,
+                        AiMetricCompleteness.COMPLETE));
         when(adapter.chat(eq("deepseek-test"), eq(AiApiProtocol.OPENAI_COMPLETIONS), any()))
                 .thenReturn(providerResponse);
 
@@ -100,7 +103,7 @@ class AiChatServiceTest {
         AiRoutingProperties.Route route = new AiRoutingProperties.Route();
         route.setProvider(AiProvider.NEW_API);
         route.setModel("deepseek-test");
-        routes.setRoutes(Map.of(AiScene.GENERAL_TEXT, route));
+        routes.setRoutes(Map.of(AiModality.TEXT, route));
 
         AiModelCatalogProperties.ModelProfile profile = new AiModelCatalogProperties.ModelProfile();
         profile.setProtocol(AiApiProtocol.OPENAI_COMPLETIONS);

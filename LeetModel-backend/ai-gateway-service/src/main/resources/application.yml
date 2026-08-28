@@ -17,9 +17,16 @@ ai:
     relay-token: ${NEW_API_RELAY_TOKEN:}
     connect-timeout: ${NEW_API_CONNECT_TIMEOUT:10s}
     read-timeout: ${NEW_API_READ_TIMEOUT:10m}
+  cost-enrichment:
+    enabled: ${AI_COST_ENRICHMENT_ENABLED:true}
+    max-attempts: ${AI_COST_ENRICHMENT_MAX_ATTEMPTS:3}
+    batch-size: ${AI_COST_ENRICHMENT_BATCH_SIZE:50}
+    retry-delay: ${AI_COST_ENRICHMENT_RETRY_DELAY:5m}
+    # snapshots 默认为空；只有核验并发布不可变价格版本后才能配置估算价格。
+    snapshots: {}
   gateway:
     routes:
-      GENERAL_TEXT:
+      TEXT:
         provider: NEW_API
         model: deepseek-v4-flash
       MULTIMODAL:

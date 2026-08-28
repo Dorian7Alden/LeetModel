@@ -5,6 +5,9 @@ import com.leetmodel.assistant.entity.AssistantMessage;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
@@ -55,6 +58,10 @@ class AssistantWorkflowTest {
         ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
         verify(aiClient).chat(captor.capture());
         AiChatRequest request = captor.getValue();
+        assertThat(request.modality()).isEqualTo(AiModality.TEXT);
+        assertThat(request.context().featureCode()).isEqualTo(AiFeatureCode.AI_ASSISTANT);
+        assertThat(request.context().operationCode()).isEqualTo(AiOperationCode.CHAT_REPLY);
+        assertThat(request.context().businessTaskId()).isEqualTo("message:2");
         assertThat(request.messages().get(0).role()).isEqualTo(AiRole.SYSTEM);
         assertThat(request.messages().get(0).content().get(0).text())
                 .contains("不编造平台状态、题目或用户数据");

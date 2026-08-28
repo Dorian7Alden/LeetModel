@@ -6,9 +6,14 @@ import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCallPriority;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
-import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -19,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,7 +50,8 @@ class AiCallAuditServiceTest {
     void shouldPersistOnlySuccessMetadata() {
         AiChatResponse response = new AiChatResponse("provider-id", AiProvider.NEW_API,
                 "deepseek-test", "response-id", "private answer", "private reasoning",
-                "stop", new AiUsage(10L, 0L, 10L, 5L, 1L, 15L, true));
+                "stop", new AiUsage(10L, 5L, 1L, 0L, null, 10L, 15L,
+                AiMetricCompleteness.COMPLETE));
 
         service.recordSuccess("call-1", request(), "NEW_API", "configured-model", response, 321L);
 
@@ -52,11 +59,23 @@ class AiCallAuditServiceTest {
         verify(mapper).insert(captor.capture());
         AiCallLog saved = captor.getValue();
         assertThat(saved.getCallId()).isEqualTo("call-1");
-        assertThat(saved.getScene()).isEqualTo("GENERAL_TEXT");
+        assertThat(saved.getScene()).isEqualTo("TEXT");
+        assertThat(saved.getModality()).isEqualTo("TEXT");
+        assertThat(saved.getCallerService()).isEqualTo("ai-assistant-service");
+        assertThat(saved.getFeatureCode()).isEqualTo("AI_ASSISTANT");
+        assertThat(saved.getOperationCode()).isEqualTo("CHAT_REPLY");
+        assertThat(saved.getBusinessTaskId()).isEqualTo("message:1");
+        assertThat(saved.getProviderResponseId()).isEqualTo("response-id");
+        assertThat(saved.getNewApiRequestId()).isNull();
         assertThat(saved.getProvider()).isEqualTo("NEW_API");
         assertThat(saved.getModel()).isEqualTo("deepseek-test");
         assertThat(saved.getStatus()).isEqualTo("SUCCEEDED");
         assertThat(saved.getTotalTokens()).isEqualTo(15L);
+        assertThat(saved.getUsageCompleteness()).isEqualTo("COMPLETE");
+        assertThat(saved.getCostCompleteness()).isEqualTo("UNKNOWN");
+        assertThat(saved.getQueueMs()).isZero();
+        assertThat(saved.getExecutionMs()).isEqualTo(321L);
+        assertThat(saved.getTotalMs()).isEqualTo(321L);
         assertThat(saved.getDurationMs()).isEqualTo(321L);
         assertThat(AiCallLog.class.getDeclaredFields())
                 .extracting(java.lang.reflect.Field::getName)
@@ -84,7 +103,32 @@ class AiCallAuditServiceTest {
 
         service.recordSuccess("call-1", request(), "NEW_API", "model",
                 new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
-                        "stop", new AiUsage(null, null, null, null, null, null, false)), 1L);
+                        "stop", new AiUsage(null, null, null, null, null, null, null,
+                        AiMetricCompleteness.UNKNOWN)), 1L);
+    }
+
+    @Test
+    void shouldPersistPartialAndUnknownUsageWithoutZeroFilling() {
+        service.recordSuccess("call-partial", request(), "NEW_API", "model",
+                new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
+                        "stop", new AiUsage(8L, null, null, 2L, null, null, null,
+                        AiMetricCompleteness.PARTIAL)), 2L);
+        service.recordSuccess("call-unknown", request(), "NEW_API", "model",
+                new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
+                        "stop", null), 3L);
+
+        ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
+        verify(mapper, org.mockito.Mockito.times(2)).insert(captor.capture());
+        AiCallLog partial = captor.getAllValues().get(0);
+        AiCallLog unknown = captor.getAllValues().get(1);
+        assertThat(partial.getUsageCompleteness()).isEqualTo("PARTIAL");
+        assertThat(partial.getInputTokens()).isEqualTo(8L);
+        assertThat(partial.getCacheHitTokens()).isEqualTo(2L);
+        assertThat(partial.getOutputTokens()).isNull();
+        assertThat(partial.getTotalTokens()).isNull();
+        assertThat(unknown.getUsageCompleteness()).isEqualTo("UNKNOWN");
+        assertThat(unknown.getInputTokens()).isNull();
+        assertThat(unknown.getTotalTokens()).isNull();
     }
 
     @Test
@@ -93,13 +137,17 @@ class AiCallAuditServiceTest {
         AiCallLog row = new AiCallLog();
         row.setId(9007199254740993L);
         row.setCallId("call-1");
-        row.setScene("GENERAL_TEXT");
+        row.setScene("TEXT");
+        row.setModality("TEXT");
+        row.setFeatureCode("PAPER_REVIEW");
+        row.setOperationCode("EXPERIMENT_REVIEW");
+        row.setEvaluationTaskId("evaluation:7");
         row.setProvider("NEW_API");
         row.setModel("model");
         row.setStatus("SUCCEEDED");
         row.setCreateTime(LocalDateTime.now());
         when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(row));
-        when(mapper.selectStats()).thenReturn(null);
+        when(mapper.selectStats(any(AiCallQueryDTO.class))).thenReturn(null);
 
         var rows = service.list(new AiCallQueryDTO(" general_text ", "new_api", " model ",
                 "succeeded", 10));
@@ -107,6 +155,7 @@ class AiCallAuditServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getId()).isEqualTo(9007199254740993L);
+        assertThat(rows.get(0).getEvaluationTaskId()).isEqualTo("evaluation:7");
         assertThat(stats).usingRecursiveComparison()
                 .isEqualTo(new AiCallStatsDTO(0L, 0L, 0L, 0L, 0L));
     }
@@ -120,6 +169,11 @@ class AiCallAuditServiceTest {
     }
 
     private AiChatRequest request() {
-        return new AiChatRequest(AiScene.GENERAL_TEXT, List.of(), 10, null, null, false);
+        AiCallContext context = new AiCallContext("ai-assistant-service",
+                AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY, "message:1",
+                "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
+                "MODEL_CFG_ASSISTANT_TEXT_0001", null, AiCallPriority.P0,
+                "assistant:message:1", Instant.parse("2099-01-01T00:00:00Z"));
+        return new AiChatRequest(AiModality.TEXT, context, List.of(), 10, null, null, false);
     }
 }

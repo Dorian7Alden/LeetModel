@@ -13,6 +13,7 @@ import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.security.config.SaTokenAnnotationConfig;
 import com.leetmodel.common.security.config.SecurityConfig;
 import com.leetmodel.common.security.handler.AuthExceptionHandler;
+import com.leetmodel.admin.service.AdminFeignExecutor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -29,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = {
         DashboardAuthorizationTest.TestApplication.class,
         DashboardController.class,
+        AdminAiController.class,
         SaTokenAnnotationConfig.class,
         SecurityConfig.class,
         AuthExceptionHandler.class
@@ -58,6 +60,7 @@ class DashboardAuthorizationTest {
     @MockBean AssistantFeignClient assistant;
     @MockBean EvaluationFeignClient evaluations;
     @MockBean AiGatewayFeignClient aiGateway;
+    @MockBean AdminFeignExecutor adminFeignExecutor;
 
     @Test
     void unauthenticatedRequestMustNotReachDashboard() throws Exception {
@@ -67,5 +70,14 @@ class DashboardAuthorizationTest {
 
         verifyNoInteractions(users, teams, problems, submissions, reviews,
                 suggestions, rankings, assistant, evaluations, aiGateway);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachAiCallProxy() throws Exception {
+        mockMvc.perform(get("/api/admin/ai/calls").param("evaluationTaskId", "eval-1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(aiGateway, adminFeignExecutor);
     }
 }

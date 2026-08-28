@@ -30,7 +30,7 @@ public class AdminAiController {
     }
 
     @GetMapping("/calls/stats")
-    public Result<AiCallStatsDTO> stats() {
-        return executor.forward("AI 网关", aiGatewayClient::getCallStats);
+    public Result<AiCallStatsDTO> stats(@Valid AiCallQueryDTO query) {
+        return executor.forward("AI 网关", () -> aiGatewayClient.getCallStats(query));
     }
 }

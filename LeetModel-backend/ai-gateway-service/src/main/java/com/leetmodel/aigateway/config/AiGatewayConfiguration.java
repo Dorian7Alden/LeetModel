@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties({
         NewApiProperties.class,
+        CostEnrichmentProperties.class,
         AiRoutingProperties.class,
         AiModelCatalogProperties.class
 })

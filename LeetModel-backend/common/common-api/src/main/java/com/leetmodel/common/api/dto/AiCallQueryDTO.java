@@ -1,30 +1,50 @@
 package com.leetmodel.common.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** AI 调用审计查询条件。 */
+import java.time.LocalDateTime;
+
+/** AI 调用审计查询条件；所有字段只匹配结构化元数据。 */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class AiCallQueryDTO {
-    @Size(max = 30, message = "调用场景不能超过30个字符")
-    private String scene;
+    @Deprecated @Size(max = 30) private String scene;
+    @Size(max = 20) private String modality;
+    @Size(max = 64) private String callerService;
+    @Size(max = 64) private String featureCode;
+    @Size(max = 64) private String operationCode;
+    @Size(max = 64) private String callId;
+    @Size(max = 128) private String businessTaskId;
+    @Size(max = 128) private String evaluationTaskId;
+    @Size(max = 64) private String workflowVersion;
+    @Size(max = 100) private String promptVersion;
+    @Size(max = 100) private String modelExecutionConfigVersion;
+    @Size(max = 30) private String provider;
+    @Size(max = 100) private String model;
+    @Size(max = 20) private String status;
+    @Size(max = 40) private String costSource;
+    private LocalDateTime createdFrom;
+    private LocalDateTime createdTo;
+    @Min(1) @Max(100) private Integer limit = 20;
 
-    @Size(max = 30, message = "供应商不能超过30个字符")
-    private String provider;
+    public AiCallQueryDTO(String scene, String provider, String model, String status, Integer limit) {
+        this.scene = scene;
+        this.provider = provider;
+        this.model = model;
+        this.status = status;
+        this.limit = limit;
+    }
 
-    @Size(max = 100, message = "模型名称不能超过100个字符")
-    private String model;
-
-    @Size(max = 20, message = "调用状态不能超过20个字符")
-    private String status;
-
-    @Min(value = 1, message = "查询数量不能小于1")
-    @Max(value = 100, message = "查询数量不能超过100")
-    private Integer limit = 20;
+    @JsonIgnore
+    @java.beans.Transient
+    @AssertTrue(message = "查询开始时间不能晚于结束时间")
+    public boolean isTimeRangeValid() {
+        return createdFrom == null || createdTo == null || !createdFrom.isAfter(createdTo);
+    }
 }

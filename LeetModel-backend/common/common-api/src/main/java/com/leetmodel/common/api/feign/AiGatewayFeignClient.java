@@ -18,5 +18,5 @@ public interface AiGatewayFeignClient {
     Result<List<AiCallLogDTO>> listCalls(@SpringQueryMap AiCallQueryDTO query);
 
     @GetMapping("/internal/ai/calls/stats")
-    Result<AiCallStatsDTO> getCallStats();
+    Result<AiCallStatsDTO> getCallStats(@SpringQueryMap AiCallQueryDTO query);
 }
