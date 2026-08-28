@@ -603,7 +603,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：选择兼容的 Elasticsearch 8.x 固定版本，加入 Compose、健康检查、持久卷和开发资源限制。
 - 验收：可独立启动并健康；README 写明端口、版本和启动方式；默认命令不删除数据。
 
-#### [ ] S4-02 增加 assistant RAG 配置
+#### [x] S4-02 增加 assistant RAG 配置
 
 - 依赖：S4-01。
 - 工作：配置开关、知识库路径、索引别名、Top K、阈值、Token 预算、批量和超时；测试允许内存 Store。
