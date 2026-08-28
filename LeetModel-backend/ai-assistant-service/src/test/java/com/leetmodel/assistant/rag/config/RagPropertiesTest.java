@@ -23,6 +23,8 @@ class RagPropertiesTest {
             assertThat(properties.getKnowledgeBasePath()).isEqualTo("../rag_kb");
             assertThat(properties.getIndexAlias()).isEqualTo("leetmodel-rag-v1-read");
             assertThat(properties.getEmbeddingModelVersion()).isEqualTo("qwen3.7-text-embedding@1024");
+            assertThat(properties.getElasticsearchUri()).isEqualTo("http://127.0.0.1:9200");
+            assertThat(properties.getEmbeddingDimension()).isEqualTo(1024);
             assertThat(properties.getTopK()).isEqualTo(8);
             assertThat(properties.getScoreThreshold()).isEqualTo(0.65);
             assertThat(properties.getTokenBudget()).isEqualTo(3000);

@@ -34,6 +34,13 @@ public class RagProperties {
     @NotBlank
     private String embeddingModelVersion = "qwen3.7-text-embedding@1024";
 
+    @NotBlank
+    private String elasticsearchUri = "http://127.0.0.1:9200";
+
+    @Min(1)
+    @Max(32768)
+    private int embeddingDimension = 1024;
+
     @Min(1)
     @Max(100)
     private int topK = 8;
