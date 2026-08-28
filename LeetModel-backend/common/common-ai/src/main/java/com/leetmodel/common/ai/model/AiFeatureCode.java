@@ -5,6 +5,7 @@ public enum AiFeatureCode {
     AI_ASSISTANT,
     PAPER_REVIEW,
     PAPER_SUGGESTION,
+    ADMIN_TEST,
     RAG,
     LEGACY
 }

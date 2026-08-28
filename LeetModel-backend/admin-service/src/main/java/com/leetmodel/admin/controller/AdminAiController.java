@@ -5,11 +5,15 @@ import com.leetmodel.admin.service.AdminFeignExecutor;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiQueueQueryDTO;
+import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.core.result.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,5 +36,15 @@ public class AdminAiController {
     @GetMapping("/calls/stats")
     public Result<AiCallStatsDTO> stats(@Valid AiCallQueryDTO query) {
         return executor.forward("AI 网关", () -> aiGatewayClient.getCallStats(query));
+    }
+
+    @GetMapping("/queue")
+    public Result<List<AiQueueTaskDTO>> queue(@Valid AiQueueQueryDTO query) {
+        return executor.forward("AI 网关", () -> aiGatewayClient.listQueueTasks(query));
+    }
+
+    @PostMapping("/queue/{taskId}/cancel")
+    public Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable String taskId) {
+        return executor.forward("AI 网关", () -> aiGatewayClient.cancelQueueTask(taskId));
     }
 }

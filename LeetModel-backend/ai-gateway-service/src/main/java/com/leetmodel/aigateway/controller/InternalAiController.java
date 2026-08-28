@@ -1,8 +1,8 @@
 package com.leetmodel.aigateway.controller;
 
-import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiModelService;
-import com.leetmodel.aigateway.service.AiEmbeddingService;
+import com.leetmodel.aigateway.service.AiScheduledCallService;
+import com.leetmodel.aigateway.service.AiQueueOperationsService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
@@ -12,6 +12,8 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiQueueQueryDTO;
+import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 业务服务调用 AI 网关的内部接口。
@@ -36,10 +39,10 @@ import java.util.List;
 @Tag(name = "AI 网关内部调用")
 public class InternalAiController {
 
-    private final AiChatService aiChatService;
-    private final AiEmbeddingService aiEmbeddingService;
+    private final AiScheduledCallService aiScheduledCallService;
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
+    private final AiQueueOperationsService aiQueueOperationsService;
 
     /**
      * 发起同步 AI 对话。
@@ -49,14 +52,15 @@ public class InternalAiController {
      */
     @Operation(summary = "发起同步 AI 对话")
     @PostMapping("/chat")
-    public Result<AiChatResponse> chat(@Valid @RequestBody AiChatRequest request) {
-        return Result.ok(aiChatService.chat(request));
+    public CompletableFuture<Result<AiChatResponse>> chat(@Valid @RequestBody AiChatRequest request) {
+        return aiScheduledCallService.chat(request).thenApply(Result::ok);
     }
 
     @Operation(summary = "发起同步 Embedding 调用")
     @PostMapping("/embeddings")
-    public Result<AiEmbeddingResponse> embeddings(@Valid @RequestBody AiEmbeddingRequest request) {
-        return Result.ok(aiEmbeddingService.embed(request));
+    public CompletableFuture<Result<AiEmbeddingResponse>> embeddings(
+            @Valid @RequestBody AiEmbeddingRequest request) {
+        return aiScheduledCallService.embed(request).thenApply(Result::ok);
     }
 
     /**
@@ -81,5 +85,17 @@ public class InternalAiController {
     @GetMapping("/calls/stats")
     public Result<AiCallStatsDTO> callStats(@Valid AiCallQueryDTO query) {
         return Result.ok(aiCallAuditService.stats(query));
+    }
+
+    @Operation(summary = "查询 AI 调用队列元数据")
+    @GetMapping("/tasks")
+    public Result<List<AiQueueTaskDTO>> queueTasks(@Valid AiQueueQueryDTO query) {
+        return Result.ok(aiQueueOperationsService.list(query));
+    }
+
+    @Operation(summary = "取消可取消的 AI 调用任务")
+    @PostMapping("/tasks/{taskId}/cancel")
+    public Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable String taskId) {
+        return Result.ok(aiQueueOperationsService.cancel(taskId));
     }
 }

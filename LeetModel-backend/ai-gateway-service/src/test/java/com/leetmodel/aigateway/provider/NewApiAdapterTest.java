@@ -137,8 +137,17 @@ class NewApiAdapterTest {
 
     @Test
     void shouldMapRateLimit() {
-        assertHttpError(HttpStatus.TOO_MANY_REQUESTS,
-                "{\"error\":{\"type\":\"rate_limit_error\"}}", 51207);
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .header(HttpHeaders.RETRY_AFTER, "7")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"error\":{\"type\":\"rate_limit_error\"}}"));
+        assertThatThrownBy(() -> fixture.adapter.chat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, textRequest()))
+                .isInstanceOfSatisfying(AiUpstreamRateLimitException.class,
+                        exception -> assertThat(exception.getRetryAfter()).isEqualTo(java.time.Duration.ofSeconds(7)));
+        fixture.server.verify();
     }
 
     @Test

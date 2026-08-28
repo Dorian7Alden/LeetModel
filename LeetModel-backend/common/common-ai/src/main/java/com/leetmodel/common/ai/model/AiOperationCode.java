@@ -6,6 +6,7 @@ public enum AiOperationCode {
     FORMAL_REVIEW(AiFeatureCode.PAPER_REVIEW),
     EXPERIMENT_REVIEW(AiFeatureCode.PAPER_REVIEW),
     GENERATE_SUGGESTION(AiFeatureCode.PAPER_SUGGESTION),
+    ADMIN_MODEL_TEST(AiFeatureCode.ADMIN_TEST),
     INDEX_DOCUMENTS(AiFeatureCode.RAG),
     RETRIEVE_CONTEXT(AiFeatureCode.RAG),
     LEGACY_CHAT(AiFeatureCode.LEGACY);

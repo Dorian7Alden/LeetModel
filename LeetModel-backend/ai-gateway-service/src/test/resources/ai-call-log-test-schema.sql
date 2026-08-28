@@ -25,3 +25,30 @@ CREATE TABLE ai_call_log (
   update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   deleted BOOLEAN DEFAULT FALSE
 );
+
+DROP TABLE IF EXISTS ai_call_attempt;
+DROP TABLE IF EXISTS ai_call_task;
+CREATE TABLE ai_call_task (
+  id BIGINT PRIMARY KEY, task_id VARCHAR(64) NOT NULL UNIQUE, call_id VARCHAR(64) NOT NULL UNIQUE,
+  caller_service VARCHAR(64) NOT NULL, idempotency_key VARCHAR(128) NOT NULL,
+  call_type VARCHAR(20) NOT NULL, feature_code VARCHAR(64) NOT NULL, operation_code VARCHAR(64) NOT NULL,
+  declared_priority VARCHAR(10) NOT NULL, effective_priority VARCHAR(10) NOT NULL,
+  state VARCHAR(20) NOT NULL, model_execution_config_version VARCHAR(100),
+  request_hash CHAR(64) NOT NULL, request_payload CLOB NOT NULL, result_payload CLOB,
+  deadline TIMESTAMP NOT NULL, max_queue_wait_ms BIGINT NOT NULL,
+  lease_owner VARCHAR(100), lease_expiry TIMESTAMP, attempt_count INT DEFAULT 0,
+  version BIGINT DEFAULT 0, cancel_requested BOOLEAN DEFAULT FALSE,
+  error_code VARCHAR(64), dead_letter_reason VARCHAR(100), queued_at TIMESTAMP NOT NULL,
+  leased_at TIMESTAMP, started_at TIMESTAMP, finished_at TIMESTAMP,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted BOOLEAN DEFAULT FALSE,
+  CONSTRAINT uk_task_caller_idempotency UNIQUE (caller_service, idempotency_key)
+);
+CREATE TABLE ai_call_attempt (
+  id BIGINT PRIMARY KEY, attempt_id VARCHAR(64) NOT NULL UNIQUE, task_id VARCHAR(64) NOT NULL,
+  attempt_no INT NOT NULL, state VARCHAR(20) NOT NULL, owner VARCHAR(100) NOT NULL,
+  new_api_request_id VARCHAR(128), http_status INT, error_code VARCHAR(64), retry_after_ms BIGINT,
+  prepared_at TIMESTAMP NOT NULL, sent_at TIMESTAMP, acknowledged_at TIMESTAMP, finished_at TIMESTAMP,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted BOOLEAN DEFAULT FALSE, CONSTRAINT uk_attempt_task_no UNIQUE (task_id, attempt_no)
+);

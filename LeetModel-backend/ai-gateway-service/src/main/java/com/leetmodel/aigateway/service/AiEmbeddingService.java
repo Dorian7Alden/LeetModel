@@ -30,7 +30,10 @@ public class AiEmbeddingService {
     }
 
     public AiEmbeddingResponse embed(AiEmbeddingRequest request) {
-        String callId = UUID.randomUUID().toString();
+        return embed(request, UUID.randomUUID().toString(), 0L);
+    }
+
+    public AiEmbeddingResponse embed(AiEmbeddingRequest request, String callId, long queueMs) {
         long startedAt = System.currentTimeMillis();
         AiEmbeddingProperties.Binding binding = properties.getEmbeddingModels().get(request.logicalModel());
         String provider = binding == null || binding.getProvider() == null
@@ -44,13 +47,13 @@ public class AiEmbeddingService {
                     .embed(binding.getModel(), request.inputs());
             validateResponse(request.inputs().size(), binding.getDimension(), providerResponse);
             callAuditService.recordEmbeddingSuccess(callId, request, provider, model, providerResponse,
-                    binding.getDimension(), System.currentTimeMillis() - startedAt);
+                    binding.getDimension(), System.currentTimeMillis() - startedAt, queueMs);
             return new AiEmbeddingResponse(callId, request.logicalModel(), providerResponse.model(),
                     binding.getDimension(), providerResponse.vectors(), providerResponse.usage(),
                     providerResponse.cost());
         } catch (RuntimeException exception) {
             callAuditService.recordEmbeddingFailure(callId, request, provider, model, exception,
-                    System.currentTimeMillis() - startedAt);
+                    System.currentTimeMillis() - startedAt, queueMs);
             throw exception;
         }
     }
