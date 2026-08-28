@@ -11,7 +11,7 @@ assistant:
   rag:
     # RAG V1 默认关闭；启用前需完成索引构建并切换读别名。
     enabled: ${ASSISTANT_RAG_ENABLED:false}
-    knowledge-base-path: ${ASSISTANT_RAG_KB_PATH:../rag_kb/数学建模}
+    knowledge-base-path: ${ASSISTANT_RAG_KB_PATH:../rag_kb}
     index-alias: ${ASSISTANT_RAG_INDEX_ALIAS:leetmodel-rag-v1-read}
     top-k: ${ASSISTANT_RAG_TOP_K:8}
     score-threshold: ${ASSISTANT_RAG_SCORE_THRESHOLD:0.65}
