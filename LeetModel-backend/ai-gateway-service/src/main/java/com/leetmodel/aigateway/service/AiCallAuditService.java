@@ -138,6 +138,11 @@ public class AiCallAuditService {
         record.setCostSource(normalized.source().name());
         record.setPriceSnapshotVersion(normalized.priceSnapshotVersion());
         record.setCostCompleteness(normalized.completeness().name());
+        record.setCostEnrichmentStatus(normalized.source() == com.leetmodel.common.ai.model.AiCostSource.UNKNOWN
+                ? "PENDING" : "COMPLETED");
+        record.setCostEnrichmentAttempts(0);
+        record.setCostNextRetryAt(normalized.source() == com.leetmodel.common.ai.model.AiCostSource.UNKNOWN
+                ? LocalDateTime.now(ZoneOffset.UTC) : null);
     }
 
     private void safeInsert(AiCallLog record) {

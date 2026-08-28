@@ -34,4 +34,21 @@ class AiCallLogMigrationTest {
                 .contains("idx_status_create_time");
         assertThat(sql).doesNotContain("prompt_body", "response_body", "paper_content", "knowledge_content");
     }
+
+    @Test
+    void costUpdateMustBeConditionalAndMustNotAccumulate() throws Exception {
+        String mapperSource;
+        try (var input = getClass().getResourceAsStream(
+                "/db/migration/V3__add_cost_enrichment_state.sql")) {
+            assertThat(input).isNotNull();
+            mapperSource = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+        }
+        String javaSource = java.nio.file.Files.readString(java.nio.file.Path.of(
+                "src/main/java/com/leetmodel/aigateway/mapper/AiCallLogMapper.java"));
+
+        assertThat(mapperSource).contains("idx_cost_enrichment_due", "cost_enrichment_attempts");
+        assertThat(javaSource).contains("SET cost_amount = #{amount}")
+                .contains("cost_source = 'UNKNOWN'")
+                .doesNotContain("cost_amount + #{amount}");
+    }
 }

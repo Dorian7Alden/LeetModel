@@ -51,6 +51,10 @@ public class AiCallLog extends BaseEntity {
     private String costSource;
     private String priceSnapshotVersion;
     private String costCompleteness;
+    private String costEnrichmentStatus;
+    private Integer costEnrichmentAttempts;
+    private LocalDateTime costNextRetryAt;
+    private LocalDateTime costLastAttemptAt;
     private Integer errorCode;
     private String errorMessage;
 }
