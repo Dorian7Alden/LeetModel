@@ -171,7 +171,8 @@ public class AiChatService {
                 response.content(),
                 response.reasoningContent(),
                 response.finishReason(),
-                response.usage()
+                response.usage(),
+                response.cost()
         );
     }
 }

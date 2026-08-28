@@ -5,6 +5,7 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -52,7 +53,8 @@ public class NewApiAdapter extends AbstractOpenAiCompatibleAdapter {
 
     private AiUsage toUsage(OpenAiCompatibleResponse.Usage source) {
         if (source == null) {
-            return new AiUsage(null, null, null, null, null, null, false);
+            return new AiUsage(null, null, null, null, null, null, null,
+                    AiMetricCompleteness.UNKNOWN);
         }
         Long cacheHit = source.promptCacheHitTokens() != null
                 ? source.promptCacheHitTokens() : source.cachedTokens();
@@ -64,7 +66,11 @@ public class NewApiAdapter extends AbstractOpenAiCompatibleAdapter {
                 ? null : source.completionTokensDetails().reasoningTokens();
         boolean complete = source.promptTokens() != null
                 && source.completionTokens() != null && source.totalTokens() != null;
-        return new AiUsage(source.promptTokens(), cacheHit, cacheMiss,
-                source.completionTokens(), reasoning, source.totalTokens(), complete);
+        boolean any = source.promptTokens() != null || source.completionTokens() != null
+                || source.totalTokens() != null || cacheHit != null || cacheMiss != null || reasoning != null;
+        AiMetricCompleteness completeness = complete ? AiMetricCompleteness.COMPLETE
+                : any ? AiMetricCompleteness.PARTIAL : AiMetricCompleteness.UNKNOWN;
+        return new AiUsage(source.promptTokens(), source.completionTokens(), reasoning,
+                cacheHit, null, cacheMiss, source.totalTokens(), completeness);
     }
 }

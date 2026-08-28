@@ -11,6 +11,7 @@ package com.leetmodel.common.ai.model;
  * @param reasoningContent 思考内容
  * @param finishReason 停止原因
  * @param usage Token 用量
+ * @param cost 调用费用；同步响应不可得时为 null 或 UNKNOWN
  */
 public record AiChatResponse(
         String callId,
@@ -20,6 +21,11 @@ public record AiChatResponse(
         String content,
         String reasoningContent,
         String finishReason,
-        AiUsage usage
+        AiUsage usage,
+        AiCost cost
 ) {
+    public AiChatResponse(String callId, AiProvider provider, String model, String providerResponseId,
+                          String content, String reasoningContent, String finishReason, AiUsage usage) {
+        this(callId, provider, model, providerResponseId, content, reasoningContent, finishReason, usage, null);
+    }
 }

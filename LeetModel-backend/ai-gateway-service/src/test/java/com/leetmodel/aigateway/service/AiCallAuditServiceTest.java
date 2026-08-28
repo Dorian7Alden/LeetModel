@@ -9,6 +9,7 @@ import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -44,7 +45,8 @@ class AiCallAuditServiceTest {
     void shouldPersistOnlySuccessMetadata() {
         AiChatResponse response = new AiChatResponse("provider-id", AiProvider.NEW_API,
                 "deepseek-test", "response-id", "private answer", "private reasoning",
-                "stop", new AiUsage(10L, 0L, 10L, 5L, 1L, 15L, true));
+                "stop", new AiUsage(10L, 5L, 1L, 0L, null, 10L, 15L,
+                AiMetricCompleteness.COMPLETE));
 
         service.recordSuccess("call-1", request(), "NEW_API", "configured-model", response, 321L);
 
@@ -84,7 +86,8 @@ class AiCallAuditServiceTest {
 
         service.recordSuccess("call-1", request(), "NEW_API", "model",
                 new AiChatResponse(null, AiProvider.NEW_API, "model", null, "ok", null,
-                        "stop", new AiUsage(null, null, null, null, null, null, false)), 1L);
+                        "stop", new AiUsage(null, null, null, null, null, null, null,
+                        AiMetricCompleteness.UNKNOWN)), 1L);
     }
 
     @Test
