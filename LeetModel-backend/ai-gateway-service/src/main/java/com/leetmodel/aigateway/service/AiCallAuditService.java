@@ -6,6 +6,9 @@ import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCost;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
@@ -16,6 +19,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /** 保存和查询不含 Prompt、回答与密钥的最小 AI 调用审计。 */
@@ -33,7 +38,9 @@ public class AiCallAuditService {
         record.setStatus("SUCCEEDED");
         record.setProvider(response.provider() == null ? record.getProvider() : response.provider().name());
         record.setModel(StringUtils.hasText(response.model()) ? response.model() : record.getModel());
+        record.setProviderResponseId(response.providerResponseId());
         applyUsage(record, response.usage());
+        applyCost(record, response.cost());
         safeInsert(record);
     }
 
@@ -72,21 +79,65 @@ public class AiCallAuditService {
                                  String routeModel, long durationMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
-        record.setScene(request.effectiveModality() == null ? UNKNOWN : request.effectiveModality().name());
+        String modality = request.effectiveModality() == null ? UNKNOWN : request.effectiveModality().name();
+        record.setScene(modality);
+        record.setModality(modality);
+        applyContext(record, request.context(), callId);
         record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
         record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
         record.setDurationMs(Math.max(0L, durationMs));
+        record.setQueueMs(0L);
+        record.setExecutionMs(Math.max(0L, durationMs));
+        record.setTotalMs(Math.max(0L, durationMs));
         record.setUsageComplete(false);
+        record.setUsageCompleteness(AiMetricCompleteness.UNKNOWN.name());
+        applyCost(record, null);
         return record;
+    }
+
+    private void applyContext(AiCallLog record, AiCallContext context, String callId) {
+        if (context == null) {
+            record.setCallerService("LEGACY");
+            record.setFeatureCode("LEGACY");
+            record.setOperationCode("LEGACY_CHAT");
+            record.setIdempotencyKey("legacy-call:" + callId);
+            return;
+        }
+        record.setCallerService(context.callerService());
+        record.setFeatureCode(context.featureCode().name());
+        record.setOperationCode(context.operationCode().name());
+        record.setBusinessTaskId(context.businessTaskId());
+        record.setWorkflowVersion(context.workflowVersion());
+        record.setPromptVersion(context.promptVersion());
+        record.setModelExecutionConfigVersion(context.modelExecutionConfigVersion());
+        record.setEvaluationTaskId(context.evaluationTaskId());
+        record.setPriority(context.priority().name());
+        record.setIdempotencyKey(context.idempotencyKey());
+        record.setDeadline(LocalDateTime.ofInstant(context.deadline(), ZoneOffset.UTC));
     }
 
     private void applyUsage(AiCallLog record, AiUsage usage) {
         if (usage == null) return;
-        record.setPromptTokens(usage.promptTokens());
-        record.setCompletionTokens(usage.completionTokens());
+        record.setInputTokens(usage.inputTokens());
+        record.setOutputTokens(usage.outputTokens());
+        record.setPromptTokens(usage.inputTokens());
+        record.setCompletionTokens(usage.outputTokens());
         record.setReasoningTokens(usage.reasoningTokens());
+        record.setCacheHitTokens(usage.cacheHitTokens());
+        record.setCacheCreationTokens(usage.cacheCreationTokens());
+        record.setCacheMissTokens(usage.cacheMissTokens());
         record.setTotalTokens(usage.totalTokens());
         record.setUsageComplete(usage.complete());
+        record.setUsageCompleteness(usage.completeness().name());
+    }
+
+    private void applyCost(AiCallLog record, AiCost cost) {
+        AiCost normalized = cost == null ? AiCost.unknown() : cost;
+        record.setCostAmount(normalized.amount());
+        record.setCostCurrency(normalized.currency());
+        record.setCostSource(normalized.source().name());
+        record.setPriceSnapshotVersion(normalized.priceSnapshotVersion());
+        record.setCostCompleteness(normalized.completeness().name());
     }
 
     private void safeInsert(AiCallLog record) {

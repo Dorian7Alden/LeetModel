@@ -6,8 +6,12 @@ import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCallPriority;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
-import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
@@ -20,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -55,10 +60,22 @@ class AiCallAuditServiceTest {
         AiCallLog saved = captor.getValue();
         assertThat(saved.getCallId()).isEqualTo("call-1");
         assertThat(saved.getScene()).isEqualTo("TEXT");
+        assertThat(saved.getModality()).isEqualTo("TEXT");
+        assertThat(saved.getCallerService()).isEqualTo("ai-assistant-service");
+        assertThat(saved.getFeatureCode()).isEqualTo("AI_ASSISTANT");
+        assertThat(saved.getOperationCode()).isEqualTo("CHAT_REPLY");
+        assertThat(saved.getBusinessTaskId()).isEqualTo("message:1");
+        assertThat(saved.getProviderResponseId()).isEqualTo("response-id");
+        assertThat(saved.getNewApiRequestId()).isNull();
         assertThat(saved.getProvider()).isEqualTo("NEW_API");
         assertThat(saved.getModel()).isEqualTo("deepseek-test");
         assertThat(saved.getStatus()).isEqualTo("SUCCEEDED");
         assertThat(saved.getTotalTokens()).isEqualTo(15L);
+        assertThat(saved.getUsageCompleteness()).isEqualTo("COMPLETE");
+        assertThat(saved.getCostCompleteness()).isEqualTo("UNKNOWN");
+        assertThat(saved.getQueueMs()).isZero();
+        assertThat(saved.getExecutionMs()).isEqualTo(321L);
+        assertThat(saved.getTotalMs()).isEqualTo(321L);
         assertThat(saved.getDurationMs()).isEqualTo(321L);
         assertThat(AiCallLog.class.getDeclaredFields())
                 .extracting(java.lang.reflect.Field::getName)
@@ -123,6 +140,11 @@ class AiCallAuditServiceTest {
     }
 
     private AiChatRequest request() {
-        return new AiChatRequest(AiScene.GENERAL_TEXT, List.of(), 10, null, null, false);
+        AiCallContext context = new AiCallContext("ai-assistant-service",
+                AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY, "message:1",
+                "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
+                "MODEL_CFG_ASSISTANT_TEXT_0001", null, AiCallPriority.P0,
+                "assistant:message:1", Instant.parse("2099-01-01T00:00:00Z"));
+        return new AiChatRequest(AiModality.TEXT, context, List.of(), 10, null, null, false);
     }
 }
