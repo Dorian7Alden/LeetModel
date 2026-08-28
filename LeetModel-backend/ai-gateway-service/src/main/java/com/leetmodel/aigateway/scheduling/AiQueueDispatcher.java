@@ -94,6 +94,7 @@ public class AiQueueDispatcher {
     private void executeClaimed(String taskId, boolean p0) {
         ScheduledFuture<?> heartbeatTask = null;
         AiCallAttempt attempt = null;
+        String attemptState = "PREPARED";
         try {
             AiCallTask task = selectTask(taskId);
             if (Boolean.TRUE.equals(task.getCancelRequested())) {
@@ -111,25 +112,36 @@ public class AiQueueDispatcher {
             heartbeatTask = heartbeat.scheduleAtFixedRate(() -> renew(taskId),
                     properties.getHeartbeatInterval().toMillis(), properties.getHeartbeatInterval().toMillis(),
                     TimeUnit.MILLISECONDS);
-            attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "DISPATCHING", null,
-                    utcNow());
+            if (attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "DISPATCHING", null,
+                    utcNow()) != 1) throw new IllegalStateException("AI attempt 派发状态冲突");
+            attemptState = "DISPATCHING";
             String result = taskExecutor.execute(selectTask(taskId));
+            if (attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "ACKNOWLEDGED", null,
+                    utcNow()) != 1) throw new IllegalStateException("AI attempt 确认状态冲突");
+            attemptState = "ACKNOWLEDGED";
             rateLimitBackoff.onSuccess();
             AiCallTask completed = selectTask(taskId);
             String terminal = Boolean.TRUE.equals(completed.getCancelRequested()) ? "CANCELLED" : "SUCCEEDED";
-            taskMapper.completeRunning(taskId, owner, terminal, terminal.equals("SUCCEEDED") ? result : null,
-                    null, utcNow());
-            attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "SUCCEEDED", null,
-                    utcNow());
+            if (taskMapper.completeRunning(taskId, owner, terminal,
+                    terminal.equals("SUCCEEDED") ? result : null, null, utcNow()) != 1) {
+                throw new IllegalStateException("AI 任务终态持久化冲突");
+            }
+            if (attemptMapper.transition(attempt.getAttemptId(), "ACKNOWLEDGED", "SUCCEEDED", null,
+                    utcNow()) != 1) throw new IllegalStateException("AI attempt 终态持久化冲突");
+            attemptState = "SUCCEEDED";
             waitRegistry.complete(selectTask(taskId));
         } catch (RuntimeException exception) {
             if (exception instanceof AiUpstreamRateLimitException rateLimited) {
                 rateLimitBackoff.onRateLimited(rateLimited.getRetryAfter());
             }
-            String error = "AI_EXECUTION_" + exception.getClass().getSimpleName().toUpperCase();
+            boolean resultUncertain = "ACKNOWLEDGED".equals(attemptState);
+            String error = resultUncertain ? "AI_UPSTREAM_RESULT_UNKNOWN"
+                    : "AI_EXECUTION_" + exception.getClass().getSimpleName().toUpperCase();
             taskMapper.completeRunning(taskId, owner, "FAILED", null, error, utcNow());
-            if (attempt != null) attemptMapper.transition(attempt.getAttemptId(), "DISPATCHING", "FAILED",
-                    error, utcNow());
+            if (attempt != null && !"SUCCEEDED".equals(attemptState)) {
+                attemptMapper.transition(attempt.getAttemptId(), attemptState,
+                        resultUncertain ? "UNKNOWN" : "FAILED", error, utcNow());
+            }
             waitRegistry.fail(taskId, exception);
         } finally {
             if (heartbeatTask != null) heartbeatTask.cancel(false);

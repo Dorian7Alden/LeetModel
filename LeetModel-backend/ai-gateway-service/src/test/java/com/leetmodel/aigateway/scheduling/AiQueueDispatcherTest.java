@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 class AiQueueDispatcherTest {
 
@@ -64,6 +65,7 @@ class AiQueueDispatcherTest {
         });
         when(tasks.selectByTaskId(anyString())).thenAnswer(invocation -> leased(invocation.getArgument(0)));
         when(tasks.transition(anyString(), anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(1);
+        when(tasks.completeRunning(anyString(), anyString(), anyString(), any(), any(), any())).thenReturn(1);
         when(attempts.transition(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch started = new CountDownLatch(4);
@@ -93,6 +95,36 @@ class AiQueueDispatcherTest {
         assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(maximum.get()).isEqualTo(4);
         release.countDown();
+    }
+
+    @Test
+    void doesNotRedispatchWhenResultPersistenceBecomesUncertain() throws Exception {
+        AiCallTaskMapper tasks = mock(AiCallTaskMapper.class);
+        AiCallAttemptMapper attempts = mock(AiCallAttemptMapper.class);
+        AiCallTask queued = task("uncertain", "P3");
+        when(tasks.selectQueued(500)).thenReturn(List.of(queued), List.of());
+        when(tasks.claimQueued(anyString(), anyLong(), anyString(), any(), any())).thenReturn(1);
+        when(tasks.selectByTaskId(anyString())).thenAnswer(ignored -> leased("uncertain"));
+        when(tasks.transition(anyString(), anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(1);
+        when(tasks.completeRunning(anyString(), anyString(), anyString(), any(), any(), any())).thenReturn(0);
+        CountDownLatch unknown = new CountDownLatch(1);
+        when(attempts.transition(anyString(), anyString(), anyString(), any(), any())).thenAnswer(invocation -> {
+            if ("UNKNOWN".equals(invocation.getArgument(2))) unknown.countDown();
+            return 1;
+        });
+        AtomicInteger upstreamCalls = new AtomicInteger();
+        dispatcher = dispatcher(tasks, attempts, ignored -> {
+            upstreamCalls.incrementAndGet();
+            return "known-result";
+        }, new AiSchedulingProperties());
+
+        assertThat(dispatcher.dispatchOnce()).isTrue();
+        assertThat(unknown.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(dispatcher.dispatchOnce()).isFalse();
+        assertThat(upstreamCalls.get()).isEqualTo(1);
+        verify(attempts).transition(anyString(), anyString(), org.mockito.ArgumentMatchers.eq("UNKNOWN"),
+                org.mockito.ArgumentMatchers.eq("AI_UPSTREAM_RESULT_UNKNOWN"), any());
+        verify(tasks, times(1)).claimQueued(anyString(), anyLong(), anyString(), any(), any());
     }
 
     private AiQueueDispatcher dispatcher(AiCallTaskMapper tasks, AiCallAttemptMapper attempts,

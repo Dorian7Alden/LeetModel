@@ -24,6 +24,15 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
     @Select("SELECT * FROM ai_call_task WHERE deleted = 0 AND task_id = #{taskId} LIMIT 1")
     AiCallTask selectByTaskId(@Param("taskId") String taskId);
 
+    @Select("""
+            SELECT * FROM ai_call_task
+             WHERE deleted = 0 AND state IN ('LEASED','RUNNING')
+               AND lease_expiry IS NOT NULL AND lease_expiry < #{now}
+             ORDER BY lease_expiry ASC
+             LIMIT #{limit}
+            """)
+    List<AiCallTask> selectExpiredLeases(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
     @Select("SELECT COUNT(*) FROM ai_call_task WHERE deleted = 0 AND state IN ('QUEUED','LEASED','RUNNING')")
     long countActive();
 
@@ -77,6 +86,30 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
             """)
     int releaseExpiredLeaseWithoutAttempt(@Param("taskId") String taskId,
                                           @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task t
+               SET t.state = 'QUEUED', t.lease_owner = NULL, t.lease_expiry = NULL,
+                   t.version = t.version + 1, t.update_time = #{now}
+             WHERE t.task_id = #{taskId} AND t.deleted = 0 AND t.state IN ('LEASED','RUNNING')
+               AND t.version = #{version} AND t.lease_expiry < #{now}
+               AND NOT EXISTS (SELECT 1 FROM ai_call_attempt a
+                                WHERE a.task_id = t.task_id AND a.deleted = 0
+                                  AND a.state IN ('DISPATCHING','ACKNOWLEDGED','SUCCEEDED','UNKNOWN'))
+            """)
+    int requeueExpiredBeforeDispatch(@Param("taskId") String taskId, @Param("version") long version,
+                                     @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE ai_call_task
+               SET state = 'FAILED', error_code = 'AI_UPSTREAM_RESULT_UNKNOWN',
+                   dead_letter_reason = 'LEASE_EXPIRED_AFTER_DISPATCH', request_payload = '',
+                   lease_expiry = NULL, finished_at = #{now}, version = version + 1, update_time = #{now}
+             WHERE task_id = #{taskId} AND deleted = 0 AND state = 'RUNNING'
+               AND version = #{version} AND lease_expiry < #{now}
+            """)
+    int failExpiredRunningUnknown(@Param("taskId") String taskId, @Param("version") long version,
+                                  @Param("now") LocalDateTime now);
 
     @Update("""
             UPDATE ai_call_task

@@ -52,6 +52,26 @@ class AiFairSchedulingPolicyTest {
         assertThat(policy.select(candidates, 0, now).selected().taskId()).isEqualTo("old-p0");
     }
 
+    @Test
+    void p0FloodStillLeavesExecutionSlotsForP3AndP4Backlog() {
+        List<AiFairSchedulingPolicy.Candidate> backlog = List.of(
+                candidate("continuous-p0", AiCallPriority.P0, 0),
+                candidate("waiting-p3", AiCallPriority.P3, 0),
+                candidate("waiting-p4", AiCallPriority.P4, 0));
+        List<String> selected = new ArrayList<>();
+        int cursor = 0;
+        for (int slot = 0; slot < 31; slot++) {
+            AiFairSchedulingPolicy.SchedulingDecision decision = policy.select(backlog, cursor, now);
+            selected.add(decision.selected().taskId());
+            cursor = decision.nextCursor();
+        }
+
+        assertThat(selected).contains("continuous-p0", "waiting-p3", "waiting-p4");
+        assertThat(selected.stream().filter("continuous-p0"::equals).count())
+                .isGreaterThan(selected.stream().filter("waiting-p3"::equals).count())
+                .isGreaterThan(selected.stream().filter("waiting-p4"::equals).count());
+    }
+
     private AiFairSchedulingPolicy.Candidate candidate(String id, AiCallPriority priority, long waitedSeconds) {
         return new AiFairSchedulingPolicy.Candidate(id, priority, now.minusSeconds(waitedSeconds),
                 now.plusSeconds(300));

@@ -25,6 +25,7 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AiScheduledCallServiceTest {
@@ -114,6 +116,25 @@ class AiScheduledCallServiceTest {
         assertThatThrownBy(() -> scheduled.chat(request).join())
                 .isInstanceOf(CompletionException.class);
         verify(taskMapper, times(1)).insert(any(AiCallTask.class));
+    }
+
+    @Test
+    void databaseFailureRejectsBeforeRegisteringOrDispatchingWork() {
+        AiQueueAdmissionService failedAdmission = mock(AiQueueAdmissionService.class);
+        AiCallTaskMapper taskMapper = mock(AiCallTaskMapper.class);
+        AiTaskWaitRegistry waitRegistry = mock(AiTaskWaitRegistry.class);
+        when(failedAdmission.enqueue(any())).thenThrow(new DataAccessResourceFailureException("db down"));
+        AiScheduledCallService scheduled = new AiScheduledCallService(objectMapper,
+                new AiPriorityPolicy(), failedAdmission, taskMapper, waitRegistry);
+        AiChatRequest request = new AiChatRequest(AiModality.TEXT,
+                context(AiOperationCode.RETRIEVE_CONTEXT, AiCallPriority.P0, "db-failure"),
+                List.of(new AiMessage(AiRole.USER,
+                        List.of(new AiContentPart(AiContentType.TEXT, "question", null)))),
+                64, null, null, false);
+
+        assertThatThrownBy(() -> scheduled.chat(request))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        verifyNoInteractions(taskMapper, waitRegistry);
     }
 
     private void completeAdmissionWith(Object response) throws Exception {
