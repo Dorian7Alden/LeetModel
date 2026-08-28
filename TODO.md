@@ -669,7 +669,7 @@ S3 验收记录（2026-08-28）：`RAG_V1` 固定绑定 new-api 的 `qwen3.7-tex
 - 工作：Query Embedding → ES Top K → 阈值过滤 → 去重 → Token 预算裁剪，返回文本、分数、路径、标题和版本。
 - 验收：空结果、低相关、ES 超时、Embedding 失败和维度错误均有测试；不做改写和重排。
 
-#### [ ] S4-13 接入 AssistantWorkflow
+#### [x] S4-13 接入 AssistantWorkflow
 
 - 依赖：S4-12。
 - 工作：在受控位置注入带来源边界的知识上下文，防止知识内容覆盖系统行为；保留历史消息和题目工具。
