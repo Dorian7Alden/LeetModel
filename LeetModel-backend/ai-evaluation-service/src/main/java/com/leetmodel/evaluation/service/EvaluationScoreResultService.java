@@ -58,6 +58,60 @@ public class EvaluationScoreResultService {
                                         String rawMetricsJson) {
         // 只读取任务启动时的方案快照，不回查可能已停用的当前方案
         EvaluationWeightSchemeDTO scheme = readSchemeSnapshot(task.getWeightSchemeSnapshotJson());
+        return calculate(task, rawMetrics, rawMetricsJson, scheme,
+                task.getWeightSchemeSnapshotJson(), INITIAL_RESULT_VERSION, null);
+    }
+
+    /**
+     * 使用另一份活动方案重算同一原始指标快照。
+     * @param task 已完成评价任务
+     * @param rawMetrics 原始指标对象
+     * @param rawMetricsJson 与首版相同的原始指标 JSON
+     * @param scheme 新权重方案
+     * @param operatorId 操作者标识
+     * @return 待分配新结果版本的评分结果
+     */
+    public ScoreBundle calculateRecalculation(EvaluationTask task,
+                                              EvaluationRawMetricsDTO rawMetrics,
+                                              String rawMetricsJson,
+                                              EvaluationWeightSchemeDTO scheme,
+                                              Long operatorId) {
+        try {
+            String schemeSnapshotJson = objectMapper.writeValueAsString(scheme);
+            return calculate(task, rawMetrics, rawMetricsJson, scheme,
+                    schemeSnapshotJson, null, operatorId);
+        } catch (Exception exception) {
+            throw new IllegalStateException("重算权重方案快照无法序列化", exception);
+        }
+    }
+
+    /**
+     * 把刚保存的评分结果转换为响应。
+     * @param bundle 已保存结果与逐项贡献
+     * @return 跨服务响应
+     */
+    public EvaluationScoreResultDTO toDto(ScoreBundle bundle) {
+        return toDto(bundle.result(), bundle.items());
+    }
+
+    /**
+     * 计算指定方案下的完整结果。
+     * @param task 评价任务
+     * @param rawMetrics 原始指标对象
+     * @param rawMetricsJson 原始指标 JSON
+     * @param scheme 权重方案
+     * @param schemeSnapshotJson 权重方案 JSON
+     * @param resultVersion 可选预分配版本
+     * @param operatorId 可选重算操作者
+     * @return 结果与逐项贡献
+     */
+    private ScoreBundle calculate(EvaluationTask task,
+                                  EvaluationRawMetricsDTO rawMetrics,
+                                  String rawMetricsJson,
+                                  EvaluationWeightSchemeDTO scheme,
+                                  String schemeSnapshotJson,
+                                  String resultVersion,
+                                  Long operatorId) {
         if (scheme.getItems() == null || scheme.getItems().isEmpty()
                 || !task.getMetricSetVersion().equals(rawMetrics.getMetricSetVersion())) {
             throw new IllegalStateException("任务权重方案或原始指标口径快照不完整");
@@ -78,16 +132,17 @@ public class EvaluationScoreResultService {
         // 任一权重项缺失时整体不可计算，但仍保存其余逐项事实
         EvaluationScoreResult result = new EvaluationScoreResult();
         result.setTaskId(task.getId());
-        result.setScoreResultVersion(INITIAL_RESULT_VERSION);
-        result.setWeightSchemeId(task.getWeightSchemeId());
-        result.setWeightSchemeVersion(task.getWeightSchemeVersion());
+        result.setScoreResultVersion(resultVersion);
+        result.setWeightSchemeId(scheme.getSchemeId());
+        result.setWeightSchemeVersion(scheme.getSchemeVersion());
         result.setMetricSetVersion(task.getMetricSetVersion());
-        result.setWeightSchemeSnapshotJson(task.getWeightSchemeSnapshotJson());
+        result.setWeightSchemeSnapshotJson(schemeSnapshotJson);
         result.setRawMetricsSnapshotJson(rawMetricsJson);
         result.setStatus(unavailableMetrics.isEmpty() ? "CALCULATED" : "UNAVAILABLE");
         result.setVersionSelectionIndex(unavailableMetrics.isEmpty() ? scale(total) : null);
         result.setUnavailableReason(unavailableMetrics.isEmpty() ? null
                 : "缺少可计算指标: " + String.join(",", unavailableMetrics));
+        result.setCalculatedBy(operatorId);
         result.setCreateTime(LocalDateTime.now());
         result.setUpdateTime(result.getCreateTime());
         return new ScoreBundle(result, List.copyOf(items));

@@ -11,10 +11,13 @@ import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
+import com.leetmodel.common.api.dto.EvaluationScoreRecalculateDTO;
+import com.leetmodel.common.api.dto.EvaluationScoreResultDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.service.EvaluationService;
 import com.leetmodel.evaluation.service.EvaluationEstimateService;
 import com.leetmodel.evaluation.service.EvaluationWeightSchemeService;
+import com.leetmodel.evaluation.service.EvaluationScoreRecalculationService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -41,6 +44,7 @@ public class InternalEvaluationController {
     private final EvaluationService evaluationService;
     private final EvaluationEstimateService estimateService;
     private final EvaluationWeightSchemeService weightSchemeService;
+    private final EvaluationScoreRecalculationService scoreRecalculationService;
 
     @Operation(summary = "创建固定评价数据集")
     @PostMapping("/datasets")
@@ -149,5 +153,13 @@ public class InternalEvaluationController {
             @PathVariable @Positive(message = "权重方案标识必须为正整数") Long schemeId,
             @Valid @RequestBody EvaluationTaskControlDTO request) {
         return Result.ok(weightSchemeService.deactivate(schemeId, request.getOperatorId()));
+    }
+
+    @Operation(summary = "使用另一权重方案追加版本选择指数结果")
+    @PostMapping("/tasks/{taskId}/score-results/recalculate")
+    public Result<EvaluationScoreResultDTO> recalculateScore(
+            @PathVariable @Positive(message = "评价任务标识必须为正整数") Long taskId,
+            @Valid @RequestBody EvaluationScoreRecalculateDTO request) {
+        return Result.ok(scoreRecalculationService.recalculate(taskId, request));
     }
 }

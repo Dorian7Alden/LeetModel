@@ -90,6 +90,29 @@ class EvaluationScoreResultServiceTest {
         assertThat(value.value()).isNull();
     }
 
+    @Test
+    void recalculationKeepsRawSnapshotAndRecordsNewSchemeAndOperator() throws Exception {
+        EvaluationTask task = task(scheme(item(
+                "RUN_SUCCESS_RATE", "RUN_SUCCESS_RATE_V1", "PERCENT",
+                "HIGHER_IS_BETTER", "0", "100", "100.0000")));
+        EvaluationWeightSchemeDTO newScheme = new EvaluationWeightSchemeDTO(
+                702L, "REVIEW_SUCCESS", "REVIEW_SUCCESS_V2", "成功优先", "重算目标",
+                "REVIEW", "METRIC_SET_V2", "ACTIVE", 9L, null, null, null,
+                List.of(item("RUN_SUCCESS_RATE", "RUN_SUCCESS_RATE_V1", "PERCENT",
+                        "HIGHER_IS_BETTER", "0", "100", "100.0000")));
+        EvaluationRawMetricsDTO raw = rawMetrics("80", 2500L, 0);
+        String rawJson = objectMapper.writeValueAsString(raw);
+
+        var bundle = service.calculateRecalculation(task, raw, rawJson, newScheme, 9L);
+
+        assertThat(bundle.result().getScoreResultVersion()).isNull();
+        assertThat(bundle.result().getWeightSchemeId()).isEqualTo(702L);
+        assertThat(bundle.result().getWeightSchemeVersion()).isEqualTo("REVIEW_SUCCESS_V2");
+        assertThat(bundle.result().getCalculatedBy()).isEqualTo(9L);
+        assertThat(bundle.result().getRawMetricsSnapshotJson()).isEqualTo(rawJson);
+        assertThat(bundle.result().getVersionSelectionIndex()).isEqualByComparingTo("80");
+    }
+
     private EvaluationTask task(EvaluationWeightSchemeDTO scheme) throws Exception {
         EvaluationTask task = new EvaluationTask();
         task.setId(20L);

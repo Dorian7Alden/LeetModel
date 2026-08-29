@@ -3,12 +3,16 @@ package com.leetmodel.evaluation.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.leetmodel.evaluation.entity.EvaluationTask;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
+
+    @Select("SELECT id FROM evaluation_task WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    Long lockById(@Param("id") Long id);
 
     @Update("UPDATE evaluation_task SET status = 'PAUSED', last_operated_by = #{operatorId}, "
             + "last_operation = 'PAUSE', last_operated_at = #{now}, update_time = #{now} "
