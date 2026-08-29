@@ -799,11 +799,13 @@ S6-01 验收记录（2026-08-29）：已逐项核对三个模块的父 POM、Con
 
 S6-02 验收记录（2026-08-29）：common-api 新增 `AiFeatureDefinitionDTO` 与 `AiWorkflowVersionDTO`，固定 featureCode、owner、数据集类型、指标编码，以及工作流版本的名称、状态、输入/输出 schema 和兼容说明。ai-review-service 返回包含启用与禁用版本的完整 REVIEW 目录；评价服务原有服务端校验继续只接受 `ENABLED`。admin-service 提供只读代理，管理端新建评价任务已由自由文本改为启用版本下拉框，历史任务详情仍按已保存的 `workflowVersion` 展示，不依赖版本继续启用。相关后端模块测试与前端生产构建通过。
 
-#### [ ] S6-03 定义不可变模型执行配置
+#### [x] S6-03 定义不可变模型执行配置
 
 - 依赖：S2-02、S6-02。
 - 工作：modelExecutionConfigVersion 固定逻辑模型、参数、Prompt、thinking、输出格式和适用工作流，运行时保存快照。
 - 验收：同一槽位重试配置一致；修改模型别名不改变历史含义。
+
+S6-03 验收记录（2026-08-29）：ai-gateway-service 已发布四个首批 `modelExecutionConfigVersion` 定义，分别锁定客服文本、评审多模态、改善建议文本和 RAG Embedding 的物理模型、参数、Prompt/工作流适用范围、thinking、输出格式及 Embedding 限制。调用在入队前严格校验并将完整快照写入 `ai_call_task`；派发只使用任务快照，不再重新解析当前路由或模型别名。相同调用方幂等键复用既有任务及快照，Flyway 对存量任务提供显式兼容回填。AI 网关及公共依赖 67 项测试通过，覆盖配置解析、参数漂移拒绝、持久化仓储和队列幂等行为。
 
 #### [ ] S6-04 定义隔离实验执行契约
 
