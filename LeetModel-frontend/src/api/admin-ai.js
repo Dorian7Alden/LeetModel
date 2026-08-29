@@ -52,6 +52,10 @@ export function cancelEvaluationTask(taskId) {
   return request({ url: `/admin/ai/evaluations/tasks/${taskId}/cancel`, method: "post" });
 }
 
+export function listEvaluationWeightSchemes(params = {}) {
+  return request({ url: "/admin/ai/evaluations/weight-schemes", method: "get", params });
+}
+
 export function compareEvaluation(datasetId, repeatCount) {
   return request({
     url: "/admin/ai/evaluations/comparisons",
