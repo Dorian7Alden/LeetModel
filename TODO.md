@@ -859,11 +859,13 @@ S7-02 验收记录（2026-08-29）：common-api 新增版本化样本载荷 DTO�
 
 S7-03 验收记录（2026-08-29）：评价服务建立 `METRIC_SET_V1` 不可变指标注册表，每个指标固定 metricVersion、类别、单位、方向、事实来源、适用功能、missingPolicy 和证据门槛。Token 与费用归 RESOURCE，排队/执行/总耗时归 RUNNING，评审方差/标准差/极差归 STABILITY，结构、检索、来源和格式规则归确定性质量，人工质量必须来自版本化量表与标注。注册表按功能校验适用性，未知编码明确失败；测试证明资源事实不能冒充质量、方向与缺失策略可追溯、跨功能误用和未知指标均被拒绝。
 
-#### [ ] S7-04 新增通用评价 Flyway
+#### [x] S7-04 新增通用评价 Flyway
 
 - 依赖：S7-01、S7-03。
 - 工作：保存 feature、候选版本、执行配置、指标口径和快照，为旧任务回填兼容值，建立 task/slot/attempt/callId 索引。
 - 验收：空库和已有库都可升级，无破坏性 SQL，历史读取回归通过。
+
+S7-04 验收记录（2026-08-29）：新增 ai-evaluation-service V2 Flyway，在 V1 四表上依次执行可空扩列、REVIEW 确定性回填和通用必填字段收紧。数据集回填稳定版本和样本 schema；样本从 submissionId 生成最小引用 Payload；任务保留 workflowVersion 与全部旧分数字段，补充模型配置、legacy 指标集合及版本快照；运行尝试补充稳定 slotKey、experimentRunId 和执行版本。迁移不删除表或列、不截断数据、不覆盖 overallScore，并建立 feature/dataset、task/slot/attempt、experimentRunId 和 callId 索引。实体已映射新增字段；模块及公共依赖 26 项测试通过。另在本地 MySQL 8.0 临时库实际执行 V1 建表、插入历史四表数据、V2 升级和回填查询，原 ID、状态、workflowVersion、submissionId 与 callId 均保留，验证后已删除临时库。
 
 #### [ ] S7-05 实现通用实验 Runner SPI
 
