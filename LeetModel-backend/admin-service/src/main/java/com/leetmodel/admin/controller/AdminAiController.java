@@ -9,6 +9,7 @@ import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.core.result.Result;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,21 +29,25 @@ public class AdminAiController {
     private final AiGatewayFeignClient aiGatewayClient;
     private final AdminFeignExecutor executor;
 
+    @Operation(summary = "查询AI调用记录")
     @GetMapping("/calls")
     public Result<List<AiCallLogDTO>> calls(@Valid AiCallQueryDTO query) {
         return executor.forward("AI 网关", () -> aiGatewayClient.listCalls(query));
     }
 
+    @Operation(summary = "统计AI调用资源与状态")
     @GetMapping("/calls/stats")
     public Result<AiCallStatsDTO> stats(@Valid AiCallQueryDTO query) {
         return executor.forward("AI 网关", () -> aiGatewayClient.getCallStats(query));
     }
 
+    @Operation(summary = "查询AI调用队列")
     @GetMapping("/queue")
     public Result<List<AiQueueTaskDTO>> queue(@Valid AiQueueQueryDTO query) {
         return executor.forward("AI 网关", () -> aiGatewayClient.listQueueTasks(query));
     }
 
+    @Operation(summary = "取消AI队列任务")
     @PostMapping("/queue/{taskId}/cancel")
     public Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable String taskId) {
         return executor.forward("AI 网关", () -> aiGatewayClient.cancelQueueTask(taskId));
