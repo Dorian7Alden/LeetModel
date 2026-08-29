@@ -530,6 +530,26 @@ class EvaluationServiceTest {
         assertThat(comparison.getVersions()).extracting("taskId").containsExactly(21L, 22L);
     }
 
+    @Test
+    void historicalTaskWithoutRawMetricsRemainsReadableAsLegacySnapshot() {
+        EvaluationTask legacy = task(19L, "COMPLETED", 1);
+        legacy.setMetricSetVersion("LEGACY_REVIEW_METRICS_V1");
+        legacy.setMetricDefinitionSnapshotJson(
+                "{\"metricSetVersion\":\"LEGACY_REVIEW_METRICS_V1\",\"legacyOverallScore\":true}");
+        legacy.setRawMetricsJson(null);
+        legacy.setOverallScore(new BigDecimal("76.50"));
+        when(taskMapper.selectById(19L)).thenReturn(legacy);
+        when(runMapper.selectList(any())).thenReturn(List.of());
+        when(sampleMapper.selectList(any())).thenReturn(List.of());
+
+        var detail = service.getTask(19L);
+
+        assertThat(detail.getMetricSetVersion()).isEqualTo("LEGACY_REVIEW_METRICS_V1");
+        assertThat(detail.getOverallScore()).isEqualByComparingTo("76.50");
+        assertThat(detail.getRawMetrics()).isNull();
+        assertThat(detail.getRuns()).isEmpty();
+    }
+
     private EvaluationDataset dataset(Long id) {
         EvaluationDataset dataset = new EvaluationDataset();
         dataset.setId(id);
