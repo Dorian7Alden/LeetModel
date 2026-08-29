@@ -815,11 +815,13 @@ S6-03 验收记录（2026-08-29）：ai-gateway-service 已发布四个首批 `m
 
 S6-04 验收记录（2026-08-29）：common-api 新增通用 `AiExperimentRequestDTO`、`AiExperimentSampleDTO` 与 `AiExperimentResultDTO`，固定 experimentRunId、版本化样本、workflowVersion、modelExecutionConfigVersion、ragIndexVersion、P0–P4 优先级声明，以及带 schema 的输出/原始指标、callId 和耗时摘要。契约测试分别用提交引用表达 REVIEW、用独立问题 Payload 表达 ASSISTANT，并验证不携带正式评审任务或客服会话标识。架构文档明确 owner 只能写实验返回与调用审计，不能创建或覆盖正式评审、会话/消息或建议结果；现有评审专用 DTO 被标记为待迁移兼容接口。
 
-#### [ ] S6-05 适配现有论文评审实验
+#### [x] S6-05 适配现有论文评审实验
 
 - 依赖：S6-04。
 - 工作：用通用契约包装已有 ReviewVersion 和实验接口，补充模型配置快照并保留兼容 DTO。
 - 验收：现有评价测试通过，旧接口的迁移终点明确。
+
+S6-05 验收记录（2026-08-29）：ai-review-service 新增 `/internal/reviews/experiments/v2`，以通用请求包装既有瞬态评审工作流，校验 REVIEW 样本 schema、启用工作流、固定模型执行配置和无 RAG 约束；experimentRunId 进入业务任务标识与网关幂等键，同一槽位重投复用相同模型调用。通用结果回显模型配置版本、输出/指标 schema、score、model、callId 和耗时，完整物理配置快照由 S6-03 的网关任务按 callId 留存。ai-evaluation-service 已迁移到通用入口并以 task/sample/repetition 生成稳定运行标识；旧 Review DTO 与入口继续兼容，待仓库内外调用方迁移并经过至少一个发布兼容周期后删除。评审及评价相关模块测试通过，原评价行为回归保持。
 
 #### [ ] S6-06 增加客服可评价版本
 

@@ -53,4 +53,4 @@ sequenceDiagram
 
 ## 兼容迁移
 
-现有 `ReviewExperimentRequestDTO/ReviewExperimentResultDTO` 是 REVIEW 专用兼容接口。S6-05 使用通用 DTO 包装同一瞬态评审工作流并保留旧接口；旧接口的终点是所有调用方迁移到通用入口后删除，不作为第二套长期契约。ASSISTANT 由 S6-06 直接实现通用入口。
+现有 `ReviewExperimentRequestDTO/ReviewExperimentResultDTO` 是 REVIEW 专用兼容接口。ai-review-service 已在 `/internal/reviews/experiments/v2` 使用通用 DTO 包装同一瞬态评审工作流，旧入口继续可用；ai-evaluation-service 已迁移到 v2。旧接口的删除终点是仓库内外调用方均完成迁移且经过至少一个发布兼容周期，不作为第二套长期契约。ASSISTANT 由 S6-06 直接实现通用入口。
