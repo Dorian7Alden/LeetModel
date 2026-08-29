@@ -57,7 +57,7 @@ public class RagWorkflowContextProvider {
             throw new IllegalStateException("RAG 实验未锁定到指定索引版本");
         }
         RagWorkflowContext context = toContext(result);
-        return context.present() ? context : new RagWorkflowContext(null, ragIndexVersion);
+        return context.present() ? context : new RagWorkflowContext(null, ragIndexVersion, 0, java.util.List.of());
     }
 
     private RagWorkflowContext toContext(RagRetrievalResult result) {
@@ -76,7 +76,9 @@ public class RagWorkflowContextProvider {
             context.append(escapeBoundary(chunk.content())).append('\n');
             context.append("END_").append(BOUNDARY).append('_').append(index + 1).append('\n');
         }
-        return new RagWorkflowContext(context.toString().strip(), result.ragIndexVersion());
+        return new RagWorkflowContext(context.toString().strip(), result.ragIndexVersion(),
+                result.chunks().size(), result.chunks().stream()
+                .map(RagRetrievedChunk::sourcePath).distinct().toList());
     }
 
     private long elapsedMillis(long startedAt) {

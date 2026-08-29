@@ -35,7 +35,9 @@ public class AssistantExperimentService {
 
     public AiFeatureDefinitionDTO featureDefinition() {
         return new AiFeatureDefinitionDTO("ASSISTANT", "AI 客服", "ai-assistant-service",
-                List.of("QUESTION"), List.of("RUN_SUCCESS", "DURATION_MS"), List.of(
+                List.of("QUESTION"), List.of("RUN_SUCCESS_RATE", "DURATION_MS",
+                "STRUCTURE_VALID_RATE", "RETRIEVAL_HIT_RATE", "SOURCE_COVERAGE_RATE",
+                "FORMAT_RULE_PASS_RATE", "EXPECTED_POINT_COVERAGE_RATE", "HUMAN_QUALITY_SCORE"), List.of(
                 new AiWorkflowVersionDTO(NO_RAG_VERSION, "客服单轮无 RAG V1", "ENABLED",
                         "ASSISTANT_QUESTION_V1", "ASSISTANT_REPLY_V1",
                         "固定系统 Prompt 与模型配置，不读取或写入正式会话"),
@@ -61,7 +63,10 @@ public class AssistantExperimentService {
                     request.getExperimentRunId(), request.getWorkflowVersion(),
                     request.getModelExecutionConfigVersion(), request.getEvaluationTaskId(),
                     request.getIdempotencyKey());
-            String output = objectMapper.writeValueAsString(Map.of("answer", response.content()));
+            String output = objectMapper.writeValueAsString(Map.of(
+                    "answer", response.content(),
+                    "retrievedChunkCount", rag.retrievedChunkCount(),
+                    "retrievedSourcePaths", rag.sourcePaths()));
             return result(request, "SUCCEEDED", null, output, response.model(), response.callId(),
                     Duration.between(startedAt, Instant.now()).toMillis(), null);
         } catch (AiClientException exception) {

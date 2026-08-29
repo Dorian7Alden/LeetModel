@@ -44,7 +44,8 @@ class AssistantExperimentServiceTest {
     @Test
     void ragExperimentLocksRequestedPhysicalIndexVersion() {
         when(rag.retrieveExact("如何选择建模题目？", "rag-v1-fixed"))
-                .thenReturn(new RagWorkflowContext("knowledge", "rag-v1-fixed"));
+                .thenReturn(new RagWorkflowContext("knowledge", "rag-v1-fixed", 2,
+                        java.util.List.of("docs/submit.md")));
         when(workflow.experimentReply(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(response("call-rag"));
 
@@ -54,6 +55,7 @@ class AssistantExperimentServiceTest {
         assertThat(result.getStatus()).isEqualTo("SUCCEEDED");
         assertThat(result.getAiCallId()).isEqualTo("call-rag");
         assertThat(result.getRagIndexVersion()).isEqualTo("rag-v1-fixed");
+        assertThat(result.getOutputJson()).contains("\"retrievedChunkCount\":2", "docs/submit.md");
         verify(rag).retrieveExact("如何选择建模题目？", "rag-v1-fixed");
     }
 
