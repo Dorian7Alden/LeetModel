@@ -68,4 +68,17 @@ class EvaluationMigrationContractTest {
         assertThat(sql).contains("ADD COLUMN `raw_metrics_json` LONGTEXT NULL");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE", "OVERALL_SCORE =");
     }
+
+    @Test
+    void v6BackfillsImmutableDatasetVersionForComparison() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V6__snapshot_evaluation_dataset_version.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql).contains("ADD COLUMN `dataset_version`", "JOIN `evaluation_dataset`",
+                "MODIFY COLUMN `dataset_version` VARCHAR(64) NOT NULL", "idx_comparison_criteria");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }
