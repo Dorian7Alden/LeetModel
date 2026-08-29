@@ -81,4 +81,24 @@ class EvaluationMigrationContractTest {
                 "MODIFY COLUMN `dataset_version` VARCHAR(64) NOT NULL", "idx_comparison_criteria");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
     }
+
+    @Test
+    void v7KeepsVersionedWeightConfigurationInEvaluationDatabase() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V7__create_evaluation_weight_scheme.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("CREATE TABLE `evaluation_weight_scheme`")
+                .contains("CREATE TABLE `evaluation_weight_scheme_item`")
+                .contains("UNIQUE INDEX `uk_scheme_version`")
+                .contains("UNIQUE INDEX `uk_scheme_metric`")
+                .contains("`feature_code` VARCHAR(32) NOT NULL")
+                .contains("`metric_version` VARCHAR(64) NOT NULL")
+                .contains("`normalization_version` VARCHAR(64) NOT NULL")
+                .contains("`weight_percent` DECIMAL(7,4) NOT NULL");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }
