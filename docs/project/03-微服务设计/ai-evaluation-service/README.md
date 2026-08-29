@@ -2,7 +2,7 @@
 
 ai-evaluation-service 是独立的 AI 业务评价微服务。当前已通过通用 Runner 评价论文评审与客服单轮工作流；目标平台按运行指标、稳定性指标、具备真值或人工标注的质量指标以及版本选择指数四层组织评价。
 
-> 设计状态：S7 通用评价平台及迁移回归已落地，包括版本化样本、REVIEW/ASSISTANT Runner、批次控制、`METRIC_SET_V1/V2` 原始指标和同口径比较门禁；旧版 `overallScore` 仅作为兼容字段。后续阶段实现权重快照和“版本选择指数”。
+> 设计状态：S7 通用评价平台及迁移回归已落地，包括版本化样本、REVIEW/ASSISTANT Runner、批次控制、`METRIC_SET_V1/V2` 原始指标和同口径比较门禁；S8 已落地归一化规则与评价服务自有的版本化权重方案。旧版 `overallScore` 仅作为兼容字段，后续任务继续实现权重快照和“版本选择指数”。
 
 ### 已实现流程
 
@@ -58,6 +58,8 @@ flowchart LR
 | `evaluation_sample` | ai-evaluation-service | 提交、队伍、题目快照，不保存 PDF |
 | `evaluation_task` | ai-evaluation-service | 版本、重复次数、进度和稳定性汇总指标 |
 | `evaluation_run_attempt` | ai-evaluation-service | 每个样本和轮次的多次尝试及失败分类 |
+| `evaluation_weight_scheme` | ai-evaluation-service | 不可变方案版本、功能、指标集、状态和创建/停用审计 |
+| `evaluation_weight_scheme_item` | ai-evaluation-service | 指标口径、归一化参数和权重快照 |
 | PDF 与提交事实 | submission-service | 创建数据集时通过内部契约校验 |
 | 可执行版本与实验结果 | ai-review-service、ai-assistant-service | 提供版本列表和隔离实验契约 |
 
