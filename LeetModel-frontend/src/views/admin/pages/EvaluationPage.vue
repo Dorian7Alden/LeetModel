@@ -35,7 +35,7 @@
               <el-tag :type="statusType(row.status)" size="small" effect="light">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="综合分" width="90" align="center">
+          <el-table-column label="旧口径分" width="100" align="center">
             <template #default="{ row }">{{ row.overallScore != null ? row.overallScore : '-' }}</template>
           </el-table-column>
           <el-table-column label="成功率" width="90" align="center">
@@ -78,7 +78,7 @@
           <el-table-column prop="workflowVersion" label="评审版本" width="140" />
           <el-table-column prop="modelExecutionConfigVersion" label="执行配置" min-width="210" show-overflow-tooltip />
           <el-table-column prop="metricSetVersion" label="指标口径" width="140" />
-          <el-table-column label="综合分" width="100" align="center">
+          <el-table-column label="旧口径分" width="100" align="center">
             <template #default="{ row }">{{ row.overallScore != null ? row.overallScore : '-' }}</template>
           </el-table-column>
           <el-table-column label="有效性" width="100" align="center">{{ row.validityScore ?? '-' }}</el-table-column>
