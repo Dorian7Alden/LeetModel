@@ -18,6 +18,7 @@ public class EvaluationRunAttempt extends BaseEntity {
     private Integer attemptNo;
     private String slotKey;
     private String experimentRunId;
+    private String idempotencyKey;
     private String status;
     private String failureType;
     private BigDecimal score;

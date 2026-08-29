@@ -58,27 +58,15 @@ public class EvaluationPersistenceService {
     @Transactional
     public boolean recoverStale(EvaluationRunAttempt stale, LocalDateTime cutoff) {
         LocalDateTime now = LocalDateTime.now();
-        if (runMapper.failStale(stale.getId(), cutoff, now) == 0) return false;
-        EvaluationRunAttempt retry = new EvaluationRunAttempt();
-        retry.setTaskId(stale.getTaskId());
-        retry.setSampleId(stale.getSampleId());
-        retry.setRepetitionNo(stale.getRepetitionNo());
-        retry.setAttemptNo(stale.getAttemptNo() + 1);
-        retry.setSlotKey(stale.getSlotKey());
-        retry.setExperimentRunId(stale.getExperimentRunId());
-        retry.setModelExecutionConfigVersion(stale.getModelExecutionConfigVersion());
-        retry.setRagIndexVersion(stale.getRagIndexVersion());
-        retry.setStatus("WAITING");
-        retry.setCreateTime(now);
-        retry.setUpdateTime(now);
-        runMapper.insert(retry);
-        return true;
+        return runMapper.markStaleUnknown(stale.getId(), cutoff, now) == 1;
     }
 
     private void fillRunIdentity(EvaluationRunAttempt run, EvaluationTask task) {
         String slotKey = task.getId() + ":" + run.getSampleId() + ":" + run.getRepetitionNo();
         run.setSlotKey(slotKey);
         run.setExperimentRunId(task.getFeatureCode().toLowerCase() + "-eval:" + slotKey);
+        run.setIdempotencyKey("evaluation:" + task.getId() + ":" + slotKey
+                + ":attempt:" + run.getAttemptNo());
         run.setModelExecutionConfigVersion(task.getModelExecutionConfigVersion());
         run.setRagIndexVersion(task.getRagIndexVersion());
     }

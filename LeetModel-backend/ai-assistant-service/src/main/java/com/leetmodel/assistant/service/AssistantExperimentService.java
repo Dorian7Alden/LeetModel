@@ -5,6 +5,7 @@ import com.leetmodel.assistant.rag.workflow.RagWorkflowContext;
 import com.leetmodel.assistant.rag.workflow.RagWorkflowContextProvider;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.api.dto.*;
 import org.springframework.stereotype.Service;
 
@@ -58,10 +59,25 @@ public class AssistantExperimentService {
                     : RagWorkflowContext.empty();
             AiChatResponse response = workflow.experimentReply(question, rag,
                     request.getExperimentRunId(), request.getWorkflowVersion(),
-                    request.getModelExecutionConfigVersion());
+                    request.getModelExecutionConfigVersion(), request.getEvaluationTaskId(),
+                    request.getIdempotencyKey());
             String output = objectMapper.writeValueAsString(Map.of("answer", response.content()));
             return result(request, "SUCCEEDED", null, output, response.model(), response.callId(),
                     Duration.between(startedAt, Instant.now()).toMillis(), null);
+        } catch (AiClientException exception) {
+            if (exception.getCode() == 51212) {
+                return result(request, "PENDING", null, null, null, null,
+                        Duration.between(startedAt, Instant.now()).toMillis(),
+                        "AI 调用仍在处理中");
+            }
+            if (exception.getCode() == 51213) {
+                return result(request, "UNKNOWN", "UNKNOWN", null, null, null,
+                        Duration.between(startedAt, Instant.now()).toMillis(),
+                        "AI 上游结果未知，禁止自动重试");
+            }
+            return result(request, "FAILED", "DEPENDENCY", null, null, null,
+                    Duration.between(startedAt, Instant.now()).toMillis(),
+                    "客服实验依赖暂不可用");
         } catch (Exception exception) {
             String failureType = exception instanceof IllegalArgumentException
                     ? "CONFIGURATION" : "DEPENDENCY";
@@ -78,10 +94,22 @@ public class AssistantExperimentService {
                 && "QUESTION".equals(request.getSample().getSampleType())
                 && "ASSISTANT_QUESTION_V1".equals(request.getSample().getSchemaVersion())
                 && MODEL_CONFIG.equals(request.getModelExecutionConfigVersion())
+                && "P3".equals(request.getPriority())
+                && contextComplete(request)
                 && ((rag && request.getRagIndexVersion() != null
                 && !request.getRagIndexVersion().isBlank())
                 || (noRag && request.getRagIndexVersion() == null));
         if (!matches) throw new IllegalArgumentException("客服实验配置与版本不匹配");
+    }
+
+    private boolean contextComplete(AiExperimentRequestDTO request) {
+        boolean none = request.getEvaluationTaskId() == null && request.getSlotKey() == null
+                && request.getAttemptNo() == null && request.getIdempotencyKey() == null;
+        boolean all = request.getEvaluationTaskId() != null && !request.getEvaluationTaskId().isBlank()
+                && request.getSlotKey() != null && !request.getSlotKey().isBlank()
+                && request.getAttemptNo() != null && request.getAttemptNo() > 0
+                && request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank();
+        return none || all;
     }
 
     private AiExperimentResultDTO result(AiExperimentRequestDTO request, String status,

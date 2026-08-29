@@ -24,6 +24,7 @@ import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -118,6 +119,26 @@ class AiScheduledCallServiceTest {
         assertThatThrownBy(() -> scheduled.chat(request).join())
                 .isInstanceOf(CompletionException.class);
         verify(taskMapper, times(1)).insert(any(AiCallTask.class));
+    }
+
+    @Test
+    void propagatesUnknownUpstreamResultAsNonRetryableCode() {
+        when(admission.enqueue(any())).thenAnswer(invocation -> {
+            AiCallTask task = invocation.getArgument(0);
+            task.setState("FAILED");
+            task.setErrorCode("AI_UPSTREAM_RESULT_UNKNOWN");
+            return new AiQueueAdmissionService.AdmissionResult(task, true, null);
+        });
+        AiChatRequest request = new AiChatRequest(AiModality.TEXT,
+                context(AiOperationCode.RETRIEVE_CONTEXT, AiCallPriority.P3, "unknown-1"),
+                List.of(new AiMessage(AiRole.USER,
+                        List.of(new AiContentPart(AiContentType.TEXT, "question", null)))),
+                64, null, null, false);
+
+        assertThatThrownBy(() -> service.chat(request).join())
+                .isInstanceOf(CompletionException.class)
+                .cause().isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(51213);
     }
 
     @Test

@@ -247,7 +247,7 @@ public class EvaluationService {
         EvaluationTask task = taskMapper.selectById(run.getTaskId());
         EvaluationSample sample = sampleMapper.selectById(run.getSampleId());
         if (task == null || sample == null) {
-            runMapper.fail(run.getId(), "CONFIGURATION", 0L,
+            runMapper.fail(run.getId(), "CONFIGURATION", null, 0L,
                     "评价任务或样本不存在", LocalDateTime.now());
             if (task != null) refreshTask(task);
             return;
@@ -261,12 +261,12 @@ public class EvaluationService {
         } catch (EvaluationRunnerException exception) {
             log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, message={}",
                     task.getId(), sample.getId(), exception.getFailureType(), exception.getMessage());
-            runMapper.fail(run.getId(), exception.getFailureType(), 0L,
+            runMapper.fail(run.getId(), exception.getFailureType(), null, 0L,
                     exception.getMessage(), LocalDateTime.now());
         } catch (Exception exception) {
             log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
                     task.getId(), sample.getId(), exception.getMessage());
-            runMapper.fail(run.getId(), "ENVIRONMENT", 0L,
+            runMapper.fail(run.getId(), "ENVIRONMENT", null, 0L,
                     "实验评审依赖暂不可用", LocalDateTime.now());
         }
         refreshTask(task);
@@ -318,7 +318,17 @@ public class EvaluationService {
                     outcome.ragIndexVersion(), outcome.aiCallId(), outcome.durationMs(), now);
             return;
         }
+        if ("PENDING".equals(outcome.status())) {
+            runMapper.deferPending(run.getId(), outcome.durationMs(), outcome.errorMessage(), now);
+            return;
+        }
+        if ("UNKNOWN".equals(outcome.status())) {
+            runMapper.markUnknown(run.getId(), outcome.aiCallId(), outcome.durationMs(),
+                    outcome.errorMessage(), now);
+            return;
+        }
         runMapper.fail(run.getId(), outcome.failureType(),
+                outcome.aiCallId(),
                 outcome.durationMs() == null ? 0L : outcome.durationMs(),
                 outcome.errorMessage(), now);
     }
@@ -326,12 +336,19 @@ public class EvaluationService {
     private void refreshTask(EvaluationTask task) {
         List<EvaluationRunAttempt> latest = latestRuns(task.getId());
         int terminal = (int) latest.stream().filter(this::isTerminal).count();
-        int failed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())).count();
+        int failed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())
+                || "UNKNOWN".equals(run.getStatus())).count();
+        int unknown = (int) latest.stream().filter(run -> "UNKNOWN".equals(run.getStatus())).count();
         int environment = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())
                 && RETRYABLE_FAILURES.contains(run.getFailureType())).count();
         LocalDateTime now = LocalDateTime.now();
         if (terminal < task.getTotalSlots()) {
             taskMapper.updateProgress(task.getId(), "RUNNING", terminal, failed, environment, null, now);
+            return;
+        }
+        if (unknown > 0) {
+            taskMapper.fail(task.getId(), terminal, failed, environment,
+                    "有 " + unknown + " 个运行的上游结果未知，禁止自动或人工盲目重试", now);
             return;
         }
         if (environment > 0) {
@@ -445,7 +462,14 @@ public class EvaluationService {
                 ? taskFeature(task).toLowerCase() + "-eval:" + task.getId() + ":"
                 + sample.getId() + ":" + run.getRepetitionNo()
                 : run.getExperimentRunId();
-        return new EvaluationExperimentCommand(experimentRunId, validated, task.getWorkflowVersion(),
+        String slotKey = run.getSlotKey() == null
+                ? task.getId() + ":" + sample.getId() + ":" + run.getRepetitionNo()
+                : run.getSlotKey();
+        String idempotencyKey = run.getIdempotencyKey() == null
+                ? "evaluation:" + task.getId() + ":" + slotKey + ":attempt:" + run.getAttemptNo()
+                : run.getIdempotencyKey();
+        return new EvaluationExperimentCommand(experimentRunId, String.valueOf(task.getId()),
+                slotKey, run.getAttemptNo(), idempotencyKey, validated, task.getWorkflowVersion(),
                 task.getModelExecutionConfigVersion() == null
                         ? defaultModelConfig(taskFeature(task)) : task.getModelExecutionConfigVersion(),
                 task.getRagIndexVersion(), "P3");
@@ -495,7 +519,8 @@ public class EvaluationService {
     }
 
     private boolean isTerminal(EvaluationRunAttempt run) {
-        return "SUCCEEDED".equals(run.getStatus()) || "FAILED".equals(run.getStatus());
+        return "SUCCEEDED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())
+                || "UNKNOWN".equals(run.getStatus());
     }
 
     private EvaluationDatasetDTO toDataset(EvaluationDataset dataset, List<EvaluationSample> samples) {

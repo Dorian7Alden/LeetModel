@@ -115,9 +115,12 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
                     taskId, task.getWorkflowVersion(), "PROMPT_BASIC_REVIEW_0001",
                     task.getModelExecutionConfigVersion() == null
                             ? "MODEL_CFG_REVIEW_MULTIMODAL_0001"
-                            : task.getModelExecutionConfigVersion(), null,
+                            : task.getModelExecutionConfigVersion(), task.getEvaluationTaskId(),
                     experiment ? AiCallPriority.P3 : AiCallPriority.P1,
-                    "review:" + taskId + ":attempt:" + attempt, Instant.now().plusSeconds(540));
+                    experiment && task.getExperimentIdempotencyKey() != null
+                            ? task.getExperimentIdempotencyKey()
+                            : "review:" + taskId + ":attempt:" + attempt,
+                    Instant.now().plusSeconds(540));
             AiChatRequest request = new AiChatRequest(AiModality.MULTIMODAL, context,
                     List.of(new AiMessage(AiRole.USER, parts)), 4096, 0.1,
                     AiResponseFormat.JSON_OBJECT, false);

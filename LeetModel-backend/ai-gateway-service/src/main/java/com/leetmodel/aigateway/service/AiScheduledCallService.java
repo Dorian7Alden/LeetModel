@@ -138,6 +138,9 @@ public class AiScheduledCallService {
     private <T> T parseCompleted(AiCallTask task, Class<T> responseType) {
         if ("EXPIRED".equals(task.getState())) throw new BusinessException(AiGatewayErrorCode.AI_QUEUE_EXPIRED);
         if (!"SUCCEEDED".equals(task.getState()) || task.getResultPayload() == null) {
+            if ("AI_UPSTREAM_RESULT_UNKNOWN".equals(task.getErrorCode())) {
+                throw new BusinessException(AiGatewayErrorCode.AI_UPSTREAM_RESULT_UNKNOWN);
+            }
             throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
         }
         try {

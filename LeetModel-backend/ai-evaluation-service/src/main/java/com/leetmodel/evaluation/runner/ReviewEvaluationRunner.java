@@ -68,7 +68,8 @@ public class ReviewEvaluationRunner implements EvaluationExperimentRunner {
                 new AiExperimentSampleDTO(command.sample().sampleType(),
                         command.sample().payloadSchemaVersion(), command.sample().payloadJson()),
                 command.workflowVersion(), command.modelExecutionConfigVersion(),
-                command.ragIndexVersion(), command.priority());
+                command.ragIndexVersion(), command.priority(), command.evaluationTaskId(),
+                command.slotKey(), command.attemptNo(), command.idempotencyKey());
         try {
             Result<AiExperimentResultDTO> response = reviewFeignClient.runExperimentV2(request);
             if (response == null || !response.isSuccess() || response.getData() == null) {
@@ -87,6 +88,13 @@ public class ReviewEvaluationRunner implements EvaluationExperimentRunner {
                                                    AiExperimentResultDTO result) {
         if (!identityMatches(command, result)) {
             return failure(command, "OUTPUT", "评审实验返回的运行身份或版本不匹配");
+        }
+        if ("PENDING".equals(result.getStatus()) || "UNKNOWN".equals(result.getStatus())) {
+            return new EvaluationExperimentOutcome(result.getExperimentRunId(), FEATURE,
+                    result.getWorkflowVersion(), result.getModelExecutionConfigVersion(), null,
+                    result.getStatus(), "UNKNOWN".equals(result.getStatus()) ? "UNKNOWN" : null,
+                    null, result.getModelName(), result.getAiCallId(), result.getDurationMs(),
+                    defaultMessage(result.getErrorMessage()), Map.of());
         }
         if (!"SUCCEEDED".equals(result.getStatus())) {
             String type = "ENVIRONMENT".equals(result.getFailureType())

@@ -328,11 +328,23 @@ class EvaluationServiceTest {
         service.processNext();
 
         verify(runMapper).fail(org.mockito.ArgumentMatchers.eq(301L),
-                org.mockito.ArgumentMatchers.eq("ENVIRONMENT"), anyLong(), any(), any());
+                org.mockito.ArgumentMatchers.eq("ENVIRONMENT"),
+                org.mockito.ArgumentMatchers.isNull(), anyLong(), any(), any());
         verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
                 org.mockito.ArgumentMatchers.eq(1), any(), any());
         verify(metricsCalculator, never()).calculate(any(), any());
+    }
+
+    @Test
+    void restartedWorkerNeverDispatchesAlreadySuccessfulSlot() {
+        when(runMapper.selectNextWaiting()).thenReturn(null);
+
+        service.processNext();
+
+        verify(reviewFeignClient, never()).runExperimentV2(any());
+        verify(assistantFeignClient, never()).runExperiment(any());
+        verify(runMapper, never()).claim(anyLong(), any());
     }
 
     @Test
@@ -387,23 +399,23 @@ class EvaluationServiceTest {
     }
 
     @Test
-    void recoveryPreservesInterruptedAttemptAndQueuesNextAttempt() {
+    void recoveryMarksInterruptedAttemptUnknownWithoutBlindRetry() {
         EvaluationRunAttempt stale = run(301L, 20L, 101L, "RUNNING", null);
         when(runMapper.selectStale(any())).thenReturn(List.of(stale));
         when(persistenceService.recoverStale(any(), any())).thenReturn(true);
         EvaluationTask task = task(20L, "RUNNING", 1);
         when(taskMapper.selectById(20L)).thenReturn(task);
-        EvaluationRunAttempt retry = run(302L, 20L, 101L, "WAITING", null);
-        retry.setAttemptNo(2);
-        when(runMapper.selectList(any())).thenReturn(List.of(stale, retry));
+        EvaluationRunAttempt unknown = run(301L, 20L, 101L, "UNKNOWN", "UNKNOWN");
+        when(runMapper.selectList(any())).thenReturn(List.of(unknown));
 
         service.recoverStaleRuns();
 
         verify(persistenceService).recoverStale(org.mockito.ArgumentMatchers.eq(stale), any());
-        verify(taskMapper).updateProgress(org.mockito.ArgumentMatchers.eq(20L),
-                org.mockito.ArgumentMatchers.eq("RUNNING"), org.mockito.ArgumentMatchers.eq(0),
-                org.mockito.ArgumentMatchers.eq(0), org.mockito.ArgumentMatchers.eq(0),
-                org.mockito.ArgumentMatchers.isNull(), any());
+        verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.contains("禁止自动或人工盲目重试"), any());
+        verify(persistenceService, never()).retry(any(), any());
     }
 
     @Test

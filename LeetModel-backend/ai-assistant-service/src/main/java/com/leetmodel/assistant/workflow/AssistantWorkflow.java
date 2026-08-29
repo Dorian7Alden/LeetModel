@@ -114,6 +114,14 @@ public class AssistantWorkflow {
     public AiChatResponse experimentReply(String question, RagWorkflowContext ragContext,
                                           String experimentRunId, String workflowVersion,
                                           String modelExecutionConfigVersion) {
+        return experimentReply(question, ragContext, experimentRunId, workflowVersion,
+                modelExecutionConfigVersion, null, null);
+    }
+
+    public AiChatResponse experimentReply(String question, RagWorkflowContext ragContext,
+                                          String experimentRunId, String workflowVersion,
+                                          String modelExecutionConfigVersion,
+                                          String evaluationTaskId, String idempotencyKey) {
         List<AiMessage> messages = new ArrayList<>();
         messages.add(message(AiRole.SYSTEM, systemPrompt));
         if (ragContext.present()) messages.add(message(AiRole.SYSTEM, ragContext.text()));
@@ -122,9 +130,10 @@ public class AssistantWorkflow {
         AiCallContext context = new AiCallContext(
                 "ai-assistant-service", AiFeatureCode.AI_ASSISTANT,
                 AiOperationCode.EXPERIMENT_ASSISTANT, taskId, workflowVersion,
-                "PROMPT_ASSISTANT_CHAT_0001", modelExecutionConfigVersion, null,
-                ragContext.ragIndexVersion(), AiCallPriority.P3,
-                "assistant:" + taskId, Instant.now().plusSeconds(240));
+                "PROMPT_ASSISTANT_CHAT_0001", modelExecutionConfigVersion,
+                evaluationTaskId, ragContext.ragIndexVersion(), AiCallPriority.P3,
+                idempotencyKey == null ? "assistant:" + taskId : idempotencyKey,
+                Instant.now().plusSeconds(240));
         AiChatResponse response = aiClient.chat(new AiChatRequest(
                 AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
         if (response == null || response.content() == null || response.content().isBlank()) {

@@ -264,7 +264,8 @@ class ReviewServiceTest {
         var request = new AiExperimentRequestDTO("review-slot-1", "REVIEW",
                 new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
                         "{\"submissionId\":31}"), ReviewService.WORKFLOW_VERSION,
-                "MODEL_CFG_REVIEW_MULTIMODAL_0001", null, "P3");
+                "MODEL_CFG_REVIEW_MULTIMODAL_0001", null, "P3",
+                "20", "20:101:1", 1, "evaluation:20:20:101:1:attempt:1");
 
         var result = service.runExperiment(request);
 
@@ -273,6 +274,8 @@ class ReviewServiceTest {
         assertEquals("MODEL_CFG_REVIEW_MULTIMODAL_0001", result.getModelExecutionConfigVersion());
         verify(workflow).execute(argThat(task -> task.getId() == null
                 && "review-slot-1".equals(task.getExperimentRunId())
+                && "20".equals(task.getEvaluationTaskId())
+                && "evaluation:20:20:101:1:attempt:1".equals(task.getExperimentIdempotencyKey())
                 && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
                 task.getModelExecutionConfigVersion())), any());
         verify(taskMapper, never()).insert(any(ReviewTask.class));

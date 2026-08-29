@@ -36,20 +36,37 @@ public interface EvaluationRunAttemptMapper extends BaseMapper<EvaluationRunAtte
                 @Param("now") LocalDateTime now);
 
     @Update("UPDATE evaluation_run_attempt SET status = 'FAILED', failure_type = #{failureType}, "
-            + "score = NULL, result_json = NULL, metrics_json = NULL, model_name = NULL, ai_call_id = NULL, "
+            + "score = NULL, result_json = NULL, metrics_json = NULL, model_name = NULL, "
+            + "ai_call_id = #{aiCallId}, "
             + "duration_ms = #{durationMs}, error_message = #{errorMessage}, finished_at = #{now}, "
             + "update_time = #{now} WHERE id = #{id} AND status = 'RUNNING' AND deleted = 0")
     int fail(@Param("id") Long id, @Param("failureType") String failureType,
+             @Param("aiCallId") String aiCallId,
              @Param("durationMs") Long durationMs, @Param("errorMessage") String errorMessage,
              @Param("now") LocalDateTime now);
+
+    @Update("UPDATE evaluation_run_attempt SET status = 'WAITING', started_at = NULL, "
+            + "duration_ms = #{durationMs}, error_message = #{message}, update_time = #{now} "
+            + "WHERE id = #{id} AND status = 'RUNNING' AND deleted = 0")
+    int deferPending(@Param("id") Long id, @Param("durationMs") Long durationMs,
+                     @Param("message") String message, @Param("now") LocalDateTime now);
+
+    @Update("UPDATE evaluation_run_attempt SET status = 'UNKNOWN', failure_type = 'UNKNOWN', "
+            + "ai_call_id = #{aiCallId}, duration_ms = #{durationMs}, error_message = #{message}, "
+            + "finished_at = #{now}, update_time = #{now} "
+            + "WHERE id = #{id} AND status = 'RUNNING' AND deleted = 0")
+    int markUnknown(@Param("id") Long id, @Param("aiCallId") String aiCallId,
+                    @Param("durationMs") Long durationMs, @Param("message") String message,
+                    @Param("now") LocalDateTime now);
 
     @Select("SELECT * FROM evaluation_run_attempt WHERE status = 'RUNNING' "
             + "AND update_time < #{cutoff} AND deleted = 0 ORDER BY update_time ASC")
     List<EvaluationRunAttempt> selectStale(@Param("cutoff") LocalDateTime cutoff);
 
-    @Update("UPDATE evaluation_run_attempt SET status = 'FAILED', failure_type = 'ENVIRONMENT', "
-            + "error_message = '评价运行中断，已创建恢复尝试', finished_at = #{now}, update_time = #{now} "
+    @Update("UPDATE evaluation_run_attempt SET status = 'UNKNOWN', failure_type = 'UNKNOWN', "
+            + "error_message = '评价进程中断且上游结果未知，禁止自动重试', "
+            + "finished_at = #{now}, update_time = #{now} "
             + "WHERE id = #{id} AND status = 'RUNNING' AND update_time < #{cutoff} AND deleted = 0")
-    int failStale(@Param("id") Long id, @Param("cutoff") LocalDateTime cutoff,
-                  @Param("now") LocalDateTime now);
+    int markStaleUnknown(@Param("id") Long id, @Param("cutoff") LocalDateTime cutoff,
+                         @Param("now") LocalDateTime now);
 }

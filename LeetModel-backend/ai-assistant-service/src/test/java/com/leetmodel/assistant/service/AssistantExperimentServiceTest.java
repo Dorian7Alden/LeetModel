@@ -6,6 +6,7 @@ import com.leetmodel.assistant.rag.workflow.RagWorkflowContextProvider;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
+import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
 import com.leetmodel.common.api.dto.AiExperimentSampleDTO;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class AssistantExperimentServiceTest {
 
     @Test
     void noRagExperimentIsRepeatableAndReturnsCallIdWithoutRetrieval() {
-        when(workflow.experimentReply(any(), any(), any(), any(), any()))
+        when(workflow.experimentReply(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(response("call-no-rag"));
         AiExperimentRequestDTO request = request("slot-1",
                 AssistantExperimentService.NO_RAG_VERSION, null);
@@ -37,14 +38,14 @@ class AssistantExperimentServiceTest {
         verify(workflow, times(2)).experimentReply(eq("如何选择建模题目？"),
                 argThat(context -> !context.present()), eq("slot-1"),
                 eq(AssistantExperimentService.NO_RAG_VERSION),
-                eq(AssistantExperimentService.MODEL_CONFIG));
+                eq(AssistantExperimentService.MODEL_CONFIG), isNull(), isNull());
     }
 
     @Test
     void ragExperimentLocksRequestedPhysicalIndexVersion() {
         when(rag.retrieveExact("如何选择建模题目？", "rag-v1-fixed"))
                 .thenReturn(new RagWorkflowContext("knowledge", "rag-v1-fixed"));
-        when(workflow.experimentReply(any(), any(), any(), any(), any()))
+        when(workflow.experimentReply(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(response("call-rag"));
 
         var result = service.run(request("slot-rag", AssistantExperimentService.RAG_VERSION,
@@ -54,6 +55,19 @@ class AssistantExperimentServiceTest {
         assertThat(result.getAiCallId()).isEqualTo("call-rag");
         assertThat(result.getRagIndexVersion()).isEqualTo("rag-v1-fixed");
         verify(rag).retrieveExact("如何选择建模题目？", "rag-v1-fixed");
+    }
+
+    @Test
+    void unknownGatewayResultIsNotCollapsedIntoRetryableDependencyFailure() {
+        when(workflow.experimentReply(any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new AiClientException(51213, "unknown"));
+
+        var result = service.run(request("slot-unknown",
+                AssistantExperimentService.NO_RAG_VERSION, null));
+
+        assertThat(result.getStatus()).isEqualTo("UNKNOWN");
+        assertThat(result.getFailureType()).isEqualTo("UNKNOWN");
+        assertThat(result.getErrorMessage()).contains("禁止自动重试");
     }
 
     private AiExperimentRequestDTO request(String runId, String workflowVersion, String ragVersion) {

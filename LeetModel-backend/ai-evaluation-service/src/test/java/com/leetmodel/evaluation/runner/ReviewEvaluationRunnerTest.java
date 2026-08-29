@@ -39,7 +39,8 @@ class ReviewEvaluationRunnerTest {
         var sample = runner.validateSample(new EvaluationSamplePayloadDTO(
                 "SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1", "{\"submissionId\":31}"));
         var command = new EvaluationExperimentCommand(
-                "review-eval:1:2:1", sample, "BASIC_REVIEW_V1",
+                "review-eval:1:2:1", "1", "1:2:1", 1,
+                "evaluation:1:1:2:1:attempt:1", sample, "BASIC_REVIEW_V1",
                 "MODEL_CFG_REVIEW_MULTIMODAL_0001", null, "P3");
         when(client.runExperimentV2(org.mockito.ArgumentMatchers.any())).thenReturn(Result.ok(result(
                 command, "SUCCEEDED", null, "{\"score\":88}", "{\"score\":88}", "call-1")));
@@ -49,6 +50,11 @@ class ReviewEvaluationRunnerTest {
         var captor = ArgumentCaptor.forClass(com.leetmodel.common.api.dto.AiExperimentRequestDTO.class);
         verify(client).runExperimentV2(captor.capture());
         assertThat(captor.getValue().getPriority()).isEqualTo("P3");
+        assertThat(captor.getValue().getEvaluationTaskId()).isEqualTo("1");
+        assertThat(captor.getValue().getSlotKey()).isEqualTo("1:2:1");
+        assertThat(captor.getValue().getAttemptNo()).isEqualTo(1);
+        assertThat(captor.getValue().getIdempotencyKey())
+                .isEqualTo("evaluation:1:1:2:1:attempt:1");
         assertThat(outcome.status()).isEqualTo("SUCCEEDED");
         assertThat(runner.extractMetrics(outcome)).containsEntry("REVIEW_SCORE", new BigDecimal("88"));
     }
