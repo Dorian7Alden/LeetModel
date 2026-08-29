@@ -883,11 +883,13 @@ S7-05 验收记录（2026-08-29）：ai-evaluation-service 新增通用 Runner S
 
 S7-06 验收记录（2026-08-29）：新增 REVIEW Runner，版本发现与实验执行只调用 AiFeatureDefinitionDTO、AiExperimentRequestDTO 和 AiExperimentResultDTO 通用契约，样本校验固定为 REVIEW_SUBMISSION_V1，结果解析把有效 score 注册为 REVIEW_SCORE，并将身份漂移、结构缺失归为业务 OUTPUT 失败，将依赖不可用归为可恢复 ENVIRONMENT 失败。评价调度核心已改为从 Runner 注册表选择功能，不再引用 ReviewVersionDTO 或评审专用实验 DTO；新数据集写入 feature、不可变版本和最小 Payload，新任务与运行槽位同步写入配置/指标快照、slotKey 和稳定 experimentRunId。历史 V1 实体的空通用字段仍按 REVIEW 兼容读取，原比较、重试和中断恢复路径保留。模块及公共依赖 33 项测试通过，覆盖成功、业务失败、环境失败、旧数据集行为和通用 Runner 契约。
 
-#### [ ] S7-07 实现客服 Runner
+#### [x] S7-07 实现客服 Runner
 
 - 依赖：S6-06、S7-05。
 - 工作：调用隔离实验接口，保存必要结果摘要、callId 和索引版本，不创建正式会话。
 - 验收：能比较无 RAG 与 RAG V1；不保存不必要的完整敏感回答。
+
+S7-07 验收记录（2026-08-29）：新增 ASSISTANT Runner，通过 owner 的通用版本目录与单轮隔离入口执行 `ASSISTANT_NO_RAG_V1` 和 `ASSISTANT_RAG_V1`。通用数据集创建契约支持 QUESTION / ASSISTANT_QUESTION_V1 Payload，不引用 submission、conversation 或 message；RAG 任务必须锁定非空物理 ragIndexVersion，无 RAG 任务必须保持为空，全部调用固定 P3 和 `MODEL_CFG_ASSISTANT_TEXT_0001`。成功结果保存 callId、模型配置、索引版本、结构指标以及回答 SHA-256/长度摘要，明确 `answerStored=false`，不持久化完整敏感回答。身份或索引漂移归 OUTPUT 失败，依赖失败保留恢复路径。模块及公共依赖 40 项测试通过，覆盖两个客服版本、索引锁定、摘要脱敏、客服数据集无正式业务引用和核心持久化参数。
 
 #### [ ] S7-08 扩展重复次数与规模预估
 
