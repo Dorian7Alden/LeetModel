@@ -44,10 +44,13 @@
           <el-table-column label="创建时间" width="170">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right">
+          <el-table-column label="操作" width="240" fixed="right">
             <template #default="{ row }">
               <el-button link type="primary" @click="showTask(row)">详情</el-button>
               <el-button v-if="row.status === 'FAILED'" link type="warning" @click="retryTask(row)">重试</el-button>
+              <el-button v-if="['WAITING', 'RUNNING'].includes(row.status)" link type="warning" @click="controlTask(row, 'pause')">暂停</el-button>
+              <el-button v-if="row.status === 'PAUSED'" link type="primary" @click="controlTask(row, 'resume')">恢复</el-button>
+              <el-button v-if="['WAITING', 'RUNNING', 'PAUSED', 'FAILED'].includes(row.status)" link type="danger" @click="controlTask(row, 'cancel')">取消</el-button>
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无评价任务" /></template>
@@ -135,6 +138,9 @@
         <el-descriptions-item label="综合分">{{ taskDetail.overallScore ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="成功率">{{ taskDetail.successRate ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="平均耗时">{{ taskDetail.avgDurationMs != null ? `${taskDetail.avgDurationMs}ms` : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最近操作">{{ taskDetail.lastOperation || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="操作者">{{ taskDetail.lastOperatedBy || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="操作时间">{{ formatTime(taskDetail.lastOperatedAt) }}</el-descriptions-item>
       </el-descriptions>
       <el-table v-if="taskDetail?.runs?.length" :data="taskDetail.runs" stripe style="margin-top: 16px">
         <el-table-column prop="sampleId" label="样本" width="90" />
@@ -159,6 +165,7 @@ import {
   listEvaluationDatasets, createEvaluationDataset, listEvaluationTasks, createEvaluationTask,
   estimateEvaluation,
   getEvaluationTask, retryEvaluationTask, compareEvaluation, listEvaluationFeatures,
+  pauseEvaluationTask, resumeEvaluationTask, cancelEvaluationTask,
 } from "@/api/admin-ai";
 
 const userStore = useUserStore();
@@ -192,10 +199,10 @@ function formatTime(value) {
   return value ? String(value).replace("T", " ").slice(0, 16) : "-";
 }
 function statusLabel(status) {
-  return ({ WAITING: "等待", RUNNING: "运行中", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
+  return ({ WAITING: "等待", RUNNING: "运行中", PAUSED: "已暂停", CANCELLED: "已取消", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
 }
 function statusType(status) {
-  return ({ COMPLETED: "success", FAILED: "danger", RUNNING: "warning" })[status] || "info";
+  return ({ COMPLETED: "success", FAILED: "danger", CANCELLED: "info", PAUSED: "warning", RUNNING: "warning" })[status] || "info";
 }
 
 async function loadDatasets() {
@@ -325,6 +332,24 @@ async function retryTask(row) {
     await loadDatasets();
   } catch (error) {
     ElMessage.error(error.message || "重试失败");
+  }
+}
+
+async function controlTask(row, action) {
+  const labels = { pause: "暂停", resume: "恢复", cancel: "取消" };
+  try {
+    if (action === "cancel") {
+      await ElMessageBox.confirm("取消不会删除历史，运行中的结果仍会保留。确认取消？", "取消评价任务", {
+        confirmButtonText: "确认取消", cancelButtonText: "返回", type: "warning",
+      });
+    }
+    const operations = { pause: pauseEvaluationTask, resume: resumeEvaluationTask, cancel: cancelEvaluationTask };
+    await operations[action](row.taskId);
+    ElMessage.success(`任务已${labels[action]}`);
+    await loadDatasets();
+  } catch (error) {
+    if (error === "cancel" || error === "close") return;
+    ElMessage.error(error.message || `${labels[action]}任务失败`);
   }
 }
 
