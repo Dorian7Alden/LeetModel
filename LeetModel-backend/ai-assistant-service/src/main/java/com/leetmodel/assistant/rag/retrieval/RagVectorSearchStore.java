@@ -6,4 +6,9 @@ import java.util.List;
 public interface RagVectorSearchStore {
 
     List<RagVectorHit> search(List<Float> queryVector, int topK);
+
+    default List<RagVectorHit> search(List<Float> queryVector, int topK, String ragIndexVersion) {
+        return search(queryVector, topK).stream()
+                .filter(hit -> ragIndexVersion.equals(hit.ragIndexVersion())).toList();
+    }
 }

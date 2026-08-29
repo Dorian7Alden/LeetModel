@@ -19,6 +19,7 @@ public class AiPriorityPolicy {
             new Key("ai-suggestion-service", AiOperationCode.GENERATE_SUGGESTION), AiCallPriority.P1,
             new Key("admin-service", AiOperationCode.ADMIN_MODEL_TEST), AiCallPriority.P2,
             new Key("ai-review-service", AiOperationCode.EXPERIMENT_REVIEW), AiCallPriority.P3,
+            new Key("ai-assistant-service", AiOperationCode.EXPERIMENT_ASSISTANT), AiCallPriority.P3,
             new Key("ai-assistant-service", AiOperationCode.INDEX_DOCUMENTS), AiCallPriority.P4);
 
     public PriorityDecision resolve(AiCallContext context) {

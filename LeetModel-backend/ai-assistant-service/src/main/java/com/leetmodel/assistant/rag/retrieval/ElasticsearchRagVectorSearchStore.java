@@ -38,6 +38,20 @@ public class ElasticsearchRagVectorSearchStore implements RagVectorSearchStore {
 
     @Override
     public List<RagVectorHit> search(List<Float> queryVector, int topK) {
+        return searchIndex(queryVector, topK, properties.getIndexAlias());
+    }
+
+    @Override
+    public List<RagVectorHit> search(List<Float> queryVector, int topK, String ragIndexVersion) {
+        String version = ragIndexVersion == null ? "" : ragIndexVersion.toLowerCase();
+        if (!version.matches("[a-z0-9][a-z0-9_-]{2,127}")) {
+            throw new RagStoreException("RAG 索引版本非法", false, null);
+        }
+        String base = properties.getIndexAlias().replaceFirst("-read$", "");
+        return searchIndex(queryVector, topK, base + "-" + version);
+    }
+
+    private List<RagVectorHit> searchIndex(List<Float> queryVector, int topK, String indexName) {
         Map<String, Object> knn = Map.of(
                 "field", "embedding", "query_vector", queryVector,
                 "k", topK, "num_candidates", Math.max(100, topK * 10));
@@ -46,7 +60,7 @@ public class ElasticsearchRagVectorSearchStore implements RagVectorSearchStore {
                 "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
                         "ragIndexVersion", "estimatedTokens"),
                 "knn", knn);
-        Request request = new Request("POST", "/" + properties.getIndexAlias() + "/_search");
+        Request request = new Request("POST", "/" + indexName + "/_search");
         try {
             request.setJsonEntity(objectMapper.writeValueAsString(body));
             int timeoutMillis = Math.toIntExact(properties.getRequestTimeout().toMillis());

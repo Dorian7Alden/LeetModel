@@ -11,6 +11,7 @@ import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
+import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.core.result.Result;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -37,6 +38,7 @@ import java.util.List;
 public class AdminEvaluationController {
     private final EvaluationFeignClient evaluationClient;
     private final ReviewFeignClient reviewClient;
+    private final AssistantFeignClient assistantClient;
     private final AdminFeignExecutor executor;
 
     @GetMapping("/features")
@@ -46,7 +48,12 @@ public class AdminEvaluationController {
         if (!feature.isSuccess()) {
             return Result.fail(feature.getCode(), feature.getMessage());
         }
-        return Result.ok(List.of(feature.getData()));
+        Result<AiFeatureDefinitionDTO> assistant = executor.forward(
+                "AI 客服服务", assistantClient::getFeatureDefinition);
+        if (!assistant.isSuccess()) {
+            return Result.fail(assistant.getCode(), assistant.getMessage());
+        }
+        return Result.ok(List.of(feature.getData(), assistant.getData()));
     }
 
     @PostMapping("/datasets")
