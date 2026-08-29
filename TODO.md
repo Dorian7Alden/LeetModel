@@ -783,11 +783,13 @@ S5 阶段验收记录（2026-08-28）：AI 网关已形成单实例、持久化�
 
 ### S6：统一 AI 功能与版本契约任务
 
-#### [ ] S6-01 盘点 REVIEW、ASSISTANT、SUGGESTION 的真实状态
+#### [x] S6-01 盘点 REVIEW、ASSISTANT、SUGGESTION 的真实状态
 
 - 依赖：D-05。
 - 工作：核对 POM、Controller、Service、Feign、数据库和前端，记录 owner、正式入口、实验入口、版本来源与缺口。
 - 验收：修正 suggestion 旧文档；未实现能力不得出现在“可评价版本”列表。
+
+S6-01 验收记录（2026-08-29）：已逐项核对三个模块的父 POM、Controller、Service、common-api Feign、Flyway 与前端入口，并在 `docs/project/02-架构设计/AI功能版本现状.md` 固定 owner、正式入口、实验入口、版本来源和缺口。三个服务均为真实运行模块；当前只有 REVIEW 同时具备版本列表与隔离实验，故准入集合仅为 `REVIEW / BASIC_REVIEW_V1`。ASSISTANT 的 `ASSISTANT_CHAT_V1`、RAG 版本和 SUGGESTION 的 `IMPROVEMENT_V1` 都只是现行业务实现证据，在专用隔离契约落地前不得显示为可评价版本。suggestion 服务 README 已按当前实现重写，移除“尚无 Maven 运行模块”和整图均为目标设计的过时描述。
 
 #### [ ] S6-02 定义 AI 功能描述与版本查询契约
 
