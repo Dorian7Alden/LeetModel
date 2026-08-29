@@ -109,11 +109,13 @@ S7-08 验收记录（2026-08-29）：新增管理员与内部创建前预估接�
 
 S7-09 验收记录（2026-08-29）：评价 taskId、稳定 slotKey、attemptNo、槽位级 experimentRunId 和 attempt 级 idempotencyKey 已贯穿通用契约、REVIEW/ASSISTANT owner 与 AI 网关；V3 Flyway 回填并唯一约束幂等键，成功及可获取的失败均保存 callId。评价和 owner 双重固定 P3，网关策略保持正式客服 P0 优先且为后台队列保留公平份额。同步等待中的调用以原幂等键继续查询，不重复创建上游任务；网关 51213、owner UNKNOWN、评价 UNKNOWN 全链路保留，重启遗留 RUNNING 也转 UNKNOWN，普通重试只接受明确的 ENVIRONMENT/CONFIGURATION，不会盲目重试不确定结果。真实 MySQL 8 已验证 V1→V2→V3 迁移与非空唯一索引；评价/网关 116 项测试及 owner 88 项测试通过。详细规则见 [调用身份与未知结果](docs/project/03-微服务设计/ai-evaluation-service/通用评价/调用身份与未知结果.md)。
 
-#### [ ] S7-10 实现暂停、取消和恢复
+#### [x] S7-10 实现暂停、取消和恢复
 
 - 依赖：S7-09。
 - 工作：暂停新派发、取消可取消的排队调用、保留运行中结果、恢复剩余槽位，并记录操作者。
 - 验收：暂停后无新调用；取消不删历史；重启后可恢复。
+
+S7-10 验收记录（2026-08-29）：任务状态新增 PAUSED/CANCELLED 控制路径，调度领取 SQL 关联任务表并只领取 WAITING/RUNNING 任务的待执行槽位，暂停完成后不再产生新调用；运行中结果继续写入原 attempt，刷新逻辑不会覆盖 PAUSED/CANCELLED。恢复只继续剩余 WAITING 槽位，不重建成功历史；取消以条件更新锁定终态，将未派发槽位置 CANCELLED，按 evaluationTaskId 请求 AI 网关取消仍活动的队列调用，不删除任务、槽位或尝试。admin-service 从登录上下文取得操作者，V4 迁移保存最近动作、操作者和时间；管理页面提供暂停、恢复、取消与审计展示。真实 MySQL 8 已验证评价 V1→V4 与网关 V1→V8 连续迁移；后端 127 项测试和前端生产构建通过。状态与边界见 [调用身份与未知结果](docs/project/03-微服务设计/ai-evaluation-service/通用评价/调用身份与未知结果.md)。
 
 #### [ ] S7-11 实现可信原始指标
 
