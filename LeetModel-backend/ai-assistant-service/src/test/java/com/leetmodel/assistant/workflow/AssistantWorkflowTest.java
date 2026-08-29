@@ -155,14 +155,16 @@ class AssistantWorkflowTest {
         when(aiClient.chat(any())).thenReturn(response("实验回答"));
 
         workflow.experimentReply("单轮问题", RagWorkflowContext.empty(), "slot-1",
-                "ASSISTANT_NO_RAG_V1", "MODEL_CFG_ASSISTANT_TEXT_0001");
+                "ASSISTANT_NO_RAG_V1", "MODEL_CFG_ASSISTANT_TEXT_0001",
+                "evaluation-task-20", "evaluation:20:slot-1:attempt:1");
 
         ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
         verify(aiClient).chat(captor.capture());
         AiChatRequest request = captor.getValue();
         assertThat(request.context().operationCode()).isEqualTo(AiOperationCode.EXPERIMENT_ASSISTANT);
         assertThat(request.context().businessTaskId()).isEqualTo("experiment:slot-1");
-        assertThat(request.context().idempotencyKey()).isEqualTo("assistant:experiment:slot-1");
+        assertThat(request.context().evaluationTaskId()).isEqualTo("evaluation-task-20");
+        assertThat(request.context().idempotencyKey()).isEqualTo("evaluation:20:slot-1:attempt:1");
         assertThat(request.messages()).hasSize(2);
         assertThat(request.messages().get(1).content().get(0).text()).isEqualTo("单轮问题");
     }

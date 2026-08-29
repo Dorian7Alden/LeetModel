@@ -15,4 +15,5 @@ import java.util.List;
 public class EvaluationTaskDTO extends EvaluationTaskSummaryDTO {
     private Integer retryCount;
     private List<EvaluationRunDTO> runs;
+    private EvaluationRawMetricsDTO rawMetrics;
 }

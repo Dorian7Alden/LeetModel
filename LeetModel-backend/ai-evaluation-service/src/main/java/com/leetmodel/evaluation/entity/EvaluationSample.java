@@ -10,6 +10,9 @@ import lombok.EqualsAndHashCode;
 @TableName("evaluation_sample")
 public class EvaluationSample extends BaseEntity {
     private Long datasetId;
+    private String sampleType;
+    private String payloadSchemaVersion;
+    private String payloadJson;
     private Long submissionId;
     private Long teamId;
     private Long problemId;

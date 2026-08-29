@@ -17,6 +17,8 @@ public class AiQueueQueryDTO {
     private String priority;
     @Size(max = 64)
     private String callerService;
+    @Size(max = 128)
+    private String evaluationTaskId;
     @Min(0)
     private Long minWaitMs;
     @Min(1)

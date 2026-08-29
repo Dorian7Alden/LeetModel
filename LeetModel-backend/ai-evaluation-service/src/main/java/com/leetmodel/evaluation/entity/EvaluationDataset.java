@@ -9,6 +9,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @TableName("evaluation_dataset")
 public class EvaluationDataset extends BaseEntity {
+    private String featureCode;
+    private String datasetVersion;
+    private String sampleSchemaVersion;
     private String name;
     private String description;
     private String status;

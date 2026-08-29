@@ -76,4 +76,16 @@ class AiCallLogMigrationTest {
         assertThat(sql).contains("`rag_index_version`", "idx_rag_index_version_time")
                 .doesNotContain("knowledge_content", "query_text", "embedding_vector");
     }
+
+    @Test
+    void v8ShouldAddQueueEvaluationContextWithoutPayloadDuplication() throws Exception {
+        String sql;
+        try (var input = getClass().getResourceAsStream(
+                "/db/migration/V8__add_queue_evaluation_context.sql")) {
+            assertThat(input).isNotNull();
+            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+        }
+        assertThat(sql).contains("`evaluation_task_id`", "idx_queue_evaluation_task")
+                .doesNotContain("prompt", "response", "sample_payload");
+    }
 }

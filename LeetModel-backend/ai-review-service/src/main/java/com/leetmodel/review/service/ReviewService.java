@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
@@ -233,6 +234,13 @@ public class ReviewService {
 
     private ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion,
                                                      String experimentRunId, String modelConfigVersion) {
+        return runExperiment(submissionId, workflowVersion, experimentRunId, modelConfigVersion,
+                null, null);
+    }
+
+    private ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion,
+                                                     String experimentRunId, String modelConfigVersion,
+                                                     String evaluationTaskId, String idempotencyKey) {
         LocalDateTime startedAt = LocalDateTime.now();
         try {
             ReviewWorkflow workflow = workflowRegistry.required(workflowVersion);
@@ -246,6 +254,8 @@ public class ReviewService {
             transientTask.setPromptSnapshot(workflow.currentPrompt());
             transientTask.setAttemptNo(1);
             transientTask.setExperimentRunId(experimentRunId);
+            transientTask.setEvaluationTaskId(evaluationTaskId);
+            transientTask.setExperimentIdempotencyKey(idempotencyKey);
             transientTask.setModelExecutionConfigVersion(modelConfigVersion);
             ReviewWorkflowResult result = workflow.execute(transientTask, submission);
             return new ReviewExperimentResultDTO(
@@ -256,8 +266,11 @@ public class ReviewService {
             log.warn("隔离评审实验失败 submissionId={}, workflowVersion={}, message={}",
                     submissionId, workflowVersion, exception.getMessage());
             String failureType = classifyExperimentFailure(exception);
+            String status = "PENDING".equals(failureType) ? "PENDING"
+                    : "UNKNOWN".equals(failureType) ? "UNKNOWN" : "FAILED";
             return new ReviewExperimentResultDTO(
-                    submissionId, null, workflowVersion, "FAILED", failureType,
+                    submissionId, null, workflowVersion, status,
+                    "PENDING".equals(failureType) ? null : failureType,
                     null, null, null, null,
                     Duration.between(startedAt, LocalDateTime.now()).toMillis(),
                     experimentErrorMessage(failureType));
@@ -273,7 +286,9 @@ public class ReviewService {
                     || !"REVIEW_SUBMISSION_V1".equals(request.getSample().getSchemaVersion())
                     || !"MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
                     request.getModelExecutionConfigVersion())
-                    || request.getRagIndexVersion() != null) {
+                    || request.getRagIndexVersion() != null
+                    || !"P3".equals(request.getPriority())
+                    || !experimentContextComplete(request)) {
                 throw new IllegalArgumentException("评审实验配置与 REVIEW 契约不匹配");
             }
             ReviewVersion version = versionMapper.selectOne(new LambdaQueryWrapper<ReviewVersion>()
@@ -287,7 +302,8 @@ public class ReviewService {
             if (submissionId <= 0) throw new IllegalArgumentException("submissionId 必须为正整数");
             ReviewExperimentResultDTO legacy = runExperiment(submissionId,
                     request.getWorkflowVersion(), request.getExperimentRunId(),
-                    request.getModelExecutionConfigVersion());
+                    request.getModelExecutionConfigVersion(), request.getEvaluationTaskId(),
+                    request.getIdempotencyKey());
             return new AiExperimentResultDTO(request.getExperimentRunId(), "REVIEW",
                     legacy.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
                     legacy.getStatus(), legacy.getFailureType(), "SCORE_V1", legacy.getResultJson(),
@@ -303,6 +319,16 @@ public class ReviewService {
                     Duration.between(startedAt, LocalDateTime.now()).toMillis(),
                     "评审实验请求不符合已发布契约");
         }
+    }
+
+    private boolean experimentContextComplete(AiExperimentRequestDTO request) {
+        boolean none = request.getEvaluationTaskId() == null && request.getSlotKey() == null
+                && request.getAttemptNo() == null && request.getIdempotencyKey() == null;
+        boolean all = request.getEvaluationTaskId() != null && !request.getEvaluationTaskId().isBlank()
+                && request.getSlotKey() != null && !request.getSlotKey().isBlank()
+                && request.getAttemptNo() != null && request.getAttemptNo() > 0
+                && request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank();
+        return none || all;
     }
 
     @Transactional
@@ -375,6 +401,10 @@ public class ReviewService {
     }
 
     private String classifyExperimentFailure(Exception exception) {
+        if (exception instanceof AiClientException clientException) {
+            if (clientException.getCode() == 51212) return "PENDING";
+            if (clientException.getCode() == 51213) return "UNKNOWN";
+        }
         String message = exception.getMessage() == null ? "" : exception.getMessage();
         if (message.startsWith("未知评审版本")) return "CONFIGURATION";
         if (message.contains("模型输出不符合") || message.contains("AI 网关未返回评审内容")) {
@@ -387,6 +417,8 @@ public class ReviewService {
         return switch (failureType) {
             case "CONFIGURATION" -> "评审版本不存在或不可执行";
             case "OUTPUT" -> "评审版本未产生符合契约的结果";
+            case "PENDING" -> "AI 调用仍在处理中";
+            case "UNKNOWN" -> "AI 上游结果未知，禁止自动重试";
             default -> "实验评审依赖暂不可用";
         };
     }

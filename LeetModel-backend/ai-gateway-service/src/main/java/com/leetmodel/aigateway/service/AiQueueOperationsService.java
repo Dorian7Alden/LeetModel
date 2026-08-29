@@ -32,7 +32,8 @@ public class AiQueueOperationsService {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         long minimumWait = query.getMinWaitMs() == null ? 0L : query.getMinWaitMs();
         int limit = query.getLimit() == null ? 50 : query.getLimit();
-        return mapper.selectForMonitoring(query.getState(), query.getPriority(), query.getCallerService())
+        return mapper.selectForMonitoring(query.getState(), query.getPriority(), query.getCallerService(),
+                        query.getEvaluationTaskId())
                 .stream().map(task -> toDto(task, now))
                 .filter(task -> task.getWaitMs() >= minimumWait)
                 .limit(limit).toList();
@@ -63,6 +64,7 @@ public class AiQueueOperationsService {
         dto.setCallType(task.getCallType());
         dto.setFeatureCode(task.getFeatureCode());
         dto.setOperationCode(task.getOperationCode());
+        dto.setEvaluationTaskId(task.getEvaluationTaskId());
         dto.setEffectivePriority(task.getEffectivePriority());
         dto.setState(task.getState());
         dto.setAttemptCount(task.getAttemptCount());

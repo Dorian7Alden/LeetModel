@@ -5,6 +5,7 @@ import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
+import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.cloud.openfeign.SpringQueryMap;
@@ -29,4 +30,8 @@ public interface AiGatewayFeignClient {
 
     @PostMapping("/internal/ai/tasks/{taskId}/cancel")
     Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable("taskId") String taskId);
+
+    @GetMapping("/internal/ai/evaluations/{evaluationTaskId}/aggregate")
+    Result<AiEvaluationCallAggregateDTO> aggregateEvaluationCalls(
+            @PathVariable("evaluationTaskId") String evaluationTaskId);
 }

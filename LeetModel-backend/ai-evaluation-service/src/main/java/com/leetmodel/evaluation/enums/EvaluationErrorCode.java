@@ -14,6 +14,9 @@ public enum EvaluationErrorCode implements ErrorCode {
     TASK_NOT_FOUND(41105, "质量评价任务不存在"),
     TASK_NOT_FAILED(41106, "只有环境失败的质量评价任务可以重试"),
     IDEMPOTENCY_CONFLICT(41107, "请求标识已用于另一项质量评价"),
+    SCALE_LIMIT_EXCEEDED(41108, "评价批次规模超过服务端限制"),
+    DUPLICATE_CANDIDATE(41109, "评价批次不能包含重复候选版本"),
+    TASK_STATE_CONFLICT(41110, "评价任务当前状态不允许该操作"),
     DEPENDENCY_UNAVAILABLE(51101, "质量评价依赖服务暂不可用");
 
     private final int code;

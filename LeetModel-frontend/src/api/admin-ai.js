@@ -28,12 +28,28 @@ export function createEvaluationTask(data) {
   return request({ url: "/admin/ai/evaluations/tasks", method: "post", data });
 }
 
+export function estimateEvaluation(data) {
+  return request({ url: "/admin/ai/evaluations/estimates", method: "post", data });
+}
+
 export function getEvaluationTask(taskId) {
   return request({ url: `/admin/ai/evaluations/tasks/${taskId}`, method: "get" });
 }
 
 export function retryEvaluationTask(taskId) {
   return request({ url: `/admin/ai/evaluations/tasks/${taskId}/retry`, method: "post" });
+}
+
+export function pauseEvaluationTask(taskId) {
+  return request({ url: `/admin/ai/evaluations/tasks/${taskId}/pause`, method: "post" });
+}
+
+export function resumeEvaluationTask(taskId) {
+  return request({ url: `/admin/ai/evaluations/tasks/${taskId}/resume`, method: "post" });
+}
+
+export function cancelEvaluationTask(taskId) {
+  return request({ url: `/admin/ai/evaluations/tasks/${taskId}/cancel`, method: "post" });
 }
 
 export function compareEvaluation(datasetId, repeatCount) {

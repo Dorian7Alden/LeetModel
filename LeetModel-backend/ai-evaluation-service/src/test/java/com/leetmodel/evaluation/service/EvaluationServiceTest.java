@@ -3,12 +3,18 @@ package com.leetmodel.evaluation.service;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiQueueTaskDTO;
+import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.leetmodel.common.api.dto.ReviewVersionDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
+import com.leetmodel.common.api.feign.AssistantFeignClient;
+import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -20,6 +26,10 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.config.EvaluationScaleProperties;
+import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
+import com.leetmodel.evaluation.runner.AssistantEvaluationRunner;
+import com.leetmodel.evaluation.runner.ReviewEvaluationRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +60,8 @@ class EvaluationServiceTest {
     @Mock EvaluationRunAttemptMapper runMapper;
     @Mock SubmissionFeignClient submissionFeignClient;
     @Mock ReviewFeignClient reviewFeignClient;
+    @Mock AssistantFeignClient assistantFeignClient;
+    @Mock AiGatewayFeignClient aiGatewayFeignClient;
     @Mock EvaluationPersistenceService persistenceService;
     @Mock EvaluationMetricsCalculator metricsCalculator;
 
@@ -57,9 +69,17 @@ class EvaluationServiceTest {
 
     @BeforeEach
     void setUp() {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        var runner = new ReviewEvaluationRunner(reviewFeignClient,
+                new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
+        var assistantRunner = new AssistantEvaluationRunner(assistantFeignClient,
+                new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
+        var registry = new EvaluationRunnerRegistry(List.of(runner, assistantRunner));
+        var estimateService = new EvaluationEstimateService(
+                datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, reviewFeignClient, persistenceService, metricsCalculator,
-                JsonMapper.builder().findAndAddModules().build());
+                submissionFeignClient, aiGatewayFeignClient, registry, estimateService, persistenceService,
+                metricsCalculator, new EvaluationMetricRegistry(), mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
@@ -107,12 +127,33 @@ class EvaluationServiceTest {
     }
 
     @Test
+    void assistantDatasetStoresVersionedQuestionWithoutSubmissionOrConversationReference() {
+        var payload = new EvaluationSamplePayloadDTO("QUESTION", "ASSISTANT_QUESTION_V1",
+                "{\"question\":\"如何提交论文？\",\"tags\":[\"提交\"]}");
+
+        var result = service.createDataset(new EvaluationDatasetCreateDTO(
+                "客服固定集", null, 1L,
+                List.of(new EvaluationSampleCreateDTO(null, "客服样本", payload)),
+                "ASSISTANT", "ASSISTANT_DATASET_V1"));
+
+        ArgumentCaptor<EvaluationDataset> datasetCaptor = ArgumentCaptor.forClass(EvaluationDataset.class);
+        ArgumentCaptor<List<EvaluationSample>> sampleCaptor = ArgumentCaptor.forClass(List.class);
+        verify(persistenceService).createDataset(datasetCaptor.capture(), sampleCaptor.capture());
+        assertThat(datasetCaptor.getValue().getFeatureCode()).isEqualTo("ASSISTANT");
+        assertThat(datasetCaptor.getValue().getDatasetVersion()).isEqualTo("ASSISTANT_DATASET_V1");
+        assertThat(sampleCaptor.getValue().get(0).getSubmissionId()).isNull();
+        assertThat(sampleCaptor.getValue().get(0).getPayloadJson()).contains("如何提交论文");
+        assertThat(result.getSampleCount()).isEqualTo(1);
+        verify(submissionFeignClient, never()).getForReview(anyLong());
+    }
+
+    @Test
     void taskCreationValidatesEnabledVersionAndCreatesEveryRepeatSlot() {
         when(taskMapper.selectOne(any())).thenReturn(null);
         when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
         List<EvaluationSample> samples = List.of(sample(101L, 31L), sample(102L, 32L));
         when(sampleMapper.selectList(any())).thenReturn(samples);
-        when(reviewFeignClient.listVersions()).thenReturn(Result.ok(List.of(version("ENABLED"))));
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("ENABLED")));
 
         var result = service.createTask(new EvaluationTaskCreateDTO(
                 10L, "BASIC_REVIEW_V1", 3, "request_001"));
@@ -121,6 +162,10 @@ class EvaluationServiceTest {
         ArgumentCaptor<List<EvaluationRunAttempt>> runsCaptor = ArgumentCaptor.forClass(List.class);
         verify(persistenceService).createTask(taskCaptor.capture(), runsCaptor.capture());
         assertThat(taskCaptor.getValue().getTotalSlots()).isEqualTo(6);
+        assertThat(taskCaptor.getValue().getDatasetVersion()).isEqualTo("REVIEW_DATASET_V1");
+        assertThat(taskCaptor.getValue().getMetricSetVersion()).isEqualTo("METRIC_SET_V2");
+        assertThat(taskCaptor.getValue().getMetricDefinitionSnapshotJson())
+                .contains("varianceDenominator", "POPULATION_N", "missingValuePolicy");
         assertThat(runsCaptor.getValue()).hasSize(6)
                 .allMatch(run -> "WAITING".equals(run.getStatus()) && run.getAttemptNo() == 1);
         assertThat(result.getRuns()).hasSize(6);
@@ -145,10 +190,46 @@ class EvaluationServiceTest {
         when(taskMapper.selectOne(any())).thenReturn(null);
         when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
         when(sampleMapper.selectList(any())).thenReturn(List.of(sample(101L, 31L)));
-        when(reviewFeignClient.listVersions()).thenReturn(Result.ok(List.of(version("DISABLED"))));
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("DISABLED")));
 
         assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
                 10L, "BASIC_REVIEW_V1", 1, "request_002")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41104);
+        verify(persistenceService, never()).createTask(any(), any());
+    }
+
+    @Test
+    void assistantRagTaskLocksModelAndIndexVersions() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        EvaluationDataset dataset = dataset(10L);
+        dataset.setFeatureCode("ASSISTANT");
+        when(datasetMapper.selectById(10L)).thenReturn(dataset);
+        when(sampleMapper.selectList(any())).thenReturn(List.of(sample(201L, null)));
+        when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
+
+        service.createTask(new EvaluationTaskCreateDTO(10L, "ASSISTANT_RAG_V1", 2,
+                "assistant_request_1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc"));
+
+        ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
+        verify(persistenceService).createTask(taskCaptor.capture(), any());
+        assertThat(taskCaptor.getValue().getFeatureCode()).isEqualTo("ASSISTANT");
+        assertThat(taskCaptor.getValue().getModelExecutionConfigVersion())
+                .isEqualTo("MODEL_CFG_ASSISTANT_TEXT_0001");
+        assertThat(taskCaptor.getValue().getRagIndexVersion()).isEqualTo("rag-v1-abc");
+    }
+
+    @Test
+    void assistantRagTaskRejectsMissingIndexVersion() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        EvaluationDataset dataset = dataset(10L);
+        dataset.setFeatureCode("ASSISTANT");
+        when(datasetMapper.selectById(10L)).thenReturn(dataset);
+        when(sampleMapper.selectList(any())).thenReturn(List.of(sample(201L, null)));
+        when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
+
+        assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
+                10L, "ASSISTANT_RAG_V1", 1, "assistant_request_2")))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41104);
         verify(persistenceService, never()).createTask(any(), any());
@@ -170,7 +251,7 @@ class EvaluationServiceTest {
         succeeded.setScore(new BigDecimal("88.00"));
         succeeded.setDurationMs(50_000L);
         when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
-        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
         service.processNext();
 
@@ -178,12 +259,15 @@ class EvaluationServiceTest {
                 org.mockito.ArgumentMatchers.argThat(score ->
                         score.compareTo(new BigDecimal("88.00")) == 0),
                 org.mockito.ArgumentMatchers.eq("{\"score\":88}"),
-                org.mockito.ArgumentMatchers.eq("model-a"), org.mockito.ArgumentMatchers.eq("call-1"),
+                org.mockito.ArgumentMatchers.eq("{\"REVIEW_SCORE\":88.0}"),
+                org.mockito.ArgumentMatchers.eq("model-a"),
+                org.mockito.ArgumentMatchers.eq("MODEL_CFG_REVIEW_MULTIMODAL_0001"),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq("call-1"),
                 org.mockito.ArgumentMatchers.eq(50_000L),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class));
         verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(0),
-                any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -195,6 +279,46 @@ class EvaluationServiceTest {
 
         verify(reviewFeignClient, never()).runExperimentV2(any());
         verify(taskMapper, never()).markRunning(anyLong(), any());
+    }
+
+    @Test
+    void assistantWorkerPersistsDigestCallAndLockedRagVersion() {
+        EvaluationRunAttempt waiting = run(401L, 30L, 201L, "WAITING", null);
+        waiting.setExperimentRunId("assistant-eval:30:201:1");
+        EvaluationTask task = task(30L, "WAITING", 1);
+        task.setFeatureCode("ASSISTANT");
+        task.setWorkflowVersion("ASSISTANT_RAG_V1");
+        task.setModelExecutionConfigVersion("MODEL_CFG_ASSISTANT_TEXT_0001");
+        task.setRagIndexVersion("rag-v1-abc");
+        EvaluationSample sample = sample(201L, null);
+        sample.setSampleType("QUESTION");
+        sample.setPayloadSchemaVersion("ASSISTANT_QUESTION_V1");
+        sample.setPayloadJson("{\"question\":\"如何提交论文？\"}");
+        when(runMapper.selectNextWaiting()).thenReturn(waiting);
+        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(taskMapper.selectById(30L)).thenReturn(task);
+        when(sampleMapper.selectById(201L)).thenReturn(sample);
+        when(assistantFeignClient.runExperiment(any())).thenReturn(Result.ok(
+                new AiExperimentResultDTO("assistant-eval:30:201:1", "ASSISTANT",
+                        "ASSISTANT_RAG_V1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc",
+                        "SUCCEEDED", null, "ASSISTANT_REPLY_V1", "{\"answer\":\"敏感回答\"}",
+                        "ASSISTANT_RUN_METRICS_V1", "{}", "model", "call-a", 20L, null)));
+        EvaluationRunAttempt succeeded = run(401L, 30L, 201L, "SUCCEEDED", null);
+        succeeded.setDurationMs(20L);
+        when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
+
+        service.processNext();
+
+        ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
+        verify(runMapper).succeed(org.mockito.ArgumentMatchers.eq(401L),
+                org.mockito.ArgumentMatchers.isNull(), summary.capture(),
+                org.mockito.ArgumentMatchers.eq("{\"STRUCTURE_VALID_RATE\":100}"),
+                org.mockito.ArgumentMatchers.eq("model"),
+                org.mockito.ArgumentMatchers.eq("MODEL_CFG_ASSISTANT_TEXT_0001"),
+                org.mockito.ArgumentMatchers.eq("rag-v1-abc"),
+                org.mockito.ArgumentMatchers.eq("call-a"), org.mockito.ArgumentMatchers.eq(20L), any());
+        assertThat(summary.getValue()).contains("answerSha256").doesNotContain("敏感回答");
     }
 
     @Test
@@ -212,11 +336,23 @@ class EvaluationServiceTest {
         service.processNext();
 
         verify(runMapper).fail(org.mockito.ArgumentMatchers.eq(301L),
-                org.mockito.ArgumentMatchers.eq("ENVIRONMENT"), anyLong(), any(), any());
+                org.mockito.ArgumentMatchers.eq("ENVIRONMENT"),
+                org.mockito.ArgumentMatchers.isNull(), anyLong(), any(), any());
         verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
                 org.mockito.ArgumentMatchers.eq(1), any(), any());
-        verify(metricsCalculator, never()).calculate(any(), any());
+        verify(metricsCalculator, never()).calculate(any(), any(), any());
+    }
+
+    @Test
+    void restartedWorkerNeverDispatchesAlreadySuccessfulSlot() {
+        when(runMapper.selectNextWaiting()).thenReturn(null);
+
+        service.processNext();
+
+        verify(reviewFeignClient, never()).runExperimentV2(any());
+        verify(assistantFeignClient, never()).runExperiment(any());
+        verify(runMapper, never()).claim(anyLong(), any());
     }
 
     @Test
@@ -233,13 +369,13 @@ class EvaluationServiceTest {
         EvaluationRunAttempt failed = run(301L, 20L, 101L, "FAILED", "OUTPUT");
         failed.setDurationMs(100L);
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
-        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
         service.processNext();
 
         verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
-                any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -271,23 +407,82 @@ class EvaluationServiceTest {
     }
 
     @Test
-    void recoveryPreservesInterruptedAttemptAndQueuesNextAttempt() {
+    void recoveryMarksInterruptedAttemptUnknownWithoutBlindRetry() {
         EvaluationRunAttempt stale = run(301L, 20L, 101L, "RUNNING", null);
         when(runMapper.selectStale(any())).thenReturn(List.of(stale));
         when(persistenceService.recoverStale(any(), any())).thenReturn(true);
         EvaluationTask task = task(20L, "RUNNING", 1);
         when(taskMapper.selectById(20L)).thenReturn(task);
-        EvaluationRunAttempt retry = run(302L, 20L, 101L, "WAITING", null);
-        retry.setAttemptNo(2);
-        when(runMapper.selectList(any())).thenReturn(List.of(stale, retry));
+        EvaluationRunAttempt unknown = run(301L, 20L, 101L, "UNKNOWN", "UNKNOWN");
+        when(runMapper.selectList(any())).thenReturn(List.of(unknown));
 
         service.recoverStaleRuns();
 
         verify(persistenceService).recoverStale(org.mockito.ArgumentMatchers.eq(stale), any());
+        verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.contains("禁止自动或人工盲目重试"), any());
+        verify(persistenceService, never()).retry(any(), any());
+    }
+
+    @Test
+    void pauseStopsNewDispatchAndRecordsOperator() {
+        EvaluationTask running = task(20L, "RUNNING", 2);
+        EvaluationTask paused = task(20L, "PAUSED", 2);
+        paused.setLastOperatedBy(7L);
+        paused.setLastOperation("PAUSE");
+        when(taskMapper.selectById(20L)).thenReturn(running, paused);
+        when(taskMapper.pause(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+
+        var result = service.pause(20L, 7L);
+
+        assertThat(result.getStatus()).isEqualTo("PAUSED");
+        assertThat(result.getLastOperatedBy()).isEqualTo(7L);
+        verify(runMapper, never()).claim(anyLong(), any());
+    }
+
+    @Test
+    void resumeLeavesSuccessfulSlotsAndContinuesRemainingWaitingSlots() {
+        EvaluationTask paused = task(20L, "PAUSED", 2);
+        EvaluationTask waiting = task(20L, "WAITING", 2);
+        when(taskMapper.selectById(20L)).thenReturn(paused, waiting, waiting, waiting);
+        when(taskMapper.resume(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+        EvaluationRunAttempt success = run(301L, 20L, 101L, "SUCCEEDED", null);
+        EvaluationRunAttempt remaining = run(302L, 20L, 101L, "WAITING", null);
+        remaining.setRepetitionNo(2);
+        when(runMapper.selectList(any())).thenReturn(List.of(success, remaining));
+
+        var result = service.resume(20L, 7L);
+
         verify(taskMapper).updateProgress(org.mockito.ArgumentMatchers.eq(20L),
-                org.mockito.ArgumentMatchers.eq("RUNNING"), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.eq("RUNNING"), org.mockito.ArgumentMatchers.eq(1),
                 org.mockito.ArgumentMatchers.eq(0), org.mockito.ArgumentMatchers.eq(0),
                 org.mockito.ArgumentMatchers.isNull(), any());
+        verify(persistenceService, never()).retry(any(), any());
+        assertThat(result.getRuns()).hasSize(2);
+    }
+
+    @Test
+    void cancelKeepsHistoryCancelsWaitingSlotsAndRequestsGatewayCancellation() {
+        EvaluationTask running = task(20L, "RUNNING", 2);
+        EvaluationTask cancelled = task(20L, "CANCELLED", 2);
+        when(taskMapper.selectById(20L)).thenReturn(running, cancelled);
+        when(taskMapper.cancel(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+        AiQueueTaskDTO queue = new AiQueueTaskDTO();
+        queue.setTaskId("queue-1");
+        queue.setState("QUEUED");
+        when(aiGatewayFeignClient.listQueueTasks(any())).thenReturn(Result.ok(List.of(queue)));
+
+        var result = service.cancel(20L, 7L);
+
+        assertThat(result.getStatus()).isEqualTo("CANCELLED");
+        verify(runMapper).cancelWaiting(org.mockito.ArgumentMatchers.eq(20L), any());
+        verify(aiGatewayFeignClient).cancelQueueTask("queue-1");
+        verify(runMapper, never()).delete(any());
     }
 
     @Test
@@ -297,6 +492,7 @@ class EvaluationServiceTest {
         v1Latest.setOverallScore(new BigDecimal("82.00"));
         EvaluationTask v2 = task(22L, "COMPLETED", 2);
         v2.setWorkflowVersion("BASIC_REVIEW_V2");
+        v2.setMetricDefinitionSnapshotJson("{\"parameters\":{},\"metricSetVersion\":\"METRIC_SET_V2\"}");
         v2.setOverallScore(new BigDecimal("91.00"));
         EvaluationTask v1Old = task(20L, "COMPLETED", 2);
         v1Old.setOverallScore(new BigDecimal("70.00"));
@@ -308,12 +504,59 @@ class EvaluationServiceTest {
                 .containsExactly(22L, 21L);
         assertThat(comparison.getVersions()).extracting("workflowVersion")
                 .containsExactly("BASIC_REVIEW_V2", "BASIC_REVIEW_V1");
+        assertThat(comparison.getComparable()).isTrue();
+        assertThat(comparison.getRankingApplied()).isTrue();
+        assertThat(comparison.getIncompatibilityReasons()).isEmpty();
+    }
+
+    @Test
+    void comparisonKeepsSideBySideOrderButRejectsRankingAcrossMetricSnapshots() {
+        when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
+        EvaluationTask current = task(21L, "COMPLETED", 2);
+        current.setOverallScore(new BigDecimal("82.00"));
+        EvaluationTask legacy = task(22L, "COMPLETED", 2);
+        legacy.setWorkflowVersion("BASIC_REVIEW_V2");
+        legacy.setMetricSetVersion("METRIC_SET_V1");
+        legacy.setMetricDefinitionSnapshotJson("{\"metricSetVersion\":\"METRIC_SET_V1\"}");
+        legacy.setOverallScore(new BigDecimal("99.00"));
+        when(taskMapper.selectList(any())).thenReturn(List.of(current, legacy));
+
+        var comparison = service.compare(10L, 2);
+
+        assertThat(comparison.getComparable()).isFalse();
+        assertThat(comparison.getRankingApplied()).isFalse();
+        assertThat(comparison.getIncompatibilityReasons())
+                .contains("metricSetVersion 不一致或缺失", "指标定义或参数快照不一致或缺失");
+        assertThat(comparison.getVersions()).extracting("taskId").containsExactly(21L, 22L);
+    }
+
+    @Test
+    void historicalTaskWithoutRawMetricsRemainsReadableAsLegacySnapshot() {
+        EvaluationTask legacy = task(19L, "COMPLETED", 1);
+        legacy.setMetricSetVersion("LEGACY_REVIEW_METRICS_V1");
+        legacy.setMetricDefinitionSnapshotJson(
+                "{\"metricSetVersion\":\"LEGACY_REVIEW_METRICS_V1\",\"legacyOverallScore\":true}");
+        legacy.setRawMetricsJson(null);
+        legacy.setOverallScore(new BigDecimal("76.50"));
+        when(taskMapper.selectById(19L)).thenReturn(legacy);
+        when(runMapper.selectList(any())).thenReturn(List.of());
+        when(sampleMapper.selectList(any())).thenReturn(List.of());
+
+        var detail = service.getTask(19L);
+
+        assertThat(detail.getMetricSetVersion()).isEqualTo("LEGACY_REVIEW_METRICS_V1");
+        assertThat(detail.getOverallScore()).isEqualByComparingTo("76.50");
+        assertThat(detail.getRawMetrics()).isNull();
+        assertThat(detail.getRuns()).isEmpty();
     }
 
     private EvaluationDataset dataset(Long id) {
         EvaluationDataset dataset = new EvaluationDataset();
         dataset.setId(id);
         dataset.setStatus("LOCKED");
+        dataset.setFeatureCode("REVIEW");
+        dataset.setDatasetVersion("REVIEW_DATASET_V1");
+        dataset.setSampleSchemaVersion("REVIEW_SUBMISSION_V1");
         dataset.setSampleCount(2);
         return dataset;
     }
@@ -333,7 +576,12 @@ class EvaluationServiceTest {
         EvaluationTask task = new EvaluationTask();
         task.setId(id);
         task.setDatasetId(10L);
+        task.setDatasetVersion("REVIEW_DATASET_V1");
+        task.setFeatureCode("REVIEW");
         task.setWorkflowVersion("BASIC_REVIEW_V1");
+        task.setModelExecutionConfigVersion("MODEL_CFG_REVIEW_MULTIMODAL_0001");
+        task.setMetricSetVersion("METRIC_SET_V2");
+        task.setMetricDefinitionSnapshotJson("{\"metricSetVersion\":\"METRIC_SET_V2\",\"parameters\":{}}");
         task.setRepeatCount(totalSlots);
         task.setStatus(status);
         task.setTotalSlots(totalSlots);
@@ -363,8 +611,20 @@ class EvaluationServiceTest {
                 "submissions/" + teamId + "/paper.pdf");
     }
 
-    private ReviewVersionDTO version(String status) {
-        return new ReviewVersionDTO(1L, "BASIC_REVIEW_V1", "V1", "说明", "流程", status);
+    private AiFeatureDefinitionDTO feature(String status) {
+        return new AiFeatureDefinitionDTO("REVIEW", "论文评审", "ai-review-service",
+                List.of("REVIEW_SUBMISSION_V1"), List.of("REVIEW_SCORE"),
+                List.of(new AiWorkflowVersionDTO("BASIC_REVIEW_V1", "V1", status,
+                        "REVIEW_SUBMISSION_V1", "REVIEW_OUTPUT_V1", "兼容")));
+    }
+
+    private AiFeatureDefinitionDTO assistantFeature() {
+        return new AiFeatureDefinitionDTO("ASSISTANT", "AI客服", "ai-assistant-service",
+                List.of("ASSISTANT_QUESTION_V1"), List.of("STRUCTURE_VALID_RATE"),
+                List.of(new AiWorkflowVersionDTO("ASSISTANT_NO_RAG_V1", "无RAG", "ENABLED",
+                                "ASSISTANT_QUESTION_V1", "ASSISTANT_REPLY_V1", "兼容"),
+                        new AiWorkflowVersionDTO("ASSISTANT_RAG_V1", "RAG", "ENABLED",
+                                "ASSISTANT_QUESTION_V1", "ASSISTANT_REPLY_V1", "锁定索引")));
     }
 
     private AiExperimentResultDTO genericResult(String status, String failureType,
@@ -380,6 +640,7 @@ class EvaluationServiceTest {
     private EvaluationMetricsCalculator.Metrics metrics() {
         return new EvaluationMetricsCalculator.Metrics(
                 new BigDecimal("100.00"), null, new BigDecimal("100.00"),
-                new BigDecimal("100.00"), new BigDecimal("100.00"), 50_000L);
+                new BigDecimal("100.00"), new BigDecimal("100.00"), 50_000L,
+                new EvaluationRawMetricsDTO());
     }
 }

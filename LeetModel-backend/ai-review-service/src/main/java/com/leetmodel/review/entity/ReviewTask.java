@@ -13,5 +13,7 @@ public class ReviewTask extends BaseEntity {
     private LocalDateTime nextRunAt; private LocalDateTime startedAt;
     private LocalDateTime finishedAt; private String errorMessage;
     @TableField(exist = false) private String experimentRunId;
+    @TableField(exist = false) private String evaluationTaskId;
+    @TableField(exist = false) private String experimentIdempotencyKey;
     @TableField(exist = false) private String modelExecutionConfigVersion;
 }

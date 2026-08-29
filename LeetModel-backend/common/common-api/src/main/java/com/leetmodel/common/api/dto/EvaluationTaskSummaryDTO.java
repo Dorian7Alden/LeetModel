@@ -18,7 +18,12 @@ public class EvaluationTaskSummaryDTO {
     private Long taskId;
     @JsonSerialize(using = ToStringSerializer.class)
     private Long datasetId;
+    private String datasetVersion;
+    private String featureCode;
     private String workflowVersion;
+    private String modelExecutionConfigVersion;
+    private String ragIndexVersion;
+    private String metricSetVersion;
     private Integer repeatCount;
     private String status;
     private Integer totalSlots;
@@ -31,6 +36,10 @@ public class EvaluationTaskSummaryDTO {
     private BigDecimal overallScore;
     private Long avgDurationMs;
     private String errorMessage;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long lastOperatedBy;
+    private String lastOperation;
+    private LocalDateTime lastOperatedAt;
     private LocalDateTime createTime;
     private LocalDateTime finishedAt;
 }

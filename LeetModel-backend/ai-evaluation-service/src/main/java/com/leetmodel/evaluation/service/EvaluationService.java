@@ -2,21 +2,23 @@ package com.leetmodel.evaluation.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.EvaluationComparisonDTO;
+import com.leetmodel.common.api.dto.EvaluationCandidateDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationRunDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleDTO;
+import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
-import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
-import com.leetmodel.common.api.dto.AiExperimentResultDTO;
-import com.leetmodel.common.api.dto.AiExperimentSampleDTO;
-import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
+import com.leetmodel.common.api.feign.AiGatewayFeignClient;
+import com.leetmodel.common.api.dto.AiQueueQueryDTO;
+import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
+import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
@@ -28,6 +30,12 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.model.ValidatedSamplePayload;
+import com.leetmodel.evaluation.runner.EvaluationExperimentCommand;
+import com.leetmodel.evaluation.runner.EvaluationExperimentOutcome;
+import com.leetmodel.evaluation.runner.EvaluationExperimentRunner;
+import com.leetmodel.evaluation.runner.EvaluationRunnerException;
+import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -46,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -60,9 +69,12 @@ public class EvaluationService {
     private final EvaluationTaskMapper taskMapper;
     private final EvaluationRunAttemptMapper runMapper;
     private final SubmissionFeignClient submissionFeignClient;
-    private final ReviewFeignClient reviewFeignClient;
+    private final AiGatewayFeignClient aiGatewayFeignClient;
+    private final EvaluationRunnerRegistry runnerRegistry;
+    private final EvaluationEstimateService estimateService;
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
+    private final EvaluationMetricRegistry metricRegistry;
     private final ObjectMapper objectMapper;
 
     @Value("${evaluation.recovery.stale-minutes:15}")
@@ -70,23 +82,43 @@ public class EvaluationService {
 
     /** 创建后即锁定样本引用，MVP 不提供原地编辑。 */
     public EvaluationDatasetDTO createDataset(EvaluationDatasetCreateDTO request) {
-        Set<Long> distinct = request.getSamples().stream()
-                .map(EvaluationSampleCreateDTO::getSubmissionId).collect(Collectors.toSet());
-        BusinessException.throwIf(distinct.size() != request.getSamples().size(),
-                EvaluationErrorCode.DUPLICATE_SAMPLE);
-
+        estimateService.requireDatasetSize(request.getSamples().size());
+        String featureCode = request.getFeatureCode() == null || request.getFeatureCode().isBlank()
+                ? "REVIEW" : request.getFeatureCode().trim();
+        EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
+        if ("REVIEW".equals(featureCode)) {
+            Set<Long> references = new java.util.HashSet<>();
+            for (EvaluationSampleCreateDTO input : request.getSamples()) {
+                Long submissionId = runner.validateSample(requestPayload(featureCode, input)).submissionId();
+                BusinessException.throwIf(submissionId == null || !references.add(submissionId),
+                        EvaluationErrorCode.DUPLICATE_SAMPLE);
+            }
+        }
         List<ResolvedSample> resolved = new ArrayList<>();
+        Set<Long> submissionIds = new java.util.HashSet<>();
         for (EvaluationSampleCreateDTO input : request.getSamples()) {
-            SubmissionReviewDTO submission = requiredSample(input.getSubmissionId());
-            BusinessException.throwIf(!input.getSubmissionId().equals(submission.getId())
-                            || submission.getTeamId() == null || submission.getProblemId() == null
-                            || submission.getObjectName() == null || submission.getObjectName().isBlank(),
-                    EvaluationErrorCode.SAMPLE_UNAVAILABLE);
-            resolved.add(new ResolvedSample(submission, trimToNull(input.getNote())));
+            ValidatedSamplePayload payload = runner.validateSample(requestPayload(featureCode, input));
+            SubmissionReviewDTO submission = null;
+            if ("REVIEW".equals(featureCode)) {
+                BusinessException.throwIf(payload.submissionId() == null
+                                || !submissionIds.add(payload.submissionId()),
+                        EvaluationErrorCode.DUPLICATE_SAMPLE);
+                submission = requiredSample(payload.submissionId());
+                BusinessException.throwIf(!payload.submissionId().equals(submission.getId())
+                                || submission.getTeamId() == null || submission.getProblemId() == null
+                                || submission.getObjectName() == null || submission.getObjectName().isBlank(),
+                        EvaluationErrorCode.SAMPLE_UNAVAILABLE);
+            }
+            resolved.add(new ResolvedSample(submission, payload, trimToNull(input.getNote())));
         }
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationDataset dataset = new EvaluationDataset();
+        dataset.setFeatureCode(featureCode);
+        dataset.setDatasetVersion(request.getDatasetVersion() == null || request.getDatasetVersion().isBlank()
+                ? featureCode + "_DATASET_" + UUID.randomUUID().toString().replace("-", "")
+                : request.getDatasetVersion().trim());
+        dataset.setSampleSchemaVersion(resolved.get(0).payload().payloadSchemaVersion());
         dataset.setName(request.getName().trim());
         dataset.setDescription(trimToNull(request.getDescription()));
         dataset.setStatus("LOCKED");
@@ -98,9 +130,14 @@ public class EvaluationService {
         for (int index = 0; index < resolved.size(); index++) {
             ResolvedSample item = resolved.get(index);
             EvaluationSample sample = new EvaluationSample();
-            sample.setSubmissionId(item.submission().getId());
-            sample.setTeamId(item.submission().getTeamId());
-            sample.setProblemId(item.submission().getProblemId());
+            sample.setSampleType(item.payload().sampleType());
+            sample.setPayloadSchemaVersion(item.payload().payloadSchemaVersion());
+            sample.setPayloadJson(item.payload().payloadJson());
+            if (item.submission() != null) {
+                sample.setSubmissionId(item.submission().getId());
+                sample.setTeamId(item.submission().getTeamId());
+                sample.setProblemId(item.submission().getProblemId());
+            }
             sample.setSortOrder(index + 1);
             sample.setNote(item.note());
             sample.setCreateTime(now);
@@ -127,12 +164,33 @@ public class EvaluationService {
         EvaluationDataset dataset = requiredDataset(request.getDatasetId());
         List<EvaluationSample> samples = listSamples(dataset.getId());
         BusinessException.throwIf(samples.isEmpty(), EvaluationErrorCode.DATASET_NOT_FOUND);
-        requireEnabledVersion(request.getWorkflowVersion());
+        String featureCode = dataset.getFeatureCode() == null ? "REVIEW" : dataset.getFeatureCode();
+        EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
+        String modelConfig = request.getModelExecutionConfigVersion() == null
+                || request.getModelExecutionConfigVersion().isBlank()
+                ? defaultModelConfig(featureCode) : request.getModelExecutionConfigVersion().trim();
+        estimateService.requireWithinLimits(new EvaluationEstimateRequestDTO(dataset.getId(),
+                List.of(new EvaluationCandidateDTO(request.getWorkflowVersion(), modelConfig,
+                        trimToNull(request.getRagIndexVersion()))), request.getRepeatCount()));
+        var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
+        validateExecutionSelection(featureCode, request);
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
         task.setDatasetId(dataset.getId());
+        task.setDatasetVersion(dataset.getDatasetVersion());
+        task.setFeatureCode(featureCode);
         task.setWorkflowVersion(request.getWorkflowVersion().trim());
+        task.setModelExecutionConfigVersion(modelConfig);
+        task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
+        task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
+        try {
+            task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
+            task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
+                    metricRegistry.snapshot(featureCode)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价任务快照序列化失败", exception);
+        }
         task.setRepeatCount(request.getRepeatCount());
         task.setClientRequestId(request.getClientRequestId());
         task.setStatus("WAITING");
@@ -170,21 +228,75 @@ public class EvaluationService {
                 .stream().map(this::toSummary).toList();
     }
 
-    /** 相同数据集和重复次数下，每个版本只取最近一次已完成结果。 */
+    /** 相同数据集和重复次数下，每个候选只取最近一次结果；口径不同时禁止排名。 */
     public EvaluationComparisonDTO compare(Long datasetId, Integer repeatCount) {
-        requiredDataset(datasetId);
+        EvaluationDataset dataset = requiredDataset(datasetId);
         List<EvaluationTask> tasks = taskMapper.selectList(new LambdaQueryWrapper<EvaluationTask>()
                 .eq(EvaluationTask::getDatasetId, datasetId)
                 .eq(EvaluationTask::getRepeatCount, repeatCount)
                 .eq(EvaluationTask::getStatus, "COMPLETED")
                 .orderByDesc(EvaluationTask::getCreateTime));
         Map<String, EvaluationTask> latest = new LinkedHashMap<>();
-        tasks.forEach(task -> latest.putIfAbsent(task.getWorkflowVersion(), task));
-        List<EvaluationTaskSummaryDTO> versions = latest.values().stream().map(this::toSummary)
-                .sorted(Comparator.comparing(EvaluationTaskSummaryDTO::getOverallScore,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
-        return new EvaluationComparisonDTO(datasetId, repeatCount, versions);
+        tasks.forEach(task -> latest.putIfAbsent(comparisonCandidateKey(task), task));
+        List<EvaluationTask> candidates = List.copyOf(latest.values());
+        List<String> incompatibilities = comparisonIncompatibilities(dataset, candidates);
+        boolean comparable = candidates.size() > 1 && incompatibilities.isEmpty();
+        java.util.stream.Stream<EvaluationTaskSummaryDTO> summaries = candidates.stream().map(this::toSummary);
+        if (comparable) {
+            summaries = summaries.sorted(Comparator.comparing(EvaluationTaskSummaryDTO::getOverallScore,
+                    Comparator.nullsLast(Comparator.reverseOrder())));
+        }
+        return new EvaluationComparisonDTO(datasetId, dataset.getFeatureCode(),
+                dataset.getDatasetVersion(), repeatCount, comparable, comparable,
+                List.copyOf(incompatibilities), summaries.toList());
+    }
+
+    private String comparisonCandidateKey(EvaluationTask task) {
+        return String.join("|", nullToEmpty(task.getWorkflowVersion()),
+                nullToEmpty(task.getModelExecutionConfigVersion()), nullToEmpty(task.getRagIndexVersion()));
+    }
+
+    private List<String> comparisonIncompatibilities(EvaluationDataset dataset,
+                                                       List<EvaluationTask> tasks) {
+        List<String> reasons = new ArrayList<>();
+        if (tasks.size() < 2) reasons.add("至少需要两个已完成候选");
+        if (tasks.stream().anyMatch(task -> !java.util.Objects.equals(dataset.getFeatureCode(),
+                task.getFeatureCode()))) reasons.add("featureCode 不一致");
+        if (tasks.stream().anyMatch(task -> !java.util.Objects.equals(dataset.getDatasetVersion(),
+                task.getDatasetVersion()))) reasons.add("datasetVersion 不一致或缺失");
+        if (distinctCount(tasks, EvaluationTask::getMetricSetVersion) > 1
+                || tasks.stream().anyMatch(task -> task.getMetricSetVersion() == null)) {
+            reasons.add("metricSetVersion 不一致或缺失");
+        }
+        if (distinctMetricSnapshotCount(tasks) > 1
+                || tasks.stream().anyMatch(task -> task.getMetricDefinitionSnapshotJson() == null)) {
+            reasons.add("指标定义或参数快照不一致或缺失");
+        }
+        if (distinctCount(tasks, EvaluationTask::getModelExecutionConfigVersion) > 1
+                || tasks.stream().anyMatch(task -> task.getModelExecutionConfigVersion() == null)) {
+            reasons.add("modelExecutionConfigVersion 不一致或缺失");
+        }
+        return reasons;
+    }
+
+    private long distinctCount(List<EvaluationTask> tasks,
+                               java.util.function.Function<EvaluationTask, String> value) {
+        return tasks.stream().map(value).distinct().count();
+    }
+
+    private long distinctMetricSnapshotCount(List<EvaluationTask> tasks) {
+        return tasks.stream().map(EvaluationTask::getMetricDefinitionSnapshotJson).map(snapshot -> {
+            if (snapshot == null) return null;
+            try {
+                return objectMapper.readTree(snapshot);
+            } catch (Exception exception) {
+                return objectMapper.getNodeFactory().textNode("INVALID:" + snapshot);
+            }
+        }).distinct().count();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     /** 每次只执行一个样本槽位，避免长事务和一个任务独占工作线程。 */
@@ -195,27 +307,26 @@ public class EvaluationService {
         EvaluationTask task = taskMapper.selectById(run.getTaskId());
         EvaluationSample sample = sampleMapper.selectById(run.getSampleId());
         if (task == null || sample == null) {
-            runMapper.fail(run.getId(), "CONFIGURATION", 0L,
+            runMapper.fail(run.getId(), "CONFIGURATION", null, 0L,
                     "评价任务或样本不存在", LocalDateTime.now());
             if (task != null) refreshTask(task);
             return;
         }
         taskMapper.markRunning(task.getId(), LocalDateTime.now());
         try {
-            String experimentRunId = "review-eval:" + task.getId() + ":"
-                    + sample.getId() + ":" + run.getRepetitionNo();
-            Result<AiExperimentResultDTO> response = reviewFeignClient.runExperimentV2(
-                    new AiExperimentRequestDTO(experimentRunId, "REVIEW",
-                            new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
-                                    objectMapper.writeValueAsString(
-                                            Map.of("submissionId", sample.getSubmissionId()))),
-                            task.getWorkflowVersion(), "MODEL_CFG_REVIEW_MULTIMODAL_0001",
-                            null, "P3"));
-            persistExperimentResponse(run, sample, task, response);
+            EvaluationExperimentRunner runner = runnerRegistry.require(taskFeature(task));
+            EvaluationExperimentCommand command = command(run, sample, task, runner);
+            EvaluationExperimentOutcome outcome = runner.parseResult(command, runner.execute(command));
+            persistExperimentOutcome(run, runner, outcome);
+        } catch (EvaluationRunnerException exception) {
+            log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, message={}",
+                    task.getId(), sample.getId(), exception.getFailureType(), exception.getMessage());
+            runMapper.fail(run.getId(), exception.getFailureType(), null, 0L,
+                    exception.getMessage(), LocalDateTime.now());
         } catch (Exception exception) {
             log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
                     task.getId(), sample.getId(), exception.getMessage());
-            runMapper.fail(run.getId(), "ENVIRONMENT", 0L,
+            runMapper.fail(run.getId(), "ENVIRONMENT", null, 0L,
                     "实验评审依赖暂不可用", LocalDateTime.now());
         }
         refreshTask(task);
@@ -239,6 +350,32 @@ public class EvaluationService {
         return toTask(requiredTask(taskId));
     }
 
+    public EvaluationTaskDTO pause(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        BusinessException.throwIf(taskMapper.pause(taskId, operatorId, LocalDateTime.now()) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        return toTask(requiredTask(taskId));
+    }
+
+    public EvaluationTaskDTO resume(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        BusinessException.throwIf(taskMapper.resume(taskId, operatorId, LocalDateTime.now()) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        EvaluationTask resumed = requiredTask(taskId);
+        refreshTask(resumed);
+        return toTask(requiredTask(taskId));
+    }
+
+    public EvaluationTaskDTO cancel(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        LocalDateTime now = LocalDateTime.now();
+        BusinessException.throwIf(taskMapper.cancel(taskId, operatorId, now) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        runMapper.cancelWaiting(taskId, now);
+        cancelQueuedGatewayCalls(taskId);
+        return toTask(requiredTask(taskId));
+    }
+
     @Scheduled(fixedDelayString = "${evaluation.recovery.delay-ms:60000}")
     public void recoverStaleRuns() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleMinutes);
@@ -250,51 +387,48 @@ public class EvaluationService {
         }
     }
 
-    private void persistExperimentResponse(EvaluationRunAttempt run, EvaluationSample sample,
-                                           EvaluationTask task,
-                                           Result<AiExperimentResultDTO> response) {
+    private void persistExperimentOutcome(EvaluationRunAttempt run, EvaluationExperimentRunner runner,
+                                          EvaluationExperimentOutcome outcome) {
         LocalDateTime now = LocalDateTime.now();
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            runMapper.fail(run.getId(), "ENVIRONMENT", 0L,
-                    "实验评审依赖暂不可用", now);
+        Map<String, BigDecimal> metrics = runner.extractMetrics(outcome);
+        BigDecimal score = metrics.get("REVIEW_SCORE");
+        if ("SUCCEEDED".equals(outcome.status())) {
+            String metricsJson;
+            try {
+                metricsJson = objectMapper.writeValueAsString(metrics);
+            } catch (Exception exception) {
+                throw new EvaluationRunnerException("OUTPUT", "评价指标无法序列化", exception);
+            }
+            runMapper.succeed(run.getId(), score, outcome.outputSummaryJson(), metricsJson,
+                    outcome.modelName(), outcome.modelExecutionConfigVersion(),
+                    outcome.ragIndexVersion(), outcome.aiCallId(), outcome.durationMs(), now);
             return;
         }
-        AiExperimentResultDTO result = response.getData();
-        boolean identityMatches = "REVIEW".equals(result.getFeatureCode())
-                && task.getWorkflowVersion().equals(result.getWorkflowVersion())
-                && ("review-eval:" + task.getId() + ":" + sample.getId() + ":"
-                + run.getRepetitionNo()).equals(result.getExperimentRunId())
-                && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
-                result.getModelExecutionConfigVersion());
-        BigDecimal score = metricScore(result.getMetricsJson());
-        if ("SUCCEEDED".equals(result.getStatus()) && identityMatches
-                && score != null && result.getOutputJson() != null
-                && result.getDurationMs() != null) {
-            runMapper.succeed(run.getId(), score, result.getOutputJson(),
-                    result.getModelName(), result.getAiCallId(), result.getDurationMs(), now);
+        if ("PENDING".equals(outcome.status())) {
+            runMapper.deferPending(run.getId(), outcome.durationMs(), outcome.errorMessage(), now);
             return;
         }
-        String failureType = RETRYABLE_FAILURES.contains(result.getFailureType())
-                ? result.getFailureType() : "OUTPUT";
-        String error = result.getErrorMessage() == null || result.getErrorMessage().isBlank()
-                ? "评审版本未产生符合契约的结果" : result.getErrorMessage();
-        runMapper.fail(run.getId(), failureType,
-                result.getDurationMs() == null ? 0L : result.getDurationMs(), error, now);
-    }
-
-    private BigDecimal metricScore(String metricsJson) {
-        if (metricsJson == null || metricsJson.isBlank()) return null;
-        try {
-            return objectMapper.readTree(metricsJson).required("score").decimalValue();
-        } catch (Exception exception) {
-            return null;
+        if ("UNKNOWN".equals(outcome.status())) {
+            runMapper.markUnknown(run.getId(), outcome.aiCallId(), outcome.durationMs(),
+                    outcome.errorMessage(), now);
+            return;
         }
+        runMapper.fail(run.getId(), outcome.failureType(),
+                outcome.aiCallId(),
+                outcome.durationMs() == null ? 0L : outcome.durationMs(),
+                outcome.errorMessage(), now);
     }
 
     private void refreshTask(EvaluationTask task) {
+        EvaluationTask current = taskMapper.selectById(task.getId());
+        if (current == null || "PAUSED".equals(current.getStatus())
+                || "CANCELLED".equals(current.getStatus())) return;
+        task = current;
         List<EvaluationRunAttempt> latest = latestRuns(task.getId());
         int terminal = (int) latest.stream().filter(this::isTerminal).count();
-        int failed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())).count();
+        int failed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())
+                || "UNKNOWN".equals(run.getStatus())).count();
+        int unknown = (int) latest.stream().filter(run -> "UNKNOWN".equals(run.getStatus())).count();
         int environment = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())
                 && RETRYABLE_FAILURES.contains(run.getFailureType())).count();
         LocalDateTime now = LocalDateTime.now();
@@ -302,30 +436,43 @@ public class EvaluationService {
             taskMapper.updateProgress(task.getId(), "RUNNING", terminal, failed, environment, null, now);
             return;
         }
+        if (unknown > 0) {
+            taskMapper.fail(task.getId(), terminal, failed, environment,
+                    "有 " + unknown + " 个运行的上游结果未知，禁止自动或人工盲目重试", now);
+            return;
+        }
         if (environment > 0) {
             taskMapper.fail(task.getId(), terminal, failed, environment,
                     "有 " + environment + " 个运行因环境或配置失败，请恢复依赖后重试", now);
             return;
         }
-        EvaluationMetricsCalculator.Metrics metrics = metricsCalculator.calculate(task, latest);
+        AiEvaluationCallAggregateDTO callAggregate = callAggregate(task.getId());
+        EvaluationMetricsCalculator.Metrics metrics = metricsCalculator.calculate(task, latest, callAggregate);
+        String rawMetricsJson;
+        try {
+            rawMetricsJson = objectMapper.writeValueAsString(metrics.rawMetrics());
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价原始指标无法序列化", exception);
+        }
         taskMapper.complete(task.getId(), terminal, failed, metrics.validityScore(),
                 metrics.stabilityScore(), metrics.successRate(), metrics.latencyScore(),
-                metrics.overallScore(), metrics.averageDurationMs(), now);
+                metrics.overallScore(), metrics.averageDurationMs(), rawMetricsJson, now);
     }
 
-    private void requireEnabledVersion(String workflowVersion) {
-        Result<List<ReviewVersionDTO>> response;
+    private com.leetmodel.common.api.dto.AiFeatureDefinitionDTO requireEnabledVersion(
+            EvaluationExperimentRunner runner, String workflowVersion) {
+        com.leetmodel.common.api.dto.AiFeatureDefinitionDTO feature;
         try {
-            response = reviewFeignClient.listVersions();
-        } catch (RuntimeException exception) {
-            log.warn("查询评审版本失败: {}", exception.getMessage());
+            feature = runner.discoverFeature();
+        } catch (EvaluationRunnerException exception) {
+            log.warn("查询功能版本失败 featureCode={}, message={}", runner.featureCode(), exception.getMessage());
             throw new BusinessException(EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
         }
-        BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null,
-                EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
-        boolean enabled = response.getData().stream().anyMatch(version ->
-                workflowVersion.equals(version.getVersionCode()) && "ENABLED".equals(version.getStatus()));
+        boolean enabled = feature.getWorkflowVersions() != null && feature.getWorkflowVersions().stream()
+                .anyMatch(version -> workflowVersion.equals(version.getWorkflowVersion())
+                        && "ENABLED".equals(version.getStatus()));
         BusinessException.throwIf(!enabled, EvaluationErrorCode.VERSION_UNAVAILABLE);
+        return feature;
     }
 
     private SubmissionReviewDTO requiredSample(Long submissionId) {
@@ -362,7 +509,9 @@ public class EvaluationService {
     private void requireSameRequest(EvaluationTask existing, EvaluationTaskCreateDTO request) {
         boolean same = existing.getDatasetId().equals(request.getDatasetId())
                 && existing.getWorkflowVersion().equals(request.getWorkflowVersion().trim())
-                && existing.getRepeatCount().equals(request.getRepeatCount());
+                && existing.getRepeatCount().equals(request.getRepeatCount())
+                && java.util.Objects.equals(existing.getRagIndexVersion(),
+                trimToNull(request.getRagIndexVersion()));
         BusinessException.throwIf(!same, EvaluationErrorCode.IDEMPOTENCY_CONFLICT);
     }
 
@@ -390,6 +539,60 @@ public class EvaluationService {
         return runs;
     }
 
+    private EvaluationExperimentCommand command(EvaluationRunAttempt run, EvaluationSample sample,
+                                                EvaluationTask task,
+                                                EvaluationExperimentRunner runner) {
+        String sampleType = sample.getSampleType() == null
+                ? EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE : sample.getSampleType();
+        String schema = sample.getPayloadSchemaVersion() == null
+                ? EvaluationSamplePayloadService.REVIEW_SCHEMA : sample.getPayloadSchemaVersion();
+        String payload = sample.getPayloadJson();
+        if (payload == null && sample.getSubmissionId() != null) {
+            try {
+                payload = objectMapper.writeValueAsString(Map.of("submissionId", sample.getSubmissionId()));
+            } catch (Exception exception) {
+                throw new EvaluationRunnerException("CONFIGURATION", "历史评价样本无法转换", exception);
+            }
+        }
+        var validated = runner.validateSample(new EvaluationSamplePayloadDTO(sampleType, schema, payload));
+        String experimentRunId = run.getExperimentRunId() == null
+                ? taskFeature(task).toLowerCase() + "-eval:" + task.getId() + ":"
+                + sample.getId() + ":" + run.getRepetitionNo()
+                : run.getExperimentRunId();
+        String slotKey = run.getSlotKey() == null
+                ? task.getId() + ":" + sample.getId() + ":" + run.getRepetitionNo()
+                : run.getSlotKey();
+        String idempotencyKey = run.getIdempotencyKey() == null
+                ? "evaluation:" + task.getId() + ":" + slotKey + ":attempt:" + run.getAttemptNo()
+                : run.getIdempotencyKey();
+        return new EvaluationExperimentCommand(experimentRunId, String.valueOf(task.getId()),
+                slotKey, run.getAttemptNo(), idempotencyKey, validated, task.getWorkflowVersion(),
+                task.getModelExecutionConfigVersion() == null
+                        ? defaultModelConfig(taskFeature(task)) : task.getModelExecutionConfigVersion(),
+                task.getRagIndexVersion(), "P3");
+    }
+
+    private String taskFeature(EvaluationTask task) {
+        return task.getFeatureCode() == null ? "REVIEW" : task.getFeatureCode();
+    }
+
+    private String defaultModelConfig(String featureCode) {
+        if ("REVIEW".equals(featureCode)) return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
+        if ("ASSISTANT".equals(featureCode)) return "MODEL_CFG_ASSISTANT_TEXT_0001";
+        throw new IllegalArgumentException("功能没有默认模型执行配置: " + featureCode);
+    }
+
+    private void validateExecutionSelection(String featureCode, EvaluationTaskCreateDTO request) {
+        String rag = trimToNull(request.getRagIndexVersion());
+        boolean valid = switch (featureCode) {
+            case "REVIEW" -> rag == null;
+            case "ASSISTANT" -> "ASSISTANT_RAG_V1".equals(request.getWorkflowVersion())
+                    ? rag != null : "ASSISTANT_NO_RAG_V1".equals(request.getWorkflowVersion()) && rag == null;
+            default -> false;
+        };
+        BusinessException.throwIf(!valid, EvaluationErrorCode.VERSION_UNAVAILABLE);
+    }
+
     private List<EvaluationRunAttempt> latestRuns(Long taskId) {
         List<EvaluationRunAttempt> all = runMapper.selectList(
                 new LambdaQueryWrapper<EvaluationRunAttempt>()
@@ -413,7 +616,8 @@ public class EvaluationService {
     }
 
     private boolean isTerminal(EvaluationRunAttempt run) {
-        return "SUCCEEDED".equals(run.getStatus()) || "FAILED".equals(run.getStatus());
+        return "SUCCEEDED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())
+                || "UNKNOWN".equals(run.getStatus()) || "CANCELLED".equals(run.getStatus());
     }
 
     private EvaluationDatasetDTO toDataset(EvaluationDataset dataset, List<EvaluationSample> samples) {
@@ -434,6 +638,14 @@ public class EvaluationService {
         EvaluationTaskDTO detail = new EvaluationTaskDTO();
         BeanUtils.copyProperties(toSummary(task), detail);
         detail.setRetryCount(task.getRetryCount());
+        if (task.getRawMetricsJson() != null && !task.getRawMetricsJson().isBlank()) {
+            try {
+                detail.setRawMetrics(objectMapper.readValue(task.getRawMetricsJson(),
+                        EvaluationRawMetricsDTO.class));
+            } catch (Exception exception) {
+                throw new IllegalStateException("评价原始指标快照无法读取", exception);
+            }
+        }
         detail.setRuns(latestRuns.stream().map(run -> {
             EvaluationSample sample = samples.get(run.getSampleId());
             return new EvaluationRunDTO(run.getId(), run.getSampleId(),
@@ -445,18 +657,73 @@ public class EvaluationService {
     }
 
     private EvaluationTaskSummaryDTO toSummary(EvaluationTask task) {
-        return new EvaluationTaskSummaryDTO(task.getId(), task.getDatasetId(), task.getWorkflowVersion(),
-                task.getRepeatCount(), task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
+        return new EvaluationTaskSummaryDTO(task.getId(), task.getDatasetId(), task.getDatasetVersion(),
+                task.getFeatureCode(), task.getWorkflowVersion(), task.getModelExecutionConfigVersion(),
+                task.getRagIndexVersion(), task.getMetricSetVersion(), task.getRepeatCount(),
+                task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
                 task.getFailedSlots(), task.getValidityScore(), task.getStabilityScore(), task.getSuccessRate(),
                 task.getLatencyScore(), task.getOverallScore(), task.getAvgDurationMs(), task.getErrorMessage(),
+                task.getLastOperatedBy(), task.getLastOperation(), task.getLastOperatedAt(),
                 task.getCreateTime(), task.getFinishedAt());
+    }
+
+    private void cancelQueuedGatewayCalls(Long taskId) {
+        AiQueueQueryDTO query = new AiQueueQueryDTO();
+        query.setEvaluationTaskId(String.valueOf(taskId));
+        query.setLimit(100);
+        try {
+            Result<List<com.leetmodel.common.api.dto.AiQueueTaskDTO>> response =
+                    aiGatewayFeignClient.listQueueTasks(query);
+            if (response == null || !response.isSuccess() || response.getData() == null) return;
+            response.getData().stream()
+                    .filter(item -> Set.of("QUEUED", "LEASED", "RUNNING").contains(item.getState()))
+                    .forEach(item -> {
+                        try {
+                            aiGatewayFeignClient.cancelQueueTask(item.getTaskId());
+                        } catch (RuntimeException exception) {
+                            log.info("评价任务取消时网关调用已不可取消 taskId={}, queueTaskId={}",
+                                    taskId, item.getTaskId());
+                        }
+                    });
+        } catch (RuntimeException exception) {
+            log.warn("评价任务已取消，但查询网关排队调用失败 taskId={}", taskId);
+        }
+    }
+
+    private AiEvaluationCallAggregateDTO callAggregate(Long taskId) {
+        try {
+            Result<AiEvaluationCallAggregateDTO> response =
+                    aiGatewayFeignClient.aggregateEvaluationCalls(String.valueOf(taskId));
+            if (response != null && response.isSuccess() && response.getData() != null) {
+                return response.getData();
+            }
+        } catch (RuntimeException exception) {
+            log.warn("评价任务调用指标暂不可用 taskId={}", taskId);
+        }
+        return new AiEvaluationCallAggregateDTO();
     }
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record ResolvedSample(SubmissionReviewDTO submission, String note) {
+    private EvaluationSamplePayloadDTO requestPayload(String featureCode,
+                                                      EvaluationSampleCreateDTO input) {
+        if (input.getPayload() != null) return input.getPayload();
+        if (!"REVIEW".equals(featureCode) || input.getSubmissionId() == null) {
+            throw new EvaluationRunnerException("CONFIGURATION", "样本必须提供版本化 Payload");
+        }
+        try {
+            return new EvaluationSamplePayloadDTO(EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE,
+                    EvaluationSamplePayloadService.REVIEW_SCHEMA,
+                    objectMapper.writeValueAsString(Map.of("submissionId", input.getSubmissionId())));
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价样本载荷序列化失败", exception);
+        }
+    }
+
+    private record ResolvedSample(SubmissionReviewDTO submission, ValidatedSamplePayload payload,
+                                  String note) {
     }
 
     private record RunSlot(Long sampleId, Integer repetitionNo) {
