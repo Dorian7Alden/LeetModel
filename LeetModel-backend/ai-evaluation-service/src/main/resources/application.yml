@@ -6,3 +6,11 @@ spring:
 
 server:
   shutdown: graceful
+
+evaluation:
+  limits:
+    max-samples: ${EVALUATION_MAX_SAMPLES:100}
+    max-versions: ${EVALUATION_MAX_VERSIONS:8}
+    max-repeat-count: ${EVALUATION_MAX_REPEAT_COUNT:20}
+    max-total-slots: ${EVALUATION_MAX_TOTAL_SLOTS:2000}
+    max-estimated-calls: ${EVALUATION_MAX_ESTIMATED_CALLS:3000}
