@@ -142,6 +142,55 @@
         <el-descriptions-item label="操作者">{{ taskDetail.lastOperatedBy || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ formatTime(taskDetail.lastOperatedAt) }}</el-descriptions-item>
       </el-descriptions>
+      <template v-if="taskDetail?.rawMetrics">
+        <h3 class="detail-title">可信原始指标</h3>
+        <el-alert
+          title="以下为运行、资源与稳定性事实，不代表准确率或客观质量。缺失数据不会按 0 处理。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+        <el-descriptions :column="3" border size="small" class="metric-descriptions">
+          <el-descriptions-item label="指标口径">{{ taskDetail.rawMetrics.metricSetVersion }}</el-descriptions-item>
+          <el-descriptions-item label="槽位成功率">{{ formatRatio(taskDetail.rawMetrics.runSuccessRate) }}</el-descriptions-item>
+          <el-descriptions-item label="结构有效率">{{ formatRatio(taskDetail.rawMetrics.structureValidRate) }}</el-descriptions-item>
+          <el-descriptions-item label="失败分类">{{ formatMap(taskDetail.rawMetrics.failureCounts) }}</el-descriptions-item>
+          <el-descriptions-item label="调用审计">
+            {{ taskDetail.rawMetrics.observedCallCount ?? 0 }}/{{ taskDetail.rawMetrics.expectedCallCount ?? 0 }}
+            （{{ completenessLabel(taskDetail.rawMetrics.callAuditCompleteness) }}）
+          </el-descriptions-item>
+          <el-descriptions-item label="Token 完整性">
+            完整 {{ taskDetail.rawMetrics.callAggregate?.usageCompleteCount ?? 0 }}，
+            缺失 {{ taskDetail.rawMetrics.callAggregate?.usageMissingCount ?? 0 }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Token 合计">{{ formatNullable(taskDetail.rawMetrics.callAggregate?.totalTokens) }}</el-descriptions-item>
+          <el-descriptions-item label="费用">
+            {{ formatCost(taskDetail.rawMetrics.callAggregate) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="耗时缺失">{{ taskDetail.rawMetrics.callAggregate?.durationMissingCount ?? 0 }} 次</el-descriptions-item>
+          <el-descriptions-item label="平均排队">{{ formatDuration(taskDetail.rawMetrics.callAggregate?.averageQueueMs) }}</el-descriptions-item>
+          <el-descriptions-item label="平均执行">{{ formatDuration(taskDetail.rawMetrics.callAggregate?.averageExecutionMs) }}</el-descriptions-item>
+          <el-descriptions-item label="平均总耗时">{{ formatDuration(taskDetail.rawMetrics.callAggregate?.averageTotalMs) }}</el-descriptions-item>
+        </el-descriptions>
+        <el-table
+          v-if="taskDetail.rawMetrics.reviewSampleStatistics?.length"
+          :data="taskDetail.rawMetrics.reviewSampleStatistics"
+          stripe
+          class="sample-statistics"
+        >
+          <el-table-column prop="sampleId" label="样本" width="90" />
+          <el-table-column label="有效重复" width="100">
+            <template #default="{ row }">{{ row.validCount }}/{{ row.expectedCount }}</template>
+          </el-table-column>
+          <el-table-column label="完整性" width="100">
+            <template #default="{ row }">{{ completenessLabel(row.completeness) }}</template>
+          </el-table-column>
+          <el-table-column label="均值"><template #default="{ row }">{{ formatNullable(row.mean) }}</template></el-table-column>
+          <el-table-column label="方差"><template #default="{ row }">{{ formatNullable(row.variance) }}</template></el-table-column>
+          <el-table-column label="标准差"><template #default="{ row }">{{ formatNullable(row.standardDeviation) }}</template></el-table-column>
+          <el-table-column label="极差"><template #default="{ row }">{{ formatNullable(row.range) }}</template></el-table-column>
+        </el-table>
+      </template>
       <el-table v-if="taskDetail?.runs?.length" :data="taskDetail.runs" stripe style="margin-top: 16px">
         <el-table-column prop="sampleId" label="样本" width="90" />
         <el-table-column prop="submissionId" label="提交" width="100" />
@@ -197,6 +246,27 @@ const taskForm = reactive({ datasetId: null, workflowVersion: "", repeatCount: 2
 
 function formatTime(value) {
   return value ? String(value).replace("T", " ").slice(0, 16) : "-";
+}
+function formatNullable(value) {
+  return value == null ? "未提供" : value;
+}
+function formatRatio(value) {
+  return value == null ? "不可计算" : `${Number(value).toFixed(2)}%`;
+}
+function formatDuration(value) {
+  return value == null ? "未提供" : `${value}ms`;
+}
+function formatMap(value) {
+  const entries = Object.entries(value || {});
+  return entries.length ? entries.map(([key, count]) => `${key}: ${count}`).join("；") : "无";
+}
+function completenessLabel(value) {
+  return ({ COMPLETE: "完整", PARTIAL: "部分缺失", MISSING: "缺失", INSUFFICIENT: "样本不足" })[value] || value || "未知";
+}
+function formatCost(aggregate) {
+  const totals = Object.entries(aggregate?.costTotals || {});
+  const amount = totals.length ? totals.map(([currency, value]) => `${value} ${currency}`).join("；") : "未提供";
+  return `${amount}（实际 ${aggregate?.actualCostCount ?? 0}，估算 ${aggregate?.estimatedCostCount ?? 0}，缺失 ${aggregate?.costMissingCount ?? 0}）`;
 }
 function statusLabel(status) {
   return ({ WAITING: "等待", RUNNING: "运行中", PAUSED: "已暂停", CANCELLED: "已取消", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
@@ -373,4 +443,7 @@ onMounted(() => {
 <style scoped>
 .pane-toolbar, .compare-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .panel-title { margin: 0; font-size: 18px; }
+.detail-title { margin: 20px 0 12px; font-size: 16px; }
+.metric-descriptions { margin-top: 12px; }
+.sample-statistics { margin-top: 16px; }
 </style>
