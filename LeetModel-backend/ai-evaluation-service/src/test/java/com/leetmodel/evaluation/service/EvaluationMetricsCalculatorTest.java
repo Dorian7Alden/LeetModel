@@ -108,8 +108,12 @@ class EvaluationMetricsCalculatorTest {
         EvaluationRunAttempt noEvidence = run(12L, 1, null, 100L);
         noEvidence.setMetricsJson("{\"RETRIEVAL_HIT_RATE\":0}");
 
-        var summaries = calculator.calculate(task, List.of(evaluated, noEvidence))
-                .rawMetrics().getAssistantMetricSummaries();
+        var metrics = calculator.calculate(task, List.of(evaluated, noEvidence));
+        var summaries = metrics.rawMetrics().getAssistantMetricSummaries();
+
+        assertThat(metrics.validityScore()).isEqualByComparingTo("100.00");
+        assertThat(metrics.successRate()).isEqualByComparingTo("100.00");
+        assertThat(metrics.stabilityScore()).isNull();
 
         assertThat(summaries).filteredOn(item -> "RETRIEVAL_HIT_RATE".equals(item.getMetricCode()))
                 .singleElement().satisfies(item -> {

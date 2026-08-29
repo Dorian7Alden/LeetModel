@@ -35,15 +35,15 @@ public class EvaluationMetricsCalculator {
                              AiEvaluationCallAggregateDTO callAggregate) {
         int total = task.getTotalSlots();
         List<EvaluationRunAttempt> succeeded = latestRuns.stream()
-                .filter(run -> "SUCCEEDED".equals(run.getStatus()) && run.getScore() != null)
-                .toList();
+                .filter(run -> "SUCCEEDED".equals(run.getStatus())).toList();
         BigDecimal validity = percent(succeeded.size(), total);
         BigDecimal successRate = percent(succeeded.size(), total);
         Long averageDuration = averageDuration(latestRuns);
         BigDecimal latency = latencyScore(averageDuration);
-        BigDecimal stability = task.getRepeatCount() < 2
+        boolean review = "REVIEW".equals(task.getFeatureCode());
+        BigDecimal stability = !review || task.getRepeatCount() < 2
                 ? null : stabilityScore(latestRuns, task.getRepeatCount());
-        BigDecimal overall = task.getRepeatCount() < 2
+        BigDecimal overall = !review || task.getRepeatCount() < 2
                 ? validity.multiply(new BigDecimal("0.85"))
                         .add(latency.multiply(new BigDecimal("0.15")))
                 : validity.multiply(new BigDecimal("0.60"))
