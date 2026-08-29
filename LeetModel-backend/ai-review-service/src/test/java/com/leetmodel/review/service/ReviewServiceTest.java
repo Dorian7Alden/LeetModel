@@ -1,6 +1,9 @@
 package com.leetmodel.review.service;
 
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentSampleDTO;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -47,7 +50,8 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = new ReviewService(taskMapper, resultMapper, versionMapper, submissionFeignClient,
-                teamFeignClient, workflowRegistry, logService, persistenceService);
+                teamFeignClient, workflowRegistry, logService, persistenceService,
+                JsonMapper.builder().findAndAddModules().build());
     }
 
     @Test
@@ -244,6 +248,34 @@ class ReviewServiceTest {
                 && task.getAttemptNo() == 1), any());
         verify(taskMapper, never()).insert(any(ReviewTask.class));
         verify(resultMapper, never()).insert(any(ReviewV1Result.class));
+    }
+
+    @Test
+    void genericExperimentLocksRunAndModelConfigWithoutFormalTask() throws Exception {
+        ReviewVersion enabled = version(ReviewService.WORKFLOW_VERSION, "ENABLED", "SCORE_V1");
+        when(versionMapper.selectOne(any())).thenReturn(enabled);
+        when(workflowRegistry.required(ReviewService.WORKFLOW_VERSION)).thenReturn(workflow);
+        when(workflow.versionId()).thenReturn(1L);
+        when(workflow.versionCode()).thenReturn(ReviewService.WORKFLOW_VERSION);
+        when(workflow.currentPrompt()).thenReturn("prompt");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("88.5"), "{\"score\":88.5}", "model", "call-1"));
+        var request = new AiExperimentRequestDTO("review-slot-1", "REVIEW",
+                new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
+                        "{\"submissionId\":31}"), ReviewService.WORKFLOW_VERSION,
+                "MODEL_CFG_REVIEW_MULTIMODAL_0001", null, "P3");
+
+        var result = service.runExperiment(request);
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        assertEquals("review-slot-1", result.getExperimentRunId());
+        assertEquals("MODEL_CFG_REVIEW_MULTIMODAL_0001", result.getModelExecutionConfigVersion());
+        verify(workflow).execute(argThat(task -> task.getId() == null
+                && "review-slot-1".equals(task.getExperimentRunId())
+                && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
+                task.getModelExecutionConfigVersion())), any());
+        verify(taskMapper, never()).insert(any(ReviewTask.class));
     }
 
     @Test

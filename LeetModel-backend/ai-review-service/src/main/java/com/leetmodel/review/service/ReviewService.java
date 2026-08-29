@@ -7,6 +7,9 @@ import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -45,15 +48,18 @@ public class ReviewService {
     private final ReviewWorkflowRegistry workflowRegistry;
     private final ReviewTaskLogService logService;
     private final ReviewResultPersistenceService persistenceService;
+    private final ObjectMapper objectMapper;
 
     public ReviewService(ReviewTaskMapper taskMapper, ReviewV1ResultMapper resultMapper,
                          ReviewVersionMapper versionMapper, SubmissionFeignClient submissionFeignClient,
                          TeamFeignClient teamFeignClient, ReviewWorkflowRegistry workflowRegistry,
-                         ReviewTaskLogService logService, ReviewResultPersistenceService persistenceService) {
+                         ReviewTaskLogService logService, ReviewResultPersistenceService persistenceService,
+                         ObjectMapper objectMapper) {
         this.taskMapper = taskMapper; this.resultMapper = resultMapper; this.versionMapper = versionMapper;
         this.submissionFeignClient = submissionFeignClient; this.teamFeignClient = teamFeignClient;
         this.workflowRegistry = workflowRegistry; this.logService = logService;
         this.persistenceService = persistenceService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -221,6 +227,12 @@ public class ReviewService {
      * @return 隔离实验结果或分类失败
      */
     public ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion) {
+        return runExperiment(submissionId, workflowVersion, null,
+                "MODEL_CFG_REVIEW_MULTIMODAL_0001");
+    }
+
+    private ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion,
+                                                     String experimentRunId, String modelConfigVersion) {
         LocalDateTime startedAt = LocalDateTime.now();
         try {
             ReviewWorkflow workflow = workflowRegistry.required(workflowVersion);
@@ -233,6 +245,8 @@ public class ReviewService {
             transientTask.setWorkflowVersion(workflow.versionCode());
             transientTask.setPromptSnapshot(workflow.currentPrompt());
             transientTask.setAttemptNo(1);
+            transientTask.setExperimentRunId(experimentRunId);
+            transientTask.setModelExecutionConfigVersion(modelConfigVersion);
             ReviewWorkflowResult result = workflow.execute(transientTask, submission);
             return new ReviewExperimentResultDTO(
                     submissionId, submission.getProblemId(), workflow.versionCode(), "SUCCEEDED", null,
@@ -247,6 +261,47 @@ public class ReviewService {
                     null, null, null, null,
                     Duration.between(startedAt, LocalDateTime.now()).toMillis(),
                     experimentErrorMessage(failureType));
+        }
+    }
+
+    /** 使用通用契约执行瞬态评审，且不写入正式评审表。 */
+    public AiExperimentResultDTO runExperiment(AiExperimentRequestDTO request) {
+        LocalDateTime startedAt = LocalDateTime.now();
+        try {
+            if (!"REVIEW".equals(request.getFeatureCode())
+                    || !"SUBMISSION_REFERENCE".equals(request.getSample().getSampleType())
+                    || !"REVIEW_SUBMISSION_V1".equals(request.getSample().getSchemaVersion())
+                    || !"MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
+                    request.getModelExecutionConfigVersion())
+                    || request.getRagIndexVersion() != null) {
+                throw new IllegalArgumentException("评审实验配置与 REVIEW 契约不匹配");
+            }
+            ReviewVersion version = versionMapper.selectOne(new LambdaQueryWrapper<ReviewVersion>()
+                    .eq(ReviewVersion::getVersionCode, request.getWorkflowVersion())
+                    .last("LIMIT 1"));
+            if (version == null || !"ENABLED".equals(version.getStatus())) {
+                throw new IllegalArgumentException("评审版本不可用于新实验");
+            }
+            Long submissionId = objectMapper.readTree(request.getSample().getPayloadJson())
+                    .required("submissionId").asLong();
+            if (submissionId <= 0) throw new IllegalArgumentException("submissionId 必须为正整数");
+            ReviewExperimentResultDTO legacy = runExperiment(submissionId,
+                    request.getWorkflowVersion(), request.getExperimentRunId(),
+                    request.getModelExecutionConfigVersion());
+            return new AiExperimentResultDTO(request.getExperimentRunId(), "REVIEW",
+                    legacy.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
+                    legacy.getStatus(), legacy.getFailureType(), "SCORE_V1", legacy.getResultJson(),
+                    "REVIEW_RUN_METRICS_V1", legacy.getScore() == null ? null
+                    : objectMapper.writeValueAsString(java.util.Map.of("score", legacy.getScore())),
+                    legacy.getModelName(), legacy.getAiCallId(), legacy.getDurationMs(),
+                    legacy.getErrorMessage());
+        } catch (Exception exception) {
+            return new AiExperimentResultDTO(request.getExperimentRunId(), request.getFeatureCode(),
+                    request.getWorkflowVersion(), request.getModelExecutionConfigVersion(),
+                    request.getRagIndexVersion(), "FAILED", "CONFIGURATION", null, null,
+                    null, null, null, null,
+                    Duration.between(startedAt, LocalDateTime.now()).toMillis(),
+                    "评审实验请求不符合已发布契约");
         }
     }
 

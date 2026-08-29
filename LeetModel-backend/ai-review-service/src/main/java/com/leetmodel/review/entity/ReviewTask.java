@@ -1,5 +1,6 @@
 package com.leetmodel.review.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.leetmodel.common.core.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -11,4 +12,6 @@ public class ReviewTask extends BaseEntity {
     private String promptSnapshot; private Integer retryCount; private Integer attemptNo;
     private LocalDateTime nextRunAt; private LocalDateTime startedAt;
     private LocalDateTime finishedAt; private String errorMessage;
+    @TableField(exist = false) private String experimentRunId;
+    @TableField(exist = false) private String modelExecutionConfigVersion;
 }
