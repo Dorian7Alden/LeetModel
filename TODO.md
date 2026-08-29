@@ -835,11 +835,13 @@ S6 阶段验收记录（2026-08-29）：REVIEW 与 ASSISTANT 已统一提供可�
 
 ### S7：通用 ai-evaluation-service 任务
 
-#### [ ] S7-01 设计通用领域模型与旧数据迁移
+#### [x] S7-01 设计通用领域模型与旧数据迁移
 
 - 依赖：D-04、S6-04。
 - 工作：把现有 dataset、sample、task、run_attempt 映射为 feature + version + dataset，选择兼容扩列或新表。
 - 验收：历史论文评审任务不丢失且仍可查询，字段所有权和状态机明确。
+
+S7-01 验收记录（2026-08-29）：确认沿用 `evaluation_dataset`、`evaluation_sample`、`evaluation_task` 与 `evaluation_run_attempt` 四张主表做兼容扩列，不建立第二套领域表和状态机。通用模型按 feature、不可变 datasetVersion、版本化样本 Payload、候选工作流与执行配置快照、逻辑槽位和 attempt 组织；文档明确 REVIEW、ASSISTANT 与暂不准入的 SUGGESTION 映射、字段所有权，以及暂停、取消、恢复和 UNKNOWN 保护的目标状态机。迁移固定为先新增可空字段、确定性回填、兼容读取、验证后收紧，保留全部历史 ID、旧分数字段、状态、callId 和查询入口，不修改 V1、不删除数据，也不把旧 `overallScore` 冒充新版本选择指数。
 
 #### [ ] S7-02 定义版本化数据集与样本 Payload
 
