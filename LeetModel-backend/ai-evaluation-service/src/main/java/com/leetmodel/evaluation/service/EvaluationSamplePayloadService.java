@@ -21,7 +21,10 @@ public class EvaluationSamplePayloadService {
     public static final String ASSISTANT_SCHEMA = "ASSISTANT_QUESTION_V1";
 
     private static final Set<String> REVIEW_FIELDS = Set.of("submissionId");
-    private static final Set<String> ASSISTANT_FIELDS = Set.of("question", "tags", "expectedPoints");
+    private static final Set<String> ASSISTANT_FIELDS = Set.of("question", "tags", "expectedPoints",
+            "expectedSources", "formatRules");
+    private static final Set<String> ASSISTANT_FORMAT_RULES = Set.of("ANSWER_NON_BLANK",
+            "ANSWER_MAX_2000", "NO_MARKDOWN_CODE_FENCE", "REQUIRES_SOURCE_MARKER");
 
     private final ObjectMapper objectMapper;
 
@@ -54,7 +57,19 @@ public class EvaluationSamplePayloadService {
         }
         validateStringArray(payload.get("tags"), "tags", 20, 100);
         validateStringArray(payload.get("expectedPoints"), "expectedPoints", 20, 500);
+        validateStringArray(payload.get("expectedSources"), "expectedSources", 20, 500);
+        validateFormatRules(payload.get("formatRules"));
         return normalized(input, payload, null);
+    }
+
+    private void validateFormatRules(JsonNode value) {
+        validateStringArray(value, "formatRules", 10, 100);
+        if (value == null || value.isNull()) return;
+        for (JsonNode item : value) {
+            if (!ASSISTANT_FORMAT_RULES.contains(item.textValue())) {
+                throw new IllegalArgumentException("formatRules 包含不支持的规则: " + item.textValue());
+            }
+        }
     }
 
     private JsonNode parseObject(String payloadJson) {

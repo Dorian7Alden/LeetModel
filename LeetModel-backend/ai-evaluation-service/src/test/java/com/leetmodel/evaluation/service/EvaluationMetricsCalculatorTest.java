@@ -98,6 +98,33 @@ class EvaluationMetricsCalculatorTest {
         assertThat(metrics.rawMetrics().getCallAggregate().getCostMissingCount()).isEqualTo(1);
     }
 
+    @Test
+    void assistantMetricsKeepEvidenceFreeQualityExplicitlyNotEvaluated() {
+        EvaluationTask task = task(2, 1);
+        task.setFeatureCode("ASSISTANT");
+        task.setWorkflowVersion("ASSISTANT_RAG_V1");
+        EvaluationRunAttempt evaluated = run(11L, 1, null, 100L);
+        evaluated.setMetricsJson("{\"RETRIEVAL_HIT_RATE\":100,\"SOURCE_COVERAGE_RATE\":50}");
+        EvaluationRunAttempt noEvidence = run(12L, 1, null, 100L);
+        noEvidence.setMetricsJson("{\"RETRIEVAL_HIT_RATE\":0}");
+
+        var summaries = calculator.calculate(task, List.of(evaluated, noEvidence))
+                .rawMetrics().getAssistantMetricSummaries();
+
+        assertThat(summaries).filteredOn(item -> "RETRIEVAL_HIT_RATE".equals(item.getMetricCode()))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.getStatus()).isEqualTo("AVAILABLE");
+                    assertThat(item.getValue()).isEqualByComparingTo("50.00");
+                });
+        assertThat(summaries).filteredOn(item -> "SOURCE_COVERAGE_RATE".equals(item.getMetricCode()))
+                .singleElement().satisfies(item -> assertThat(item.getStatus()).isEqualTo("PARTIAL"));
+        assertThat(summaries).filteredOn(item -> "HUMAN_QUALITY_SCORE".equals(item.getMetricCode()))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.getStatus()).isEqualTo("NOT_EVALUATED");
+                    assertThat(item.getValue()).isNull();
+                });
+    }
+
     private EvaluationTask task(int totalSlots, int repeatCount) {
         EvaluationTask task = new EvaluationTask();
         task.setTotalSlots(totalSlots);
@@ -111,7 +138,7 @@ class EvaluationMetricsCalculatorTest {
         run.setSampleId(sampleId);
         run.setRepetitionNo(repetition);
         run.setStatus("SUCCEEDED");
-        run.setScore(new BigDecimal(score));
+        run.setScore(score == null ? null : new BigDecimal(score));
         run.setDurationMs(durationMs);
         return run;
     }

@@ -72,6 +72,9 @@ public class EvaluationMetricRegistry {
         add(values, metric("FORMAT_RULE_PASS_RATE", "DETERMINISTIC_QUALITY", "PERCENT",
                 "HIGHER_IS_BETTER", "DETERMINISTIC_RULE", Set.of("ASSISTANT"),
                 "MARK_NOT_EVALUATED", "版本化格式规则"));
+        add(values, metric("EXPECTED_POINT_COVERAGE_RATE", "EVIDENCE_QUALITY", "PERCENT",
+                "HIGHER_IS_BETTER", "ASSISTANT_EXPECTED_POINT", Set.of("ASSISTANT"),
+                "MARK_NOT_EVALUATED", "样本标准要点的确定性文本覆盖"));
         add(values, metric("HUMAN_QUALITY_SCORE", "HUMAN_QUALITY", "SCORE",
                 "HIGHER_IS_BETTER", "HUMAN_ANNOTATION", ALL, "MARK_NOT_EVALUATED",
                 "版本化量表与人工标注"));

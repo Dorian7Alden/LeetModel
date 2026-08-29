@@ -22,14 +22,16 @@ class EvaluationSamplePayloadServiceTest {
     }
 
     @Test
-    void assistantPayloadSupportsQuestionTagsAndOptionalExpectedPoints() {
+    void assistantPayloadSupportsVersionedDeterministicEvidence() {
         var result = service.validate("ASSISTANT", new EvaluationSamplePayloadDTO(
                 "QUESTION", "ASSISTANT_QUESTION_V1",
                 "{\"question\":\"如何提交论文？\",\"tags\":[\"提交\"],"
-                        + "\"expectedPoints\":[\"只接受 PDF\"]}"));
+                        + "\"expectedPoints\":[\"只接受 PDF\"],"
+                        + "\"expectedSources\":[\"docs/submit.md\"],"
+                        + "\"formatRules\":[\"ANSWER_NON_BLANK\"]}"));
 
         assertThat(result.submissionId()).isNull();
-        assertThat(result.payloadJson()).contains("expectedPoints");
+        assertThat(result.payloadJson()).contains("expectedPoints", "expectedSources", "formatRules");
     }
 
     @Test
@@ -47,5 +49,14 @@ class EvaluationSamplePayloadServiceTest {
                 "SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1", "{\"submissionId\":31}")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不支持的评价功能");
+    }
+
+    @Test
+    void assistantRejectsUnversionedFreeFormFormatRules() {
+        assertThatThrownBy(() -> service.validate("ASSISTANT", new EvaluationSamplePayloadDTO(
+                "QUESTION", "ASSISTANT_QUESTION_V1",
+                "{\"question\":\"问题\",\"formatRules\":[\"MODEL_JUDGE\"]}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不支持的规则");
     }
 }

@@ -46,9 +46,13 @@ class AssistantEvaluationRunnerTest {
 
     @Test
     void ragRunLocksAndReturnsExactIndexVersionAtP3() {
-        var command = command("ASSISTANT_RAG_V1", "rag-v1-abc");
+        var command = command("ASSISTANT_RAG_V1", "rag-v1-abc",
+                "{\"question\":\"如何提交论文？\",\"expectedSources\":[\"docs/submit.md\"],"
+                        + "\"expectedPoints\":[\"只接受 PDF\"],"
+                        + "\"formatRules\":[\"ANSWER_NON_BLANK\",\"NO_MARKDOWN_CODE_FENCE\"]}");
         when(client.runExperiment(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(Result.ok(result(command, "带来源的回答")));
+                .thenReturn(Result.ok(result(command, "只接受 PDF，来源见说明", 2,
+                        "docs/submit.md")));
 
         var outcome = runner.parseResult(command, runner.execute(command));
 
@@ -57,7 +61,12 @@ class AssistantEvaluationRunnerTest {
         assertThat(captor.getValue().getPriority()).isEqualTo("P3");
         assertThat(captor.getValue().getRagIndexVersion()).isEqualTo("rag-v1-abc");
         assertThat(outcome.ragIndexVersion()).isEqualTo("rag-v1-abc");
-        assertThat(runner.extractMetrics(outcome)).containsKey("STRUCTURE_VALID_RATE");
+        assertThat(runner.extractMetrics(outcome)).containsEntry("STRUCTURE_VALID_RATE",
+                        new java.math.BigDecimal("100"))
+                .containsEntry("RETRIEVAL_HIT_RATE", new java.math.BigDecimal("100"))
+                .containsEntry("SOURCE_COVERAGE_RATE", new java.math.BigDecimal("100.00"))
+                .containsEntry("FORMAT_RULE_PASS_RATE", new java.math.BigDecimal("100.00"))
+                .containsEntry("EXPECTED_POINT_COVERAGE_RATE", new java.math.BigDecimal("100.00"));
     }
 
     @Test
@@ -70,17 +79,30 @@ class AssistantEvaluationRunnerTest {
     }
 
     private EvaluationExperimentCommand command(String workflowVersion, String ragIndexVersion) {
+        return command(workflowVersion, ragIndexVersion, "{\"question\":\"如何提交论文？\"}");
+    }
+
+    private EvaluationExperimentCommand command(String workflowVersion, String ragIndexVersion,
+                                                String payloadJson) {
         var sample = runner.validateSample(new EvaluationSamplePayloadDTO(
-                "QUESTION", "ASSISTANT_QUESTION_V1", "{\"question\":\"如何提交论文？\"}"));
+                "QUESTION", "ASSISTANT_QUESTION_V1", payloadJson));
         return new EvaluationExperimentCommand("assistant-eval:1:2:1", sample, workflowVersion,
                 "MODEL_CFG_ASSISTANT_TEXT_0001", ragIndexVersion, "P3");
     }
 
     private AiExperimentResultDTO result(EvaluationExperimentCommand command, String answer) {
+        return result(command, answer, 0, null);
+    }
+
+    private AiExperimentResultDTO result(EvaluationExperimentCommand command, String answer,
+                                         int retrievedCount, String source) {
+        String sources = source == null ? "[]" : "[\"" + source + "\"]";
         return new AiExperimentResultDTO(command.experimentRunId(), "ASSISTANT",
                 command.workflowVersion(), command.modelExecutionConfigVersion(),
                 command.ragIndexVersion(), "SUCCEEDED", null, "ASSISTANT_REPLY_V1",
-                "{\"answer\":\"" + answer + "\"}", "ASSISTANT_RUN_METRICS_V1", "{}",
+                "{\"answer\":\"" + answer + "\",\"retrievedChunkCount\":" + retrievedCount
+                        + ",\"retrievedSourcePaths\":" + sources + "}",
+                "ASSISTANT_RUN_METRICS_V1", "{}",
                 "model", "call-assistant", 20L, null);
     }
 }
