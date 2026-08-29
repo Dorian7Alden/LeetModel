@@ -13,6 +13,7 @@ public class AiQueueTaskDTO {
     private String callType;
     private String featureCode;
     private String operationCode;
+    private String evaluationTaskId;
     private String effectivePriority;
     private String state;
     private Integer attemptCount;

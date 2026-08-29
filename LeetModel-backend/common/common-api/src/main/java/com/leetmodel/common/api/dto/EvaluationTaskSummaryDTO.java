@@ -31,6 +31,10 @@ public class EvaluationTaskSummaryDTO {
     private BigDecimal overallScore;
     private Long avgDurationMs;
     private String errorMessage;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long lastOperatedBy;
+    private String lastOperation;
+    private LocalDateTime lastOperatedAt;
     private LocalDateTime createTime;
     private LocalDateTime finishedAt;
 }
