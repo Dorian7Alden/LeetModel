@@ -3,6 +3,7 @@ package com.leetmodel.evaluation.service;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -10,6 +11,7 @@ import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
+import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -22,6 +24,7 @@ import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
 import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
+import com.leetmodel.evaluation.runner.AssistantEvaluationRunner;
 import com.leetmodel.evaluation.runner.ReviewEvaluationRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +56,7 @@ class EvaluationServiceTest {
     @Mock EvaluationRunAttemptMapper runMapper;
     @Mock SubmissionFeignClient submissionFeignClient;
     @Mock ReviewFeignClient reviewFeignClient;
+    @Mock AssistantFeignClient assistantFeignClient;
     @Mock EvaluationPersistenceService persistenceService;
     @Mock EvaluationMetricsCalculator metricsCalculator;
 
@@ -63,8 +67,10 @@ class EvaluationServiceTest {
         var mapper = JsonMapper.builder().findAndAddModules().build();
         var runner = new ReviewEvaluationRunner(reviewFeignClient,
                 new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
+        var assistantRunner = new AssistantEvaluationRunner(assistantFeignClient,
+                new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, new EvaluationRunnerRegistry(List.of(runner)),
+                submissionFeignClient, new EvaluationRunnerRegistry(List.of(runner, assistantRunner)),
                 persistenceService, metricsCalculator, mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
@@ -110,6 +116,27 @@ class EvaluationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(51101);
         verify(persistenceService, never()).createDataset(any(), any());
+    }
+
+    @Test
+    void assistantDatasetStoresVersionedQuestionWithoutSubmissionOrConversationReference() {
+        var payload = new EvaluationSamplePayloadDTO("QUESTION", "ASSISTANT_QUESTION_V1",
+                "{\"question\":\"如何提交论文？\",\"tags\":[\"提交\"]}");
+
+        var result = service.createDataset(new EvaluationDatasetCreateDTO(
+                "客服固定集", null, 1L,
+                List.of(new EvaluationSampleCreateDTO(null, "客服样本", payload)),
+                "ASSISTANT", "ASSISTANT_DATASET_V1"));
+
+        ArgumentCaptor<EvaluationDataset> datasetCaptor = ArgumentCaptor.forClass(EvaluationDataset.class);
+        ArgumentCaptor<List<EvaluationSample>> sampleCaptor = ArgumentCaptor.forClass(List.class);
+        verify(persistenceService).createDataset(datasetCaptor.capture(), sampleCaptor.capture());
+        assertThat(datasetCaptor.getValue().getFeatureCode()).isEqualTo("ASSISTANT");
+        assertThat(datasetCaptor.getValue().getDatasetVersion()).isEqualTo("ASSISTANT_DATASET_V1");
+        assertThat(sampleCaptor.getValue().get(0).getSubmissionId()).isNull();
+        assertThat(sampleCaptor.getValue().get(0).getPayloadJson()).contains("如何提交论文");
+        assertThat(result.getSampleCount()).isEqualTo(1);
+        verify(submissionFeignClient, never()).getForReview(anyLong());
     }
 
     @Test
@@ -161,6 +188,42 @@ class EvaluationServiceTest {
     }
 
     @Test
+    void assistantRagTaskLocksModelAndIndexVersions() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        EvaluationDataset dataset = dataset(10L);
+        dataset.setFeatureCode("ASSISTANT");
+        when(datasetMapper.selectById(10L)).thenReturn(dataset);
+        when(sampleMapper.selectList(any())).thenReturn(List.of(sample(201L, null)));
+        when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
+
+        service.createTask(new EvaluationTaskCreateDTO(10L, "ASSISTANT_RAG_V1", 2,
+                "assistant_request_1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc"));
+
+        ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
+        verify(persistenceService).createTask(taskCaptor.capture(), any());
+        assertThat(taskCaptor.getValue().getFeatureCode()).isEqualTo("ASSISTANT");
+        assertThat(taskCaptor.getValue().getModelExecutionConfigVersion())
+                .isEqualTo("MODEL_CFG_ASSISTANT_TEXT_0001");
+        assertThat(taskCaptor.getValue().getRagIndexVersion()).isEqualTo("rag-v1-abc");
+    }
+
+    @Test
+    void assistantRagTaskRejectsMissingIndexVersion() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        EvaluationDataset dataset = dataset(10L);
+        dataset.setFeatureCode("ASSISTANT");
+        when(datasetMapper.selectById(10L)).thenReturn(dataset);
+        when(sampleMapper.selectList(any())).thenReturn(List.of(sample(201L, null)));
+        when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
+
+        assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
+                10L, "ASSISTANT_RAG_V1", 1, "assistant_request_2")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41104);
+        verify(persistenceService, never()).createTask(any(), any());
+    }
+
+    @Test
     void workerCompletesSuccessfulSlotWithTraceAndMetrics() {
         EvaluationRunAttempt waiting = run(301L, 20L, 101L, "WAITING", null);
         EvaluationTask task = task(20L, "WAITING", 1);
@@ -184,7 +247,10 @@ class EvaluationServiceTest {
                 org.mockito.ArgumentMatchers.argThat(score ->
                         score.compareTo(new BigDecimal("88.00")) == 0),
                 org.mockito.ArgumentMatchers.eq("{\"score\":88}"),
-                org.mockito.ArgumentMatchers.eq("model-a"), org.mockito.ArgumentMatchers.eq("call-1"),
+                org.mockito.ArgumentMatchers.eq("{\"REVIEW_SCORE\":88.0}"),
+                org.mockito.ArgumentMatchers.eq("model-a"),
+                org.mockito.ArgumentMatchers.eq("MODEL_CFG_REVIEW_MULTIMODAL_0001"),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq("call-1"),
                 org.mockito.ArgumentMatchers.eq(50_000L),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class));
         verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
@@ -201,6 +267,46 @@ class EvaluationServiceTest {
 
         verify(reviewFeignClient, never()).runExperimentV2(any());
         verify(taskMapper, never()).markRunning(anyLong(), any());
+    }
+
+    @Test
+    void assistantWorkerPersistsDigestCallAndLockedRagVersion() {
+        EvaluationRunAttempt waiting = run(401L, 30L, 201L, "WAITING", null);
+        waiting.setExperimentRunId("assistant-eval:30:201:1");
+        EvaluationTask task = task(30L, "WAITING", 1);
+        task.setFeatureCode("ASSISTANT");
+        task.setWorkflowVersion("ASSISTANT_RAG_V1");
+        task.setModelExecutionConfigVersion("MODEL_CFG_ASSISTANT_TEXT_0001");
+        task.setRagIndexVersion("rag-v1-abc");
+        EvaluationSample sample = sample(201L, null);
+        sample.setSampleType("QUESTION");
+        sample.setPayloadSchemaVersion("ASSISTANT_QUESTION_V1");
+        sample.setPayloadJson("{\"question\":\"如何提交论文？\"}");
+        when(runMapper.selectNextWaiting()).thenReturn(waiting);
+        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(taskMapper.selectById(30L)).thenReturn(task);
+        when(sampleMapper.selectById(201L)).thenReturn(sample);
+        when(assistantFeignClient.runExperiment(any())).thenReturn(Result.ok(
+                new AiExperimentResultDTO("assistant-eval:30:201:1", "ASSISTANT",
+                        "ASSISTANT_RAG_V1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc",
+                        "SUCCEEDED", null, "ASSISTANT_REPLY_V1", "{\"answer\":\"敏感回答\"}",
+                        "ASSISTANT_RUN_METRICS_V1", "{}", "model", "call-a", 20L, null)));
+        EvaluationRunAttempt succeeded = run(401L, 30L, 201L, "SUCCEEDED", null);
+        succeeded.setDurationMs(20L);
+        when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
+        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+
+        service.processNext();
+
+        ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
+        verify(runMapper).succeed(org.mockito.ArgumentMatchers.eq(401L),
+                org.mockito.ArgumentMatchers.isNull(), summary.capture(),
+                org.mockito.ArgumentMatchers.eq("{\"STRUCTURE_VALID_RATE\":100}"),
+                org.mockito.ArgumentMatchers.eq("model"),
+                org.mockito.ArgumentMatchers.eq("MODEL_CFG_ASSISTANT_TEXT_0001"),
+                org.mockito.ArgumentMatchers.eq("rag-v1-abc"),
+                org.mockito.ArgumentMatchers.eq("call-a"), org.mockito.ArgumentMatchers.eq(20L), any());
+        assertThat(summary.getValue()).contains("answerSha256").doesNotContain("敏感回答");
     }
 
     @Test
@@ -374,6 +480,15 @@ class EvaluationServiceTest {
                 List.of("REVIEW_SUBMISSION_V1"), List.of("REVIEW_SCORE"),
                 List.of(new AiWorkflowVersionDTO("BASIC_REVIEW_V1", "V1", status,
                         "REVIEW_SUBMISSION_V1", "REVIEW_OUTPUT_V1", "兼容")));
+    }
+
+    private AiFeatureDefinitionDTO assistantFeature() {
+        return new AiFeatureDefinitionDTO("ASSISTANT", "AI客服", "ai-assistant-service",
+                List.of("ASSISTANT_QUESTION_V1"), List.of("STRUCTURE_VALID_RATE"),
+                List.of(new AiWorkflowVersionDTO("ASSISTANT_NO_RAG_V1", "无RAG", "ENABLED",
+                                "ASSISTANT_QUESTION_V1", "ASSISTANT_REPLY_V1", "兼容"),
+                        new AiWorkflowVersionDTO("ASSISTANT_RAG_V1", "RAG", "ENABLED",
+                                "ASSISTANT_QUESTION_V1", "ASSISTANT_REPLY_V1", "锁定索引")));
     }
 
     private AiExperimentResultDTO genericResult(String status, String failureType,

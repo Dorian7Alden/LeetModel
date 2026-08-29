@@ -24,7 +24,7 @@ class EvaluationSamplePayloadServiceTest {
     @Test
     void assistantPayloadSupportsQuestionTagsAndOptionalExpectedPoints() {
         var result = service.validate("ASSISTANT", new EvaluationSamplePayloadDTO(
-                "ASSISTANT_QUESTION", "ASSISTANT_QUESTION_V1",
+                "QUESTION", "ASSISTANT_QUESTION_V1",
                 "{\"question\":\"如何提交论文？\",\"tags\":[\"提交\"],"
                         + "\"expectedPoints\":[\"只接受 PDF\"]}"));
 

@@ -24,6 +24,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.model.ValidatedSamplePayload;
 import com.leetmodel.evaluation.runner.EvaluationExperimentCommand;
 import com.leetmodel.evaluation.runner.EvaluationExperimentOutcome;
 import com.leetmodel.evaluation.runner.EvaluationExperimentRunner;
@@ -72,26 +73,42 @@ public class EvaluationService {
 
     /** 创建后即锁定样本引用，MVP 不提供原地编辑。 */
     public EvaluationDatasetDTO createDataset(EvaluationDatasetCreateDTO request) {
-        Set<Long> distinct = request.getSamples().stream()
-                .map(EvaluationSampleCreateDTO::getSubmissionId).collect(Collectors.toSet());
-        BusinessException.throwIf(distinct.size() != request.getSamples().size(),
-                EvaluationErrorCode.DUPLICATE_SAMPLE);
-
+        String featureCode = request.getFeatureCode() == null || request.getFeatureCode().isBlank()
+                ? "REVIEW" : request.getFeatureCode().trim();
+        EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
+        if ("REVIEW".equals(featureCode)) {
+            Set<Long> references = new java.util.HashSet<>();
+            for (EvaluationSampleCreateDTO input : request.getSamples()) {
+                Long submissionId = runner.validateSample(requestPayload(featureCode, input)).submissionId();
+                BusinessException.throwIf(submissionId == null || !references.add(submissionId),
+                        EvaluationErrorCode.DUPLICATE_SAMPLE);
+            }
+        }
         List<ResolvedSample> resolved = new ArrayList<>();
+        Set<Long> submissionIds = new java.util.HashSet<>();
         for (EvaluationSampleCreateDTO input : request.getSamples()) {
-            SubmissionReviewDTO submission = requiredSample(input.getSubmissionId());
-            BusinessException.throwIf(!input.getSubmissionId().equals(submission.getId())
-                            || submission.getTeamId() == null || submission.getProblemId() == null
-                            || submission.getObjectName() == null || submission.getObjectName().isBlank(),
-                    EvaluationErrorCode.SAMPLE_UNAVAILABLE);
-            resolved.add(new ResolvedSample(submission, trimToNull(input.getNote())));
+            ValidatedSamplePayload payload = runner.validateSample(requestPayload(featureCode, input));
+            SubmissionReviewDTO submission = null;
+            if ("REVIEW".equals(featureCode)) {
+                BusinessException.throwIf(payload.submissionId() == null
+                                || !submissionIds.add(payload.submissionId()),
+                        EvaluationErrorCode.DUPLICATE_SAMPLE);
+                submission = requiredSample(payload.submissionId());
+                BusinessException.throwIf(!payload.submissionId().equals(submission.getId())
+                                || submission.getTeamId() == null || submission.getProblemId() == null
+                                || submission.getObjectName() == null || submission.getObjectName().isBlank(),
+                        EvaluationErrorCode.SAMPLE_UNAVAILABLE);
+            }
+            resolved.add(new ResolvedSample(submission, payload, trimToNull(input.getNote())));
         }
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationDataset dataset = new EvaluationDataset();
-        dataset.setFeatureCode("REVIEW");
-        dataset.setDatasetVersion("REVIEW_DATASET_" + UUID.randomUUID().toString().replace("-", ""));
-        dataset.setSampleSchemaVersion(EvaluationSamplePayloadService.REVIEW_SCHEMA);
+        dataset.setFeatureCode(featureCode);
+        dataset.setDatasetVersion(request.getDatasetVersion() == null || request.getDatasetVersion().isBlank()
+                ? featureCode + "_DATASET_" + UUID.randomUUID().toString().replace("-", "")
+                : request.getDatasetVersion().trim());
+        dataset.setSampleSchemaVersion(resolved.get(0).payload().payloadSchemaVersion());
         dataset.setName(request.getName().trim());
         dataset.setDescription(trimToNull(request.getDescription()));
         dataset.setStatus("LOCKED");
@@ -103,17 +120,14 @@ public class EvaluationService {
         for (int index = 0; index < resolved.size(); index++) {
             ResolvedSample item = resolved.get(index);
             EvaluationSample sample = new EvaluationSample();
-            sample.setSampleType(EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE);
-            sample.setPayloadSchemaVersion(EvaluationSamplePayloadService.REVIEW_SCHEMA);
-            try {
-                sample.setPayloadJson(objectMapper.writeValueAsString(
-                        Map.of("submissionId", item.submission().getId())));
-            } catch (Exception exception) {
-                throw new IllegalStateException("评价样本载荷序列化失败", exception);
+            sample.setSampleType(item.payload().sampleType());
+            sample.setPayloadSchemaVersion(item.payload().payloadSchemaVersion());
+            sample.setPayloadJson(item.payload().payloadJson());
+            if (item.submission() != null) {
+                sample.setSubmissionId(item.submission().getId());
+                sample.setTeamId(item.submission().getTeamId());
+                sample.setProblemId(item.submission().getProblemId());
             }
-            sample.setSubmissionId(item.submission().getId());
-            sample.setTeamId(item.submission().getTeamId());
-            sample.setProblemId(item.submission().getProblemId());
             sample.setSortOrder(index + 1);
             sample.setNote(item.note());
             sample.setCreateTime(now);
@@ -143,13 +157,17 @@ public class EvaluationService {
         String featureCode = dataset.getFeatureCode() == null ? "REVIEW" : dataset.getFeatureCode();
         EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
         var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
+        validateExecutionSelection(featureCode, request);
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
         task.setDatasetId(dataset.getId());
         task.setFeatureCode(featureCode);
         task.setWorkflowVersion(request.getWorkflowVersion().trim());
-        task.setModelExecutionConfigVersion(defaultModelConfig(featureCode));
+        task.setModelExecutionConfigVersion(request.getModelExecutionConfigVersion() == null
+                || request.getModelExecutionConfigVersion().isBlank()
+                ? defaultModelConfig(featureCode) : request.getModelExecutionConfigVersion().trim());
+        task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
         task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
         try {
             task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
@@ -281,8 +299,15 @@ public class EvaluationService {
         Map<String, BigDecimal> metrics = runner.extractMetrics(outcome);
         BigDecimal score = metrics.get("REVIEW_SCORE");
         if ("SUCCEEDED".equals(outcome.status())) {
-            runMapper.succeed(run.getId(), score, outcome.outputSummaryJson(),
-                    outcome.modelName(), outcome.aiCallId(), outcome.durationMs(), now);
+            String metricsJson;
+            try {
+                metricsJson = objectMapper.writeValueAsString(metrics);
+            } catch (Exception exception) {
+                throw new EvaluationRunnerException("OUTPUT", "评价指标无法序列化", exception);
+            }
+            runMapper.succeed(run.getId(), score, outcome.outputSummaryJson(), metricsJson,
+                    outcome.modelName(), outcome.modelExecutionConfigVersion(),
+                    outcome.ragIndexVersion(), outcome.aiCallId(), outcome.durationMs(), now);
             return;
         }
         runMapper.fail(run.getId(), outcome.failureType(),
@@ -362,7 +387,9 @@ public class EvaluationService {
     private void requireSameRequest(EvaluationTask existing, EvaluationTaskCreateDTO request) {
         boolean same = existing.getDatasetId().equals(request.getDatasetId())
                 && existing.getWorkflowVersion().equals(request.getWorkflowVersion().trim())
-                && existing.getRepeatCount().equals(request.getRepeatCount());
+                && existing.getRepeatCount().equals(request.getRepeatCount())
+                && java.util.Objects.equals(existing.getRagIndexVersion(),
+                trimToNull(request.getRagIndexVersion()));
         BusinessException.throwIf(!same, EvaluationErrorCode.IDEMPOTENCY_CONFLICT);
     }
 
@@ -424,6 +451,17 @@ public class EvaluationService {
         if ("REVIEW".equals(featureCode)) return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
         if ("ASSISTANT".equals(featureCode)) return "MODEL_CFG_ASSISTANT_TEXT_0001";
         throw new IllegalArgumentException("功能没有默认模型执行配置: " + featureCode);
+    }
+
+    private void validateExecutionSelection(String featureCode, EvaluationTaskCreateDTO request) {
+        String rag = trimToNull(request.getRagIndexVersion());
+        boolean valid = switch (featureCode) {
+            case "REVIEW" -> rag == null;
+            case "ASSISTANT" -> "ASSISTANT_RAG_V1".equals(request.getWorkflowVersion())
+                    ? rag != null : "ASSISTANT_NO_RAG_V1".equals(request.getWorkflowVersion()) && rag == null;
+            default -> false;
+        };
+        BusinessException.throwIf(!valid, EvaluationErrorCode.VERSION_UNAVAILABLE);
     }
 
     private List<EvaluationRunAttempt> latestRuns(Long taskId) {
@@ -492,7 +530,23 @@ public class EvaluationService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record ResolvedSample(SubmissionReviewDTO submission, String note) {
+    private EvaluationSamplePayloadDTO requestPayload(String featureCode,
+                                                      EvaluationSampleCreateDTO input) {
+        if (input.getPayload() != null) return input.getPayload();
+        if (!"REVIEW".equals(featureCode) || input.getSubmissionId() == null) {
+            throw new EvaluationRunnerException("CONFIGURATION", "样本必须提供版本化 Payload");
+        }
+        try {
+            return new EvaluationSamplePayloadDTO(EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE,
+                    EvaluationSamplePayloadService.REVIEW_SCHEMA,
+                    objectMapper.writeValueAsString(Map.of("submissionId", input.getSubmissionId())));
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价样本载荷序列化失败", exception);
+        }
+    }
+
+    private record ResolvedSample(SubmissionReviewDTO submission, ValidatedSamplePayload payload,
+                                  String note) {
     }
 
     private record RunSlot(Long sampleId, Integer repetitionNo) {

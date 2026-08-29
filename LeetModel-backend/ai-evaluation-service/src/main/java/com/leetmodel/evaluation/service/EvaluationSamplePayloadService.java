@@ -17,7 +17,7 @@ public class EvaluationSamplePayloadService {
 
     public static final String REVIEW_SAMPLE_TYPE = "SUBMISSION_REFERENCE";
     public static final String REVIEW_SCHEMA = "REVIEW_SUBMISSION_V1";
-    public static final String ASSISTANT_SAMPLE_TYPE = "ASSISTANT_QUESTION";
+    public static final String ASSISTANT_SAMPLE_TYPE = "QUESTION";
     public static final String ASSISTANT_SCHEMA = "ASSISTANT_QUESTION_V1";
 
     private static final Set<String> REVIEW_FIELDS = Set.of("submissionId");
