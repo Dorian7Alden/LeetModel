@@ -16,11 +16,16 @@ public class EvaluationRunAttempt extends BaseEntity {
     private Long sampleId;
     private Integer repetitionNo;
     private Integer attemptNo;
+    private String slotKey;
+    private String experimentRunId;
     private String status;
     private String failureType;
     private BigDecimal score;
     private String resultJson;
+    private String metricsJson;
     private String modelName;
+    private String modelExecutionConfigVersion;
+    private String ragIndexVersion;
     private String aiCallId;
     private Long durationMs;
     private String errorMessage;
