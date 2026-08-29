@@ -133,6 +133,7 @@ A - BB - CC
 | WEIGHT_SCHEME_INVALID | 41111 | 权重方案配置与指标口径不兼容 |
 | WEIGHT_SCHEME_VERSION_DUPLICATE | 41112 | 权重方案版本已存在 |
 | WEIGHT_SCHEME_NOT_FOUND | 41113 | 权重方案不存在 |
+| SCORE_RECALCULATION_NOT_ALLOWED | 41114 | 当前评价数据不满足重新计算条件 |
 | DEPENDENCY_UNAVAILABLE | 51101 | 质量评价依赖服务暂不可用 |
 
 ### BB=12：AI 网关
