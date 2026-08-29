@@ -28,4 +28,20 @@ class EvaluationMigrationContractTest {
         assertThat(sql.toUpperCase()).doesNotContain("DROP TABLE", "DROP COLUMN", "TRUNCATE");
         assertThat(sql).doesNotContain("SET `overall_score`");
     }
+
+    @Test
+    void v3BackfillsAttemptScopedIdempotencyBeforeUniqueConstraint() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V3__add_evaluation_attempt_idempotency.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        assertThat(sql).contains("ADD COLUMN `idempotency_key` VARCHAR(128) NULL")
+                .contains("SET `idempotency_key` = CONCAT")
+                .contains("MODIFY COLUMN `idempotency_key` VARCHAR(128) NOT NULL")
+                .contains("uk_evaluation_attempt_idempotency");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP TABLE", "DROP COLUMN", "TRUNCATE");
+    }
 }
