@@ -24,7 +24,7 @@ public class EvaluationTaskCreateDTO {
 
     @NotNull(message = "重复次数不能为空")
     @Min(value = 1, message = "重复次数不能小于1")
-    @Max(value = 3, message = "重复次数不能超过3")
+    @Max(value = 100, message = "重复次数不能超过100")
     private Integer repeatCount;
 
     @NotBlank(message = "请求标识不能为空")

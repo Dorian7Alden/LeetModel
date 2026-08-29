@@ -27,7 +27,7 @@ public class EvaluationDatasetCreateDTO {
     private Long createdBy;
 
     @NotEmpty(message = "评价数据集至少包含一个样本")
-    @Size(max = 10, message = "评价数据集最多包含10个样本")
+    @Size(max = 100, message = "评价数据集最多包含100个样本")
     private List<@Valid EvaluationSampleCreateDTO> samples;
 
     @Size(max = 32, message = "功能编码不能超过32个字符")

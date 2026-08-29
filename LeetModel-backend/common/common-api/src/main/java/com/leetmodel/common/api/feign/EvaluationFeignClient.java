@@ -3,6 +3,8 @@ package com.leetmodel.common.api.feign;
 import com.leetmodel.common.api.dto.EvaluationComparisonDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
@@ -24,6 +26,9 @@ public interface EvaluationFeignClient {
 
     @GetMapping("/internal/evaluations/datasets")
     Result<List<EvaluationDatasetDTO>> listDatasets();
+
+    @PostMapping("/internal/evaluations/estimates")
+    Result<EvaluationEstimateDTO> estimate(@RequestBody EvaluationEstimateRequestDTO request);
 
     @PostMapping("/internal/evaluations/tasks")
     Result<EvaluationTaskDTO> createTask(@RequestBody EvaluationTaskCreateDTO request);
