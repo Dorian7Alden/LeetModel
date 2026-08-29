@@ -56,4 +56,16 @@ class EvaluationMigrationContractTest {
         assertThat(sql).contains("`last_operated_by`", "`last_operation`", "`last_operated_at`");
         assertThat(sql.toUpperCase()).doesNotContain("DELETE ", "DROP TABLE", "DROP COLUMN", "TRUNCATE");
     }
+
+    @Test
+    void v5AddsRawMetricsSnapshotWithoutReplacingLegacyColumns() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V5__add_evaluation_raw_metrics.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql).contains("ADD COLUMN `raw_metrics_json` LONGTEXT NULL");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE", "OVERALL_SCORE =");
+    }
 }
