@@ -791,11 +791,13 @@ S5 阶段验收记录（2026-08-28）：AI 网关已形成单实例、持久化�
 
 S6-01 验收记录（2026-08-29）：已逐项核对三个模块的父 POM、Controller、Service、common-api Feign、Flyway 与前端入口，并在 `docs/project/02-架构设计/AI功能版本现状.md` 固定 owner、正式入口、实验入口、版本来源和缺口。三个服务均为真实运行模块；当前只有 REVIEW 同时具备版本列表与隔离实验，故准入集合仅为 `REVIEW / BASIC_REVIEW_V1`。ASSISTANT 的 `ASSISTANT_CHAT_V1`、RAG 版本和 SUGGESTION 的 `IMPROVEMENT_V1` 都只是现行业务实现证据，在专用隔离契约落地前不得显示为可评价版本。suggestion 服务 README 已按当前实现重写，移除“尚无 Maven 运行模块”和整图均为目标设计的过时描述。
 
-#### [ ] S6-02 定义 AI 功能描述与版本查询契约
+#### [x] S6-02 定义 AI 功能描述与版本查询契约
 
 - 依赖：S6-01。
 - 工作：定义 featureCode、支持的数据集/指标、owner，以及 workflowVersion 的编码、名称、状态、输入、输出 schema 和兼容说明。
 - 验收：管理端无需手输任意版本；禁用版本不可新建实验，历史快照仍可读。
+
+S6-02 验收记录（2026-08-29）：common-api 新增 `AiFeatureDefinitionDTO` 与 `AiWorkflowVersionDTO`，固定 featureCode、owner、数据集类型、指标编码，以及工作流版本的名称、状态、输入/输出 schema 和兼容说明。ai-review-service 返回包含启用与禁用版本的完整 REVIEW 目录；评价服务原有服务端校验继续只接受 `ENABLED`。admin-service 提供只读代理，管理端新建评价任务已由自由文本改为启用版本下拉框，历史任务详情仍按已保存的 `workflowVersion` 展示，不依赖版本继续启用。相关后端模块测试与前端生产构建通过。
 
 #### [ ] S6-03 定义不可变模型执行配置
 
