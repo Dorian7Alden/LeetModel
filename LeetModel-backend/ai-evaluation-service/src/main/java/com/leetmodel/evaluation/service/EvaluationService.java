@@ -7,15 +7,11 @@ import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationRunDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleDTO;
+import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
-import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
-import com.leetmodel.common.api.dto.AiExperimentResultDTO;
-import com.leetmodel.common.api.dto.AiExperimentSampleDTO;
-import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -28,6 +24,11 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.runner.EvaluationExperimentCommand;
+import com.leetmodel.evaluation.runner.EvaluationExperimentOutcome;
+import com.leetmodel.evaluation.runner.EvaluationExperimentRunner;
+import com.leetmodel.evaluation.runner.EvaluationRunnerException;
+import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -46,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -60,7 +62,7 @@ public class EvaluationService {
     private final EvaluationTaskMapper taskMapper;
     private final EvaluationRunAttemptMapper runMapper;
     private final SubmissionFeignClient submissionFeignClient;
-    private final ReviewFeignClient reviewFeignClient;
+    private final EvaluationRunnerRegistry runnerRegistry;
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
     private final ObjectMapper objectMapper;
@@ -87,6 +89,9 @@ public class EvaluationService {
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationDataset dataset = new EvaluationDataset();
+        dataset.setFeatureCode("REVIEW");
+        dataset.setDatasetVersion("REVIEW_DATASET_" + UUID.randomUUID().toString().replace("-", ""));
+        dataset.setSampleSchemaVersion(EvaluationSamplePayloadService.REVIEW_SCHEMA);
         dataset.setName(request.getName().trim());
         dataset.setDescription(trimToNull(request.getDescription()));
         dataset.setStatus("LOCKED");
@@ -98,6 +103,14 @@ public class EvaluationService {
         for (int index = 0; index < resolved.size(); index++) {
             ResolvedSample item = resolved.get(index);
             EvaluationSample sample = new EvaluationSample();
+            sample.setSampleType(EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE);
+            sample.setPayloadSchemaVersion(EvaluationSamplePayloadService.REVIEW_SCHEMA);
+            try {
+                sample.setPayloadJson(objectMapper.writeValueAsString(
+                        Map.of("submissionId", item.submission().getId())));
+            } catch (Exception exception) {
+                throw new IllegalStateException("评价样本载荷序列化失败", exception);
+            }
             sample.setSubmissionId(item.submission().getId());
             sample.setTeamId(item.submission().getTeamId());
             sample.setProblemId(item.submission().getProblemId());
@@ -127,12 +140,25 @@ public class EvaluationService {
         EvaluationDataset dataset = requiredDataset(request.getDatasetId());
         List<EvaluationSample> samples = listSamples(dataset.getId());
         BusinessException.throwIf(samples.isEmpty(), EvaluationErrorCode.DATASET_NOT_FOUND);
-        requireEnabledVersion(request.getWorkflowVersion());
+        String featureCode = dataset.getFeatureCode() == null ? "REVIEW" : dataset.getFeatureCode();
+        EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
+        var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
         task.setDatasetId(dataset.getId());
+        task.setFeatureCode(featureCode);
         task.setWorkflowVersion(request.getWorkflowVersion().trim());
+        task.setModelExecutionConfigVersion(defaultModelConfig(featureCode));
+        task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
+        try {
+            task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
+            task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
+                    Map.of("metricSetVersion", EvaluationMetricRegistry.REGISTRY_VERSION,
+                            "featureCode", featureCode)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价任务快照序列化失败", exception);
+        }
         task.setRepeatCount(request.getRepeatCount());
         task.setClientRequestId(request.getClientRequestId());
         task.setStatus("WAITING");
@@ -202,16 +228,15 @@ public class EvaluationService {
         }
         taskMapper.markRunning(task.getId(), LocalDateTime.now());
         try {
-            String experimentRunId = "review-eval:" + task.getId() + ":"
-                    + sample.getId() + ":" + run.getRepetitionNo();
-            Result<AiExperimentResultDTO> response = reviewFeignClient.runExperimentV2(
-                    new AiExperimentRequestDTO(experimentRunId, "REVIEW",
-                            new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
-                                    objectMapper.writeValueAsString(
-                                            Map.of("submissionId", sample.getSubmissionId()))),
-                            task.getWorkflowVersion(), "MODEL_CFG_REVIEW_MULTIMODAL_0001",
-                            null, "P3"));
-            persistExperimentResponse(run, sample, task, response);
+            EvaluationExperimentRunner runner = runnerRegistry.require(taskFeature(task));
+            EvaluationExperimentCommand command = command(run, sample, task, runner);
+            EvaluationExperimentOutcome outcome = runner.parseResult(command, runner.execute(command));
+            persistExperimentOutcome(run, runner, outcome);
+        } catch (EvaluationRunnerException exception) {
+            log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, message={}",
+                    task.getId(), sample.getId(), exception.getFailureType(), exception.getMessage());
+            runMapper.fail(run.getId(), exception.getFailureType(), 0L,
+                    exception.getMessage(), LocalDateTime.now());
         } catch (Exception exception) {
             log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
                     task.getId(), sample.getId(), exception.getMessage());
@@ -250,45 +275,19 @@ public class EvaluationService {
         }
     }
 
-    private void persistExperimentResponse(EvaluationRunAttempt run, EvaluationSample sample,
-                                           EvaluationTask task,
-                                           Result<AiExperimentResultDTO> response) {
+    private void persistExperimentOutcome(EvaluationRunAttempt run, EvaluationExperimentRunner runner,
+                                          EvaluationExperimentOutcome outcome) {
         LocalDateTime now = LocalDateTime.now();
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            runMapper.fail(run.getId(), "ENVIRONMENT", 0L,
-                    "实验评审依赖暂不可用", now);
+        Map<String, BigDecimal> metrics = runner.extractMetrics(outcome);
+        BigDecimal score = metrics.get("REVIEW_SCORE");
+        if ("SUCCEEDED".equals(outcome.status())) {
+            runMapper.succeed(run.getId(), score, outcome.outputSummaryJson(),
+                    outcome.modelName(), outcome.aiCallId(), outcome.durationMs(), now);
             return;
         }
-        AiExperimentResultDTO result = response.getData();
-        boolean identityMatches = "REVIEW".equals(result.getFeatureCode())
-                && task.getWorkflowVersion().equals(result.getWorkflowVersion())
-                && ("review-eval:" + task.getId() + ":" + sample.getId() + ":"
-                + run.getRepetitionNo()).equals(result.getExperimentRunId())
-                && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
-                result.getModelExecutionConfigVersion());
-        BigDecimal score = metricScore(result.getMetricsJson());
-        if ("SUCCEEDED".equals(result.getStatus()) && identityMatches
-                && score != null && result.getOutputJson() != null
-                && result.getDurationMs() != null) {
-            runMapper.succeed(run.getId(), score, result.getOutputJson(),
-                    result.getModelName(), result.getAiCallId(), result.getDurationMs(), now);
-            return;
-        }
-        String failureType = RETRYABLE_FAILURES.contains(result.getFailureType())
-                ? result.getFailureType() : "OUTPUT";
-        String error = result.getErrorMessage() == null || result.getErrorMessage().isBlank()
-                ? "评审版本未产生符合契约的结果" : result.getErrorMessage();
-        runMapper.fail(run.getId(), failureType,
-                result.getDurationMs() == null ? 0L : result.getDurationMs(), error, now);
-    }
-
-    private BigDecimal metricScore(String metricsJson) {
-        if (metricsJson == null || metricsJson.isBlank()) return null;
-        try {
-            return objectMapper.readTree(metricsJson).required("score").decimalValue();
-        } catch (Exception exception) {
-            return null;
-        }
+        runMapper.fail(run.getId(), outcome.failureType(),
+                outcome.durationMs() == null ? 0L : outcome.durationMs(),
+                outcome.errorMessage(), now);
     }
 
     private void refreshTask(EvaluationTask task) {
@@ -313,19 +312,20 @@ public class EvaluationService {
                 metrics.overallScore(), metrics.averageDurationMs(), now);
     }
 
-    private void requireEnabledVersion(String workflowVersion) {
-        Result<List<ReviewVersionDTO>> response;
+    private com.leetmodel.common.api.dto.AiFeatureDefinitionDTO requireEnabledVersion(
+            EvaluationExperimentRunner runner, String workflowVersion) {
+        com.leetmodel.common.api.dto.AiFeatureDefinitionDTO feature;
         try {
-            response = reviewFeignClient.listVersions();
-        } catch (RuntimeException exception) {
-            log.warn("查询评审版本失败: {}", exception.getMessage());
+            feature = runner.discoverFeature();
+        } catch (EvaluationRunnerException exception) {
+            log.warn("查询功能版本失败 featureCode={}, message={}", runner.featureCode(), exception.getMessage());
             throw new BusinessException(EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
         }
-        BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null,
-                EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
-        boolean enabled = response.getData().stream().anyMatch(version ->
-                workflowVersion.equals(version.getVersionCode()) && "ENABLED".equals(version.getStatus()));
+        boolean enabled = feature.getWorkflowVersions() != null && feature.getWorkflowVersions().stream()
+                .anyMatch(version -> workflowVersion.equals(version.getWorkflowVersion())
+                        && "ENABLED".equals(version.getStatus()));
         BusinessException.throwIf(!enabled, EvaluationErrorCode.VERSION_UNAVAILABLE);
+        return feature;
     }
 
     private SubmissionReviewDTO requiredSample(Long submissionId) {
@@ -388,6 +388,42 @@ public class EvaluationService {
             }
         }
         return runs;
+    }
+
+    private EvaluationExperimentCommand command(EvaluationRunAttempt run, EvaluationSample sample,
+                                                EvaluationTask task,
+                                                EvaluationExperimentRunner runner) {
+        String sampleType = sample.getSampleType() == null
+                ? EvaluationSamplePayloadService.REVIEW_SAMPLE_TYPE : sample.getSampleType();
+        String schema = sample.getPayloadSchemaVersion() == null
+                ? EvaluationSamplePayloadService.REVIEW_SCHEMA : sample.getPayloadSchemaVersion();
+        String payload = sample.getPayloadJson();
+        if (payload == null && sample.getSubmissionId() != null) {
+            try {
+                payload = objectMapper.writeValueAsString(Map.of("submissionId", sample.getSubmissionId()));
+            } catch (Exception exception) {
+                throw new EvaluationRunnerException("CONFIGURATION", "历史评价样本无法转换", exception);
+            }
+        }
+        var validated = runner.validateSample(new EvaluationSamplePayloadDTO(sampleType, schema, payload));
+        String experimentRunId = run.getExperimentRunId() == null
+                ? taskFeature(task).toLowerCase() + "-eval:" + task.getId() + ":"
+                + sample.getId() + ":" + run.getRepetitionNo()
+                : run.getExperimentRunId();
+        return new EvaluationExperimentCommand(experimentRunId, validated, task.getWorkflowVersion(),
+                task.getModelExecutionConfigVersion() == null
+                        ? defaultModelConfig(taskFeature(task)) : task.getModelExecutionConfigVersion(),
+                task.getRagIndexVersion(), "P3");
+    }
+
+    private String taskFeature(EvaluationTask task) {
+        return task.getFeatureCode() == null ? "REVIEW" : task.getFeatureCode();
+    }
+
+    private String defaultModelConfig(String featureCode) {
+        if ("REVIEW".equals(featureCode)) return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
+        if ("ASSISTANT".equals(featureCode)) return "MODEL_CFG_ASSISTANT_TEXT_0001";
+        throw new IllegalArgumentException("功能没有默认模型执行配置: " + featureCode);
     }
 
     private List<EvaluationRunAttempt> latestRuns(Long taskId) {

@@ -38,6 +38,7 @@ public class EvaluationPersistenceService {
         taskMapper.insert(task);
         for (EvaluationRunAttempt run : runs) {
             run.setTaskId(task.getId());
+            fillRunIdentity(run, task);
             runMapper.insert(run);
         }
     }
@@ -48,6 +49,7 @@ public class EvaluationPersistenceService {
         if (taskMapper.resetForRetry(task.getId(), now) == 0) return false;
         for (EvaluationRunAttempt retry : retries) {
             retry.setTaskId(task.getId());
+            fillRunIdentity(retry, task);
             runMapper.insert(retry);
         }
         return true;
@@ -62,10 +64,22 @@ public class EvaluationPersistenceService {
         retry.setSampleId(stale.getSampleId());
         retry.setRepetitionNo(stale.getRepetitionNo());
         retry.setAttemptNo(stale.getAttemptNo() + 1);
+        retry.setSlotKey(stale.getSlotKey());
+        retry.setExperimentRunId(stale.getExperimentRunId());
+        retry.setModelExecutionConfigVersion(stale.getModelExecutionConfigVersion());
+        retry.setRagIndexVersion(stale.getRagIndexVersion());
         retry.setStatus("WAITING");
         retry.setCreateTime(now);
         retry.setUpdateTime(now);
         runMapper.insert(retry);
         return true;
+    }
+
+    private void fillRunIdentity(EvaluationRunAttempt run, EvaluationTask task) {
+        String slotKey = task.getId() + ":" + run.getSampleId() + ":" + run.getRepetitionNo();
+        run.setSlotKey(slotKey);
+        run.setExperimentRunId(task.getFeatureCode().toLowerCase() + "-eval:" + slotKey);
+        run.setModelExecutionConfigVersion(task.getModelExecutionConfigVersion());
+        run.setRagIndexVersion(task.getRagIndexVersion());
     }
 }

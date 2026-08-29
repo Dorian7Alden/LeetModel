@@ -6,7 +6,8 @@ import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.leetmodel.common.api.dto.ReviewVersionDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
@@ -20,6 +21,8 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
+import com.leetmodel.evaluation.runner.ReviewEvaluationRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,9 +60,12 @@ class EvaluationServiceTest {
 
     @BeforeEach
     void setUp() {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        var runner = new ReviewEvaluationRunner(reviewFeignClient,
+                new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, reviewFeignClient, persistenceService, metricsCalculator,
-                JsonMapper.builder().findAndAddModules().build());
+                submissionFeignClient, new EvaluationRunnerRegistry(List.of(runner)),
+                persistenceService, metricsCalculator, mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
@@ -112,7 +118,7 @@ class EvaluationServiceTest {
         when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
         List<EvaluationSample> samples = List.of(sample(101L, 31L), sample(102L, 32L));
         when(sampleMapper.selectList(any())).thenReturn(samples);
-        when(reviewFeignClient.listVersions()).thenReturn(Result.ok(List.of(version("ENABLED"))));
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("ENABLED")));
 
         var result = service.createTask(new EvaluationTaskCreateDTO(
                 10L, "BASIC_REVIEW_V1", 3, "request_001"));
@@ -145,7 +151,7 @@ class EvaluationServiceTest {
         when(taskMapper.selectOne(any())).thenReturn(null);
         when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
         when(sampleMapper.selectList(any())).thenReturn(List.of(sample(101L, 31L)));
-        when(reviewFeignClient.listVersions()).thenReturn(Result.ok(List.of(version("DISABLED"))));
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("DISABLED")));
 
         assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
                 10L, "BASIC_REVIEW_V1", 1, "request_002")))
@@ -363,8 +369,11 @@ class EvaluationServiceTest {
                 "submissions/" + teamId + "/paper.pdf");
     }
 
-    private ReviewVersionDTO version(String status) {
-        return new ReviewVersionDTO(1L, "BASIC_REVIEW_V1", "V1", "说明", "流程", status);
+    private AiFeatureDefinitionDTO feature(String status) {
+        return new AiFeatureDefinitionDTO("REVIEW", "论文评审", "ai-review-service",
+                List.of("REVIEW_SUBMISSION_V1"), List.of("REVIEW_SCORE"),
+                List.of(new AiWorkflowVersionDTO("BASIC_REVIEW_V1", "V1", status,
+                        "REVIEW_SUBMISSION_V1", "REVIEW_OUTPUT_V1", "兼容")));
     }
 
     private AiExperimentResultDTO genericResult(String status, String failureType,
