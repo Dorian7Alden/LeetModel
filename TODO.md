@@ -807,11 +807,13 @@ S6-02 验收记录（2026-08-29）：common-api 新增 `AiFeatureDefinitionDTO` 
 
 S6-03 验收记录（2026-08-29）：ai-gateway-service 已发布四个首批 `modelExecutionConfigVersion` 定义，分别锁定客服文本、评审多模态、改善建议文本和 RAG Embedding 的物理模型、参数、Prompt/工作流适用范围、thinking、输出格式及 Embedding 限制。调用在入队前严格校验并将完整快照写入 `ai_call_task`；派发只使用任务快照，不再重新解析当前路由或模型别名。相同调用方幂等键复用既有任务及快照，Flyway 对存量任务提供显式兼容回填。AI 网关及公共依赖 67 项测试通过，覆盖配置解析、参数漂移拒绝、持久化仓储和队列幂等行为。
 
-#### [ ] S6-04 定义隔离实验执行契约
+#### [x] S6-04 定义隔离实验执行契约
 
 - 依赖：S6-03。
 - 工作：定义 experimentRunId、sample、workflowVersion、modelConfigVersion、ragIndexVersion、priority 和标准结果摘要。
 - 验收：能表达 REVIEW 与 ASSISTANT；不覆盖正式评审、客服会话或建议结果。
+
+S6-04 验收记录（2026-08-29）：common-api 新增通用 `AiExperimentRequestDTO`、`AiExperimentSampleDTO` 与 `AiExperimentResultDTO`，固定 experimentRunId、版本化样本、workflowVersion、modelExecutionConfigVersion、ragIndexVersion、P0–P4 优先级声明，以及带 schema 的输出/原始指标、callId 和耗时摘要。契约测试分别用提交引用表达 REVIEW、用独立问题 Payload 表达 ASSISTANT，并验证不携带正式评审任务或客服会话标识。架构文档明确 owner 只能写实验返回与调用审计，不能创建或覆盖正式评审、会话/消息或建议结果；现有评审专用 DTO 被标记为待迁移兼容接口。
 
 #### [ ] S6-05 适配现有论文评审实验
 
