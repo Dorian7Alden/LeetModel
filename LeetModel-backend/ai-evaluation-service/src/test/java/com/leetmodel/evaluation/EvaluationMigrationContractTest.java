@@ -44,4 +44,16 @@ class EvaluationMigrationContractTest {
                 .contains("uk_evaluation_attempt_idempotency");
         assertThat(sql.toUpperCase()).doesNotContain("DROP TABLE", "DROP COLUMN", "TRUNCATE");
     }
+
+    @Test
+    void v4AddsControlAuditWithoutDeletingHistory() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V4__add_evaluation_task_control_audit.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql).contains("`last_operated_by`", "`last_operation`", "`last_operated_at`");
+        assertThat(sql.toUpperCase()).doesNotContain("DELETE ", "DROP TABLE", "DROP COLUMN", "TRUNCATE");
+    }
 }
