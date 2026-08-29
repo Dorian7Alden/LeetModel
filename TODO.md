@@ -875,11 +875,13 @@ S7-04 验收记录（2026-08-29）：新增 ai-evaluation-service V2 Flyway，�
 
 S7-05 验收记录（2026-08-29）：ai-evaluation-service 新增通用 Runner SPI，以 featureCode 为注册键，分别定义版本发现、版本化样本校验、隔离实验执行、通用结果解析和指标提取。执行命令固定 experimentRunId、样本、workflowVersion、modelExecutionConfigVersion、ragIndexVersion 与 P3 优先级；解析结果只依赖通用 AiExperimentResultDTO 和评价侧 outcome，不引用 Review 专用 DTO。注册表在启动时拒绝重复功能，运行时对未知或未启用功能明确失败。假 Runner 测试完整走通五个 SPI 阶段，并覆盖未知功能和重复注册拒绝。
 
-#### [ ] S7-06 迁移论文评审 Runner
+#### [x] S7-06 迁移论文评审 Runner
 
 - 依赖：S6-05、S7-05。
 - 工作：适配 submission、review 结果、score 与结构有效性，保留恢复和环境失败重试。
 - 验收：旧数据集和比较可用；成功、业务失败、环境失败测试通过。
+
+S7-06 验收记录（2026-08-29）：新增 REVIEW Runner，版本发现与实验执行只调用 AiFeatureDefinitionDTO、AiExperimentRequestDTO 和 AiExperimentResultDTO 通用契约，样本校验固定为 REVIEW_SUBMISSION_V1，结果解析把有效 score 注册为 REVIEW_SCORE，并将身份漂移、结构缺失归为业务 OUTPUT 失败，将依赖不可用归为可恢复 ENVIRONMENT 失败。评价调度核心已改为从 Runner 注册表选择功能，不再引用 ReviewVersionDTO 或评审专用实验 DTO；新数据集写入 feature、不可变版本和最小 Payload，新任务与运行槽位同步写入配置/指标快照、slotKey 和稳定 experimentRunId。历史 V1 实体的空通用字段仍按 REVIEW 兼容读取，原比较、重试和中断恢复路径保留。模块及公共依赖 33 项测试通过，覆盖成功、业务失败、环境失败、旧数据集行为和通用 Runner 契约。
 
 #### [ ] S7-07 实现客服 Runner
 
