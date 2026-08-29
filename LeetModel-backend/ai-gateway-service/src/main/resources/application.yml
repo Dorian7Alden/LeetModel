@@ -47,7 +47,7 @@ ai:
         response-format: TEXT
         thinking-enabled: false
         prompt-versions: [PROMPT_ASSISTANT_CHAT_0001]
-        workflow-versions: [ASSISTANT_CHAT_V1]
+        workflow-versions: [ASSISTANT_CHAT_V1, ASSISTANT_NO_RAG_V1, ASSISTANT_RAG_V1]
       MODEL_CFG_REVIEW_MULTIMODAL_0001:
         call-type: CHAT
         provider: NEW_API
