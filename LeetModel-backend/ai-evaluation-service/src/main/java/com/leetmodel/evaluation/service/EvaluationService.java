@@ -639,7 +639,8 @@ public class EvaluationService {
                 dataset.getStatus(), dataset.getSampleCount(), dataset.getCreatedBy(), dataset.getCreateTime(),
                 samples.stream().map(sample -> new EvaluationSampleDTO(
                         sample.getId(), sample.getSubmissionId(), sample.getTeamId(), sample.getProblemId(),
-                        sample.getSortOrder(), sample.getNote())).toList());
+                        sample.getSortOrder(), sample.getNote())).toList(), dataset.getFeatureCode(),
+                dataset.getDatasetVersion(), dataset.getSampleSchemaVersion());
     }
 
     private EvaluationTaskDTO toTask(EvaluationTask task) {

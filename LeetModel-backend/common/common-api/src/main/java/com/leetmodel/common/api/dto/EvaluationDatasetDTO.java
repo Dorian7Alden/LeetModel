@@ -24,4 +24,14 @@ public class EvaluationDatasetDTO {
     private Long createdBy;
     private LocalDateTime createTime;
     private List<EvaluationSampleDTO> samples;
+    private String featureCode;
+    private String datasetVersion;
+    private String sampleSchemaVersion;
+
+    public EvaluationDatasetDTO(Long datasetId, String name, String description, String status,
+                                Integer sampleCount, Long createdBy, LocalDateTime createTime,
+                                List<EvaluationSampleDTO> samples) {
+        this(datasetId, name, description, status, sampleCount, createdBy, createTime, samples,
+                null, null, null);
+    }
 }

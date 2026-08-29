@@ -34,6 +34,20 @@ class EvaluationDtoSerializationTest {
     }
 
     @Test
+    void datasetExposesFeatureAndImmutableVersionForAdminSelection() throws Exception {
+        EvaluationDatasetDTO dataset = new EvaluationDatasetDTO(
+                1L, "客服固定集", null, "LOCKED", 1, 2L, null, List.of(),
+                "ASSISTANT", "ASSISTANT_DATASET_V1", "ASSISTANT_QUESTION_V1");
+
+        String json = new ObjectMapper().writeValueAsString(dataset);
+
+        assertThat(json)
+                .contains("\"featureCode\":\"ASSISTANT\"")
+                .contains("\"datasetVersion\":\"ASSISTANT_DATASET_V1\"")
+                .contains("\"sampleSchemaVersion\":\"ASSISTANT_QUESTION_V1\"");
+    }
+
+    @Test
     void weightSchemeAuditIdsAreSerializedAsStrings() throws Exception {
         long largeId = 9_007_199_254_740_993L;
         EvaluationWeightSchemeDTO scheme = new EvaluationWeightSchemeDTO(
