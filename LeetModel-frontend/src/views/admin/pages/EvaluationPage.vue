@@ -59,7 +59,7 @@
           <el-select v-model="compareDatasetId" placeholder="选择测试集" clearable style="width: 260px" @change="runCompare">
             <el-option v-for="d in datasets" :key="d.datasetId" :label="d.name" :value="d.datasetId" />
           </el-select>
-          <el-input-number v-model="compareRepeat" :min="1" :max="3" />
+          <el-input-number v-model="compareRepeat" :min="1" :max="20" />
           <el-button type="primary" :loading="comparing" @click="runCompare">对比</el-button>
         </div>
         <el-table v-if="comparison" :data="comparison.versions || []" stripe v-loading="comparing" style="width: 100%; margin-top: 16px">
@@ -118,7 +118,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="重复次数" required><el-input-number v-model="taskForm.repeatCount" :min="1" :max="3" /></el-form-item>
+        <el-form-item label="重复次数" required><el-input-number v-model="taskForm.repeatCount" :min="1" :max="20" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="taskDialogVisible = false">取消</el-button>
@@ -152,11 +152,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { useUserStore } from "@/store/user";
 import { getAdminSubmissions } from "@/api/admin-ops";
 import {
   listEvaluationDatasets, createEvaluationDataset, listEvaluationTasks, createEvaluationTask,
+  estimateEvaluation,
   getEvaluationTask, retryEvaluationTask, compareEvaluation, listEvaluationFeatures,
 } from "@/api/admin-ai";
 
@@ -269,16 +270,39 @@ async function saveTask() {
   if (!taskForm.workflowVersion) return ElMessage.warning("请选择评审版本");
   savingTask.value = true;
   try {
+    const candidate = {
+      workflowVersion: taskForm.workflowVersion,
+      modelExecutionConfigVersion: "MODEL_CFG_REVIEW_MULTIMODAL_0001",
+      ragIndexVersion: null,
+    };
+    const estimate = (await estimateEvaluation({
+      datasetId: taskForm.datasetId,
+      candidates: [candidate],
+      repeatCount: taskForm.repeatCount,
+    })).data;
+    if (!estimate.withinLimits) {
+      ElMessage.error(`批次超过限制：${(estimate.violations || []).join("；")}`);
+      return;
+    }
+    await ElMessageBox.confirm(
+      `样本 ${estimate.sampleCount} 个，候选版本 ${estimate.versionCount} 个，重复 ${estimate.repeatCount} 次，`
+        + `共 ${estimate.totalSlots} 个槽位，预计 ${estimate.estimatedCallCount} 次模型调用，优先级 ${estimate.priority}。`
+        + `费用：${estimate.costExplanation}`,
+      "确认运行评价批次",
+      { confirmButtonText: "确认运行", cancelButtonText: "返回调整", type: "warning" },
+    );
     await createEvaluationTask({
       datasetId: taskForm.datasetId,
       workflowVersion: taskForm.workflowVersion,
       repeatCount: taskForm.repeatCount,
+      modelExecutionConfigVersion: candidate.modelExecutionConfigVersion,
       clientRequestId: `eval-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
     });
     taskDialogVisible.value = false;
     await loadDatasets();
     ElMessage.success("评价任务已启动");
   } catch (error) {
+    if (error === "cancel" || error === "close") return;
     ElMessage.error(error.message || "评价任务创建失败");
   } finally {
     savingTask.value = false;
