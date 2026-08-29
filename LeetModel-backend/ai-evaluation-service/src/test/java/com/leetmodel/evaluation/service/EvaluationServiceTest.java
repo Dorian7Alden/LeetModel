@@ -79,7 +79,7 @@ class EvaluationServiceTest {
                 datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
                 submissionFeignClient, aiGatewayFeignClient, registry, estimateService, persistenceService,
-                metricsCalculator, mapper);
+                metricsCalculator, new EvaluationMetricRegistry(), mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
@@ -162,6 +162,10 @@ class EvaluationServiceTest {
         ArgumentCaptor<List<EvaluationRunAttempt>> runsCaptor = ArgumentCaptor.forClass(List.class);
         verify(persistenceService).createTask(taskCaptor.capture(), runsCaptor.capture());
         assertThat(taskCaptor.getValue().getTotalSlots()).isEqualTo(6);
+        assertThat(taskCaptor.getValue().getDatasetVersion()).isEqualTo("REVIEW_DATASET_V1");
+        assertThat(taskCaptor.getValue().getMetricSetVersion()).isEqualTo("METRIC_SET_V2");
+        assertThat(taskCaptor.getValue().getMetricDefinitionSnapshotJson())
+                .contains("varianceDenominator", "POPULATION_N", "missingValuePolicy");
         assertThat(runsCaptor.getValue()).hasSize(6)
                 .allMatch(run -> "WAITING".equals(run.getStatus()) && run.getAttemptNo() == 1);
         assertThat(result.getRuns()).hasSize(6);
@@ -488,6 +492,7 @@ class EvaluationServiceTest {
         v1Latest.setOverallScore(new BigDecimal("82.00"));
         EvaluationTask v2 = task(22L, "COMPLETED", 2);
         v2.setWorkflowVersion("BASIC_REVIEW_V2");
+        v2.setMetricDefinitionSnapshotJson("{\"parameters\":{},\"metricSetVersion\":\"METRIC_SET_V2\"}");
         v2.setOverallScore(new BigDecimal("91.00"));
         EvaluationTask v1Old = task(20L, "COMPLETED", 2);
         v1Old.setOverallScore(new BigDecimal("70.00"));
@@ -499,12 +504,39 @@ class EvaluationServiceTest {
                 .containsExactly(22L, 21L);
         assertThat(comparison.getVersions()).extracting("workflowVersion")
                 .containsExactly("BASIC_REVIEW_V2", "BASIC_REVIEW_V1");
+        assertThat(comparison.getComparable()).isTrue();
+        assertThat(comparison.getRankingApplied()).isTrue();
+        assertThat(comparison.getIncompatibilityReasons()).isEmpty();
+    }
+
+    @Test
+    void comparisonKeepsSideBySideOrderButRejectsRankingAcrossMetricSnapshots() {
+        when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
+        EvaluationTask current = task(21L, "COMPLETED", 2);
+        current.setOverallScore(new BigDecimal("82.00"));
+        EvaluationTask legacy = task(22L, "COMPLETED", 2);
+        legacy.setWorkflowVersion("BASIC_REVIEW_V2");
+        legacy.setMetricSetVersion("METRIC_SET_V1");
+        legacy.setMetricDefinitionSnapshotJson("{\"metricSetVersion\":\"METRIC_SET_V1\"}");
+        legacy.setOverallScore(new BigDecimal("99.00"));
+        when(taskMapper.selectList(any())).thenReturn(List.of(current, legacy));
+
+        var comparison = service.compare(10L, 2);
+
+        assertThat(comparison.getComparable()).isFalse();
+        assertThat(comparison.getRankingApplied()).isFalse();
+        assertThat(comparison.getIncompatibilityReasons())
+                .contains("metricSetVersion 不一致或缺失", "指标定义或参数快照不一致或缺失");
+        assertThat(comparison.getVersions()).extracting("taskId").containsExactly(21L, 22L);
     }
 
     private EvaluationDataset dataset(Long id) {
         EvaluationDataset dataset = new EvaluationDataset();
         dataset.setId(id);
         dataset.setStatus("LOCKED");
+        dataset.setFeatureCode("REVIEW");
+        dataset.setDatasetVersion("REVIEW_DATASET_V1");
+        dataset.setSampleSchemaVersion("REVIEW_SUBMISSION_V1");
         dataset.setSampleCount(2);
         return dataset;
     }
@@ -524,7 +556,12 @@ class EvaluationServiceTest {
         EvaluationTask task = new EvaluationTask();
         task.setId(id);
         task.setDatasetId(10L);
+        task.setDatasetVersion("REVIEW_DATASET_V1");
+        task.setFeatureCode("REVIEW");
         task.setWorkflowVersion("BASIC_REVIEW_V1");
+        task.setModelExecutionConfigVersion("MODEL_CFG_REVIEW_MULTIMODAL_0001");
+        task.setMetricSetVersion("METRIC_SET_V2");
+        task.setMetricDefinitionSnapshotJson("{\"metricSetVersion\":\"METRIC_SET_V2\",\"parameters\":{}}");
         task.setRepeatCount(totalSlots);
         task.setStatus(status);
         task.setTotalSlots(totalSlots);

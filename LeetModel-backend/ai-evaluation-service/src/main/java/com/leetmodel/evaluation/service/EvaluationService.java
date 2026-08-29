@@ -74,6 +74,7 @@ public class EvaluationService {
     private final EvaluationEstimateService estimateService;
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
+    private final EvaluationMetricRegistry metricRegistry;
     private final ObjectMapper objectMapper;
 
     @Value("${evaluation.recovery.stale-minutes:15}")
@@ -177,6 +178,7 @@ public class EvaluationService {
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
         task.setDatasetId(dataset.getId());
+        task.setDatasetVersion(dataset.getDatasetVersion());
         task.setFeatureCode(featureCode);
         task.setWorkflowVersion(request.getWorkflowVersion().trim());
         task.setModelExecutionConfigVersion(modelConfig);
@@ -185,8 +187,7 @@ public class EvaluationService {
         try {
             task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
             task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
-                    Map.of("metricSetVersion", EvaluationMetricRegistry.REGISTRY_VERSION,
-                            "featureCode", featureCode)));
+                    metricRegistry.snapshot(featureCode)));
         } catch (Exception exception) {
             throw new IllegalStateException("评价任务快照序列化失败", exception);
         }
@@ -227,21 +228,75 @@ public class EvaluationService {
                 .stream().map(this::toSummary).toList();
     }
 
-    /** 相同数据集和重复次数下，每个版本只取最近一次已完成结果。 */
+    /** 相同数据集和重复次数下，每个候选只取最近一次结果；口径不同时禁止排名。 */
     public EvaluationComparisonDTO compare(Long datasetId, Integer repeatCount) {
-        requiredDataset(datasetId);
+        EvaluationDataset dataset = requiredDataset(datasetId);
         List<EvaluationTask> tasks = taskMapper.selectList(new LambdaQueryWrapper<EvaluationTask>()
                 .eq(EvaluationTask::getDatasetId, datasetId)
                 .eq(EvaluationTask::getRepeatCount, repeatCount)
                 .eq(EvaluationTask::getStatus, "COMPLETED")
                 .orderByDesc(EvaluationTask::getCreateTime));
         Map<String, EvaluationTask> latest = new LinkedHashMap<>();
-        tasks.forEach(task -> latest.putIfAbsent(task.getWorkflowVersion(), task));
-        List<EvaluationTaskSummaryDTO> versions = latest.values().stream().map(this::toSummary)
-                .sorted(Comparator.comparing(EvaluationTaskSummaryDTO::getOverallScore,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
-        return new EvaluationComparisonDTO(datasetId, repeatCount, versions);
+        tasks.forEach(task -> latest.putIfAbsent(comparisonCandidateKey(task), task));
+        List<EvaluationTask> candidates = List.copyOf(latest.values());
+        List<String> incompatibilities = comparisonIncompatibilities(dataset, candidates);
+        boolean comparable = candidates.size() > 1 && incompatibilities.isEmpty();
+        java.util.stream.Stream<EvaluationTaskSummaryDTO> summaries = candidates.stream().map(this::toSummary);
+        if (comparable) {
+            summaries = summaries.sorted(Comparator.comparing(EvaluationTaskSummaryDTO::getOverallScore,
+                    Comparator.nullsLast(Comparator.reverseOrder())));
+        }
+        return new EvaluationComparisonDTO(datasetId, dataset.getFeatureCode(),
+                dataset.getDatasetVersion(), repeatCount, comparable, comparable,
+                List.copyOf(incompatibilities), summaries.toList());
+    }
+
+    private String comparisonCandidateKey(EvaluationTask task) {
+        return String.join("|", nullToEmpty(task.getWorkflowVersion()),
+                nullToEmpty(task.getModelExecutionConfigVersion()), nullToEmpty(task.getRagIndexVersion()));
+    }
+
+    private List<String> comparisonIncompatibilities(EvaluationDataset dataset,
+                                                       List<EvaluationTask> tasks) {
+        List<String> reasons = new ArrayList<>();
+        if (tasks.size() < 2) reasons.add("至少需要两个已完成候选");
+        if (tasks.stream().anyMatch(task -> !java.util.Objects.equals(dataset.getFeatureCode(),
+                task.getFeatureCode()))) reasons.add("featureCode 不一致");
+        if (tasks.stream().anyMatch(task -> !java.util.Objects.equals(dataset.getDatasetVersion(),
+                task.getDatasetVersion()))) reasons.add("datasetVersion 不一致或缺失");
+        if (distinctCount(tasks, EvaluationTask::getMetricSetVersion) > 1
+                || tasks.stream().anyMatch(task -> task.getMetricSetVersion() == null)) {
+            reasons.add("metricSetVersion 不一致或缺失");
+        }
+        if (distinctMetricSnapshotCount(tasks) > 1
+                || tasks.stream().anyMatch(task -> task.getMetricDefinitionSnapshotJson() == null)) {
+            reasons.add("指标定义或参数快照不一致或缺失");
+        }
+        if (distinctCount(tasks, EvaluationTask::getModelExecutionConfigVersion) > 1
+                || tasks.stream().anyMatch(task -> task.getModelExecutionConfigVersion() == null)) {
+            reasons.add("modelExecutionConfigVersion 不一致或缺失");
+        }
+        return reasons;
+    }
+
+    private long distinctCount(List<EvaluationTask> tasks,
+                               java.util.function.Function<EvaluationTask, String> value) {
+        return tasks.stream().map(value).distinct().count();
+    }
+
+    private long distinctMetricSnapshotCount(List<EvaluationTask> tasks) {
+        return tasks.stream().map(EvaluationTask::getMetricDefinitionSnapshotJson).map(snapshot -> {
+            if (snapshot == null) return null;
+            try {
+                return objectMapper.readTree(snapshot);
+            } catch (Exception exception) {
+                return objectMapper.getNodeFactory().textNode("INVALID:" + snapshot);
+            }
+        }).distinct().count();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     /** 每次只执行一个样本槽位，避免长事务和一个任务独占工作线程。 */
@@ -602,8 +657,10 @@ public class EvaluationService {
     }
 
     private EvaluationTaskSummaryDTO toSummary(EvaluationTask task) {
-        return new EvaluationTaskSummaryDTO(task.getId(), task.getDatasetId(), task.getWorkflowVersion(),
-                task.getRepeatCount(), task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
+        return new EvaluationTaskSummaryDTO(task.getId(), task.getDatasetId(), task.getDatasetVersion(),
+                task.getFeatureCode(), task.getWorkflowVersion(), task.getModelExecutionConfigVersion(),
+                task.getRagIndexVersion(), task.getMetricSetVersion(), task.getRepeatCount(),
+                task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
                 task.getFailedSlots(), task.getValidityScore(), task.getStabilityScore(), task.getSuccessRate(),
                 task.getLatencyScore(), task.getOverallScore(), task.getAvgDurationMs(), task.getErrorMessage(),
                 task.getLastOperatedBy(), task.getLastOperation(), task.getLastOperatedAt(),

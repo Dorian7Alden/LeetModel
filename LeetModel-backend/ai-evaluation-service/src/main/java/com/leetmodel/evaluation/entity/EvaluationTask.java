@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @TableName("evaluation_task")
 public class EvaluationTask extends BaseEntity {
     private Long datasetId;
+    private String datasetVersion;
     private String featureCode;
     private String workflowVersion;
     private String modelExecutionConfigVersion;

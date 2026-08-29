@@ -12,7 +12,7 @@ import java.util.Set;
 @Component
 public class EvaluationMetricRegistry {
 
-    public static final String REGISTRY_VERSION = "METRIC_SET_V1";
+    public static final String REGISTRY_VERSION = "METRIC_SET_V2";
     private static final Set<String> ALL = Set.of("REVIEW", "ASSISTANT");
     private static final Map<String, EvaluationMetricDefinition> DEFINITIONS = definitions();
 
@@ -33,6 +33,24 @@ public class EvaluationMetricRegistry {
         if (!definition.applicableFeatures().contains(featureCode)) {
             throw new IllegalArgumentException(metricCode + " 不适用于 " + featureCode);
         }
+    }
+
+    public Map<String, Object> snapshot(String featureCode) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("metricSetVersion", REGISTRY_VERSION);
+        snapshot.put("featureCode", featureCode);
+        snapshot.put("definitions", listForFeature(featureCode).stream()
+                .sorted(java.util.Comparator.comparing(EvaluationMetricDefinition::metricCode)).toList());
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("percentageScale", 2);
+        parameters.put("reviewStatisticsScale", 6);
+        parameters.put("varianceDenominator", "POPULATION_N");
+        parameters.put("missingValuePolicy", "NEVER_ZERO_FILL");
+        parameters.put("expectedPointMatch", "LOWERCASE_REMOVE_WHITESPACE_CONTAINS");
+        parameters.put("sourceMatch", "EXACT_RELATIVE_PATH");
+        parameters.put("formatRuleSetVersion", "ASSISTANT_FORMAT_RULES_V1");
+        snapshot.put("parameters", Map.copyOf(parameters));
+        return Map.copyOf(snapshot);
     }
 
     private static Map<String, EvaluationMetricDefinition> definitions() {
