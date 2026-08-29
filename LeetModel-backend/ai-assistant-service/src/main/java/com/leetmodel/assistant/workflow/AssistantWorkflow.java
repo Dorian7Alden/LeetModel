@@ -110,6 +110,29 @@ public class AssistantWorkflow {
         return response;
     }
 
+    /** 执行不创建会话或消息的单轮客服实验。 */
+    public AiChatResponse experimentReply(String question, RagWorkflowContext ragContext,
+                                          String experimentRunId, String workflowVersion,
+                                          String modelExecutionConfigVersion) {
+        List<AiMessage> messages = new ArrayList<>();
+        messages.add(message(AiRole.SYSTEM, systemPrompt));
+        if (ragContext.present()) messages.add(message(AiRole.SYSTEM, ragContext.text()));
+        messages.add(message(AiRole.USER, question));
+        String taskId = "experiment:" + experimentRunId;
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT,
+                AiOperationCode.EXPERIMENT_ASSISTANT, taskId, workflowVersion,
+                "PROMPT_ASSISTANT_CHAT_0001", modelExecutionConfigVersion, null,
+                ragContext.ragIndexVersion(), AiCallPriority.P3,
+                "assistant:" + taskId, Instant.now().plusSeconds(240));
+        AiChatResponse response = aiClient.chat(new AiChatRequest(
+                AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
+        if (response == null || response.content() == null || response.content().isBlank()) {
+            throw new IllegalArgumentException("AI 网关未返回客服实验回复");
+        }
+        return response;
+    }
+
     private AiMessage message(AiRole role, String content) {
         return new AiMessage(role, List.of(new AiContentPart(AiContentType.TEXT, content, null)));
     }

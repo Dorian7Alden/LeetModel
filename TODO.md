@@ -783,41 +783,55 @@ S5 阶段验收记录（2026-08-28）：AI 网关已形成单实例、持久化�
 
 ### S6：统一 AI 功能与版本契约任务
 
-#### [ ] S6-01 盘点 REVIEW、ASSISTANT、SUGGESTION 的真实状态
+#### [x] S6-01 盘点 REVIEW、ASSISTANT、SUGGESTION 的真实状态
 
 - 依赖：D-05。
 - 工作：核对 POM、Controller、Service、Feign、数据库和前端，记录 owner、正式入口、实验入口、版本来源与缺口。
 - 验收：修正 suggestion 旧文档；未实现能力不得出现在“可评价版本”列表。
 
-#### [ ] S6-02 定义 AI 功能描述与版本查询契约
+S6-01 验收记录（2026-08-29）：已逐项核对三个模块的父 POM、Controller、Service、common-api Feign、Flyway 与前端入口，并在 `docs/project/02-架构设计/AI功能版本现状.md` 固定 owner、正式入口、实验入口、版本来源和缺口。三个服务均为真实运行模块；当前只有 REVIEW 同时具备版本列表与隔离实验，故准入集合仅为 `REVIEW / BASIC_REVIEW_V1`。ASSISTANT 的 `ASSISTANT_CHAT_V1`、RAG 版本和 SUGGESTION 的 `IMPROVEMENT_V1` 都只是现行业务实现证据，在专用隔离契约落地前不得显示为可评价版本。suggestion 服务 README 已按当前实现重写，移除“尚无 Maven 运行模块”和整图均为目标设计的过时描述。
+
+#### [x] S6-02 定义 AI 功能描述与版本查询契约
 
 - 依赖：S6-01。
 - 工作：定义 featureCode、支持的数据集/指标、owner，以及 workflowVersion 的编码、名称、状态、输入、输出 schema 和兼容说明。
 - 验收：管理端无需手输任意版本；禁用版本不可新建实验，历史快照仍可读。
 
-#### [ ] S6-03 定义不可变模型执行配置
+S6-02 验收记录（2026-08-29）：common-api 新增 `AiFeatureDefinitionDTO` 与 `AiWorkflowVersionDTO`，固定 featureCode、owner、数据集类型、指标编码，以及工作流版本的名称、状态、输入/输出 schema 和兼容说明。ai-review-service 返回包含启用与禁用版本的完整 REVIEW 目录；评价服务原有服务端校验继续只接受 `ENABLED`。admin-service 提供只读代理，管理端新建评价任务已由自由文本改为启用版本下拉框，历史任务详情仍按已保存的 `workflowVersion` 展示，不依赖版本继续启用。相关后端模块测试与前端生产构建通过。
+
+#### [x] S6-03 定义不可变模型执行配置
 
 - 依赖：S2-02、S6-02。
 - 工作：modelExecutionConfigVersion 固定逻辑模型、参数、Prompt、thinking、输出格式和适用工作流，运行时保存快照。
 - 验收：同一槽位重试配置一致；修改模型别名不改变历史含义。
 
-#### [ ] S6-04 定义隔离实验执行契约
+S6-03 验收记录（2026-08-29）：ai-gateway-service 已发布四个首批 `modelExecutionConfigVersion` 定义，分别锁定客服文本、评审多模态、改善建议文本和 RAG Embedding 的物理模型、参数、Prompt/工作流适用范围、thinking、输出格式及 Embedding 限制。调用在入队前严格校验并将完整快照写入 `ai_call_task`；派发只使用任务快照，不再重新解析当前路由或模型别名。相同调用方幂等键复用既有任务及快照，Flyway 对存量任务提供显式兼容回填。AI 网关及公共依赖 67 项测试通过，覆盖配置解析、参数漂移拒绝、持久化仓储和队列幂等行为。
+
+#### [x] S6-04 定义隔离实验执行契约
 
 - 依赖：S6-03。
 - 工作：定义 experimentRunId、sample、workflowVersion、modelConfigVersion、ragIndexVersion、priority 和标准结果摘要。
 - 验收：能表达 REVIEW 与 ASSISTANT；不覆盖正式评审、客服会话或建议结果。
 
-#### [ ] S6-05 适配现有论文评审实验
+S6-04 验收记录（2026-08-29）：common-api 新增通用 `AiExperimentRequestDTO`、`AiExperimentSampleDTO` 与 `AiExperimentResultDTO`，固定 experimentRunId、版本化样本、workflowVersion、modelExecutionConfigVersion、ragIndexVersion、P0–P4 优先级声明，以及带 schema 的输出/原始指标、callId 和耗时摘要。契约测试分别用提交引用表达 REVIEW、用独立问题 Payload 表达 ASSISTANT，并验证不携带正式评审任务或客服会话标识。架构文档明确 owner 只能写实验返回与调用审计，不能创建或覆盖正式评审、会话/消息或建议结果；现有评审专用 DTO 被标记为待迁移兼容接口。
+
+#### [x] S6-05 适配现有论文评审实验
 
 - 依赖：S6-04。
 - 工作：用通用契约包装已有 ReviewVersion 和实验接口，补充模型配置快照并保留兼容 DTO。
 - 验收：现有评价测试通过，旧接口的迁移终点明确。
 
-#### [ ] S6-06 增加客服可评价版本
+S6-05 验收记录（2026-08-29）：ai-review-service 新增 `/internal/reviews/experiments/v2`，以通用请求包装既有瞬态评审工作流，校验 REVIEW 样本 schema、启用工作流、固定模型执行配置和无 RAG 约束；experimentRunId 进入业务任务标识与网关幂等键，同一槽位重投复用相同模型调用。通用结果回显模型配置版本、输出/指标 schema、score、model、callId 和耗时，完整物理配置快照由 S6-03 的网关任务按 callId 留存。ai-evaluation-service 已迁移到通用入口并以 task/sample/repetition 生成稳定运行标识；旧 Review DTO 与入口继续兼容，待仓库内外调用方迁移并经过至少一个发布兼容周期后删除。评审及评价相关模块测试通过，原评价行为回归保持。
+
+#### [x] S6-06 增加客服可评价版本
 
 - 依赖：S4-16、S6-04。
 - 工作：提供无 RAG、RAG V1 的版本列表和隔离单轮实验入口，锁定索引和模型配置，不创建正式会话。
 - 验收：同一问题可重复执行；结果包含 callId 与 ragIndexVersion。
+
+S6-06 验收记录（2026-08-29）：ai-assistant-service 发布 `ASSISTANT_NO_RAG_V1` 与 `ASSISTANT_RAG_V1` 两个启用版本，并提供通用单轮隔离实验入口。实验直接复用固定系统 Prompt 和模型配置，不创建 conversation/message；experimentRunId 形成稳定网关幂等键，同一问题可按相同槽位重复投递。无 RAG 版本显式返回空 ragIndexVersion；RAG V1 必须提供物理索引版本，检索直接访问该物理索引并校验命中版本，失败时显式失败而不降级到别名或无 RAG。结果包含 answer、model、callId、modelExecutionConfigVersion、ragIndexVersion 和耗时。客服、RAG、管理端与公共依赖测试通过，其中客服模块 62 项通过、8 项需外部环境的集成/冒烟测试按条件跳过。
+
+S6 阶段验收记录（2026-08-29）：REVIEW 与 ASSISTANT 已统一提供可发现、可校验的功能/工作流版本目录和隔离实验契约；模型执行配置以不可变版本和任务快照锁定，历史调用不受模型别名变化影响。评审评价链路已迁移到通用契约，客服可在不写正式会话的前提下比较无 RAG 与指定物理 RAG 索引版本。后端 17 模块 `mvn test` 全量通过（327 项、0 失败、0 错误、9 项外部条件测试跳过），前端生产构建通过；测试密钥继续仅从仓库外本地文件注入，未写入仓库或日志。
 
 ### S7：通用 ai-evaluation-service 任务
 

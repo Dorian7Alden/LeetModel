@@ -28,6 +28,8 @@ class AiPriorityPolicyTest {
                 AiOperationCode.ADMIN_MODEL_TEST, AiCallPriority.P2);
         assertPriority("ai-review-service", AiFeatureCode.PAPER_REVIEW,
                 AiOperationCode.EXPERIMENT_REVIEW, AiCallPriority.P3);
+        assertPriority("ai-assistant-service", AiFeatureCode.AI_ASSISTANT,
+                AiOperationCode.EXPERIMENT_ASSISTANT, AiCallPriority.P3);
         assertPriority("ai-assistant-service", AiFeatureCode.RAG,
                 AiOperationCode.INDEX_DOCUMENTS, AiCallPriority.P4);
     }

@@ -1,6 +1,13 @@
 package com.leetmodel.assistant.controller;
 
 import com.leetmodel.assistant.service.AssistantService;
+import com.leetmodel.assistant.service.AssistantExperimentService;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
 import com.leetmodel.common.core.result.Result;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +29,7 @@ import java.util.List;
 public class InternalAssistantController {
 
     private final AssistantService assistantService;
+    private final AssistantExperimentService experimentService;
 
     @Operation(summary = "获取 AI 客服会话数量")
     @GetMapping("/count")
@@ -36,5 +44,18 @@ public class InternalAssistantController {
             @Min(value = 1, message = "查询数量不能小于1")
             @Max(value = 100, message = "查询数量不能超过100") Integer limit) {
         return Result.ok(assistantService.listRecent(limit));
+    }
+
+    @Operation(summary = "查询 AI 客服可评价版本")
+    @GetMapping("/feature-definition")
+    public Result<AiFeatureDefinitionDTO> featureDefinition() {
+        return Result.ok(experimentService.featureDefinition());
+    }
+
+    @Operation(summary = "执行客服单轮隔离实验")
+    @PostMapping("/experiments")
+    public Result<AiExperimentResultDTO> runExperiment(
+            @Valid @RequestBody AiExperimentRequestDTO request) {
+        return Result.ok(experimentService.run(request));
     }
 }

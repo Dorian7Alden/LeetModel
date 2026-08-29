@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.config.AiSchedulingProperties;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.aigateway.scheduling.AiPriorityPolicy;
 import com.leetmodel.aigateway.scheduling.AiQueueAdmissionService;
 import com.leetmodel.aigateway.scheduling.AiTaskWaitRegistry;
@@ -47,8 +48,9 @@ class AiScheduledCallServiceTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
     private final AiQueueAdmissionService admission = mock(AiQueueAdmissionService.class);
     private final AiCallTaskMapper mapper = mock(AiCallTaskMapper.class);
+    private final ModelExecutionConfigService executionConfigs = executionConfigs();
     private final AiScheduledCallService service = new AiScheduledCallService(objectMapper,
-            new AiPriorityPolicy(), admission, mapper, new AiTaskWaitRegistry());
+            new AiPriorityPolicy(), admission, mapper, new AiTaskWaitRegistry(), executionConfigs);
 
     @Test
     void schedulesRetrievalAsP0AndPreservesQueuedCallId() throws Exception {
@@ -102,7 +104,7 @@ class AiScheduledCallServiceTest {
         when(taskMapper.selectByTaskId(any())).thenAnswer(ignored -> stored.get());
         AiScheduledCallService scheduled = new AiScheduledCallService(objectMapper,
                 new AiPriorityPolicy(), new AiQueueAdmissionService(taskMapper, new AiSchedulingProperties()),
-                taskMapper, new AiTaskWaitRegistry());
+                taskMapper, new AiTaskWaitRegistry(), executionConfigs);
         AiCallContext context = new AiCallContext("ai-assistant-service", AiFeatureCode.RAG,
                 AiOperationCode.RETRIEVE_CONTEXT, "task", null, null, "MODEL_CFG_RAG_V1",
                 null, "rag-v1", AiCallPriority.P0, "timeout-1", Instant.now().plusMillis(80));
@@ -125,7 +127,7 @@ class AiScheduledCallServiceTest {
         AiTaskWaitRegistry waitRegistry = mock(AiTaskWaitRegistry.class);
         when(failedAdmission.enqueue(any())).thenThrow(new DataAccessResourceFailureException("db down"));
         AiScheduledCallService scheduled = new AiScheduledCallService(objectMapper,
-                new AiPriorityPolicy(), failedAdmission, taskMapper, waitRegistry);
+                new AiPriorityPolicy(), failedAdmission, taskMapper, waitRegistry, executionConfigs);
         AiChatRequest request = new AiChatRequest(AiModality.TEXT,
                 context(AiOperationCode.RETRIEVE_CONTEXT, AiCallPriority.P0, "db-failure"),
                 List.of(new AiMessage(AiRole.USER,
@@ -150,5 +152,19 @@ class AiScheduledCallServiceTest {
         return new AiCallContext("ai-assistant-service", AiFeatureCode.RAG, operation,
                 "task", null, null, "MODEL_CFG_RAG_V1", null, "rag-v1",
                 declared, idempotencyKey, Instant.now().plusSeconds(120));
+    }
+
+    private ModelExecutionConfigService executionConfigs() {
+        ModelExecutionConfigService service = mock(ModelExecutionConfigService.class);
+        when(service.resolve(any(), any(), any())).thenAnswer(invocation -> {
+            String type = invocation.getArgument(0);
+            Object request = invocation.getArgument(2);
+            String logical = request instanceof AiEmbeddingRequest embedding ? embedding.logicalModel() : null;
+            return new ModelExecutionSnapshot("MODEL_CFG_RAG_V1", type, logical,
+                    AiProvider.NEW_API, "locked-model", AiModality.TEXT,
+                    64, null, null, false, 2, 32, 8192, 65536,
+                    null, null);
+        });
+        return service;
     }
 }

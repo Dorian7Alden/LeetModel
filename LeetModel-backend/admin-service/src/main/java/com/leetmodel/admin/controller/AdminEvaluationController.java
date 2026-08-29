@@ -8,7 +8,10 @@ import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
+import com.leetmodel.common.api.feign.ReviewFeignClient;
+import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.core.result.Result;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -34,7 +37,24 @@ import java.util.List;
 @SaCheckRole("admin")
 public class AdminEvaluationController {
     private final EvaluationFeignClient evaluationClient;
+    private final ReviewFeignClient reviewClient;
+    private final AssistantFeignClient assistantClient;
     private final AdminFeignExecutor executor;
+
+    @GetMapping("/features")
+    public Result<List<AiFeatureDefinitionDTO>> features() {
+        Result<AiFeatureDefinitionDTO> feature = executor.forward(
+                "AI 评审服务", reviewClient::getFeatureDefinition);
+        if (!feature.isSuccess()) {
+            return Result.fail(feature.getCode(), feature.getMessage());
+        }
+        Result<AiFeatureDefinitionDTO> assistant = executor.forward(
+                "AI 客服服务", assistantClient::getFeatureDefinition);
+        if (!assistant.isSuccess()) {
+            return Result.fail(assistant.getCode(), assistant.getMessage());
+        }
+        return Result.ok(List.of(feature.getData(), assistant.getData()));
+    }
 
     @PostMapping("/datasets")
     public Result<EvaluationDatasetDTO> createDataset(

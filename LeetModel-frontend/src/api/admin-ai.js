@@ -12,6 +12,10 @@ export function listEvaluationDatasets() {
   return request({ url: "/admin/ai/evaluations/datasets", method: "get" });
 }
 
+export function listEvaluationFeatures() {
+  return request({ url: "/admin/ai/evaluations/features", method: "get" });
+}
+
 export function createEvaluationDataset(data) {
   return request({ url: "/admin/ai/evaluations/datasets", method: "post", data });
 }

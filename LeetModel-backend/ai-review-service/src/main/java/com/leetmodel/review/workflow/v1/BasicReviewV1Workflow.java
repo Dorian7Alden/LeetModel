@@ -104,13 +104,18 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
             parts.add(new AiContentPart(AiContentType.TEXT, task.getPromptSnapshot(), null));
             paper.pageDataUrls().forEach(url -> parts.add(new AiContentPart(AiContentType.IMAGE_URL, null, url)));
             boolean experiment = task.getId() == null;
-            String taskId = experiment ? "experiment:" + UUID.randomUUID() : "task:" + task.getId();
+            String taskId = experiment
+                    ? "experiment:" + (task.getExperimentRunId() == null
+                    ? UUID.randomUUID() : task.getExperimentRunId())
+                    : "task:" + task.getId();
             String attempt = task.getAttemptNo() == null ? "1" : task.getAttemptNo().toString();
             AiCallContext context = new AiCallContext(
                     "ai-review-service", AiFeatureCode.PAPER_REVIEW,
                     experiment ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                     taskId, task.getWorkflowVersion(), "PROMPT_BASIC_REVIEW_0001",
-                    "MODEL_CFG_REVIEW_MULTIMODAL_0001", null,
+                    task.getModelExecutionConfigVersion() == null
+                            ? "MODEL_CFG_REVIEW_MULTIMODAL_0001"
+                            : task.getModelExecutionConfigVersion(), null,
                     experiment ? AiCallPriority.P3 : AiCallPriority.P1,
                     "review:" + taskId + ":attempt:" + attempt, Instant.now().plusSeconds(540));
             AiChatRequest request = new AiChatRequest(AiModality.MULTIMODAL, context,

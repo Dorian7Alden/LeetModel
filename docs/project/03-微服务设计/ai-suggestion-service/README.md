@@ -2,27 +2,26 @@
 
 ai-suggestion-service 负责根据用户提交的论文 PDF 和可选的已有评审结果，生成面向论文修改的具体建议。
 
-当前只建立服务边界和功能组成，为后续逐项设计预留清晰位置。
+当前 Maven 运行模块、正式任务入口、异步工作流、数据库迁移、前端入口和管理端只读聚合均已落地。
 
-> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+> 分层定位：AI 业务能力层。`IMPROVEMENT_V1` 是当前正式业务工作流；版本查询与隔离实验尚未实现，因此它暂不属于评价平台可选版本。
 
 
 ### 整体结构与工作流程
 
 ```mermaid
 flowchart LR
-    subgraph callers["上游调用方，目标设计"]
+    subgraph callers["上游调用方"]
         apiGateway["gateway-service"]
-        evaluationService["ai-evaluation-service"]
         adminService["admin-service"]
     end
 
-    subgraph suggestion["ai-suggestion-service 论文改善，目标设计"]
+    subgraph suggestion["ai-suggestion-service 论文改善"]
         taskApi["改善任务与查询 API"]
         taskLifecycle["任务调度与状态管理"]
         inputPreparation["题目、PDF 与评审输入准备"]
         suggestionWorkflow["版本化建议工作流"]
-        evidence["建议依据与位置关联"]
+        evidence["结构化建议与页码校验"]
         result["建议校验与结果保存"]
 
         taskApi --> taskLifecycle
@@ -40,12 +39,11 @@ flowchart LR
         aiGateway["ai-gateway-service"]
     end
 
-    subgraph data["建议事实，目标设计"]
+    subgraph data["建议事实"]
         suggestionDatabase[(lm_ai_suggestion)]
     end
 
     apiGateway --> taskApi
-    evaluationService -->|"实验运行"| taskApi
     adminService -->|"查询任务与结果"| taskApi
     inputPreparation --> submissionService
     inputPreparation --> problemService
@@ -57,7 +55,7 @@ flowchart LR
     result --> suggestionDatabase
 ```
 
-目标流程是创建改善任务后读取提交 PDF、题目和可选评审结果，由版本化建议工作流生成并定位具体改善依据，最后保存建议结果。业务编排归 ai-suggestion-service，模型访问统一经过 `common-ai` 和 ai-gateway-service。当前整张图均为目标设计，不表示已经存在运行模块。
+当前流程是队伍成员针对最终提交幂等创建改善任务。服务读取提交 PDF、题目和已完成评审结果，由 `IMPROVEMENT_V1` 生成按优先级排序的结构化建议并校验页码，最后保存任务结果。业务编排归 ai-suggestion-service，模型访问统一经过 `common-ai` 和 ai-gateway-service。ai-evaluation-service 尚未接入本服务。
 
 
 ### 职责边界
@@ -85,19 +83,19 @@ ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有改善建议�
 
 ### 功能清单
 
-| 功能 | 功能说明 |
-|------|----------|
-| 改善任务创建 | 根据提交标识和可选评审结果创建建议任务 |
-| 输入准备 | 获取题目、原始 PDF、解析产物和已有评审结果 |
-| 整体改善建议 | 识别论文最重要的优先改进方向 |
-| 分部分建议 | 按章节或问题类型给出具体建议 |
-| 建议依据定位 | 将建议关联到 PDF 页码、章节或评审问题 |
-| 任务进度与重试 | 查询生成进度并重试可恢复失败 |
-| 建议结果查询 | 查看整体建议、详细建议、优先级和依据 |
-| 建议版本对比 | 后续对不同建议工作流程进行对比 |
-| 建议质量评价 | 由 ai-evaluation-service 评价准确性、具体性、可执行性和忠实性 |
+| 功能 | 状态 | 功能说明 |
+|------|------|----------|
+| 改善任务创建 | 已实现 | 根据最终提交和已完成评审幂等创建正式建议任务 |
+| 输入准备 | 已实现 | 获取题目、原始 PDF 文本和已有评审结果并校验来源一致性 |
+| 结构化改善建议 | 已实现 | 输出总结及 1–20 项按优先级排序、可带页码的建议 |
+| 任务进度与重试 | 已实现 | 异步领取、失败留痕、显式重试和超时运行任务恢复 |
+| 建议结果查询 | 已实现 | 按任务、提交和队伍查询，前端展示优先级、分类、依据与行动 |
+| 管理端只读聚合 | 已实现 | 内部接口提供任务数量和最近任务摘要 |
+| 建议版本目录 | 未实现 | 当前仅有代码常量 `IMPROVEMENT_V1`，尚无可查询版本契约 |
+| 隔离建议实验 | 未实现 | 尚无不会写正式建议任务的实验入口 |
+| 建议质量评价 | 未实现 | ai-evaluation-service 尚未接入 SUGGESTION |
 
 
 ### 文档规则
 
-后续先建立 AI 论文改善概述，再逐个设计任务、生成和质量评价功能。当前不创建空文档。
+后续针对需要深入设计的功能建立独立目录；当前不为未实现的版本目录、隔离实验或质量评价创建空文档。

@@ -55,7 +55,7 @@ flowchart LR
     resultValidation --> reviewDatabase
 ```
 
-submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。ai-evaluation-service 可调用已实现的隔离实验接口，指定评审版本并取得结构化结果；该路径不创建正式评审任务或日志。
+submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。ai-evaluation-service 通过通用隔离实验接口指定评审版本、模型执行配置和稳定运行槽位，并取得结构化结果；该路径不创建正式评审任务或日志。旧评审专用实验 DTO 暂保留为兼容入口。
 
 
 ### 职责边界

@@ -10,8 +10,9 @@ import com.leetmodel.common.api.dto.EvaluationSampleDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
-import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
-import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiExperimentSampleDTO;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
@@ -34,6 +35,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -61,6 +63,7 @@ public class EvaluationService {
     private final ReviewFeignClient reviewFeignClient;
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
+    private final ObjectMapper objectMapper;
 
     @Value("${evaluation.recovery.stale-minutes:15}")
     private long staleMinutes;
@@ -199,8 +202,15 @@ public class EvaluationService {
         }
         taskMapper.markRunning(task.getId(), LocalDateTime.now());
         try {
-            Result<ReviewExperimentResultDTO> response = reviewFeignClient.runExperiment(
-                    new ReviewExperimentRequestDTO(sample.getSubmissionId(), task.getWorkflowVersion()));
+            String experimentRunId = "review-eval:" + task.getId() + ":"
+                    + sample.getId() + ":" + run.getRepetitionNo();
+            Result<AiExperimentResultDTO> response = reviewFeignClient.runExperimentV2(
+                    new AiExperimentRequestDTO(experimentRunId, "REVIEW",
+                            new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
+                                    objectMapper.writeValueAsString(
+                                            Map.of("submissionId", sample.getSubmissionId()))),
+                            task.getWorkflowVersion(), "MODEL_CFG_REVIEW_MULTIMODAL_0001",
+                            null, "P3"));
             persistExperimentResponse(run, sample, task, response);
         } catch (Exception exception) {
             log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
@@ -242,21 +252,25 @@ public class EvaluationService {
 
     private void persistExperimentResponse(EvaluationRunAttempt run, EvaluationSample sample,
                                            EvaluationTask task,
-                                           Result<ReviewExperimentResultDTO> response) {
+                                           Result<AiExperimentResultDTO> response) {
         LocalDateTime now = LocalDateTime.now();
         if (response == null || !response.isSuccess() || response.getData() == null) {
             runMapper.fail(run.getId(), "ENVIRONMENT", 0L,
                     "实验评审依赖暂不可用", now);
             return;
         }
-        ReviewExperimentResultDTO result = response.getData();
-        boolean identityMatches = sample.getSubmissionId().equals(result.getSubmissionId())
-                && sample.getProblemId().equals(result.getProblemId())
-                && task.getWorkflowVersion().equals(result.getWorkflowVersion());
+        AiExperimentResultDTO result = response.getData();
+        boolean identityMatches = "REVIEW".equals(result.getFeatureCode())
+                && task.getWorkflowVersion().equals(result.getWorkflowVersion())
+                && ("review-eval:" + task.getId() + ":" + sample.getId() + ":"
+                + run.getRepetitionNo()).equals(result.getExperimentRunId())
+                && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
+                result.getModelExecutionConfigVersion());
+        BigDecimal score = metricScore(result.getMetricsJson());
         if ("SUCCEEDED".equals(result.getStatus()) && identityMatches
-                && result.getScore() != null && result.getResultJson() != null
+                && score != null && result.getOutputJson() != null
                 && result.getDurationMs() != null) {
-            runMapper.succeed(run.getId(), result.getScore(), result.getResultJson(),
+            runMapper.succeed(run.getId(), score, result.getOutputJson(),
                     result.getModelName(), result.getAiCallId(), result.getDurationMs(), now);
             return;
         }
@@ -266,6 +280,15 @@ public class EvaluationService {
                 ? "评审版本未产生符合契约的结果" : result.getErrorMessage();
         runMapper.fail(run.getId(), failureType,
                 result.getDurationMs() == null ? 0L : result.getDurationMs(), error, now);
+    }
+
+    private BigDecimal metricScore(String metricsJson) {
+        if (metricsJson == null || metricsJson.isBlank()) return null;
+        try {
+            return objectMapper.readTree(metricsJson).required("score").decimalValue();
+        } catch (Exception exception) {
+            return null;
+        }
     }
 
     private void refreshTask(EvaluationTask task) {

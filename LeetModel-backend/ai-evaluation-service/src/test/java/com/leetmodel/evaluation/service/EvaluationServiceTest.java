@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
-import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
@@ -57,7 +58,8 @@ class EvaluationServiceTest {
     @BeforeEach
     void setUp() {
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, reviewFeignClient, persistenceService, metricsCalculator);
+                submissionFeignClient, reviewFeignClient, persistenceService, metricsCalculator,
+                JsonMapper.builder().findAndAddModules().build());
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
@@ -161,10 +163,9 @@ class EvaluationServiceTest {
         when(runMapper.claim(anyLong(), any())).thenReturn(1);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample);
-        when(reviewFeignClient.runExperiment(any())).thenReturn(Result.ok(new ReviewExperimentResultDTO(
-                31L, 51L, "BASIC_REVIEW_V1", "SUCCEEDED", null,
-                new BigDecimal("88.00"), "{\"score\":88}", "model-a", "call-1",
-                50_000L, null)));
+        when(reviewFeignClient.runExperimentV2(any())).thenReturn(Result.ok(genericResult(
+                "SUCCEEDED", null, "{\"score\":88}", "{\"score\":88.00}",
+                "model-a", "call-1", 50_000L, null)));
         EvaluationRunAttempt succeeded = run(301L, 20L, 101L, "SUCCEEDED", null);
         succeeded.setScore(new BigDecimal("88.00"));
         succeeded.setDurationMs(50_000L);
@@ -174,7 +175,8 @@ class EvaluationServiceTest {
         service.processNext();
 
         verify(runMapper).succeed(org.mockito.ArgumentMatchers.eq(301L),
-                org.mockito.ArgumentMatchers.eq(new BigDecimal("88.00")),
+                org.mockito.ArgumentMatchers.argThat(score ->
+                        score.compareTo(new BigDecimal("88.00")) == 0),
                 org.mockito.ArgumentMatchers.eq("{\"score\":88}"),
                 org.mockito.ArgumentMatchers.eq("model-a"), org.mockito.ArgumentMatchers.eq("call-1"),
                 org.mockito.ArgumentMatchers.eq(50_000L),
@@ -191,7 +193,7 @@ class EvaluationServiceTest {
 
         service.processNext();
 
-        verify(reviewFeignClient, never()).runExperiment(any());
+        verify(reviewFeignClient, never()).runExperimentV2(any());
         verify(taskMapper, never()).markRunning(anyLong(), any());
     }
 
@@ -203,7 +205,7 @@ class EvaluationServiceTest {
         when(runMapper.claim(anyLong(), any())).thenReturn(1);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample(101L, 31L));
-        when(reviewFeignClient.runExperiment(any())).thenReturn(null);
+        when(reviewFeignClient.runExperimentV2(any())).thenReturn(null);
         EvaluationRunAttempt failed = run(301L, 20L, 101L, "FAILED", "ENVIRONMENT");
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
 
@@ -225,9 +227,9 @@ class EvaluationServiceTest {
         when(runMapper.claim(anyLong(), any())).thenReturn(1);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample(101L, 31L));
-        when(reviewFeignClient.runExperiment(any())).thenReturn(Result.ok(new ReviewExperimentResultDTO(
-                31L, null, "BASIC_REVIEW_V1", "FAILED", "OUTPUT",
-                null, null, null, null, 100L, "评审版本未产生符合契约的结果")));
+        when(reviewFeignClient.runExperimentV2(any())).thenReturn(Result.ok(genericResult(
+                "FAILED", "OUTPUT", null, null, null, null, 100L,
+                "评审版本未产生符合契约的结果")));
         EvaluationRunAttempt failed = run(301L, 20L, 101L, "FAILED", "OUTPUT");
         failed.setDurationMs(100L);
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
@@ -363,6 +365,16 @@ class EvaluationServiceTest {
 
     private ReviewVersionDTO version(String status) {
         return new ReviewVersionDTO(1L, "BASIC_REVIEW_V1", "V1", "说明", "流程", status);
+    }
+
+    private AiExperimentResultDTO genericResult(String status, String failureType,
+                                                String outputJson, String metricsJson,
+                                                String model, String callId, Long duration,
+                                                String error) {
+        return new AiExperimentResultDTO("review-eval:20:101:1", "REVIEW",
+                "BASIC_REVIEW_V1", "MODEL_CFG_REVIEW_MULTIMODAL_0001", null,
+                status, failureType, "SCORE_V1", outputJson,
+                "REVIEW_RUN_METRICS_V1", metricsJson, model, callId, duration, error);
     }
 
     private EvaluationMetricsCalculator.Metrics metrics() {

@@ -4,6 +4,9 @@ import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -73,9 +76,22 @@ public class InternalReviewController {
                 request.getSubmissionId(), request.getWorkflowVersion()));
     }
 
+    @Operation(summary = "使用通用契约执行隔离评审实验")
+    @PostMapping("/experiments/v2")
+    public Result<AiExperimentResultDTO> runExperimentV2(
+            @Valid @RequestBody AiExperimentRequestDTO request) {
+        return Result.ok(reviewService.runExperiment(request));
+    }
+
     @Operation(summary = "查询评审版本")
     @GetMapping("/versions")
     public Result<List<ReviewVersionDTO>> listVersions() {
         return Result.ok(reviewService.listVersions());
+    }
+
+    @Operation(summary = "查询 AI 评审功能与工作流版本目录")
+    @GetMapping("/feature-definition")
+    public Result<AiFeatureDefinitionDTO> getFeatureDefinition() {
+        return Result.ok(reviewService.getFeatureDefinition());
     }
 }

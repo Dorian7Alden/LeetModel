@@ -28,6 +28,10 @@ public class RagRetriever {
     }
 
     public RagRetrievalResult retrieve(String query) {
+        return retrieve(query, null);
+    }
+
+    public RagRetrievalResult retrieve(String query, String requiredIndexVersion) {
         if (query == null || query.isBlank()) {
             return RagRetrievalResult.empty();
         }
@@ -52,17 +56,19 @@ public class RagRetriever {
 
         List<RagVectorHit> hits;
         try {
-            hits = store.search(vector, properties.getTopK());
+            hits = requiredIndexVersion == null
+                    ? store.search(vector, properties.getTopK())
+                    : store.search(vector, properties.getTopK(), requiredIndexVersion);
         } catch (RagStoreException exception) {
             throw new RagRetrievalException(exception.isTimeout()
                     ? RagRetrievalException.Type.TIMEOUT : RagRetrievalException.Type.ELASTICSEARCH, exception);
         } catch (RuntimeException exception) {
             throw new RagRetrievalException(RagRetrievalException.Type.ELASTICSEARCH, exception);
         }
-        return filter(hits);
+        return filter(hits, requiredIndexVersion);
     }
 
-    private RagRetrievalResult filter(List<RagVectorHit> hits) {
+    private RagRetrievalResult filter(List<RagVectorHit> hits, String requiredIndexVersion) {
         List<RagRetrievedChunk> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         String version = null;
@@ -71,6 +77,10 @@ public class RagRetriever {
             if (hit == null || hit.score() < properties.getScoreThreshold()
                     || hit.content() == null || hit.content().isBlank()) {
                 continue;
+            }
+            if (requiredIndexVersion != null && !requiredIndexVersion.equals(hit.ragIndexVersion())) {
+                throw new RagRetrievalException(RagRetrievalException.Type.ELASTICSEARCH,
+                        new IllegalStateException("检索结果不属于锁定索引版本"));
             }
             String duplicateKey = hit.chunkId() == null || hit.chunkId().isBlank()
                     ? hit.documentId() + "\0" + hit.content() : hit.chunkId();
@@ -91,6 +101,8 @@ public class RagRetriever {
                     hit.ragIndexVersion(), tokens));
             usedTokens += tokens;
         }
-        return result.isEmpty() ? RagRetrievalResult.empty() : new RagRetrievalResult(result, version);
+        return result.isEmpty()
+                ? new RagRetrievalResult(List.of(), requiredIndexVersion)
+                : new RagRetrievalResult(result, version);
     }
 }

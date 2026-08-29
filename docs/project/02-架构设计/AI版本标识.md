@@ -49,4 +49,26 @@
 - 业务服务引用 `modelExecutionConfigVersion`，由 AI 网关解析并校验不可变配置；new-api 的渠道 ID 和模型别名不直接充当该版本。
 - 客服 RAG 调用和评价样本使用 `ragIndexVersion`；“向量 RAG V1”“AI 目录导航 V2”是架构代际名称，不是索引快照标识。
 
+### 功能与版本发现契约
+
+AI 功能 owner 通过内部只读接口返回 `AiFeatureDefinitionDTO`，评价平台和管理端只消费该目录，不维护第二份版本枚举。
+
+| 字段 | 约束 |
+|---|---|
+| `featureCode` | 全局稳定的大写业务编码，例如 `REVIEW`、`ASSISTANT`、`SUGGESTION` |
+| `name` | 面向管理员的功能展示名，不参与运行寻址 |
+| `ownerService` | 唯一业务规则与版本目录所有者 |
+| `supportedDatasetTypes` | owner 能接受的样本 Payload 类型编码 |
+| `supportedMetricCodes` | owner 输出可支持的原始指标编码，不代表质量结论 |
+| `workflowVersions` | owner 的完整已发布版本集合；包含启用和禁用版本以解释历史 |
+
+每个 `AiWorkflowVersionDTO` 必须返回 `workflowVersion`、展示名称、`status`、`inputSchema`、`outputSchema` 和 `compatibility`。schema 字段是稳定的契约编码，不内嵌随意变动的自然语言结构；详细字段以 owner 的 DTO/OpenAPI 为准。`compatibility` 说明该版本对历史输入输出的读取承诺。
+
+版本状态只允许以下语义：
+
+- `ENABLED`：可创建新正式任务和新实验。
+- `DISABLED`：禁止新建任务或实验，但目录仍返回该版本，历史任务保存的版本编码和结果快照继续可读。
+
+管理端创建实验时只允许从 `ENABLED` 版本下拉列表选择。服务端仍必须重新向 owner 校验状态，不能信任页面传值。当前 REVIEW 目录由 ai-review-service 提供，admin-service 只做代理；ASSISTANT 和 SUGGESTION 在隔离实验能力完成前不发布到评价平台目录。
+
 当前代码主要只有 review `workflowVersion`，其他字段由后续 S2、S4、S6、S7 的迁移新增。迁移期间不得把现有 `workflowVersion` 改名后复用为其他版本，也不得根据 `/v1` 或模型名反推缺失版本。
