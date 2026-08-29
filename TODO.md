@@ -867,11 +867,13 @@ S7-03 验收记录（2026-08-29）：评价服务建立 `METRIC_SET_V1` 不可�
 
 S7-04 验收记录（2026-08-29）：新增 ai-evaluation-service V2 Flyway，在 V1 四表上依次执行可空扩列、REVIEW 确定性回填和通用必填字段收紧。数据集回填稳定版本和样本 schema；样本从 submissionId 生成最小引用 Payload；任务保留 workflowVersion 与全部旧分数字段，补充模型配置、legacy 指标集合及版本快照；运行尝试补充稳定 slotKey、experimentRunId 和执行版本。迁移不删除表或列、不截断数据、不覆盖 overallScore，并建立 feature/dataset、task/slot/attempt、experimentRunId 和 callId 索引。实体已映射新增字段；模块及公共依赖 26 项测试通过。另在本地 MySQL 8.0 临时库实际执行 V1 建表、插入历史四表数据、V2 升级和回填查询，原 ID、状态、workflowVersion、submissionId 与 callId 均保留，验证后已删除临时库。
 
-#### [ ] S7-05 实现通用实验 Runner SPI
+#### [x] S7-05 实现通用实验 Runner SPI
 
 - 依赖：S6-04、S7-04。
 - 工作：定义版本发现、样本校验、执行、结果解析和指标提取接口，避免评价核心堆叠 feature if/else。
 - 验收：可注册假 Runner；未知功能明确失败；核心不依赖 review 专有 DTO。
+
+S7-05 验收记录（2026-08-29）：ai-evaluation-service 新增通用 Runner SPI，以 featureCode 为注册键，分别定义版本发现、版本化样本校验、隔离实验执行、通用结果解析和指标提取。执行命令固定 experimentRunId、样本、workflowVersion、modelExecutionConfigVersion、ragIndexVersion 与 P3 优先级；解析结果只依赖通用 AiExperimentResultDTO 和评价侧 outcome，不引用 Review 专用 DTO。注册表在启动时拒绝重复功能，运行时对未知或未启用功能明确失败。假 Runner 测试完整走通五个 SPI 阶段，并覆盖未知功能和重复注册拒绝。
 
 #### [ ] S7-06 迁移论文评审 Runner
 
