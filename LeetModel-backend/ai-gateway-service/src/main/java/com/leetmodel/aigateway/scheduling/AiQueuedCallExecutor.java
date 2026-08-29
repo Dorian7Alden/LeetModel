@@ -7,6 +7,7 @@ import com.leetmodel.aigateway.service.AiChatService;
 import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -32,16 +33,32 @@ public class AiQueuedCallExecutor implements AiQueuedTaskExecutor {
         try {
             long queueMs = Math.max(0, Duration.between(task.getQueuedAt(),
                     LocalDateTime.now(ZoneOffset.UTC)).toMillis());
+            ModelExecutionSnapshot snapshot = objectMapper.readValue(
+                    task.getModelExecutionConfigSnapshot(), ModelExecutionSnapshot.class);
             Object response = switch (task.getCallType()) {
-                case "CHAT" -> chatService.chat(objectMapper.readValue(
-                        task.getRequestPayload(), AiChatRequest.class), task.getCallId(), queueMs);
-                case "EMBEDDING" -> embeddingService.embed(objectMapper.readValue(
-                        task.getRequestPayload(), AiEmbeddingRequest.class), task.getCallId(), queueMs);
+                case "CHAT" -> executeChat(task, queueMs, snapshot);
+                case "EMBEDDING" -> executeEmbedding(task, queueMs, snapshot);
                 default -> throw new IllegalArgumentException("未知 AI 调用类型");
             };
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("AI 调用载荷序列化失败", exception);
         }
+    }
+
+    private Object executeChat(AiCallTask task, long queueMs, ModelExecutionSnapshot snapshot)
+            throws JsonProcessingException {
+        AiChatRequest request = objectMapper.readValue(task.getRequestPayload(), AiChatRequest.class);
+        return snapshot.provider() == null
+                ? chatService.chat(request, task.getCallId(), queueMs)
+                : chatService.chat(request, task.getCallId(), queueMs, snapshot);
+    }
+
+    private Object executeEmbedding(AiCallTask task, long queueMs, ModelExecutionSnapshot snapshot)
+            throws JsonProcessingException {
+        AiEmbeddingRequest request = objectMapper.readValue(task.getRequestPayload(), AiEmbeddingRequest.class);
+        return snapshot.provider() == null
+                ? embeddingService.embed(request, task.getCallId(), queueMs)
+                : embeddingService.embed(request, task.getCallId(), queueMs, snapshot);
     }
 }

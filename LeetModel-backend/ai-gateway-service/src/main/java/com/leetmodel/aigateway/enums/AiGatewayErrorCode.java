@@ -36,7 +36,9 @@ public enum AiGatewayErrorCode implements ErrorCode {
     AI_RESULT_PENDING(51212, "AI 调用仍在处理中，请使用相同请求标识重试"),
     AI_UPSTREAM_RESULT_UNKNOWN(51213, "AI 上游执行结果未知，禁止自动重试"),
     AI_TASK_NOT_FOUND(41213, "AI 调用任务不存在"),
-    AI_TASK_NOT_CANCELLABLE(41214, "AI 调用任务已结束，不能取消");
+    AI_TASK_NOT_CANCELLABLE(41214, "AI 调用任务已结束，不能取消"),
+    MODEL_EXECUTION_CONFIG_UNAVAILABLE(41215, "模型执行配置不存在或已停用"),
+    MODEL_EXECUTION_CONFIG_MISMATCH(41216, "请求与模型执行配置不一致");
 
     private final int code;
     private final String message;

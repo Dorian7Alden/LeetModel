@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.service;
 import com.leetmodel.aigateway.config.AiEmbeddingProperties;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.provider.ProviderEmbeddingResponse;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingVector;
@@ -34,8 +35,25 @@ public class AiEmbeddingService {
     }
 
     public AiEmbeddingResponse embed(AiEmbeddingRequest request, String callId, long queueMs) {
-        long startedAt = System.currentTimeMillis();
         AiEmbeddingProperties.Binding binding = properties.getEmbeddingModels().get(request.logicalModel());
+        return embed(request, callId, queueMs, binding);
+    }
+
+    public AiEmbeddingResponse embed(AiEmbeddingRequest request, String callId, long queueMs,
+                                     ModelExecutionSnapshot snapshot) {
+        AiEmbeddingProperties.Binding locked = new AiEmbeddingProperties.Binding();
+        locked.setProvider(snapshot.provider());
+        locked.setModel(snapshot.model());
+        locked.setDimension(snapshot.embeddingDimension());
+        locked.setMaxBatchSize(snapshot.maxBatchSize());
+        locked.setMaxInputChars(snapshot.maxInputChars());
+        locked.setMaxTotalChars(snapshot.maxTotalChars());
+        return embed(request, callId, queueMs, locked);
+    }
+
+    private AiEmbeddingResponse embed(AiEmbeddingRequest request, String callId, long queueMs,
+                                      AiEmbeddingProperties.Binding binding) {
+        long startedAt = System.currentTimeMillis();
         String provider = binding == null || binding.getProvider() == null
                 ? null : binding.getProvider().name();
         String model = binding == null ? null : binding.getModel();

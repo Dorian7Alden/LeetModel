@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.aigateway.scheduling.AiPriorityPolicy;
 import com.leetmodel.aigateway.scheduling.AiQueueAdmissionService;
 import com.leetmodel.aigateway.scheduling.AiTaskWaitRegistry;
@@ -37,15 +38,17 @@ public class AiScheduledCallService {
     private final AiQueueAdmissionService admissionService;
     private final AiCallTaskMapper taskMapper;
     private final AiTaskWaitRegistry waits;
+    private final ModelExecutionConfigService executionConfigs;
 
     public AiScheduledCallService(ObjectMapper objectMapper, AiPriorityPolicy priorityPolicy,
                                   AiQueueAdmissionService admissionService, AiCallTaskMapper taskMapper,
-                                  AiTaskWaitRegistry waits) {
+                                  AiTaskWaitRegistry waits, ModelExecutionConfigService executionConfigs) {
         this.objectMapper = objectMapper;
         this.priorityPolicy = priorityPolicy;
         this.admissionService = admissionService;
         this.taskMapper = taskMapper;
         this.waits = waits;
+        this.executionConfigs = executionConfigs;
     }
 
     public CompletableFuture<AiChatResponse> chat(AiChatRequest request) {
@@ -59,8 +62,10 @@ public class AiScheduledCallService {
     private <T> CompletableFuture<T> submit(String callType, AiCallContext context, Object request,
                                              Class<T> responseType) {
         try {
+            ModelExecutionSnapshot snapshot = executionConfigs.resolve(callType, context, request);
             String payload = objectMapper.writeValueAsString(request);
-            AiCallTask proposed = task(callType, context, payload);
+            AiCallTask proposed = task(callType, context, payload,
+                    objectMapper.writeValueAsString(snapshot));
             AiQueueAdmissionService.AdmissionResult admitted = admissionService.enqueue(proposed);
             if (admitted.errorCode() != null) throw new BusinessException(AiGatewayErrorCode.AI_QUEUE_FULL);
             AiCallTask task = admitted.task();
@@ -80,7 +85,7 @@ public class AiScheduledCallService {
         }
     }
 
-    private AiCallTask task(String callType, AiCallContext context, String payload) {
+    private AiCallTask task(String callType, AiCallContext context, String payload, String configSnapshot) {
         Instant now = Instant.now();
         Instant deadline = context == null ? now.plus(MAX_RESULT_WAIT) : context.deadline();
         AiPriorityPolicy.PriorityDecision priority = priorityPolicy.resolve(context);
@@ -96,6 +101,7 @@ public class AiScheduledCallService {
         task.setEffectivePriority(priority.effectivePriority().name());
         task.setState("QUEUED");
         task.setModelExecutionConfigVersion(context == null ? null : context.modelExecutionConfigVersion());
+        task.setModelExecutionConfigSnapshot(configSnapshot);
         task.setRequestHash(sha256(payload));
         task.setRequestPayload(payload);
         task.setDeadline(LocalDateTime.ofInstant(deadline, ZoneOffset.UTC));

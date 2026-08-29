@@ -4,6 +4,7 @@ import com.leetmodel.aigateway.config.AiRoutingProperties;
 import com.leetmodel.aigateway.config.AiModelCatalogProperties;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.provider.AiProviderAdapter;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentType;
@@ -58,8 +59,21 @@ public class AiChatService {
     }
 
     public AiChatResponse chat(AiChatRequest request, String callId, long queueMs) {
-        long startedAt = System.currentTimeMillis();
         AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.effectiveModality());
+        return chat(request, callId, queueMs, route);
+    }
+
+    public AiChatResponse chat(AiChatRequest request, String callId, long queueMs,
+                               ModelExecutionSnapshot snapshot) {
+        AiRoutingProperties.Route locked = new AiRoutingProperties.Route();
+        locked.setProvider(snapshot.provider());
+        locked.setModel(snapshot.model());
+        return chat(request, callId, queueMs, locked);
+    }
+
+    private AiChatResponse chat(AiChatRequest request, String callId, long queueMs,
+                                AiRoutingProperties.Route route) {
+        long startedAt = System.currentTimeMillis();
         String routeProvider = route == null || route.getProvider() == null
                 ? null : route.getProvider().name();
         String routeModel = route == null ? null : route.getModel();
