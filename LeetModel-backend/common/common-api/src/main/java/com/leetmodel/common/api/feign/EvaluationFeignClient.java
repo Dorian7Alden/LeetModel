@@ -9,6 +9,8 @@ import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskControlDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
+import com.leetmodel.common.api.dto.EvaluationScoreRecalculateDTO;
+import com.leetmodel.common.api.dto.EvaluationScoreResultDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.leetmodel.common.core.result.Result;
@@ -77,4 +79,9 @@ public interface EvaluationFeignClient {
     Result<EvaluationWeightSchemeDTO> deactivateWeightScheme(
             @PathVariable("schemeId") Long schemeId,
             @RequestBody EvaluationTaskControlDTO request);
+
+    @PostMapping("/internal/evaluations/tasks/{taskId}/score-results/recalculate")
+    Result<EvaluationScoreResultDTO> recalculateScore(
+            @PathVariable("taskId") Long taskId,
+            @RequestBody EvaluationScoreRecalculateDTO request);
 }
