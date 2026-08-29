@@ -823,11 +823,15 @@ S6-04 验收记录（2026-08-29）：common-api 新增通用 `AiExperimentReques
 
 S6-05 验收记录（2026-08-29）：ai-review-service 新增 `/internal/reviews/experiments/v2`，以通用请求包装既有瞬态评审工作流，校验 REVIEW 样本 schema、启用工作流、固定模型执行配置和无 RAG 约束；experimentRunId 进入业务任务标识与网关幂等键，同一槽位重投复用相同模型调用。通用结果回显模型配置版本、输出/指标 schema、score、model、callId 和耗时，完整物理配置快照由 S6-03 的网关任务按 callId 留存。ai-evaluation-service 已迁移到通用入口并以 task/sample/repetition 生成稳定运行标识；旧 Review DTO 与入口继续兼容，待仓库内外调用方迁移并经过至少一个发布兼容周期后删除。评审及评价相关模块测试通过，原评价行为回归保持。
 
-#### [ ] S6-06 增加客服可评价版本
+#### [x] S6-06 增加客服可评价版本
 
 - 依赖：S4-16、S6-04。
 - 工作：提供无 RAG、RAG V1 的版本列表和隔离单轮实验入口，锁定索引和模型配置，不创建正式会话。
 - 验收：同一问题可重复执行；结果包含 callId 与 ragIndexVersion。
+
+S6-06 验收记录（2026-08-29）：ai-assistant-service 发布 `ASSISTANT_NO_RAG_V1` 与 `ASSISTANT_RAG_V1` 两个启用版本，并提供通用单轮隔离实验入口。实验直接复用固定系统 Prompt 和模型配置，不创建 conversation/message；experimentRunId 形成稳定网关幂等键，同一问题可按相同槽位重复投递。无 RAG 版本显式返回空 ragIndexVersion；RAG V1 必须提供物理索引版本，检索直接访问该物理索引并校验命中版本，失败时显式失败而不降级到别名或无 RAG。结果包含 answer、model、callId、modelExecutionConfigVersion、ragIndexVersion 和耗时。客服、RAG、管理端与公共依赖测试通过，其中客服模块 62 项通过、8 项需外部环境的集成/冒烟测试按条件跳过。
+
+S6 阶段验收记录（2026-08-29）：REVIEW 与 ASSISTANT 已统一提供可发现、可校验的功能/工作流版本目录和隔离实验契约；模型执行配置以不可变版本和任务快照锁定，历史调用不受模型别名变化影响。评审评价链路已迁移到通用契约，客服可在不写正式会话的前提下比较无 RAG 与指定物理 RAG 索引版本。后端 17 模块 `mvn test` 全量通过（327 项、0 失败、0 错误、9 项外部条件测试跳过），前端生产构建通过；测试密钥继续仅从仓库外本地文件注入，未写入仓库或日志。
 
 ### S7：通用 ai-evaluation-service 任务
 

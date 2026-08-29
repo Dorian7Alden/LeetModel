@@ -4,12 +4,12 @@
 
 ## 结论
 
-三个 AI 功能都已有真实运行模块和正式业务入口，但当前只有 `REVIEW` 同时提供可查询的版本目录与不写入正式业务结果的隔离实验入口。因此，当前“可评价版本”只能包含 `REVIEW / BASIC_REVIEW_V1`。`ASSISTANT` 与 `SUGGESTION` 的运行代码中虽然存在版本常量，但在隔离实验契约落地前不得加入管理端或评价服务的版本候选列表。
+三个 AI 功能都已有真实运行模块和正式业务入口。S6 已为 REVIEW 与 ASSISTANT 建立可查询版本目录和无正式业务副作用的隔离实验入口；SUGGESTION 仍未满足评价准入条件。
 
 | featureCode | owner | 正式业务入口 | 隔离实验入口 | 当前版本来源 | 当前可评价版本 | 主要缺口 |
 |---|---|---|---|---|---|---|
-| `REVIEW` | ai-review-service | `/api/reviews/**`；submission-service 创建正式任务 | `POST /internal/reviews/experiments` | `review_version` 表与工作流注册表；V2 Flyway 初始化 `BASIC_REVIEW_V1` | `BASIC_REVIEW_V1` | 版本 DTO 仍是评审专用；实验请求和结果未使用通用运行标识与完整配置快照 |
-| `ASSISTANT` | ai-assistant-service | `/api/assistant/conversations/**` | 无 | `AssistantWorkflow` 固定 `ASSISTANT_CHAT_V1`；RAG 索引版本由知识内容、Embedding 模型和切片策略摘要生成 | 无 | 无功能/版本查询契约；无隔离单轮入口；当前执行会写正式会话与消息 |
+| `REVIEW` | ai-review-service | `/api/reviews/**`；submission-service 创建正式任务 | `POST /internal/reviews/experiments/v2`；旧入口兼容保留 | `review_version` 表与工作流注册表；V2 Flyway 初始化 `BASIC_REVIEW_V1` | `BASIC_REVIEW_V1` | 旧评审专用实验入口待外部调用方迁移并经过兼容周期后删除 |
+| `ASSISTANT` | ai-assistant-service | `/api/assistant/conversations/**` | `POST /internal/assistant/conversations/experiments` | 正式会话使用 `ASSISTANT_CHAT_V1`；实验发布 `ASSISTANT_NO_RAG_V1` 与 `ASSISTANT_RAG_V1` | 两个实验版本 | 通用评价服务尚待 S7 接入；RAG 实验必须由调用方提供已构建索引版本 |
 | `SUGGESTION` | ai-suggestion-service | `/api/suggestions/**` | 无 | `SuggestionV1Workflow.VERSION` 固定为 `IMPROVEMENT_V1`，任务保存 Prompt 快照 | 无 | 无版本目录与隔离实验入口；仅能基于正式提交和已完成评审创建正式建议任务 |
 
 ## 实现证据
@@ -25,7 +25,7 @@
 
 - 父工程包含 `ai-assistant-service`；模块具备会话 Controller、Service、会话/消息 Flyway、助手页面 API，以及管理端只读会话 Feign。
 - 正式工作流固定记录 `ASSISTANT_CHAT_V1`、Prompt 版本和模型配置标识；启用 RAG 时还记录实际 `ragIndexVersion`。
-- 当前内部 Feign 只提供会话计数和最近会话，不提供版本目录或实验执行；直接复用正式入口会污染用户会话，所以不能作为评价入口。
+- 内部 Feign 已增加功能版本目录与通用单轮实验。实验直接调用工作流，不创建会话和消息；无 RAG 与 RAG V1 分成两个版本，后者按物理索引名检索并禁止失败降级。
 
 ### SUGGESTION
 
@@ -42,4 +42,4 @@
 3. owner 提供隔离实验入口，执行不会写入或覆盖正式评审、客服会话、消息或建议结果；
 4. 运行结果能够追溯工作流版本、模型执行配置以及适用时的 RAG 索引版本。
 
-在 S6-02 至 S6-06 完成前，准入集合固定为 `REVIEW / BASIC_REVIEW_V1`。
+当前准入集合为 `REVIEW / BASIC_REVIEW_V1`、`ASSISTANT / ASSISTANT_NO_RAG_V1` 和 `ASSISTANT / ASSISTANT_RAG_V1`。SUGGESTION 仍不在集合中。
