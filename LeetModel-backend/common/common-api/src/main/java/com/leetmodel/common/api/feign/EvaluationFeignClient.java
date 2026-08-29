@@ -9,6 +9,8 @@ import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskControlDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,4 +63,18 @@ public interface EvaluationFeignClient {
     @GetMapping("/internal/evaluations/comparisons")
     Result<EvaluationComparisonDTO> compare(@RequestParam("datasetId") Long datasetId,
                                             @RequestParam("repeatCount") Integer repeatCount);
+
+    @PostMapping("/internal/evaluations/weight-schemes")
+    Result<EvaluationWeightSchemeDTO> createWeightScheme(
+            @RequestBody EvaluationWeightSchemeCreateDTO request);
+
+    @GetMapping("/internal/evaluations/weight-schemes")
+    Result<List<EvaluationWeightSchemeDTO>> listWeightSchemes(
+            @RequestParam("featureCode") String featureCode,
+            @RequestParam("status") String status);
+
+    @PostMapping("/internal/evaluations/weight-schemes/{schemeId}/deactivate")
+    Result<EvaluationWeightSchemeDTO> deactivateWeightScheme(
+            @PathVariable("schemeId") Long schemeId,
+            @RequestBody EvaluationTaskControlDTO request);
 }
