@@ -13,6 +13,8 @@ import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
+import com.leetmodel.common.api.dto.EvaluationScoreResultDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
@@ -75,6 +77,9 @@ public class EvaluationService {
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
     private final EvaluationMetricRegistry metricRegistry;
+    private final EvaluationWeightSchemeService weightSchemeService;
+    private final EvaluationScoreResultService scoreResultService;
+    private final EvaluationCompletionPersistenceService completionPersistenceService;
     private final ObjectMapper objectMapper;
 
     @Value("${evaluation.recovery.stale-minutes:15}")
@@ -174,6 +179,10 @@ public class EvaluationService {
                         trimToNull(request.getRagIndexVersion()))), request.getRepeatCount()));
         var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
         validateExecutionSelection(featureCode, request);
+        BusinessException.throwIf(request.getWeightSchemeId() == null,
+                EvaluationErrorCode.WEIGHT_SCHEME_INVALID);
+        EvaluationWeightSchemeDTO weightScheme = weightSchemeService.requireActiveForTask(
+                request.getWeightSchemeId(), featureCode, EvaluationMetricRegistry.REGISTRY_VERSION);
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
@@ -184,10 +193,13 @@ public class EvaluationService {
         task.setModelExecutionConfigVersion(modelConfig);
         task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
         task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
+        task.setWeightSchemeId(weightScheme.getSchemeId());
+        task.setWeightSchemeVersion(weightScheme.getSchemeVersion());
         try {
             task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
             task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
                     metricRegistry.snapshot(featureCode)));
+            task.setWeightSchemeSnapshotJson(objectMapper.writeValueAsString(weightScheme));
         } catch (Exception exception) {
             throw new IllegalStateException("评价任务快照序列化失败", exception);
         }
@@ -454,9 +466,10 @@ public class EvaluationService {
         } catch (Exception exception) {
             throw new IllegalStateException("评价原始指标无法序列化", exception);
         }
-        taskMapper.complete(task.getId(), terminal, failed, metrics.validityScore(),
-                metrics.stabilityScore(), metrics.successRate(), metrics.latencyScore(),
-                metrics.overallScore(), metrics.averageDurationMs(), rawMetricsJson, now);
+        EvaluationScoreResultService.ScoreBundle scoreBundle = scoreResultService.calculateInitial(
+                task, metrics.rawMetrics(), rawMetricsJson);
+        completionPersistenceService.complete(task, terminal, failed, metrics,
+                rawMetricsJson, scoreBundle, now);
     }
 
     private com.leetmodel.common.api.dto.AiFeatureDefinitionDTO requireEnabledVersion(
@@ -510,6 +523,7 @@ public class EvaluationService {
         boolean same = existing.getDatasetId().equals(request.getDatasetId())
                 && existing.getWorkflowVersion().equals(request.getWorkflowVersion().trim())
                 && existing.getRepeatCount().equals(request.getRepeatCount())
+                && java.util.Objects.equals(existing.getWeightSchemeId(), request.getWeightSchemeId())
                 && java.util.Objects.equals(existing.getRagIndexVersion(),
                 trimToNull(request.getRagIndexVersion()));
         BusinessException.throwIf(!same, EvaluationErrorCode.IDEMPOTENCY_CONFLICT);
@@ -638,6 +652,7 @@ public class EvaluationService {
         EvaluationTaskDTO detail = new EvaluationTaskDTO();
         BeanUtils.copyProperties(toSummary(task), detail);
         detail.setRetryCount(task.getRetryCount());
+        detail.setScoreResults(scoreResults(task.getId()));
         if (task.getRawMetricsJson() != null && !task.getRawMetricsJson().isBlank()) {
             try {
                 detail.setRawMetrics(objectMapper.readValue(task.getRawMetricsJson(),
@@ -657,14 +672,30 @@ public class EvaluationService {
     }
 
     private EvaluationTaskSummaryDTO toSummary(EvaluationTask task) {
+        List<EvaluationScoreResultDTO> scoreResults = scoreResults(task.getId());
+        EvaluationScoreResultDTO latestScore = scoreResults.isEmpty()
+                ? null : scoreResults.get(scoreResults.size() - 1);
         return new EvaluationTaskSummaryDTO(task.getId(), task.getDatasetId(), task.getDatasetVersion(),
                 task.getFeatureCode(), task.getWorkflowVersion(), task.getModelExecutionConfigVersion(),
-                task.getRagIndexVersion(), task.getMetricSetVersion(), task.getRepeatCount(),
+                task.getRagIndexVersion(), task.getMetricSetVersion(), task.getWeightSchemeId(),
+                task.getWeightSchemeVersion(), latestScore == null ? null : latestScore.getScoreResultVersion(),
+                latestScore == null ? null : latestScore.getStatus(),
+                latestScore == null ? null : latestScore.getVersionSelectionIndex(), task.getRepeatCount(),
                 task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
                 task.getFailedSlots(), task.getValidityScore(), task.getStabilityScore(), task.getSuccessRate(),
                 task.getLatencyScore(), task.getOverallScore(), task.getAvgDurationMs(), task.getErrorMessage(),
                 task.getLastOperatedBy(), task.getLastOperation(), task.getLastOperatedAt(),
                 task.getCreateTime(), task.getFinishedAt());
+    }
+
+    /**
+     * 兼容尚无新评分结果的历史任务与测试替身。
+     * @param taskId 任务标识
+     * @return 评分结果列表
+     */
+    private List<EvaluationScoreResultDTO> scoreResults(Long taskId) {
+        List<EvaluationScoreResultDTO> results = scoreResultService.list(taskId);
+        return results == null ? List.of() : results;
     }
 
     private void cancelQueuedGatewayCalls(Long taskId) {

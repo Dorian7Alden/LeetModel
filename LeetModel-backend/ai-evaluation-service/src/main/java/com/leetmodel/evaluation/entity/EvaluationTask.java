@@ -19,6 +19,9 @@ public class EvaluationTask extends BaseEntity {
     private String modelExecutionConfigVersion;
     private String ragIndexVersion;
     private String metricSetVersion;
+    private Long weightSchemeId;
+    private String weightSchemeVersion;
+    private String weightSchemeSnapshotJson;
     private String workflowSnapshotJson;
     private String metricDefinitionSnapshotJson;
     private String rawMetricsJson;

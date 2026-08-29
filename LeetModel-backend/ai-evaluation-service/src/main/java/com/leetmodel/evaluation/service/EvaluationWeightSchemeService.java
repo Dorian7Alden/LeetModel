@@ -118,6 +118,31 @@ public class EvaluationWeightSchemeService {
     }
 
     /**
+     * 获取可供新评价任务锁定的活动方案。
+     * @param schemeId 方案标识
+     * @param featureCode 任务功能
+     * @param metricSetVersion 任务指标集版本
+     * @return 完整方案快照
+     */
+    public EvaluationWeightSchemeDTO requireActiveForTask(Long schemeId,
+                                                          String featureCode,
+                                                          String metricSetVersion) {
+        EvaluationWeightScheme scheme = requiredScheme(schemeId);
+        BusinessException.throwIf(
+                !"ACTIVE".equals(scheme.getStatus())
+                        || !featureCode.equals(scheme.getFeatureCode())
+                        || !metricSetVersion.equals(scheme.getMetricSetVersion()),
+                EvaluationErrorCode.WEIGHT_SCHEME_INVALID
+        );
+        List<EvaluationWeightSchemeItem> items = itemMapper.selectList(
+                new LambdaQueryWrapper<EvaluationWeightSchemeItem>()
+                        .eq(EvaluationWeightSchemeItem::getSchemeId, schemeId)
+                        .orderByAsc(EvaluationWeightSchemeItem::getId));
+        BusinessException.throwIf(items.isEmpty(), EvaluationErrorCode.WEIGHT_SCHEME_INVALID);
+        return toDto(scheme, items);
+    }
+
+    /**
      * 校验指标并转换为持久化快照。
      * @param featureCode 适用功能
      * @param requests 指标请求

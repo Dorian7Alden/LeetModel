@@ -121,6 +121,23 @@ class EvaluationWeightSchemeServiceTest {
         verify(itemMapper, never()).deleteById(any());
     }
 
+    @Test
+    void newTaskCanOnlyLockAnActiveSameFeatureAndMetricSetScheme() {
+        EvaluationWeightScheme active = scheme(701L, "ACTIVE");
+        EvaluationWeightSchemeItem item = new EvaluationWeightSchemeItem();
+        item.setSchemeId(701L);
+        item.setMetricCode("RUN_SUCCESS_RATE");
+        when(schemeMapper.selectById(701L)).thenReturn(active);
+        when(itemMapper.selectList(any())).thenReturn(List.of(item));
+
+        assertThat(service.requireActiveForTask(701L, "REVIEW", "METRIC_SET_V2")
+                .getSchemeVersion()).isEqualTo("REVIEW_BALANCED_V1");
+
+        assertThatThrownBy(() -> service.requireActiveForTask(701L, "ASSISTANT", "METRIC_SET_V2"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41111);
+    }
+
     private void assertInvalid(EvaluationWeightSchemeCreateDTO request) {
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(BusinessException.class)
