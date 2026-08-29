@@ -5,6 +5,8 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
@@ -191,6 +193,24 @@ public class ReviewService {
                         version.getId(), version.getVersionCode(), version.getName(),
                         version.getDescription(), version.getProcessSummary(), version.getStatus()))
                 .toList();
+    }
+
+    /**
+     * 返回 REVIEW 功能及全部已发布版本。禁用版本仍保留在目录中供历史解释。
+     */
+    public AiFeatureDefinitionDTO getFeatureDefinition() {
+        List<AiWorkflowVersionDTO> versions = versionMapper.selectList(
+                        new LambdaQueryWrapper<ReviewVersion>().orderByAsc(ReviewVersion::getId))
+                .stream()
+                .map(version -> new AiWorkflowVersionDTO(
+                        version.getVersionCode(), version.getName(), version.getStatus(),
+                        "REVIEW_SUBMISSION_V1", version.getFinalContractVersion(),
+                        "输入为 submission-service 的不可变提交；输出保持统一评审总分与版本结果 JSON"))
+                .toList();
+        return new AiFeatureDefinitionDTO(
+                "REVIEW", "AI 论文评审", "ai-review-service",
+                List.of("SUBMISSION_SNAPSHOT"),
+                List.of("RUN_SUCCESS", "DURATION_MS", "SCORE_STABILITY"), versions);
     }
 
     /**

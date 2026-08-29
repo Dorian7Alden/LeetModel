@@ -108,7 +108,16 @@
             <el-option v-for="d in datasets" :key="d.datasetId" :label="d.name" :value="d.datasetId" />
           </el-select>
         </el-form-item>
-        <el-form-item label="评审版本" required><el-input v-model="taskForm.workflowVersion" placeholder="例如 review-v1" /></el-form-item>
+        <el-form-item label="评审版本" required>
+          <el-select v-model="taskForm.workflowVersion" placeholder="请选择已启用版本" style="width: 100%">
+            <el-option
+              v-for="version in enabledReviewVersions"
+              :key="version.workflowVersion"
+              :label="`${version.name}（${version.workflowVersion}）`"
+              :value="version.workflowVersion"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="重复次数" required><el-input-number v-model="taskForm.repeatCount" :min="1" :max="3" /></el-form-item>
       </el-form>
       <template #footer>
@@ -142,13 +151,13 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
 import { getAdminSubmissions } from "@/api/admin-ops";
 import {
   listEvaluationDatasets, createEvaluationDataset, listEvaluationTasks, createEvaluationTask,
-  getEvaluationTask, retryEvaluationTask, compareEvaluation,
+  getEvaluationTask, retryEvaluationTask, compareEvaluation, listEvaluationFeatures,
 } from "@/api/admin-ai";
 
 const userStore = useUserStore();
@@ -169,6 +178,11 @@ const taskDetail = ref(null);
 const compareDatasetId = ref(null);
 const compareRepeat = ref(2);
 const comparison = ref(null);
+const features = ref([]);
+const enabledReviewVersions = computed(() => {
+  const review = features.value.find((feature) => feature.featureCode === "REVIEW");
+  return (review?.workflowVersions || []).filter((version) => version.status === "ENABLED");
+});
 
 const datasetForm = reactive({ name: "", description: "" });
 const taskForm = reactive({ datasetId: null, workflowVersion: "", repeatCount: 2 });
@@ -187,7 +201,11 @@ async function loadDatasets() {
   loading.value = true;
   try {
     datasets.value = (await listEvaluationDatasets()).data || [];
-    tasks.value = (await listEvaluationTasks(50)).data || [];
+    const [taskResponse, featureResponse] = await Promise.all([
+      listEvaluationTasks(50), listEvaluationFeatures(),
+    ]);
+    tasks.value = taskResponse.data || [];
+    features.value = featureResponse.data || [];
   } catch (error) {
     ElMessage.error(error.message || "评价数据加载失败");
   } finally {
@@ -241,18 +259,19 @@ async function saveDataset() {
 
 function openCreateTask() {
   if (!datasets.value.length) return ElMessage.warning("请先创建测试集");
+  if (!enabledReviewVersions.value.length) return ElMessage.warning("当前没有可运行的评审版本");
   Object.assign(taskForm, { datasetId: null, workflowVersion: "", repeatCount: 2 });
   taskDialogVisible.value = true;
 }
 
 async function saveTask() {
   if (!taskForm.datasetId) return ElMessage.warning("请选择测试集");
-  if (!taskForm.workflowVersion.trim()) return ElMessage.warning("请输入评审版本");
+  if (!taskForm.workflowVersion) return ElMessage.warning("请选择评审版本");
   savingTask.value = true;
   try {
     await createEvaluationTask({
       datasetId: taskForm.datasetId,
-      workflowVersion: taskForm.workflowVersion.trim(),
+      workflowVersion: taskForm.workflowVersion,
       repeatCount: taskForm.repeatCount,
       clientRequestId: `eval-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
     });

@@ -297,6 +297,30 @@ class ReviewServiceTest {
         assertEquals("ENABLED", versions.get(0).getStatus());
     }
 
+    @Test
+    void featureDefinitionKeepsDisabledVersionsForHistoricalInterpretation() {
+        ReviewVersion enabled = version("BASIC_REVIEW_V1", "ENABLED", "REVIEW_RESULT_V1");
+        ReviewVersion disabled = version("BASIC_REVIEW_LEGACY", "DISABLED", "REVIEW_RESULT_V0");
+        when(versionMapper.selectList(any())).thenReturn(java.util.List.of(enabled, disabled));
+
+        var feature = service.getFeatureDefinition();
+
+        assertEquals("REVIEW", feature.getFeatureCode());
+        assertEquals("ai-review-service", feature.getOwnerService());
+        assertEquals(2, feature.getWorkflowVersions().size());
+        assertEquals("DISABLED", feature.getWorkflowVersions().get(1).getStatus());
+        assertEquals("REVIEW_RESULT_V0", feature.getWorkflowVersions().get(1).getOutputSchema());
+    }
+
+    private ReviewVersion version(String code, String status, String outputSchema) {
+        ReviewVersion version = new ReviewVersion();
+        version.setVersionCode(code);
+        version.setName(code);
+        version.setStatus(status);
+        version.setFinalContractVersion(outputSchema);
+        return version;
+    }
+
     private ReviewTask task(Long id, String status) {
         ReviewTask task = new ReviewTask();
         task.setId(id);

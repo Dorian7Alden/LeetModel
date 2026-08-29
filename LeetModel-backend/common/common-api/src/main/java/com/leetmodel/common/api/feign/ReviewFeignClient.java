@@ -4,6 +4,7 @@ import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentRequestDTO;
 import com.leetmodel.common.api.dto.ReviewExperimentResultDTO;
 import com.leetmodel.common.api.dto.ReviewVersionDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,4 +38,7 @@ public interface ReviewFeignClient {
 
     @GetMapping("/internal/reviews/versions")
     Result<List<ReviewVersionDTO>> listVersions();
+
+    @GetMapping("/internal/reviews/feature-definition")
+    Result<AiFeatureDefinitionDTO> getFeatureDefinition();
 }
