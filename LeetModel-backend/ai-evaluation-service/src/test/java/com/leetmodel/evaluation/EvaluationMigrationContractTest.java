@@ -101,4 +101,24 @@ class EvaluationMigrationContractTest {
                 .contains("`weight_percent` DECIMAL(7,4) NOT NULL");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
     }
+
+    @Test
+    void v8AddsImmutableScoreResultsWithoutRewritingRawOrLegacyScores() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V8__add_evaluation_score_result.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("ADD COLUMN `weight_scheme_snapshot_json` LONGTEXT NULL")
+                .contains("CREATE TABLE `evaluation_score_result`")
+                .contains("CREATE TABLE `evaluation_score_result_item`")
+                .contains("`raw_metrics_snapshot_json` LONGTEXT NOT NULL")
+                .contains("`version_selection_index` DECIMAL(9,6) NULL")
+                .contains("UNIQUE INDEX `uk_task_score_version`")
+                .contains("UNIQUE INDEX `uk_score_result_metric`");
+        assertThat(sql.toUpperCase())
+                .doesNotContain("DROP ", "DELETE ", "TRUNCATE", "SET `RAW_METRICS_JSON`", "SET `OVERALL_SCORE`");
+    }
 }
