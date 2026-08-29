@@ -51,6 +51,8 @@ public class EvaluationMetricRegistry {
                 "AI_GATEWAY_CALL", ALL, "MARK_UNAVAILABLE", "网关执行时间"));
         add(values, metric("TOTAL_DURATION_MS", "RUNNING", "MILLISECOND", "LOWER_IS_BETTER",
                 "AI_GATEWAY_CALL", ALL, "REQUIRE", "实验调用总耗时"));
+        add(values, metric("REVIEW_SCORE", "BUSINESS_OUTPUT", "SCORE", "NONE",
+                "REVIEW_EXPERIMENT", Set.of("REVIEW"), "MARK_UNAVAILABLE", "有效评审结构分数"));
         add(values, metric("REVIEW_SCORE_MEAN", "BUSINESS_OUTPUT", "SCORE", "NONE",
                 "REVIEW_EXPERIMENT", Set.of("REVIEW"), "MARK_UNAVAILABLE", "有效评审结构分数"));
         add(values, metric("REVIEW_SCORE_VARIANCE", "STABILITY", "SCORE_SQUARED", "LOWER_IS_BETTER",
