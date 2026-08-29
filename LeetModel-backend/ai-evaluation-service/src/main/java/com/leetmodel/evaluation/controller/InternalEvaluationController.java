@@ -6,6 +6,7 @@ import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationEstimateDTO;
 import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationTaskControlDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.core.result.Result;
@@ -76,6 +77,27 @@ public class InternalEvaluationController {
     public Result<EvaluationTaskDTO> retry(
             @PathVariable @Positive(message = "评价任务标识必须为正整数") Long taskId) {
         return Result.ok(evaluationService.retry(taskId));
+    }
+
+    @Operation(summary = "暂停评价任务的新槽位派发")
+    @PostMapping("/tasks/{taskId}/pause")
+    public Result<EvaluationTaskDTO> pause(@PathVariable @Positive Long taskId,
+                                           @Valid @RequestBody EvaluationTaskControlDTO request) {
+        return Result.ok(evaluationService.pause(taskId, request.getOperatorId()));
+    }
+
+    @Operation(summary = "恢复评价任务剩余槽位")
+    @PostMapping("/tasks/{taskId}/resume")
+    public Result<EvaluationTaskDTO> resume(@PathVariable @Positive Long taskId,
+                                            @Valid @RequestBody EvaluationTaskControlDTO request) {
+        return Result.ok(evaluationService.resume(taskId, request.getOperatorId()));
+    }
+
+    @Operation(summary = "取消评价任务及可取消的排队调用")
+    @PostMapping("/tasks/{taskId}/cancel")
+    public Result<EvaluationTaskDTO> cancel(@PathVariable @Positive Long taskId,
+                                            @Valid @RequestBody EvaluationTaskControlDTO request) {
+        return Result.ok(evaluationService.cancel(taskId, request.getOperatorId()));
     }
 
     @Operation(summary = "查询最近版本质量评价任务")

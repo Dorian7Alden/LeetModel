@@ -8,6 +8,7 @@ import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationEstimateDTO;
 import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationTaskControlDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
@@ -15,6 +16,7 @@ import com.leetmodel.common.api.feign.EvaluationFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.security.context.UserContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -94,6 +96,24 @@ public class AdminEvaluationController {
     @PostMapping("/tasks/{taskId}/retry")
     public Result<EvaluationTaskDTO> retry(@PathVariable @Positive Long taskId) {
         return executor.forward("质量评价服务", () -> evaluationClient.retry(taskId));
+    }
+
+    @PostMapping("/tasks/{taskId}/pause")
+    public Result<EvaluationTaskDTO> pause(@PathVariable @Positive Long taskId) {
+        return executor.forward("质量评价服务", () -> evaluationClient.pause(taskId,
+                new EvaluationTaskControlDTO(UserContext.getUserId())));
+    }
+
+    @PostMapping("/tasks/{taskId}/resume")
+    public Result<EvaluationTaskDTO> resume(@PathVariable @Positive Long taskId) {
+        return executor.forward("质量评价服务", () -> evaluationClient.resume(taskId,
+                new EvaluationTaskControlDTO(UserContext.getUserId())));
+    }
+
+    @PostMapping("/tasks/{taskId}/cancel")
+    public Result<EvaluationTaskDTO> cancel(@PathVariable @Positive Long taskId) {
+        return executor.forward("质量评价服务", () -> evaluationClient.cancel(taskId,
+                new EvaluationTaskControlDTO(UserContext.getUserId())));
     }
 
     @GetMapping("/comparisons")

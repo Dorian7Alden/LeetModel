@@ -35,6 +35,9 @@ public class EvaluationTask extends BaseEntity {
     private Long avgDurationMs;
     private Integer retryCount;
     private String errorMessage;
+    private Long lastOperatedBy;
+    private String lastOperation;
+    private LocalDateTime lastOperatedAt;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
 }

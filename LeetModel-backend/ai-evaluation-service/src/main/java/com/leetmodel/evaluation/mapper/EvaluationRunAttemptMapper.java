@@ -12,8 +12,9 @@ import java.util.List;
 
 public interface EvaluationRunAttemptMapper extends BaseMapper<EvaluationRunAttempt> {
 
-    @Select("SELECT * FROM evaluation_run_attempt WHERE status = 'WAITING' AND deleted = 0 "
-            + "ORDER BY create_time ASC, id ASC LIMIT 1")
+    @Select("SELECT r.* FROM evaluation_run_attempt r JOIN evaluation_task t ON t.id = r.task_id "
+            + "WHERE r.status = 'WAITING' AND r.deleted = 0 AND t.deleted = 0 "
+            + "AND t.status IN ('WAITING', 'RUNNING') ORDER BY r.create_time ASC, r.id ASC LIMIT 1")
     EvaluationRunAttempt selectNextWaiting();
 
     @Update("UPDATE evaluation_run_attempt SET status = 'RUNNING', started_at = #{now}, "
@@ -69,4 +70,9 @@ public interface EvaluationRunAttemptMapper extends BaseMapper<EvaluationRunAtte
             + "WHERE id = #{id} AND status = 'RUNNING' AND update_time < #{cutoff} AND deleted = 0")
     int markStaleUnknown(@Param("id") Long id, @Param("cutoff") LocalDateTime cutoff,
                          @Param("now") LocalDateTime now);
+
+    @Update("UPDATE evaluation_run_attempt SET status = 'CANCELLED', failure_type = NULL, "
+            + "error_message = '任务已取消，槽位未派发', finished_at = #{now}, update_time = #{now} "
+            + "WHERE task_id = #{taskId} AND status = 'WAITING' AND deleted = 0")
+    int cancelWaiting(@Param("taskId") Long taskId, @Param("now") LocalDateTime now);
 }

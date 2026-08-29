@@ -6,12 +6,14 @@ import com.leetmodel.common.api.dto.EvaluationSampleCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
+import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -58,6 +60,7 @@ class EvaluationServiceTest {
     @Mock SubmissionFeignClient submissionFeignClient;
     @Mock ReviewFeignClient reviewFeignClient;
     @Mock AssistantFeignClient assistantFeignClient;
+    @Mock AiGatewayFeignClient aiGatewayFeignClient;
     @Mock EvaluationPersistenceService persistenceService;
     @Mock EvaluationMetricsCalculator metricsCalculator;
 
@@ -74,7 +77,7 @@ class EvaluationServiceTest {
         var estimateService = new EvaluationEstimateService(
                 datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, registry, estimateService, persistenceService,
+                submissionFeignClient, aiGatewayFeignClient, registry, estimateService, persistenceService,
                 metricsCalculator, mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
@@ -416,6 +419,65 @@ class EvaluationServiceTest {
                 org.mockito.ArgumentMatchers.eq(0),
                 org.mockito.ArgumentMatchers.contains("禁止自动或人工盲目重试"), any());
         verify(persistenceService, never()).retry(any(), any());
+    }
+
+    @Test
+    void pauseStopsNewDispatchAndRecordsOperator() {
+        EvaluationTask running = task(20L, "RUNNING", 2);
+        EvaluationTask paused = task(20L, "PAUSED", 2);
+        paused.setLastOperatedBy(7L);
+        paused.setLastOperation("PAUSE");
+        when(taskMapper.selectById(20L)).thenReturn(running, paused);
+        when(taskMapper.pause(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+
+        var result = service.pause(20L, 7L);
+
+        assertThat(result.getStatus()).isEqualTo("PAUSED");
+        assertThat(result.getLastOperatedBy()).isEqualTo(7L);
+        verify(runMapper, never()).claim(anyLong(), any());
+    }
+
+    @Test
+    void resumeLeavesSuccessfulSlotsAndContinuesRemainingWaitingSlots() {
+        EvaluationTask paused = task(20L, "PAUSED", 2);
+        EvaluationTask waiting = task(20L, "WAITING", 2);
+        when(taskMapper.selectById(20L)).thenReturn(paused, waiting, waiting, waiting);
+        when(taskMapper.resume(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+        EvaluationRunAttempt success = run(301L, 20L, 101L, "SUCCEEDED", null);
+        EvaluationRunAttempt remaining = run(302L, 20L, 101L, "WAITING", null);
+        remaining.setRepetitionNo(2);
+        when(runMapper.selectList(any())).thenReturn(List.of(success, remaining));
+
+        var result = service.resume(20L, 7L);
+
+        verify(taskMapper).updateProgress(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq("RUNNING"), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(0), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.isNull(), any());
+        verify(persistenceService, never()).retry(any(), any());
+        assertThat(result.getRuns()).hasSize(2);
+    }
+
+    @Test
+    void cancelKeepsHistoryCancelsWaitingSlotsAndRequestsGatewayCancellation() {
+        EvaluationTask running = task(20L, "RUNNING", 2);
+        EvaluationTask cancelled = task(20L, "CANCELLED", 2);
+        when(taskMapper.selectById(20L)).thenReturn(running, cancelled);
+        when(taskMapper.cancel(org.mockito.ArgumentMatchers.eq(20L),
+                org.mockito.ArgumentMatchers.eq(7L), any())).thenReturn(1);
+        AiQueueTaskDTO queue = new AiQueueTaskDTO();
+        queue.setTaskId("queue-1");
+        queue.setState("QUEUED");
+        when(aiGatewayFeignClient.listQueueTasks(any())).thenReturn(Result.ok(List.of(queue)));
+
+        var result = service.cancel(20L, 7L);
+
+        assertThat(result.getStatus()).isEqualTo("CANCELLED");
+        verify(runMapper).cancelWaiting(org.mockito.ArgumentMatchers.eq(20L), any());
+        verify(aiGatewayFeignClient).cancelQueueTask("queue-1");
+        verify(runMapper, never()).delete(any());
     }
 
     @Test

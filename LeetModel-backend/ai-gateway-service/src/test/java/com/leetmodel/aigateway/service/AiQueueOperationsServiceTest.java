@@ -26,7 +26,7 @@ class AiQueueOperationsServiceTest {
         AiCallTask longWait = task("long", "QUEUED", 20);
         longWait.setRequestPayload("private prompt");
         longWait.setResultPayload("private answer");
-        when(mapper.selectForMonitoring("QUEUED", "P3", "ai-review-service"))
+        when(mapper.selectForMonitoring("QUEUED", "P3", "ai-review-service", null))
                 .thenReturn(List.of(shortWait, longWait));
         AiQueueQueryDTO query = new AiQueueQueryDTO();
         query.setState("QUEUED");

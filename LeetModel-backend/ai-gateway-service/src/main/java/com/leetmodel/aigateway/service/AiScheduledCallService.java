@@ -101,6 +101,7 @@ public class AiScheduledCallService {
         task.setEffectivePriority(priority.effectivePriority().name());
         task.setState("QUEUED");
         task.setModelExecutionConfigVersion(context == null ? null : context.modelExecutionConfigVersion());
+        task.setEvaluationTaskId(context == null ? null : context.evaluationTaskId());
         task.setModelExecutionConfigSnapshot(configSnapshot);
         task.setRequestHash(sha256(payload));
         task.setRequestPayload(payload);

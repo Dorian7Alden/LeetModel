@@ -10,6 +10,25 @@ import java.time.LocalDateTime;
 
 public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
 
+    @Update("UPDATE evaluation_task SET status = 'PAUSED', last_operated_by = #{operatorId}, "
+            + "last_operation = 'PAUSE', last_operated_at = #{now}, update_time = #{now} "
+            + "WHERE id = #{id} AND status IN ('WAITING','RUNNING') AND deleted = 0")
+    int pause(@Param("id") Long id, @Param("operatorId") Long operatorId,
+              @Param("now") LocalDateTime now);
+
+    @Update("UPDATE evaluation_task SET status = 'WAITING', last_operated_by = #{operatorId}, "
+            + "last_operation = 'RESUME', last_operated_at = #{now}, update_time = #{now} "
+            + "WHERE id = #{id} AND status = 'PAUSED' AND deleted = 0")
+    int resume(@Param("id") Long id, @Param("operatorId") Long operatorId,
+               @Param("now") LocalDateTime now);
+
+    @Update("UPDATE evaluation_task SET status = 'CANCELLED', last_operated_by = #{operatorId}, "
+            + "last_operation = 'CANCEL', last_operated_at = #{now}, finished_at = #{now}, "
+            + "update_time = #{now} WHERE id = #{id} AND status IN ('WAITING','RUNNING','PAUSED','FAILED') "
+            + "AND deleted = 0")
+    int cancel(@Param("id") Long id, @Param("operatorId") Long operatorId,
+               @Param("now") LocalDateTime now);
+
     @Update("UPDATE evaluation_task SET status = 'RUNNING', started_at = COALESCE(started_at, #{now}), "
             + "update_time = #{now} WHERE id = #{id} AND status IN ('WAITING', 'RUNNING') AND deleted = 0")
     int markRunning(@Param("id") Long id, @Param("now") LocalDateTime now);

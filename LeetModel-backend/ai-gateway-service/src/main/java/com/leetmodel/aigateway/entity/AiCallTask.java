@@ -22,6 +22,7 @@ public class AiCallTask extends BaseEntity {
     private String effectivePriority;
     private String state;
     private String modelExecutionConfigVersion;
+    private String evaluationTaskId;
     private String modelExecutionConfigSnapshot;
     private String requestHash;
     private String requestPayload;

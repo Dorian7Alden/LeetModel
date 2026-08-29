@@ -40,6 +40,9 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
              <if test='state != null and state != ""'>AND state = #{state}</if>
              <if test='priority != null and priority != ""'>AND effective_priority = #{priority}</if>
              <if test='callerService != null and callerService != ""'>AND caller_service = #{callerService}</if>
+             <if test='evaluationTaskId != null and evaluationTaskId != ""'>
+               AND evaluation_task_id = #{evaluationTaskId}
+             </if>
              ORDER BY CASE WHEN state IN ('QUEUED','LEASED','RUNNING') THEN 0 ELSE 1 END,
                       queued_at ASC
              LIMIT 500
@@ -47,7 +50,8 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
             """)
     List<AiCallTask> selectForMonitoring(@Param("state") String state,
                                          @Param("priority") String priority,
-                                         @Param("callerService") String callerService);
+                                         @Param("callerService") String callerService,
+                                         @Param("evaluationTaskId") String evaluationTaskId);
 
     @Select("SELECT COUNT(*) FROM ai_call_task WHERE deleted = 0 AND state IN ('QUEUED','LEASED','RUNNING')")
     long countActive();

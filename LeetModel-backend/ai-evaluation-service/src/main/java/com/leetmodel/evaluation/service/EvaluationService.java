@@ -15,6 +15,8 @@ import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
+import com.leetmodel.common.api.feign.AiGatewayFeignClient;
+import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
@@ -65,6 +67,7 @@ public class EvaluationService {
     private final EvaluationTaskMapper taskMapper;
     private final EvaluationRunAttemptMapper runMapper;
     private final SubmissionFeignClient submissionFeignClient;
+    private final AiGatewayFeignClient aiGatewayFeignClient;
     private final EvaluationRunnerRegistry runnerRegistry;
     private final EvaluationEstimateService estimateService;
     private final EvaluationPersistenceService persistenceService;
@@ -290,6 +293,32 @@ public class EvaluationService {
         return toTask(requiredTask(taskId));
     }
 
+    public EvaluationTaskDTO pause(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        BusinessException.throwIf(taskMapper.pause(taskId, operatorId, LocalDateTime.now()) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        return toTask(requiredTask(taskId));
+    }
+
+    public EvaluationTaskDTO resume(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        BusinessException.throwIf(taskMapper.resume(taskId, operatorId, LocalDateTime.now()) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        EvaluationTask resumed = requiredTask(taskId);
+        refreshTask(resumed);
+        return toTask(requiredTask(taskId));
+    }
+
+    public EvaluationTaskDTO cancel(Long taskId, Long operatorId) {
+        requiredTask(taskId);
+        LocalDateTime now = LocalDateTime.now();
+        BusinessException.throwIf(taskMapper.cancel(taskId, operatorId, now) == 0,
+                EvaluationErrorCode.TASK_STATE_CONFLICT);
+        runMapper.cancelWaiting(taskId, now);
+        cancelQueuedGatewayCalls(taskId);
+        return toTask(requiredTask(taskId));
+    }
+
     @Scheduled(fixedDelayString = "${evaluation.recovery.delay-ms:60000}")
     public void recoverStaleRuns() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleMinutes);
@@ -334,6 +363,10 @@ public class EvaluationService {
     }
 
     private void refreshTask(EvaluationTask task) {
+        EvaluationTask current = taskMapper.selectById(task.getId());
+        if (current == null || "PAUSED".equals(current.getStatus())
+                || "CANCELLED".equals(current.getStatus())) return;
+        task = current;
         List<EvaluationRunAttempt> latest = latestRuns(task.getId());
         int terminal = (int) latest.stream().filter(this::isTerminal).count();
         int failed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())
@@ -520,7 +553,7 @@ public class EvaluationService {
 
     private boolean isTerminal(EvaluationRunAttempt run) {
         return "SUCCEEDED".equals(run.getStatus()) || "FAILED".equals(run.getStatus())
-                || "UNKNOWN".equals(run.getStatus());
+                || "UNKNOWN".equals(run.getStatus()) || "CANCELLED".equals(run.getStatus());
     }
 
     private EvaluationDatasetDTO toDataset(EvaluationDataset dataset, List<EvaluationSample> samples) {
@@ -556,7 +589,31 @@ public class EvaluationService {
                 task.getRepeatCount(), task.getStatus(), task.getTotalSlots(), task.getTerminalSlots(),
                 task.getFailedSlots(), task.getValidityScore(), task.getStabilityScore(), task.getSuccessRate(),
                 task.getLatencyScore(), task.getOverallScore(), task.getAvgDurationMs(), task.getErrorMessage(),
+                task.getLastOperatedBy(), task.getLastOperation(), task.getLastOperatedAt(),
                 task.getCreateTime(), task.getFinishedAt());
+    }
+
+    private void cancelQueuedGatewayCalls(Long taskId) {
+        AiQueueQueryDTO query = new AiQueueQueryDTO();
+        query.setEvaluationTaskId(String.valueOf(taskId));
+        query.setLimit(100);
+        try {
+            Result<List<com.leetmodel.common.api.dto.AiQueueTaskDTO>> response =
+                    aiGatewayFeignClient.listQueueTasks(query);
+            if (response == null || !response.isSuccess() || response.getData() == null) return;
+            response.getData().stream()
+                    .filter(item -> Set.of("QUEUED", "LEASED", "RUNNING").contains(item.getState()))
+                    .forEach(item -> {
+                        try {
+                            aiGatewayFeignClient.cancelQueueTask(item.getTaskId());
+                        } catch (RuntimeException exception) {
+                            log.info("评价任务取消时网关调用已不可取消 taskId={}, queueTaskId={}",
+                                    taskId, item.getTaskId());
+                        }
+                    });
+        } catch (RuntimeException exception) {
+            log.warn("评价任务已取消，但查询网关排队调用失败 taskId={}", taskId);
+        }
     }
 
     private String trimToNull(String value) {

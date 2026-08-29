@@ -33,7 +33,7 @@ CREATE TABLE ai_call_task (
   caller_service VARCHAR(64) NOT NULL, idempotency_key VARCHAR(128) NOT NULL,
   call_type VARCHAR(20) NOT NULL, feature_code VARCHAR(64) NOT NULL, operation_code VARCHAR(64) NOT NULL,
   declared_priority VARCHAR(10) NOT NULL, effective_priority VARCHAR(10) NOT NULL,
-  state VARCHAR(20) NOT NULL, model_execution_config_version VARCHAR(100),
+  state VARCHAR(20) NOT NULL, model_execution_config_version VARCHAR(100), evaluation_task_id VARCHAR(128),
   model_execution_config_snapshot JSON,
   request_hash CHAR(64) NOT NULL, request_payload CLOB NOT NULL, result_payload CLOB,
   deadline TIMESTAMP NOT NULL, max_queue_wait_ms BIGINT NOT NULL,

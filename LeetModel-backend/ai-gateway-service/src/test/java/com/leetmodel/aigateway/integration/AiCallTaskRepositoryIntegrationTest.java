@@ -163,7 +163,7 @@ class AiCallTaskRepositoryIntegrationTest {
         task.setRequestPayload("must-not-be-projected-by-api");
         mapper.insert(task);
 
-        List<AiCallTask> rows = mapper.selectForMonitoring("QUEUED", "P4", "ai-assistant-service");
+        List<AiCallTask> rows = mapper.selectForMonitoring("QUEUED", "P4", "ai-assistant-service", null);
 
         assertThat(rows).extracting(AiCallTask::getTaskId).contains("task-monitor-p4");
     }
