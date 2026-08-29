@@ -20,6 +20,7 @@ public class EvaluationRawMetricsDTO {
     private Map<String, Integer> failureCounts;
     private BigDecimal structureValidRate;
     private List<ReviewSampleStatisticsDTO> reviewSampleStatistics;
+    private List<AssistantMetricSummaryDTO> assistantMetricSummaries;
     private Integer expectedCallCount;
     private Integer observedCallCount;
     private String callAuditCompleteness;
