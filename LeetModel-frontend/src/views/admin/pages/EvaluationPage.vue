@@ -83,16 +83,14 @@
           show-icon
         />
         <el-table v-if="comparison" :data="comparison.versions || []" stripe v-loading="comparing" style="width: 100%; margin-top: 16px">
-          <el-table-column prop="workflowVersion" label="评审版本" width="140" />
+          <el-table-column prop="workflowVersion" label="工作流版本" width="170" />
           <el-table-column prop="modelExecutionConfigVersion" label="执行配置" min-width="210" show-overflow-tooltip />
           <el-table-column prop="metricSetVersion" label="指标口径" width="140" />
-          <el-table-column label="旧口径分" width="100" align="center">
-            <template #default="{ row }">{{ row.overallScore != null ? row.overallScore : '-' }}</template>
+          <el-table-column prop="latestScoreResultVersion" label="结果口径" width="150" />
+          <el-table-column label="版本选择指数" width="130" align="center">
+            <template #default="{ row }">{{ row.versionSelectionIndex ?? '不可用' }}</template>
           </el-table-column>
-          <el-table-column label="有效性" width="100" align="center"><template #default="{ row }">{{ row.validityScore ?? '-' }}</template></el-table-column>
-          <el-table-column label="稳定性" width="100" align="center"><template #default="{ row }">{{ row.stabilityScore ?? '-' }}</template></el-table-column>
           <el-table-column label="成功率" width="100" align="center"><template #default="{ row }">{{ row.successRate ?? '-' }}</template></el-table-column>
-          <el-table-column label="延迟分" width="100" align="center"><template #default="{ row }">{{ row.latencyScore ?? '-' }}</template></el-table-column>
           <el-table-column label="平均耗时" width="110" align="center">
             <template #default="{ row }">{{ row.avgDurationMs != null ? `${row.avgDurationMs}ms` : '-' }}</template>
           </el-table-column>
@@ -196,7 +194,7 @@
     </el-dialog>
 
     <!-- 任务详情 -->
-    <el-dialog v-model="taskDetailVisible" title="评价任务详情" width="720px">
+    <el-dialog v-model="taskDetailVisible" title="评价任务详情" width="min(1180px, 94vw)">
       <el-descriptions v-if="taskDetail" :column="3" border size="small">
         <el-descriptions-item label="状态">{{ statusLabel(taskDetail.status) }}</el-descriptions-item>
         <el-descriptions-item label="功能">{{ featureLabel(taskDetail.featureCode || 'REVIEW') }}</el-descriptions-item>
@@ -213,6 +211,64 @@
         <el-descriptions-item label="操作者">{{ taskDetail.lastOperatedBy || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ formatTime(taskDetail.lastOperatedAt) }}</el-descriptions-item>
       </el-descriptions>
+      <template v-if="taskDetail?.scoreResults?.length">
+        <div class="detail-heading-row">
+          <h3 class="detail-title">版本选择指数与权重贡献</h3>
+          <div class="recalculate-actions">
+            <el-select v-model="recalculateWeightSchemeId" placeholder="选择另一活动权重方案" clearable style="width: 280px">
+              <el-option
+                v-for="scheme in recalculationSchemes"
+                :key="scheme.schemeId"
+                :label="`${scheme.name} · ${scheme.schemeVersion}`"
+                :value="scheme.schemeId"
+              />
+            </el-select>
+            <el-button :loading="recalculatingScore" @click="recalculateScore">追加重算结果</el-button>
+          </div>
+        </div>
+        <el-alert
+          title="版本选择指数仅用于既定评价目标下的同口径版本选择，不是准确率或客观质量分；重算会追加结果版本，不覆盖历史。"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
+        <el-collapse class="score-results">
+          <el-collapse-item v-for="result in taskDetail.scoreResults" :key="result.scoreResultId" :name="result.scoreResultId">
+            <template #title>
+              <span class="score-result-title">
+                {{ result.scoreResultVersion }} · {{ result.weightSchemeVersion }} ·
+                {{ result.status === 'CALCULATED' ? `指数 ${result.versionSelectionIndex}` : `不可用：${result.unavailableReason || '缺少可比数据'}` }}
+              </span>
+            </template>
+            <el-descriptions :column="4" border size="small">
+              <el-descriptions-item label="结果口径">{{ result.scoreResultVersion }}</el-descriptions-item>
+              <el-descriptions-item label="指标口径">{{ result.metricSetVersion }}</el-descriptions-item>
+              <el-descriptions-item label="权重方案">{{ result.weightSchemeVersion }}</el-descriptions-item>
+              <el-descriptions-item label="计算人">{{ result.calculatedBy ?? '系统' }}</el-descriptions-item>
+              <el-descriptions-item label="状态">{{ scoreAvailabilityLabel(result.status) }}</el-descriptions-item>
+              <el-descriptions-item label="版本选择指数">{{ result.versionSelectionIndex ?? '不可用' }}</el-descriptions-item>
+              <el-descriptions-item label="不可用原因" :span="2">{{ result.unavailableReason || '无' }}</el-descriptions-item>
+            </el-descriptions>
+            <el-table :data="result.items || []" stripe class="contribution-table">
+              <el-table-column prop="metricCode" label="指标" min-width="170" />
+              <el-table-column prop="metricVersion" label="指标版本" min-width="170" />
+              <el-table-column label="原值" width="120"><template #default="{ row }">{{ availabilityValue(row.rawAvailability, row.rawValue) }}</template></el-table-column>
+              <el-table-column prop="normalizationVersion" label="归一化口径" min-width="190" />
+              <el-table-column label="归一化值" width="130"><template #default="{ row }">{{ availabilityValue(row.normalizationAvailability, row.normalizedValue) }}</template></el-table-column>
+              <el-table-column label="权重" width="100"><template #default="{ row }">{{ row.weightPercent == null ? '缺失' : `${row.weightPercent}%` }}</template></el-table-column>
+              <el-table-column label="贡献值" width="110"><template #default="{ row }">{{ row.contributionValue ?? '不可用' }}</template></el-table-column>
+            </el-table>
+          </el-collapse-item>
+        </el-collapse>
+      </template>
+      <el-alert
+        v-else-if="taskDetail"
+        title="该任务没有版本选择指数结果；历史任务可能未锁定权重方案，不能据此比较或排名。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="section-alert"
+      />
       <template v-if="taskDetail?.rawMetrics">
         <h3 class="detail-title">可信原始指标</h3>
         <el-alert
@@ -282,6 +338,29 @@
           <el-table-column prop="evidence" label="证据/规则" min-width="240" show-overflow-tooltip />
         </el-table>
       </template>
+      <template v-if="taskDetail">
+        <div class="detail-heading-row">
+          <h3 class="detail-title">单次调用追踪</h3>
+          <el-button :loading="loadingTaskCalls" @click="loadTaskCalls(taskDetail.taskId)">刷新调用</el-button>
+        </div>
+        <el-alert
+          v-if="taskCallsError"
+          :title="taskCallsError"
+          type="error"
+          :closable="false"
+          show-icon
+        />
+        <el-table :data="taskCalls" stripe v-loading="loadingTaskCalls" class="call-table">
+          <el-table-column prop="callId" label="callId" min-width="190" show-overflow-tooltip />
+          <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="callStatusType(row.status)" size="small">{{ row.status }}</el-tag></template></el-table-column>
+          <el-table-column label="Token" width="130"><template #default="{ row }">{{ usageText(row) }}</template></el-table-column>
+          <el-table-column label="费用" width="150"><template #default="{ row }">{{ callCostText(row) }}</template></el-table-column>
+          <el-table-column label="排队/执行/总耗时" min-width="180"><template #default="{ row }">{{ durationTraceText(row) }}</template></el-table-column>
+          <el-table-column label="队列状态" width="120"><template #default="{ row }">{{ queueState(row.callId) }}</template></el-table-column>
+          <el-table-column label="失败依据" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ row.status === 'FAILED' ? (row.errorMessage || `错误码 ${row.errorCode ?? '缺失'}`) : '-' }}</template></el-table-column>
+          <template #empty><el-empty :description="taskCallsError || '未查询到调用记录；可点击运行槽位中的 callId 单独追踪'" /></template>
+        </el-table>
+      </template>
       <el-table v-if="taskDetail?.runs?.length" :data="taskDetail.runs" stripe style="margin-top: 16px">
         <el-table-column prop="sampleId" label="样本" width="90" />
         <el-table-column prop="submissionId" label="提交" width="100" />
@@ -290,7 +369,15 @@
           <template #default="{ row }"><el-tag size="small" effect="plain">{{ row.status }}</el-tag></template>
         </el-table-column>
         <el-table-column label="得分" width="90" align="center"><template #default="{ row }">{{ row.score ?? '-' }}</template></el-table-column>
+        <el-table-column label="callId" min-width="190" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-button v-if="row.aiCallId" link type="primary" @click="loadCall(row.aiCallId)">{{ row.aiCallId }}</el-button>
+            <span v-else>缺失</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="耗时" width="100"><template #default="{ row }">{{ formatDuration(row.durationMs) }}</template></el-table-column>
         <el-table-column prop="failureType" label="失败类型" min-width="120" />
+        <el-table-column prop="errorMessage" label="失败信息" min-width="180" show-overflow-tooltip />
       </el-table>
     </el-dialog>
   </div>
@@ -306,7 +393,7 @@ import {
   estimateEvaluation,
   getEvaluationTask, retryEvaluationTask, compareEvaluation, listEvaluationFeatures,
   pauseEvaluationTask, resumeEvaluationTask, cancelEvaluationTask,
-  listEvaluationWeightSchemes,
+  listEvaluationWeightSchemes, recalculateEvaluationScore, getAdminAiCalls, getAdminAiQueue,
 } from "@/api/admin-ai";
 
 const userStore = useUserStore();
@@ -331,6 +418,12 @@ const comparison = ref(null);
 const features = ref([]);
 const weightSchemes = ref([]);
 const taskEstimate = ref(null);
+const taskCalls = ref([]);
+const taskQueue = ref([]);
+const taskCallsError = ref("");
+const loadingTaskCalls = ref(false);
+const recalculateWeightSchemeId = ref(null);
+const recalculatingScore = ref(false);
 const selectedFeature = computed(() => features.value.find(
   (feature) => feature.featureCode === taskForm.featureCode,
 ));
@@ -348,6 +441,11 @@ const availableWeightSchemes = computed(() => weightSchemes.value.filter(
 const requiresRagIndex = computed(() => taskForm.workflowVersion === "ASSISTANT_RAG_V1");
 const modelConfigVersion = computed(() => taskForm.featureCode === "ASSISTANT"
   ? "MODEL_CFG_ASSISTANT_TEXT_0001" : "MODEL_CFG_REVIEW_MULTIMODAL_0001");
+const recalculationSchemes = computed(() => weightSchemes.value.filter((scheme) => (
+  scheme.featureCode === (taskDetail.value?.featureCode || "REVIEW")
+  && scheme.status === "ACTIVE"
+  && !taskDetail.value?.scoreResults?.some((result) => String(result.weightSchemeId) === String(scheme.schemeId))
+)));
 
 const datasetForm = reactive({ name: "", description: "", featureCode: "REVIEW", assistantQuestions: "" });
 const taskForm = reactive({
@@ -394,6 +492,35 @@ function assistantMetricLabel(code) {
 }
 function metricStatusLabel(status) {
   return ({ AVAILABLE: "已评价", PARTIAL: "部分评价", NOT_EVALUATED: "未评价", NOT_APPLICABLE: "不适用" })[status] || status;
+}
+function scoreAvailabilityLabel(status) {
+  return ({ AVAILABLE: "可用", CALCULATED: "已计算", UNAVAILABLE: "不可用" })[status] || status || "未知";
+}
+function availabilityValue(availability, value) {
+  if (availability !== "AVAILABLE" || value == null) return `${scoreAvailabilityLabel(availability)}（无数值）`;
+  return value;
+}
+function callStatusType(status) {
+  return ({ SUCCEEDED: "success", FAILED: "danger", RUNNING: "warning", QUEUED: "info" })[status] || "info";
+}
+function usageText(call) {
+  return call.totalTokens == null
+    ? `缺失（${call.usageCompleteness || "未说明"}）`
+    : `${call.totalTokens}（${call.usageCompleteness || "完整性未知"}）`;
+}
+function callCostText(call) {
+  if (call.costAmount == null) return `缺失（${call.costCompleteness || "未说明"}）`;
+  return `${call.costAmount} ${call.costCurrency || ""} · ${call.costSource || "来源未知"}`;
+}
+function durationTraceText(call) {
+  return `${call.queueMs == null ? "缺失" : `${call.queueMs}ms`} / `
+    + `${call.executionMs == null ? "缺失" : `${call.executionMs}ms`} / `
+    + `${call.totalMs == null ? "缺失" : `${call.totalMs}ms`}`;
+}
+function queueState(callId) {
+  const queue = taskQueue.value.find((item) => item.callId === callId);
+  if (!queue) return "无活动队列项";
+  return `${queue.state}${queue.waitMs == null ? "" : ` · ${queue.waitMs}ms`}`;
 }
 function statusLabel(status) {
   return ({ WAITING: "等待", RUNNING: "运行中", PAUSED: "已暂停", CANCELLED: "已取消", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
@@ -601,9 +728,69 @@ async function saveTask() {
 async function showTask(row) {
   try {
     taskDetail.value = (await getEvaluationTask(row.taskId)).data;
+    recalculateWeightSchemeId.value = null;
     taskDetailVisible.value = true;
+    await loadTaskCalls(row.taskId);
   } catch (error) {
     ElMessage.error(error.message || "任务详情加载失败");
+  }
+}
+
+async function loadTaskCalls(taskId) {
+  loadingTaskCalls.value = true;
+  taskCallsError.value = "";
+  try {
+    const [callsResponse, queueResponse] = await Promise.all([
+      getAdminAiCalls({ evaluationTaskId: String(taskId), limit: 100 }),
+      getAdminAiQueue({ evaluationTaskId: String(taskId), limit: 100 }),
+    ]);
+    taskCalls.value = callsResponse.data || [];
+    taskQueue.value = queueResponse.data || [];
+  } catch (error) {
+    taskCalls.value = [];
+    taskQueue.value = [];
+    taskCallsError.value = error.message || "调用与队列追踪加载失败";
+  } finally {
+    loadingTaskCalls.value = false;
+  }
+}
+
+async function loadCall(callId) {
+  loadingTaskCalls.value = true;
+  taskCallsError.value = "";
+  try {
+    const rows = (await getAdminAiCalls({ callId, limit: 1 })).data || [];
+    if (!rows.length) {
+      taskCallsError.value = `未找到 callId ${callId} 的网关审计记录`;
+      return;
+    }
+    taskCalls.value = [rows[0], ...taskCalls.value.filter((item) => item.callId !== callId)];
+  } catch (error) {
+    taskCallsError.value = error.message || `callId ${callId} 追踪失败`;
+  } finally {
+    loadingTaskCalls.value = false;
+  }
+}
+
+async function recalculateScore() {
+  if (!recalculateWeightSchemeId.value) return ElMessage.warning("请选择另一活动权重方案");
+  recalculatingScore.value = true;
+  try {
+    await ElMessageBox.confirm(
+      "重算只引用原始指标并追加新的结果版本，不会覆盖历史。确认继续？",
+      "追加选择指数结果",
+      { confirmButtonText: "确认重算", cancelButtonText: "取消", type: "warning" },
+    );
+    await recalculateEvaluationScore(taskDetail.value.taskId, recalculateWeightSchemeId.value);
+    taskDetail.value = (await getEvaluationTask(taskDetail.value.taskId)).data;
+    recalculateWeightSchemeId.value = null;
+    await loadDatasets();
+    ElMessage.success("已追加重算结果版本");
+  } catch (error) {
+    if (error === "cancel" || error === "close") return;
+    ElMessage.error(error.message || "选择指数重算失败");
+  } finally {
+    recalculatingScore.value = false;
   }
 }
 
@@ -659,4 +846,8 @@ onMounted(() => {
 .metric-descriptions { margin-top: 12px; }
 .sample-statistics { margin-top: 16px; }
 .config-summary, .estimate-alert { margin-top: 12px; }
+.detail-heading-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.recalculate-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.score-results, .contribution-table, .call-table, .section-alert { margin-top: 16px; }
+.score-result-title { font-weight: 600; }
 </style>

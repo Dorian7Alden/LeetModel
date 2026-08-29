@@ -8,6 +8,10 @@ export function getAdminAiCallStats() {
   return request({ url: "/admin/ai/calls/stats", method: "get" });
 }
 
+export function getAdminAiQueue(params) {
+  return request({ url: "/admin/ai/queue", method: "get", params });
+}
+
 export function listEvaluationDatasets() {
   return request({ url: "/admin/ai/evaluations/datasets", method: "get" });
 }
@@ -54,6 +58,14 @@ export function cancelEvaluationTask(taskId) {
 
 export function listEvaluationWeightSchemes(params = {}) {
   return request({ url: "/admin/ai/evaluations/weight-schemes", method: "get", params });
+}
+
+export function recalculateEvaluationScore(taskId, weightSchemeId) {
+  return request({
+    url: `/admin/ai/evaluations/tasks/${taskId}/score-results/recalculate`,
+    method: "post",
+    data: { weightSchemeId },
+  });
 }
 
 export function compareEvaluation(datasetId, repeatCount) {
