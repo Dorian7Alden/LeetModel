@@ -65,8 +65,19 @@
           <el-input-number v-model="compareRepeat" :min="1" :max="20" />
           <el-button type="primary" :loading="comparing" @click="runCompare">对比</el-button>
         </div>
+        <el-alert
+          v-if="comparison"
+          :title="comparison.comparable
+            ? `同口径可比：${comparison.featureCode} / ${comparison.datasetVersion}`
+            : `仅并排展示，不执行排名：${(comparison.incompatibilityReasons || []).join('；')}`"
+          :type="comparison.comparable ? 'success' : 'warning'"
+          :closable="false"
+          show-icon
+        />
         <el-table v-if="comparison" :data="comparison.versions || []" stripe v-loading="comparing" style="width: 100%; margin-top: 16px">
           <el-table-column prop="workflowVersion" label="评审版本" width="140" />
+          <el-table-column prop="modelExecutionConfigVersion" label="执行配置" min-width="210" show-overflow-tooltip />
+          <el-table-column prop="metricSetVersion" label="指标口径" width="140" />
           <el-table-column label="综合分" width="100" align="center">
             <template #default="{ row }">{{ row.overallScore != null ? row.overallScore : '-' }}</template>
           </el-table-column>
