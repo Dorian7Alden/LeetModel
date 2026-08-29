@@ -23,6 +23,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.config.EvaluationScaleProperties;
 import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
 import com.leetmodel.evaluation.runner.AssistantEvaluationRunner;
 import com.leetmodel.evaluation.runner.ReviewEvaluationRunner;
@@ -69,9 +70,12 @@ class EvaluationServiceTest {
                 new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
         var assistantRunner = new AssistantEvaluationRunner(assistantFeignClient,
                 new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
+        var registry = new EvaluationRunnerRegistry(List.of(runner, assistantRunner));
+        var estimateService = new EvaluationEstimateService(
+                datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
-                submissionFeignClient, new EvaluationRunnerRegistry(List.of(runner, assistantRunner)),
-                persistenceService, metricsCalculator, mapper);
+                submissionFeignClient, registry, estimateService, persistenceService,
+                metricsCalculator, mapper);
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 

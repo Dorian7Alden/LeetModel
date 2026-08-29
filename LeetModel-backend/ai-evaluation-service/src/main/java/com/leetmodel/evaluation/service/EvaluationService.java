@@ -2,6 +2,8 @@ package com.leetmodel.evaluation.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.EvaluationComparisonDTO;
+import com.leetmodel.common.api.dto.EvaluationCandidateDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationRunDTO;
@@ -64,6 +66,7 @@ public class EvaluationService {
     private final EvaluationRunAttemptMapper runMapper;
     private final SubmissionFeignClient submissionFeignClient;
     private final EvaluationRunnerRegistry runnerRegistry;
+    private final EvaluationEstimateService estimateService;
     private final EvaluationPersistenceService persistenceService;
     private final EvaluationMetricsCalculator metricsCalculator;
     private final ObjectMapper objectMapper;
@@ -73,6 +76,7 @@ public class EvaluationService {
 
     /** 创建后即锁定样本引用，MVP 不提供原地编辑。 */
     public EvaluationDatasetDTO createDataset(EvaluationDatasetCreateDTO request) {
+        estimateService.requireDatasetSize(request.getSamples().size());
         String featureCode = request.getFeatureCode() == null || request.getFeatureCode().isBlank()
                 ? "REVIEW" : request.getFeatureCode().trim();
         EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
@@ -156,6 +160,12 @@ public class EvaluationService {
         BusinessException.throwIf(samples.isEmpty(), EvaluationErrorCode.DATASET_NOT_FOUND);
         String featureCode = dataset.getFeatureCode() == null ? "REVIEW" : dataset.getFeatureCode();
         EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
+        String modelConfig = request.getModelExecutionConfigVersion() == null
+                || request.getModelExecutionConfigVersion().isBlank()
+                ? defaultModelConfig(featureCode) : request.getModelExecutionConfigVersion().trim();
+        estimateService.requireWithinLimits(new EvaluationEstimateRequestDTO(dataset.getId(),
+                List.of(new EvaluationCandidateDTO(request.getWorkflowVersion(), modelConfig,
+                        trimToNull(request.getRagIndexVersion()))), request.getRepeatCount()));
         var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
         validateExecutionSelection(featureCode, request);
 
@@ -164,9 +174,7 @@ public class EvaluationService {
         task.setDatasetId(dataset.getId());
         task.setFeatureCode(featureCode);
         task.setWorkflowVersion(request.getWorkflowVersion().trim());
-        task.setModelExecutionConfigVersion(request.getModelExecutionConfigVersion() == null
-                || request.getModelExecutionConfigVersion().isBlank()
-                ? defaultModelConfig(featureCode) : request.getModelExecutionConfigVersion().trim());
+        task.setModelExecutionConfigVersion(modelConfig);
         task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
         task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
         try {

@@ -3,11 +3,14 @@ package com.leetmodel.evaluation.controller;
 import com.leetmodel.common.api.dto.EvaluationComparisonDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.service.EvaluationService;
+import com.leetmodel.evaluation.service.EvaluationEstimateService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -32,6 +35,7 @@ import java.util.List;
 public class InternalEvaluationController {
 
     private final EvaluationService evaluationService;
+    private final EvaluationEstimateService estimateService;
 
     @Operation(summary = "创建固定评价数据集")
     @PostMapping("/datasets")
@@ -44,6 +48,13 @@ public class InternalEvaluationController {
     @GetMapping("/datasets")
     public Result<List<EvaluationDatasetDTO>> listDatasets() {
         return Result.ok(evaluationService.listDatasets());
+    }
+
+    @Operation(summary = "预估评价批次规模和调用量")
+    @PostMapping("/estimates")
+    public Result<EvaluationEstimateDTO> estimate(
+            @Valid @RequestBody EvaluationEstimateRequestDTO request) {
+        return Result.ok(estimateService.estimate(request));
     }
 
     @Operation(summary = "创建版本质量评价任务")
@@ -87,7 +98,7 @@ public class InternalEvaluationController {
     public Result<EvaluationComparisonDTO> compare(
             @RequestParam @Positive(message = "数据集标识必须为正整数") Long datasetId,
             @RequestParam @Min(value = 1, message = "重复次数不能小于1")
-            @Max(value = 3, message = "重复次数不能超过3") Integer repeatCount) {
+            @Max(value = 100, message = "重复次数不能超过100") Integer repeatCount) {
         return Result.ok(evaluationService.compare(datasetId, repeatCount));
     }
 }

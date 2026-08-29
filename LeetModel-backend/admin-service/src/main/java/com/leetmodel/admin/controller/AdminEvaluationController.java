@@ -5,6 +5,8 @@ import com.leetmodel.admin.service.AdminFeignExecutor;
 import com.leetmodel.common.api.dto.EvaluationComparisonDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateDTO;
+import com.leetmodel.common.api.dto.EvaluationEstimateRequestDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
@@ -67,6 +69,12 @@ public class AdminEvaluationController {
         return executor.forward("质量评价服务", evaluationClient::listDatasets);
     }
 
+    @PostMapping("/estimates")
+    public Result<EvaluationEstimateDTO> estimate(
+            @Valid @RequestBody EvaluationEstimateRequestDTO request) {
+        return executor.forward("质量评价服务", () -> evaluationClient.estimate(request));
+    }
+
     @PostMapping("/tasks")
     public Result<EvaluationTaskDTO> createTask(@Valid @RequestBody EvaluationTaskCreateDTO request) {
         return executor.forward("质量评价服务", () -> evaluationClient.createTask(request));
@@ -91,7 +99,7 @@ public class AdminEvaluationController {
     @GetMapping("/comparisons")
     public Result<EvaluationComparisonDTO> compare(
             @RequestParam @Positive Long datasetId,
-            @RequestParam @Min(1) @Max(3) Integer repeatCount) {
+            @RequestParam @Min(1) @Max(100) Integer repeatCount) {
         return executor.forward("质量评价服务",
                 () -> evaluationClient.compare(datasetId, repeatCount));
     }
