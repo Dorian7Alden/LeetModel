@@ -37,14 +37,15 @@ flowchart LR
     apiGateway --> adminApi
     aggregation --> basicServices
     aggregation --> reviewService
-    aggregation -.-> evaluationService
+    aggregation --> evaluationService
     aggregation --> aiGateway
     writeForward --> basicServices
-    aiControl -.-> reviewService
-    aiControl -.-> evaluationService
+    aiControl --> reviewService
+    aiControl --> evaluationService
+    aiControl --> aiGateway
 ```
 
-管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责转发，最终规则和事务仍由领域服务执行。ai-evaluation-service 已提供固定数据集、评价任务和版本对比内部契约；admin-service 需对其增加管理员权限保护与对外转发。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
+管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责鉴权、注入登录操作者并转发，最终规则和事务仍由领域服务执行。ai-evaluation-service 的固定数据集、评价任务、版本化权重和结果重算契约已由 admin-service 提供管理员入口；评价调用通过 ai-gateway-service 的结构化条件追踪。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
 
 ## 职责边界
 
