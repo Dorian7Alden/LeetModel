@@ -843,11 +843,13 @@ S6 阶段验收记录（2026-08-29）：REVIEW 与 ASSISTANT 已统一提供可�
 
 S7-01 验收记录（2026-08-29）：确认沿用 `evaluation_dataset`、`evaluation_sample`、`evaluation_task` 与 `evaluation_run_attempt` 四张主表做兼容扩列，不建立第二套领域表和状态机。通用模型按 feature、不可变 datasetVersion、版本化样本 Payload、候选工作流与执行配置快照、逻辑槽位和 attempt 组织；文档明确 REVIEW、ASSISTANT 与暂不准入的 SUGGESTION 映射、字段所有权，以及暂停、取消、恢复和 UNKNOWN 保护的目标状态机。迁移固定为先新增可空字段、确定性回填、兼容读取、验证后收紧，保留全部历史 ID、旧分数字段、状态、callId 和查询入口，不修改 V1、不删除数据，也不把旧 `overallScore` 冒充新版本选择指数。
 
-#### [ ] S7-02 定义版本化数据集与样本 Payload
+#### [x] S7-02 定义版本化数据集与样本 Payload
 
 - 依赖：S7-01。
 - 工作：REVIEW 引用 submissionId；ASSISTANT 保存问题、标签和可选标准要点；SUGGESTION 在真实实验入口完成后再接入。
 - 验收：schema 版本化，不把本地绝对路径或大 PDF 写入评价库。
+
+S7-02 验收记录（2026-08-29）：common-api 新增版本化样本载荷 DTO，评价服务按 feature、sampleType 与 payloadSchemaVersion 组合做白名单校验。REVIEW V1 只接受正整数 submissionId 引用；ASSISTANT V1 接受问题、标签和可选标准要点，并限制问题、数组数量和单项长度。未知字段直接拒绝，因此本地绝对路径、PDF 内容或其他无约束数据不能混入评价库；SUGGESTION 在 owner 隔离契约落地前明确拒绝。确定性测试覆盖两个已准入 schema、路径字段拒绝和未准入功能拒绝。
 
 #### [ ] S7-03 建立指标注册表
 
