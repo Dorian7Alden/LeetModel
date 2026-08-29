@@ -3,6 +3,7 @@ package com.leetmodel.evaluation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.api.dto.EvaluationDatasetDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -30,5 +31,21 @@ class EvaluationDtoSerializationTest {
         assertThat(mapper.writeValueAsString(dataset))
                 .contains("\"datasetId\":\"9007199254740995\"")
                 .contains("\"createdBy\":\"9007199254740996\"");
+    }
+
+    @Test
+    void weightSchemeAuditIdsAreSerializedAsStrings() throws Exception {
+        long largeId = 9_007_199_254_740_993L;
+        EvaluationWeightSchemeDTO scheme = new EvaluationWeightSchemeDTO(
+                largeId, "REVIEW_BALANCED", "REVIEW_BALANCED_V1", "均衡", "目标",
+                "REVIEW", "METRIC_SET_V2", "INACTIVE", largeId + 1, null,
+                largeId + 2, null, List.of());
+
+        String json = new ObjectMapper().writeValueAsString(scheme);
+
+        assertThat(json)
+                .contains("\"schemeId\":\"9007199254740993\"")
+                .contains("\"createdBy\":\"9007199254740994\"")
+                .contains("\"deactivatedBy\":\"9007199254740995\"");
     }
 }

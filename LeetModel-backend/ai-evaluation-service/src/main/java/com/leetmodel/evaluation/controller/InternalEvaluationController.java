@@ -9,9 +9,12 @@ import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskControlDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskSummaryDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.service.EvaluationService;
 import com.leetmodel.evaluation.service.EvaluationEstimateService;
+import com.leetmodel.evaluation.service.EvaluationWeightSchemeService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -37,6 +40,7 @@ public class InternalEvaluationController {
 
     private final EvaluationService evaluationService;
     private final EvaluationEstimateService estimateService;
+    private final EvaluationWeightSchemeService weightSchemeService;
 
     @Operation(summary = "创建固定评价数据集")
     @PostMapping("/datasets")
@@ -122,5 +126,28 @@ public class InternalEvaluationController {
             @RequestParam @Min(value = 1, message = "重复次数不能小于1")
             @Max(value = 100, message = "重复次数不能超过100") Integer repeatCount) {
         return Result.ok(evaluationService.compare(datasetId, repeatCount));
+    }
+
+    @Operation(summary = "创建版本化权重方案")
+    @PostMapping("/weight-schemes")
+    public Result<EvaluationWeightSchemeDTO> createWeightScheme(
+            @Valid @RequestBody EvaluationWeightSchemeCreateDTO request) {
+        return Result.ok(weightSchemeService.create(request));
+    }
+
+    @Operation(summary = "查询版本化权重方案")
+    @GetMapping("/weight-schemes")
+    public Result<List<EvaluationWeightSchemeDTO>> listWeightSchemes(
+            @RequestParam(required = false) String featureCode,
+            @RequestParam(required = false) String status) {
+        return Result.ok(weightSchemeService.list(featureCode, status));
+    }
+
+    @Operation(summary = "停用版本化权重方案")
+    @PostMapping("/weight-schemes/{schemeId}/deactivate")
+    public Result<EvaluationWeightSchemeDTO> deactivateWeightScheme(
+            @PathVariable @Positive(message = "权重方案标识必须为正整数") Long schemeId,
+            @Valid @RequestBody EvaluationTaskControlDTO request) {
+        return Result.ok(weightSchemeService.deactivate(schemeId, request.getOperatorId()));
     }
 }
