@@ -190,6 +190,26 @@
           <el-table-column label="标准差"><template #default="{ row }">{{ formatNullable(row.standardDeviation) }}</template></el-table-column>
           <el-table-column label="极差"><template #default="{ row }">{{ formatNullable(row.range) }}</template></el-table-column>
         </el-table>
+        <el-table
+          v-if="taskDetail.rawMetrics.assistantMetricSummaries?.length"
+          :data="taskDetail.rawMetrics.assistantMetricSummaries"
+          stripe
+          class="sample-statistics"
+        >
+          <el-table-column label="客服/RAG 指标" min-width="190">
+            <template #default="{ row }">{{ assistantMetricLabel(row.metricCode) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="110">
+            <template #default="{ row }">{{ metricStatusLabel(row.status) }}</template>
+          </el-table-column>
+          <el-table-column label="值" width="100">
+            <template #default="{ row }">{{ row.value == null ? '未评价' : `${Number(row.value).toFixed(2)}%` }}</template>
+          </el-table-column>
+          <el-table-column label="证据覆盖" width="100">
+            <template #default="{ row }">{{ row.evaluatedCount }}/{{ row.eligibleCount }}</template>
+          </el-table-column>
+          <el-table-column prop="evidence" label="证据/规则" min-width="240" show-overflow-tooltip />
+        </el-table>
       </template>
       <el-table v-if="taskDetail?.runs?.length" :data="taskDetail.runs" stripe style="margin-top: 16px">
         <el-table-column prop="sampleId" label="样本" width="90" />
@@ -267,6 +287,18 @@ function formatCost(aggregate) {
   const totals = Object.entries(aggregate?.costTotals || {});
   const amount = totals.length ? totals.map(([currency, value]) => `${value} ${currency}`).join("；") : "未提供";
   return `${amount}（实际 ${aggregate?.actualCostCount ?? 0}，估算 ${aggregate?.estimatedCostCount ?? 0}，缺失 ${aggregate?.costMissingCount ?? 0}）`;
+}
+function assistantMetricLabel(code) {
+  return ({
+    RETRIEVAL_HIT_RATE: "检索命中率",
+    SOURCE_COVERAGE_RATE: "标准来源覆盖率",
+    FORMAT_RULE_PASS_RATE: "格式规则通过率",
+    EXPECTED_POINT_COVERAGE_RATE: "标准要点文本覆盖率",
+    HUMAN_QUALITY_SCORE: "人工质量评分",
+  })[code] || code;
+}
+function metricStatusLabel(status) {
+  return ({ AVAILABLE: "已评价", PARTIAL: "部分评价", NOT_EVALUATED: "未评价", NOT_APPLICABLE: "不适用" })[status] || status;
 }
 function statusLabel(status) {
   return ({ WAITING: "等待", RUNNING: "运行中", PAUSED: "已暂停", CANCELLED: "已取消", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
