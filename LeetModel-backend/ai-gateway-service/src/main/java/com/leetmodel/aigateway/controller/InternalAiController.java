@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.controller;
 import com.leetmodel.aigateway.service.AiModelService;
 import com.leetmodel.aigateway.service.AiScheduledCallService;
 import com.leetmodel.aigateway.service.AiQueueOperationsService;
+import com.leetmodel.aigateway.service.AiEvaluationCallAggregationService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
@@ -14,6 +15,7 @@ import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
+import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.aigateway.service.AiCallAuditService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,7 @@ public class InternalAiController {
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
     private final AiQueueOperationsService aiQueueOperationsService;
+    private final AiEvaluationCallAggregationService evaluationCallAggregationService;
 
     /**
      * 发起同步 AI 对话。
@@ -97,5 +100,12 @@ public class InternalAiController {
     @PostMapping("/tasks/{taskId}/cancel")
     public Result<AiQueueTaskDTO> cancelQueueTask(@PathVariable String taskId) {
         return Result.ok(aiQueueOperationsService.cancel(taskId));
+    }
+
+    @Operation(summary = "按评价任务聚合 AI 调用资源事实")
+    @GetMapping("/evaluations/{evaluationTaskId}/aggregate")
+    public Result<AiEvaluationCallAggregateDTO> aggregateEvaluationCalls(
+            @PathVariable String evaluationTaskId) {
+        return Result.ok(evaluationCallAggregationService.aggregate(evaluationTaskId));
     }
 }

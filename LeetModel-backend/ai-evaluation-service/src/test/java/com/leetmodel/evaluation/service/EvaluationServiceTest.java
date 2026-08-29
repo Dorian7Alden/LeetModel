@@ -7,6 +7,7 @@ import com.leetmodel.common.api.dto.EvaluationSamplePayloadDTO;
 import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
+import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
@@ -246,7 +247,7 @@ class EvaluationServiceTest {
         succeeded.setScore(new BigDecimal("88.00"));
         succeeded.setDurationMs(50_000L);
         when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
-        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
         service.processNext();
 
@@ -262,7 +263,7 @@ class EvaluationServiceTest {
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class));
         verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(0),
-                any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -301,7 +302,7 @@ class EvaluationServiceTest {
         EvaluationRunAttempt succeeded = run(401L, 30L, 201L, "SUCCEEDED", null);
         succeeded.setDurationMs(20L);
         when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
-        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
         service.processNext();
 
@@ -336,7 +337,7 @@ class EvaluationServiceTest {
         verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
                 org.mockito.ArgumentMatchers.eq(1), any(), any());
-        verify(metricsCalculator, never()).calculate(any(), any());
+        verify(metricsCalculator, never()).calculate(any(), any(), any());
     }
 
     @Test
@@ -364,13 +365,13 @@ class EvaluationServiceTest {
         EvaluationRunAttempt failed = run(301L, 20L, 101L, "FAILED", "OUTPUT");
         failed.setDurationMs(100L);
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
-        when(metricsCalculator.calculate(any(), any())).thenReturn(metrics());
+        when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
         service.processNext();
 
         verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
-                any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -582,6 +583,7 @@ class EvaluationServiceTest {
     private EvaluationMetricsCalculator.Metrics metrics() {
         return new EvaluationMetricsCalculator.Metrics(
                 new BigDecimal("100.00"), null, new BigDecimal("100.00"),
-                new BigDecimal("100.00"), new BigDecimal("100.00"), 50_000L);
+                new BigDecimal("100.00"), new BigDecimal("100.00"), 50_000L,
+                new EvaluationRawMetricsDTO());
     }
 }

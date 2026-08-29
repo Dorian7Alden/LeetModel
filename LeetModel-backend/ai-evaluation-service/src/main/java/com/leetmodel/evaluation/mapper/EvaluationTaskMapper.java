@@ -54,7 +54,8 @@ public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
             + "failed_slots = #{failedSlots}, environment_failures = 0, validity_score = #{validityScore}, "
             + "stability_score = #{stabilityScore}, success_rate = #{successRate}, "
             + "latency_score = #{latencyScore}, overall_score = #{overallScore}, "
-            + "avg_duration_ms = #{avgDurationMs}, error_message = NULL, finished_at = #{now}, "
+            + "avg_duration_ms = #{avgDurationMs}, raw_metrics_json = #{rawMetricsJson}, "
+            + "error_message = NULL, finished_at = #{now}, "
             + "update_time = #{now} WHERE id = #{id} AND deleted = 0")
     int complete(@Param("id") Long id, @Param("terminalSlots") Integer terminalSlots,
                  @Param("failedSlots") Integer failedSlots,
@@ -64,6 +65,7 @@ public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
                  @Param("latencyScore") BigDecimal latencyScore,
                  @Param("overallScore") BigDecimal overallScore,
                  @Param("avgDurationMs") Long avgDurationMs,
+                 @Param("rawMetricsJson") String rawMetricsJson,
                  @Param("now") LocalDateTime now);
 
     @Update("UPDATE evaluation_task SET status = 'FAILED', terminal_slots = #{terminalSlots}, "

@@ -17,6 +17,8 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
+import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
+import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
@@ -389,10 +391,17 @@ public class EvaluationService {
                     "有 " + environment + " 个运行因环境或配置失败，请恢复依赖后重试", now);
             return;
         }
-        EvaluationMetricsCalculator.Metrics metrics = metricsCalculator.calculate(task, latest);
+        AiEvaluationCallAggregateDTO callAggregate = callAggregate(task.getId());
+        EvaluationMetricsCalculator.Metrics metrics = metricsCalculator.calculate(task, latest, callAggregate);
+        String rawMetricsJson;
+        try {
+            rawMetricsJson = objectMapper.writeValueAsString(metrics.rawMetrics());
+        } catch (Exception exception) {
+            throw new IllegalStateException("评价原始指标无法序列化", exception);
+        }
         taskMapper.complete(task.getId(), terminal, failed, metrics.validityScore(),
                 metrics.stabilityScore(), metrics.successRate(), metrics.latencyScore(),
-                metrics.overallScore(), metrics.averageDurationMs(), now);
+                metrics.overallScore(), metrics.averageDurationMs(), rawMetricsJson, now);
     }
 
     private com.leetmodel.common.api.dto.AiFeatureDefinitionDTO requireEnabledVersion(
@@ -574,6 +583,14 @@ public class EvaluationService {
         EvaluationTaskDTO detail = new EvaluationTaskDTO();
         BeanUtils.copyProperties(toSummary(task), detail);
         detail.setRetryCount(task.getRetryCount());
+        if (task.getRawMetricsJson() != null && !task.getRawMetricsJson().isBlank()) {
+            try {
+                detail.setRawMetrics(objectMapper.readValue(task.getRawMetricsJson(),
+                        EvaluationRawMetricsDTO.class));
+            } catch (Exception exception) {
+                throw new IllegalStateException("评价原始指标快照无法读取", exception);
+            }
+        }
         detail.setRuns(latestRuns.stream().map(run -> {
             EvaluationSample sample = samples.get(run.getSampleId());
             return new EvaluationRunDTO(run.getId(), run.getSampleId(),
@@ -614,6 +631,19 @@ public class EvaluationService {
         } catch (RuntimeException exception) {
             log.warn("评价任务已取消，但查询网关排队调用失败 taskId={}", taskId);
         }
+    }
+
+    private AiEvaluationCallAggregateDTO callAggregate(Long taskId) {
+        try {
+            Result<AiEvaluationCallAggregateDTO> response =
+                    aiGatewayFeignClient.aggregateEvaluationCalls(String.valueOf(taskId));
+            if (response != null && response.isSuccess() && response.getData() != null) {
+                return response.getData();
+            }
+        } catch (RuntimeException exception) {
+            log.warn("评价任务调用指标暂不可用 taskId={}", taskId);
+        }
+        return new AiEvaluationCallAggregateDTO();
     }
 
     private String trimToNull(String value) {

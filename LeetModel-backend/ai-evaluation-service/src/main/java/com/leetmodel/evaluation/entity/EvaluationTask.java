@@ -20,6 +20,7 @@ public class EvaluationTask extends BaseEntity {
     private String metricSetVersion;
     private String workflowSnapshotJson;
     private String metricDefinitionSnapshotJson;
+    private String rawMetricsJson;
     private Integer repeatCount;
     private String clientRequestId;
     private String status;
