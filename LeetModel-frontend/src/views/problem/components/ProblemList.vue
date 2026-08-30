@@ -18,7 +18,7 @@
         <span class="year-value">{{ item.year || '—' }}</span>
         <span class="language-value">{{ item.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
         <el-tag :type="difficultyType(item.difficulty)" size="small" effect="plain">{{ difficultyLabel(item.difficulty) }}</el-tag>
-        <div class="average-score"><el-icon><StarFilled /></el-icon><strong>{{ formatScore(item.averageScore) }}</strong></div>
+        <div class="average-score"><strong>{{ formatScore(item.averageScore) }}</strong></div>
         <el-icon class="row-arrow"><ArrowRight /></el-icon>
       </button>
     </div>
@@ -49,7 +49,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ArrowRight, StarFilled } from '@element-plus/icons-vue'
+import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getPublicProblemList } from '@/api/problem'
 
@@ -66,7 +66,7 @@ const sortBy = ref('')
 const sortOrder = ref('')
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
-const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
+const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '-'
 const fetchProblems = async () => {
   loading.value = true
   try {
@@ -132,7 +132,7 @@ defineExpose({ updateQuery })
 .problem-tag { max-width: 82px; overflow: hidden; padding: 2px 7px; border-radius: 999px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .year-value, .language-value { text-align: center; color: var(--lm-text-secondary); font-size: 12px; }
 .problem-row > .el-tag { justify-self: center; }
-.average-score { display: flex; align-items: center; justify-content: center; gap: 5px; color: #f59e0b; }
+.average-score { display: flex; align-items: center; justify-content: center; }
 .average-score strong { color: var(--lm-text-primary); font-size: 16px; }
 .row-arrow { color: var(--lm-text-muted); transition: transform var(--lm-transition), color var(--lm-transition); }
 .problem-row:hover .row-arrow { color: var(--lm-primary); transform: translateX(3px); }
