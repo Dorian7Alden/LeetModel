@@ -110,7 +110,13 @@ function normalizedScores() {
 function renderCharts() {
   nextTick(() => {
     const scores = normalizedScores();
-    if (!scores.length) return;
+    if (!scores.length) {
+      histogramChart?.dispose();
+      bandPieChart?.dispose();
+      histogramChart = undefined;
+      bandPieChart = undefined;
+      return;
+    }
     const counts = Array.from({ length: 101 }, () => 0);
     scores.forEach((score) => { counts[score] += 1; });
 
@@ -150,11 +156,13 @@ function renderCharts() {
           radius: ["48%", "72%"],
           center: ["50%", "43%"],
           label: { formatter: "{d}%", color: "#475569" },
-          data: bands.map((band) => ({
-            name: band.name,
-            value: scores.filter((score) => score >= band.min && score <= band.max).length,
-            itemStyle: { color: band.color },
-          })),
+          data: bands
+            .map((band) => ({
+              name: band.name,
+              value: scores.filter((score) => score >= band.min && score <= band.max).length,
+              itemStyle: { color: band.color },
+            }))
+            .filter((band) => band.value > 0),
         }],
       }, true);
     }
