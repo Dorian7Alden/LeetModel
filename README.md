@@ -110,15 +110,7 @@ cd LeetModel-backend
 
 脚本会构建并启动 12 个业务服务，网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
-AI 对话与评审需要 new-api Relay Token，在启动脚本前注入：
-
-```bash
-export NEW_API_RELAY_TOKEN="你的 Relay Token"
-# 可选；默认 http://127.0.0.1:3000/v1
-export NEW_API_BASE_URL="http://127.0.0.1:3000/v1"
-```
-
-未配置 Relay Token 时，题库、组队、提交等非 AI 功能仍可使用，AI 功能会明确返回不可用状态。不要将 Token 写入仓库文件。
+AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 
 #### 2. 启动前端
 

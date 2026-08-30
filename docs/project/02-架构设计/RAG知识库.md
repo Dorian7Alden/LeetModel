@@ -213,7 +213,7 @@ cd LeetModel-backend
 RAG_ES_INTEGRATION=true mvn -pl ai-assistant-service test
 ```
 
-真实端到端冒烟要求本地 AI 网关已安全注入仓库外 Relay Token，再执行：
+真实端到端冒烟要求本地 AI 网关运行环境已提供 Relay Token，再执行：
 
 ```bash
 RUN_RAG_E2E_SMOKE=true mvn -pl ai-assistant-service \
