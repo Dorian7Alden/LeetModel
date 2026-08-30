@@ -2,6 +2,7 @@ package com.leetmodel.submission.controller;
 
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
+import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.submission.service.SubmissionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,5 +53,11 @@ public class InternalSubmissionController {
             @Min(value = 1, message = "查询数量不能小于1")
             @Max(value = 100, message = "查询数量不能超过100") Integer limit) {
         return Result.ok(submissionService.listRecentSnapshots(limit));
+    }
+
+    @Operation(summary = "获取提交 PDF 临时预览信息")
+    @GetMapping("/{submissionId}/preview")
+    public Result<SubmissionPreviewDTO> preview(@PathVariable Long submissionId) {
+        return Result.ok(submissionService.getPreview(submissionId));
     }
 }

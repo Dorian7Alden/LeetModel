@@ -3,6 +3,7 @@ package com.leetmodel.submission.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
+import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
@@ -186,6 +187,13 @@ public class SubmissionService {
                     snapshot.setFinalVersion(finalIds.contains(value.getId()));
                     return snapshot;
                 }).toList();
+    }
+
+    /** 按提交生成临时 PDF 预览地址，不把地址固化到列表快照。 */
+    public SubmissionPreviewDTO getPreview(Long submissionId) {
+        Submission submission = requiredSubmission(submissionId);
+        return new SubmissionPreviewDTO(submission.getId(), submission.getOriginalFilename(),
+                storageService.getUrl(submission.getObjectName()));
     }
 
     private TeamDTO requiredMemberTeam(Long teamId, Long userId) {

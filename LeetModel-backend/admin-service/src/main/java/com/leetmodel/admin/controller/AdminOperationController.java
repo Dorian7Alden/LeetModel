@@ -6,6 +6,7 @@ import com.leetmodel.admin.service.AdminFeignExecutor;
 import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
+import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.SuggestionTaskSummaryDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
@@ -53,6 +54,11 @@ public class AdminOperationController {
     public Result<List<SubmissionSnapshotDTO>> submissions(
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) Integer limit) {
         return executor.forward("提交服务", () -> submissionClient.listRecent(limit));
+    }
+
+    @GetMapping("/api/admin/submissions/{submissionId}/preview")
+    public Result<SubmissionPreviewDTO> submissionPreview(@PathVariable @Positive Long submissionId) {
+        return executor.forward("提交服务", () -> submissionClient.getPreview(submissionId));
     }
 
     @GetMapping("/api/admin/reviews")

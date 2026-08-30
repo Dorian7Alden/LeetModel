@@ -87,6 +87,12 @@ public class AdminProblemController {
         return executor.forward("题目服务", problemClient::listContests);
     }
 
+    @PutMapping("/contests/{id}")
+    public Result<Object> updateContest(@PathVariable @Positive Long id,
+                                        @RequestBody Map<String, Object> request) {
+        return executor.forward("题目服务", () -> problemClient.updateContest(id, request));
+    }
+
     @PostMapping(value = "/problems/{id}/attachments", consumes = "multipart/form-data")
     public Result<Object> uploadAttachment(
             @PathVariable @Positive Long id,
