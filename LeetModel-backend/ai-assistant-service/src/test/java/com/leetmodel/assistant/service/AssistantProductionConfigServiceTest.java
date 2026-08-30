@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,6 +97,29 @@ class AssistantProductionConfigServiceTest {
                 "rag-v1-test", "原因      ", 7L)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         error -> assertThat(error.getCode()).isEqualTo(40506));
+    }
+
+    @Test
+    void configListSeparatesCurrentHistoryFromNeverAppliedPreview() {
+        AssistantProductionConfig current = config(1L, "ASSISTANT_PROD_CFG_0001",
+                "ASSISTANT_NO_RAG_V1", "NONE", null);
+        AssistantProductionConfig previewOnly = config(2L, "ASSISTANT_PROD_CFG_PREVIEW",
+                "ASSISTANT_RAG_V1", "FIXED_INDEX", "rag-v1-test");
+        when(pointerMapper.selectById(1L)).thenReturn(pointer(1L, 3L));
+        when(configMapper.selectById(1L)).thenReturn(current);
+        when(configMapper.selectList(any())).thenReturn(List.of(previewOnly, current));
+        when(workflowMapper.selectOne(any())).thenReturn(
+                workflow("ASSISTANT_NO_RAG_V1", "NONE"),
+                workflow("ASSISTANT_RAG_V1", "FIXED_INDEX"),
+                workflow("ASSISTANT_NO_RAG_V1", "NONE"));
+        when(auditMapper.selectCount(any())).thenReturn(0L);
+
+        var configs = service.listConfigs(20);
+
+        assertThat(configs).extracting(item -> item.getProductionConfigVersion()
+                        + ":" + item.getEverActive())
+                .containsExactly("ASSISTANT_PROD_CFG_PREVIEW:false",
+                        "ASSISTANT_PROD_CFG_0001:true");
     }
 
     private AssistantProductionPointer pointer(Long configId, Long revision) {

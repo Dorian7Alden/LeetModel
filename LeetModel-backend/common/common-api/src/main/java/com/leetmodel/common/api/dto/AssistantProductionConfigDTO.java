@@ -21,6 +21,8 @@ public class AssistantProductionConfigDTO {
     private String ragMode;
     private String ragIndexVersion;
     private String impactScope;
+    /** 当前或历史上曾经被生产指针引用；只有 true 的历史项允许回滚。 */
+    private Boolean everActive;
     private Long revision;
     @JsonSerialize(using = ToStringSerializer.class)
     private Long activatedBy;

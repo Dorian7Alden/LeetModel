@@ -376,10 +376,16 @@ public class AssistantProductionConfigService {
     private AssistantProductionConfigDTO toConfig(AssistantProductionConfig config,
                                                   AssistantWorkflowVersion workflow,
                                                   AssistantProductionPointer pointer) {
+        boolean everActive = pointer != null || auditMapper.selectCount(
+                new LambdaQueryWrapper<AssistantProductionAudit>()
+                        .eq(AssistantProductionAudit::getFromConfigId, config.getId())
+                        .or()
+                        .eq(AssistantProductionAudit::getToConfigId, config.getId())) > 0;
         return new AssistantProductionConfigDTO(config.getProductionConfigVersion(),
                 config.getWorkflowVersion(), workflow.getName(), config.getPromptVersion(),
                 config.getModelExecutionConfigVersion(), config.getRagMode(),
                 config.getRagIndexVersion(), workflow.getImpactScope(),
+                everActive,
                 pointer == null ? null : pointer.getRevision(),
                 pointer == null ? null : pointer.getActivatedBy(),
                 pointer == null ? null : pointer.getActivatedAt(),
