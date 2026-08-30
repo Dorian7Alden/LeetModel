@@ -116,6 +116,19 @@ A - BB - CC
 | INVALID_STATUS | 40406 | 题目状态不合法 |
 | TAG_IN_USE | 40407 | 标签仍被题目使用 |
 
+### BB=05：AI 客服
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| CONVERSATION_NOT_FOUND | 40501 | AI 客服会话不存在 |
+| CONVERSATION_CLOSED | 40502 | 会话已结束，不能继续发送消息 |
+| MESSAGE_NOT_FOUND | 40503 | AI 客服消息不存在 |
+| MESSAGE_NOT_FAILED | 40504 | 只有失败的 AI 回复可以重试 |
+| PRODUCTION_CONFIG_UNAVAILABLE | 40505 | AI 客服生产配置不存在或不可用 |
+| PRODUCTION_CHANGE_INVALID | 40506 | AI 客服生产配置变更请求不合法 |
+| PRODUCTION_CHANGE_CONFLICT | 40507 | 生产配置已经变化 |
+| PRODUCTION_DEPENDENCY_UNAVAILABLE | 50501 | AI 客服目标配置依赖暂不可用 |
+
 ### BB=11：AI 质量评价
 
 | 常量 | 编码 | 说明 |

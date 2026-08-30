@@ -29,6 +29,7 @@ flowchart LR
     subgraph assistant["ai-assistant-service 对话与推荐"]
         conversationApi["会话与消息 API"]
         sessionContext["会话状态与上下文"]
+        productionGovernance["生产工作流版本治理"]
         intent["意图与选题条件理解"]
         toolQuery["平台数据工具调用"]
         assistantWorkflow["助手模型工作流"]
@@ -36,6 +37,7 @@ flowchart LR
         response["回答、推荐与解释"]
 
         conversationApi --> sessionContext
+        productionGovernance --> sessionContext
         sessionContext --> intent
         intent --> toolQuery
         intent --> assistantWorkflow
@@ -58,6 +60,7 @@ flowchart LR
 
     apiGateway --> conversationApi
     adminService -->|"查询运行结果"| conversationApi
+    adminService -->|"查询与变更生产版本"| productionGovernance
     toolQuery --> problemService
     assistantWorkflow --> commonAi
     ragRetriever --> commonAi
@@ -82,6 +85,7 @@ RAG V1 默认关闭。启用后，用户问题先经 Query Embedding 和 Elastic
 - 调用题目查询能力并组织题目推荐结果。
 - 回答与平台使用和数学建模学习有关的辅助问题。
 - 拥有第一版客服 RAG 的检索规则、索引协作和上下文注入边界。
+- 拥有客服工作流发布目录、不可变生产配置、当前指针、变更请求和成功审计。
 - 保存必要的对话上下文和 AI 输出结果。
 
 #### 不负责
@@ -95,7 +99,7 @@ RAG V1 默认关闭。启用后，用户问题先经 Query Embedding 和 Elastic
 
 ### 数据与协作边界
 
-ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息、工具候选快照和 AI 调用标识。题目数据由 problem-service 提供，模型调用通过 ai-gateway-service 完成。
+ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息、工具候选快照、生产配置、当前指针、变更请求、成功审计和 AI 调用标识。题目数据由 problem-service 提供，模型调用通过 ai-gateway-service 完成。admin-service 只代理管理员命令，不直接读写这些生产事实。
 
 
 ### 功能清单
@@ -112,6 +116,7 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 | 条件化题目筛选 | 暂不实现 | MVP 不把赛事、标签等自然语言条件转换成开放查询参数 |
 | 助手质量评价 | 独立服务负责 | 由 ai-evaluation-service 建立测试集和版本评价，不归本服务所有 |
 | 客服隔离实验 | 已实现 | 提供版本目录及无正式会话副作用的单轮通用实验入口 |
+| 生产工作流版本治理 | 已实现 | 提供不可变配置、条件激活、运行快照、审计和同协议回滚；管理端完成强鉴权、服务端预览、二次确认和真实回滚闭环 |
 
 
 ### 文档规则
@@ -119,3 +124,5 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 后续每个需要深入设计的功能使用独立文档。当前不提前创建空文档。
 
 RAG 的知识边界、配置、索引、回滚、测试和故障处理统一维护在 [RAG知识库.md](../../02-架构设计/RAG知识库.md)，RAG V2 的受控目录、两阶段流程、固定实验和实施门槛见 [RAG目录导航V2](RAG目录导航V2/README.md)，本 README 不复制操作步骤。
+
+生产工作流的配置所有权、安全切换、运行快照和审计统一维护在 [生产工作流版本治理](生产工作流版本治理/README.md)。该能力首先只在 AI 客服落地，不代表已经形成跨服务中央版本平台。

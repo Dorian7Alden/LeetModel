@@ -6,6 +6,7 @@ import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
+import com.leetmodel.common.api.dto.ModelExecutionConfigAvailabilityDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,27 @@ public class ModelExecutionConfigService {
                 definition.getThinkingEnabled(), definition.getEmbeddingDimension(),
                 definition.getMaxBatchSize(), definition.getMaxInputChars(), definition.getMaxTotalChars(),
                 context.promptVersion(), context.workflowVersion());
+    }
+
+    /**
+     * 发布前只读检查模型执行配置与工作流引用是否兼容。
+     * @param version 模型执行配置版本
+     * @param callType 调用类型
+     * @param workflowVersion 工作流版本
+     * @param promptVersion Prompt 版本
+     * @return 不包含物理模型、供应商或渠道的可用性结果
+     */
+    public ModelExecutionConfigAvailabilityDTO availability(String version, String callType,
+                                                             String workflowVersion,
+                                                             String promptVersion) {
+        ModelExecutionConfigProperties.Definition definition =
+                version == null ? null : properties.getExecutionConfigs().get(version);
+        boolean available = definition != null && definition.isEnabled()
+                && Objects.equals(callType, definition.getCallType())
+                && allows(definition.getWorkflowVersions(), workflowVersion)
+                && allows(definition.getPromptVersions(), promptVersion);
+        String reason = available ? "AVAILABLE" : "UNAVAILABLE_OR_INCOMPATIBLE";
+        return new ModelExecutionConfigAvailabilityDTO(version, available, callType, reason);
     }
 
     private void validateChat(AiCallContext context, AiChatRequest request,

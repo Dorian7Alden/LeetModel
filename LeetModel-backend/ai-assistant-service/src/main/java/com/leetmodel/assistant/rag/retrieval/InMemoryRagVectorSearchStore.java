@@ -20,8 +20,20 @@ public class InMemoryRagVectorSearchStore implements RagVectorSearchStore {
 
     @Override
     public List<RagVectorHit> search(List<Float> queryVector, int topK) {
+        return searchEntries(queryVector, topK, null);
+    }
+
+    @Override
+    public List<RagVectorHit> search(List<Float> queryVector, int topK, String ragIndexVersion) {
+        return searchEntries(queryVector, topK, ragIndexVersion);
+    }
+
+    private List<RagVectorHit> searchEntries(List<Float> queryVector, int topK,
+                                             String ragIndexVersion) {
         List<RagVectorHit> hits = new ArrayList<>();
         for (Entry entry : entries) {
+            if (ragIndexVersion != null
+                    && !ragIndexVersion.equals(entry.hit().ragIndexVersion())) continue;
             if (entry.vector().size() != queryVector.size()) {
                 throw new RagStoreException("内存 Store 向量维度不匹配", false, null);
             }
@@ -32,6 +44,12 @@ public class InMemoryRagVectorSearchStore implements RagVectorSearchStore {
         }
         return hits.stream().sorted(Comparator.comparingDouble(RagVectorHit::score).reversed())
                 .limit(topK).toList();
+    }
+
+    @Override
+    public boolean isVersionReady(String ragIndexVersion, int expectedDimension) {
+        return entries.stream().anyMatch(entry -> entry.vector().size() == expectedDimension
+                && ragIndexVersion.equals(entry.hit().ragIndexVersion()));
     }
 
     private double cosine(List<Float> left, List<Float> right) {

@@ -75,3 +75,43 @@ export function compareEvaluation(datasetId, repeatCount) {
     params: { datasetId, repeatCount },
   });
 }
+
+export function listAssistantProductionWorkflows() {
+  return request({ url: "/admin/ai/assistant/production/workflows", method: "get" });
+}
+
+export function getAssistantProductionCurrent() {
+  return request({ url: "/admin/ai/assistant/production/current", method: "get" });
+}
+
+export function listAssistantProductionConfigs(limit = 20) {
+  return request({
+    url: "/admin/ai/assistant/production/configs",
+    method: "get",
+    params: { limit },
+  });
+}
+
+export function listAssistantProductionAudits(limit = 20) {
+  return request({
+    url: "/admin/ai/assistant/production/audits",
+    method: "get",
+    params: { limit },
+  });
+}
+
+export function previewAssistantProductionChange(data) {
+  return request({
+    url: "/admin/ai/assistant/production/changes/preview",
+    method: "post",
+    data,
+  });
+}
+
+export function applyAssistantProductionChange(changeRequestId) {
+  return request({
+    url: "/admin/ai/assistant/production/changes/apply",
+    method: "post",
+    data: { changeRequestId },
+  });
+}

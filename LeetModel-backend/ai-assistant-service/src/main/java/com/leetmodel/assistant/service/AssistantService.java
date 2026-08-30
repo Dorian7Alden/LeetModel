@@ -10,6 +10,7 @@ import com.leetmodel.assistant.mapper.AssistantMessageMapper;
 import com.leetmodel.assistant.vo.AssistantMessageVO;
 import com.leetmodel.assistant.vo.AssistantReplyVO;
 import com.leetmodel.assistant.vo.ConversationVO;
+import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
@@ -43,6 +44,7 @@ public class AssistantService {
     private final ProblemFeignClient problemFeignClient;
     private final AssistantWorkflow workflow;
     private final ObjectMapper objectMapper;
+    private final AssistantProductionConfigService productionConfigService;
 
     /**
      * 创建当前用户的会话。
@@ -111,7 +113,8 @@ public class AssistantService {
 
         AssistantMessage reply = findReply(userMessage.getId());
         if (reply == null) {
-            ReplyClaim claim = createProcessingReply(conversation, userMessage);
+            AssistantProductionSnapshot snapshot = productionConfigService.currentSnapshot();
+            ReplyClaim claim = createProcessingReply(conversation, userMessage, snapshot);
             reply = claim.reply();
             if (claim.claimed()) {
                 reply = generateReply(conversation, userMessage, reply);
@@ -203,7 +206,7 @@ public class AssistantService {
                 toolContextJson = objectMapper.writeValueAsString(candidates);
             }
             AiChatResponse response = workflow.reply(recentCompletedMessages(conversation.getId()),
-                    userMessage, candidates);
+                    userMessage, candidates, snapshot(existingReply));
             return persistReply(existingReply, conversation, userMessage, "COMPLETED",
                     response.content(), null, toolContextJson, response.model(), response.callId());
         } catch (Exception exception) {
@@ -215,7 +218,8 @@ public class AssistantService {
     }
 
     private ReplyClaim createProcessingReply(AssistantConversation conversation,
-                                             AssistantMessage userMessage) {
+                                             AssistantMessage userMessage,
+                                             AssistantProductionSnapshot snapshot) {
         LocalDateTime now = LocalDateTime.now();
         AssistantMessage reply = new AssistantMessage();
         reply.setConversationId(conversation.getId());
@@ -223,6 +227,13 @@ public class AssistantService {
         reply.setReplyToMessageId(userMessage.getId());
         reply.setRole("ASSISTANT");
         reply.setStatus("PROCESSING");
+        reply.setProductionConfigVersion(snapshot.productionConfigVersion());
+        reply.setProductionRevision(snapshot.productionRevision());
+        reply.setWorkflowVersion(snapshot.workflowVersion());
+        reply.setPromptVersion(snapshot.promptVersion());
+        reply.setModelExecutionConfigVersion(snapshot.modelExecutionConfigVersion());
+        reply.setRagMode(snapshot.ragMode());
+        reply.setRagIndexVersion(snapshot.ragIndexVersion());
         reply.setCreateTime(now);
         reply.setUpdateTime(now);
         try {
@@ -339,6 +350,13 @@ public class AssistantService {
                 .replyToMessageId(message.getReplyToMessageId())
                 .role(message.getRole())
                 .status(message.getStatus())
+                .productionConfigVersion(message.getProductionConfigVersion())
+                .productionRevision(message.getProductionRevision())
+                .workflowVersion(message.getWorkflowVersion())
+                .promptVersion(message.getPromptVersion())
+                .modelExecutionConfigVersion(message.getModelExecutionConfigVersion())
+                .ragMode(message.getRagMode())
+                .ragIndexVersion(message.getRagIndexVersion())
                 .content(message.getContent())
                 .errorMessage(message.getErrorMessage())
                 .modelName(message.getModelName())
@@ -346,6 +364,20 @@ public class AssistantService {
                 .usedProblemTool(message.getToolContextJson() != null)
                 .createTime(message.getCreateTime())
                 .build();
+    }
+
+    private AssistantProductionSnapshot snapshot(AssistantMessage reply) {
+        BusinessException.throwIf(reply.getProductionConfigVersion() == null
+                        || reply.getProductionRevision() == null
+                        || reply.getWorkflowVersion() == null
+                        || reply.getPromptVersion() == null
+                        || reply.getModelExecutionConfigVersion() == null
+                        || reply.getRagMode() == null,
+                AssistantErrorCode.PRODUCTION_CONFIG_UNAVAILABLE);
+        return new AssistantProductionSnapshot(reply.getProductionConfigVersion(),
+                reply.getProductionRevision(), reply.getWorkflowVersion(),
+                reply.getPromptVersion(), reply.getModelExecutionConfigVersion(),
+                reply.getRagMode(), reply.getRagIndexVersion());
     }
 
     private String userFacingError(Exception exception) {

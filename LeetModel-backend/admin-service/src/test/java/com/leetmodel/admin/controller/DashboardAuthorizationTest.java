@@ -33,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DashboardController.class,
         AdminAiController.class,
         AdminEvaluationController.class,
+        AdminAssistantProductionController.class,
         SaTokenAnnotationConfig.class,
         SecurityConfig.class,
         AuthExceptionHandler.class
@@ -90,5 +91,16 @@ class DashboardAuthorizationTest {
                 .andExpect(jsonPath("$.code").value(40101));
 
         verifyNoInteractions(evaluations, adminFeignExecutor);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachProductionChangeProxy() throws Exception {
+        mockMvc.perform(post("/api/admin/ai/assistant/production/changes/apply")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"changeRequestId\":\"0123456789abcdef0123456789abcdef\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(assistant, adminFeignExecutor);
     }
 }

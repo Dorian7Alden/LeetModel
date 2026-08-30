@@ -6,12 +6,14 @@ import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
+import com.leetmodel.common.api.dto.ModelExecutionConfigAvailabilityDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.cloud.openfeign.SpringQueryMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -34,4 +36,11 @@ public interface AiGatewayFeignClient {
     @GetMapping("/internal/ai/evaluations/{evaluationTaskId}/aggregate")
     Result<AiEvaluationCallAggregateDTO> aggregateEvaluationCalls(
             @PathVariable("evaluationTaskId") String evaluationTaskId);
+
+    @GetMapping("/internal/ai/model-execution-configs/{version}/availability")
+    Result<ModelExecutionConfigAvailabilityDTO> getModelExecutionConfigAvailability(
+            @PathVariable("version") String version,
+            @RequestParam("callType") String callType,
+            @RequestParam("workflowVersion") String workflowVersion,
+            @RequestParam("promptVersion") String promptVersion);
 }

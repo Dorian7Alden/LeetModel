@@ -79,8 +79,9 @@ public class AssistantWorkflow {
      * @return AI 网关响应
      */
     public AiChatResponse reply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
-                                List<ProblemOptionDTO> candidates) throws JsonProcessingException {
-        RagWorkflowContext ragContext = ragContextProvider.retrieve(currentUserMessage.getContent());
+                                List<ProblemOptionDTO> candidates,
+                                AssistantProductionSnapshot snapshot) throws JsonProcessingException {
+        RagWorkflowContext ragContext = productionRagContext(currentUserMessage.getContent(), snapshot);
         List<AiMessage> messages = new ArrayList<>();
         messages.add(message(AiRole.SYSTEM, systemPrompt));
         if (ragContext.present()) {
@@ -99,8 +100,8 @@ public class AssistantWorkflow {
                 ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
         AiCallContext context = new AiCallContext(
                 "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
-                taskId, "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001",
-                "MODEL_CFG_ASSISTANT_TEXT_0001", null, ragContext.ragIndexVersion(), AiCallPriority.P0,
+                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
+                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(), AiCallPriority.P0,
                 "assistant:" + taskId, Instant.now().plusSeconds(240));
         AiChatResponse response = aiClient.chat(new AiChatRequest(
                 AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
@@ -108,6 +109,18 @@ public class AssistantWorkflow {
             throw new IllegalArgumentException("AI 网关未返回客服回复");
         }
         return response;
+    }
+
+    private RagWorkflowContext productionRagContext(String question,
+                                                     AssistantProductionSnapshot snapshot) {
+        if ("NONE".equals(snapshot.ragMode()) && snapshot.ragIndexVersion() == null) {
+            return RagWorkflowContext.empty();
+        }
+        if ("FIXED_INDEX".equals(snapshot.ragMode())
+                && snapshot.ragIndexVersion() != null) {
+            return ragContextProvider.retrieveExact(question, snapshot.ragIndexVersion());
+        }
+        throw new IllegalArgumentException("AI 客服生产 RAG 快照不合法");
     }
 
     /** 执行不创建会话或消息的单轮客服实验。 */

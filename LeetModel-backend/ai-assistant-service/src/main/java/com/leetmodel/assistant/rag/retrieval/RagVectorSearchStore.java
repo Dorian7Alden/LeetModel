@@ -11,4 +11,9 @@ public interface RagVectorSearchStore {
         return search(queryVector, topK).stream()
                 .filter(hit -> ragIndexVersion.equals(hit.ragIndexVersion())).toList();
     }
+
+    /** 激活固定索引生产配置前检查物理索引、维度和版本元数据。 */
+    default boolean isVersionReady(String ragIndexVersion, int expectedDimension) {
+        return false;
+    }
 }

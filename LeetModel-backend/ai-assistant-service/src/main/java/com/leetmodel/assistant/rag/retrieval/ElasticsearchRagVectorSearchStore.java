@@ -44,12 +44,37 @@ public class ElasticsearchRagVectorSearchStore implements RagVectorSearchStore {
 
     @Override
     public List<RagVectorHit> search(List<Float> queryVector, int topK, String ragIndexVersion) {
-        String version = ragIndexVersion == null ? "" : ragIndexVersion.toLowerCase();
-        if (!version.matches("[a-z0-9][a-z0-9_-]{2,127}")) {
-            throw new RagStoreException("RAG 索引版本非法", false, null);
+        return searchIndex(queryVector, topK, physicalIndexName(ragIndexVersion));
+    }
+
+    @Override
+    public boolean isVersionReady(String ragIndexVersion, int expectedDimension) {
+        String indexName = physicalIndexName(ragIndexVersion);
+        try {
+            Response mappingResponse = client.performRequest(
+                    new Request("GET", "/" + indexName + "/_mapping"));
+            JsonNode mapping = objectMapper.readTree(EntityUtils.toString(mappingResponse.getEntity()))
+                    .path(indexName).path("mappings").path("properties").path("embedding");
+            if (!"dense_vector".equals(mapping.path("type").asText())
+                    || mapping.path("dims").asInt(-1) != expectedDimension) {
+                return false;
+            }
+            Request sample = new Request("POST", "/" + indexName + "/_search");
+            sample.setJsonEntity(objectMapper.writeValueAsString(Map.of(
+                    "size", 1,
+                    "_source", List.of("ragIndexVersion"),
+                    "query", Map.of("term", Map.of("ragIndexVersion", ragIndexVersion)))));
+            JsonNode hits = objectMapper.readTree(EntityUtils.toString(
+                    client.performRequest(sample).getEntity())).path("hits").path("hits");
+            return hits.isArray() && !hits.isEmpty()
+                    && ragIndexVersion.equals(hits.get(0).path("_source")
+                    .path("ragIndexVersion").asText());
+        } catch (ResponseException exception) {
+            if (exception.getResponse().getStatusLine().getStatusCode() == 404) return false;
+            throw storeFailure(exception);
+        } catch (IOException exception) {
+            throw storeFailure(exception);
         }
-        String base = properties.getIndexAlias().replaceFirst("-read$", "");
-        return searchIndex(queryVector, topK, base + "-" + version);
     }
 
     private List<RagVectorHit> searchIndex(List<Float> queryVector, int topK, String indexName) {
@@ -98,5 +123,14 @@ public class ElasticsearchRagVectorSearchStore implements RagVectorSearchStore {
                 || exception.getCause() instanceof SocketTimeoutException;
         return new RagStoreException(timeout ? "Elasticsearch 检索超时" : "Elasticsearch 检索失败",
                 timeout, exception);
+    }
+
+    private String physicalIndexName(String ragIndexVersion) {
+        String version = ragIndexVersion == null ? "" : ragIndexVersion.toLowerCase();
+        if (!version.matches("[a-z0-9][a-z0-9_-]{2,127}")) {
+            throw new RagStoreException("RAG 索引版本非法", false, null);
+        }
+        String base = properties.getIndexAlias().replaceFirst("-read$", "");
+        return base + "-" + version;
     }
 }

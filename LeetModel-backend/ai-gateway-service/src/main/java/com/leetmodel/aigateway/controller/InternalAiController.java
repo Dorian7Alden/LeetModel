@@ -1,9 +1,11 @@
 package com.leetmodel.aigateway.controller;
 
-import com.leetmodel.aigateway.service.AiModelService;
-import com.leetmodel.aigateway.service.AiScheduledCallService;
-import com.leetmodel.aigateway.service.AiQueueOperationsService;
+import com.leetmodel.aigateway.service.AiCallAuditService;
 import com.leetmodel.aigateway.service.AiEvaluationCallAggregationService;
+import com.leetmodel.aigateway.service.AiModelService;
+import com.leetmodel.aigateway.service.AiQueueOperationsService;
+import com.leetmodel.aigateway.service.AiScheduledCallService;
+import com.leetmodel.aigateway.service.ModelExecutionConfigService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
@@ -13,11 +15,11 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
-import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
+import com.leetmodel.common.api.dto.ModelExecutionConfigAvailabilityDTO;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.aigateway.service.AiCallAuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -46,6 +49,7 @@ public class InternalAiController {
     private final AiCallAuditService aiCallAuditService;
     private final AiQueueOperationsService aiQueueOperationsService;
     private final AiEvaluationCallAggregationService evaluationCallAggregationService;
+    private final ModelExecutionConfigService modelExecutionConfigService;
 
     /**
      * 发起同步 AI 对话。
@@ -107,5 +111,16 @@ public class InternalAiController {
     public Result<AiEvaluationCallAggregateDTO> aggregateEvaluationCalls(
             @PathVariable String evaluationTaskId) {
         return Result.ok(evaluationCallAggregationService.aggregate(evaluationTaskId));
+    }
+
+    @Operation(summary = "检查模型执行配置能否用于指定工作流")
+    @GetMapping("/model-execution-configs/{version}/availability")
+    public Result<ModelExecutionConfigAvailabilityDTO> modelExecutionConfigAvailability(
+            @PathVariable String version,
+            @RequestParam String callType,
+            @RequestParam String workflowVersion,
+            @RequestParam String promptVersion) {
+        return Result.ok(modelExecutionConfigService.availability(
+                version, callType, workflowVersion, promptVersion));
     }
 }

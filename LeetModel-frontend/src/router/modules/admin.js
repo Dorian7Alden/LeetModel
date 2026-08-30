@@ -185,6 +185,18 @@ export default [
           },
         ],
       },
+      {
+        path: "production-workflows",
+        meta: { title: "生产版本", icon: "SetUp" },
+        children: [
+          {
+            path: "list",
+            name: "AdminProductionWorkflow",
+            component: () => import("@/views/admin/pages/ProductionWorkflowPage.vue"),
+            meta: { title: "生产版本" },
+          },
+        ],
+      },
     ],
   },
 ];

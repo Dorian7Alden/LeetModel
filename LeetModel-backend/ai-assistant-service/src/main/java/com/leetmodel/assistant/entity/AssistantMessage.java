@@ -15,6 +15,13 @@ public class AssistantMessage extends BaseEntity {
     private Long replyToMessageId;
     private String role;
     private String status;
+    private String productionConfigVersion;
+    private Long productionRevision;
+    private String workflowVersion;
+    private String promptVersion;
+    private String modelExecutionConfigVersion;
+    private String ragMode;
+    private String ragIndexVersion;
     private String content;
     private String errorMessage;
     private String toolContextJson;
