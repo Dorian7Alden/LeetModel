@@ -21,9 +21,10 @@ LeetModel-mock/
 │       ├── passwords.py         # 明文密码、BCrypt 哈希接口
 │       └── misc.py              # 头像、URL、手机号、布尔值接口
 ├── scripts/
-│   ├── generate_user_service_demo.py     # 场景脚本：组装 user-service 演示数据
-│   ├── generate_team_service_demo.py     # 场景脚本：组装 team-service 演示数据
-│   └── generate_problem_service_demo.py  # 场景脚本：组装 problem-service 题库演示数据
+│   ├── generate_user_service_demo.py        # 场景脚本：组装 user-service 演示数据
+│   ├── generate_team_service_demo.py        # 场景脚本：组装 team-service 演示数据
+│   ├── generate_problem_service_demo.py     # 场景脚本：组装 problem-service 题库演示数据
+│   └── generate_submission_service_demo.py  # 场景脚本：组装提交、评审与排行榜全量演示数据
 ├── requirements.txt
 └── README.md
 ```
@@ -163,6 +164,22 @@ python3 scripts/generate_problem_service_demo.py
 
 ```text
 LeetModel-backend/problem-service/src/main/resources/db/migration/V6__insert_mock_problems.sql
+```
+
+submission-service、ai-review-service 与 ranking-service 演示数据覆盖多版本提交、最终稿锁定、全分段（0-59、60-69、70-79、80-89、90-100）评审结果与当前排行榜快照：
+
+```bash
+python3 scripts/generate_submission_service_demo.py
+```
+
+脚本输出：
+
+```text
+LeetModel-backend/user-service/src/main/resources/db/migration/V6__insert_more_mock_users.sql
+LeetModel-backend/team-service/src/main/resources/db/migration/V11__insert_leaderboard_demo_teams.sql
+LeetModel-backend/submission-service/src/main/resources/db/migration/V2__insert_mock_submissions.sql
+LeetModel-backend/ai-review-service/src/main/resources/db/migration/V3__insert_mock_reviews.sql
+LeetModel-backend/ranking-service/src/main/resources/db/migration/V2__insert_mock_rankings.sql
 ```
 
 ## 演示账号
