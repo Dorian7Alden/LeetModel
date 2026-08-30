@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.service.ProblemService;
 import com.leetmodel.problem.vo.ProblemVO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -62,5 +65,21 @@ class InternalProblemControllerTest {
         assertEquals(51001L, response.getData().getId());
         assertEquals("# 题目\n建立调度模型", response.getData().getContentMarkdown());
         verify(problemService).getPublishedProblemDetail(51001L);
+    }
+
+    @Test
+    void delegatesAssistantQueryToProblemOwnerService() {
+        AssistantProblemQueryDTO query = new AssistantProblemQueryDTO();
+        query.setMode(AssistantProblemQueryMode.SEARCH);
+        query.setCode(1001);
+        AssistantProblemResultDTO expected = new AssistantProblemResultDTO(
+                List.of(), "CODE", false, List.of());
+        when(problemService.queryForAssistant(query)).thenReturn(expected);
+        InternalProblemController controller = new InternalProblemController(problemService);
+
+        var response = controller.queryForAssistant(query);
+
+        assertEquals(expected, response.getData());
+        verify(problemService).queryForAssistant(query);
     }
 }

@@ -4,6 +4,8 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.problem.vo.ProblemVO;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.service.ProblemService;
@@ -16,6 +18,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -96,6 +101,13 @@ public class InternalProblemController {
                 ))
                 .toList();
         return Result.ok(options);
+    }
+
+    @Operation(summary = "查询 AI 客服题目事实")
+    @PostMapping("/assistant-query")
+    public Result<AssistantProblemResultDTO> queryForAssistant(
+            @Valid @RequestBody AssistantProblemQueryDTO request) {
+        return Result.ok(problemService.queryForAssistant(request));
     }
 
     /**
