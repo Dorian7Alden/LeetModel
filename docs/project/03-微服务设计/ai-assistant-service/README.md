@@ -2,7 +2,7 @@
 
 ai-assistant-service 负责与用户进行受控文本对话，帮助用户理解平台功能、获取基础数学建模学习建议，并在需要时基于已发布题目候选做选题辅助。
 
-> 分层定位：AI 业务能力层。MVP 会话、题目工具和常规向量 RAG V1 已落地；长期记忆、开放式 Agent、自主写操作、语音和多模态会话仍不在当前范围。
+> 分层定位：AI 业务能力层。MVP 会话、关键词触发的题目候选预取和常规向量 RAG V1 已落地；标准受控工具调用设计已确认但尚未实现。长期记忆、开放式 Agent、自主写操作、语音和多模态会话仍不在当前范围。
 
 评价侧已发布无 RAG 与 RAG V1 两个单轮工作流版本。隔离入口不创建正式会话或消息；RAG 版本必须指定物理 `ragIndexVersion`，不会读取当前别名后静默漂移。
 
@@ -11,7 +11,7 @@ ai-assistant-service 负责与用户进行受控文本对话，帮助用户理�
 
 - 服务端口为 `8089`，独占 `lm_ai_assistant` 数据库，Flyway 管理会话表、消息表和两项幂等唯一约束。
 - 用户可以创建、列出、恢复和结束自己的会话，发送消息时必须提供 `clientRequestId`；相同请求只保存一条用户消息和一条助手回复。
-- 仅当当前问题包含明确选题意图时，服务才通过 problem-service 查询最多 8 个已发布题目。候选为空时也会把空结果明确交给模型，禁止编造题目。
+- 仅当当前问题命中固定选题关键词时，服务才通过 problem-service 查询最多 8 个已发布题目。候选为空时也会把空结果明确交给模型，禁止编造题目。这是目标工具调用上线前的临时预取方案，不是标准 `tool_calls`。
 - AI 或题目工具失败时保留用户消息和失败回复，前端可对失败回复显式重试；生成或重试中断超过 5 分钟会转为可恢复失败。
 - 对用户返回可操作的失败说明，连接地址等内部异常细节只写服务日志。
 - 管理端通过内部接口查询会话总数和最近会话摘要，不读取模型供应商密钥或修改用户对话。
@@ -31,7 +31,8 @@ flowchart LR
         sessionContext["会话状态与上下文"]
         productionGovernance["生产工作流版本治理"]
         intent["意图与选题条件理解"]
-        toolQuery["平台数据工具调用"]
+        toolQuery["关键词题目预取，当前实现"]
+        controlledTools["受控工具编排，目标设计"]
         assistantWorkflow["助手模型工作流"]
         ragRetriever["RAG V1 向量检索"]
         response["回答、推荐与解释"]
@@ -40,8 +41,10 @@ flowchart LR
         productionGovernance --> sessionContext
         sessionContext --> intent
         intent --> toolQuery
+        intent -.-> controlledTools
         intent --> assistantWorkflow
         toolQuery --> assistantWorkflow
+        controlledTools -.-> assistantWorkflow
         ragRetriever --> assistantWorkflow
         assistantWorkflow --> response
     end
@@ -62,6 +65,7 @@ flowchart LR
     adminService -->|"查询运行结果"| conversationApi
     adminService -->|"查询与变更生产版本"| productionGovernance
     toolQuery --> problemService
+    controlledTools -.-> problemService
     assistantWorkflow --> commonAi
     ragRetriever --> commonAi
     ragRetriever --> elasticsearch
@@ -71,7 +75,9 @@ flowchart LR
     response --> assistantDatabase
 ```
 
-当前流程从用户会话开始，保存最近 20 条已完成消息作为短期上下文，根据明确选题意图决定是否只读查询题目，最终通过 common-ai 调用 AI 网关并保存回答或失败结果。题目事实仍由 problem-service 拥有；MVP 当前不调用 user-service 获取额外用户摘要。
+当前流程从用户会话开始，保存最近 20 条已完成消息作为短期上下文，根据固定关键词决定是否预取只读题目候选，最终通过 common-ai 调用 AI 网关并保存回答或失败结果。题目事实仍由 problem-service 拥有；MVP 当前不调用 user-service 获取额外用户摘要。
+
+目标工具版工作流由模型返回结构化 `toolCalls`，ai-assistant-service 使用白名单执行题目查询、题目推荐或知识点讲解。该目标流程使用虚线表示，当前生产代码尚未具备公共工具协议、工具循环和独立工具调用记录。详细设计见 [受控工具调用](受控工具调用/README.md)。
 
 RAG V1 默认关闭。启用后，用户问题先经 Query Embedding 和 Elasticsearch 召回，命中片段在阈值与 Token 预算内作为带来源、明确标记为不可信的参考上下文注入现有工作流。检索失败或无命中时保持当前无 RAG 回答；Chat 失败仍沿用现有失败回复。Embedding 只能通过 `common-ai → ai-gateway-service → new-api` 调用。
 
@@ -83,6 +89,7 @@ RAG V1 默认关闭。启用后，用户问题先经 Query Embedding 和 Elastic
 - 维护用户与 AI 助手的会话和消息。
 - 理解用户的选题条件和学习需求。
 - 调用题目查询能力并组织题目推荐结果。
+- 拥有客服工具集、工具参数校验、工具执行循环和工具调用事实。
 - 回答与平台使用和数学建模学习有关的辅助问题。
 - 拥有第一版客服 RAG 的检索规则、索引协作和上下文注入边界。
 - 拥有客服工作流发布目录、不可变生产配置、当前指针、变更请求和成功审计。
@@ -109,7 +116,8 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 | 会话管理 | 已实现 | 创建、查询、继续和幂等结束当前用户会话 |
 | 消息管理 | 已实现 | 保存用户问题、AI 回复、最近上下文和调用标识 |
 | 平台使用问答 | 已实现 | 通过版本化 Prompt 回答平台流程和基本规则问题 |
-| 受控选题辅助 | 已实现 | 识别明确选题意图，只注入 problem-service 返回的已发布候选 |
+| 关键词选题辅助 | 已实现 | 固定关键词命中后预取 problem-service 返回的已发布候选，属于工具版上线前的临时方案 |
+| 受控工具调用 | 设计已确认、未实现 | 使用标准工具协议调用题目查询、题目推荐和专用知识讲解工具 |
 | 客服 RAG V1 | 已实现 | LangChain4j、统一 Embedding、Elasticsearch 基础向量召回、版本审计和安全降级 |
 | AI 目录导航 RAG V2 | 设计完成、未实现 | 使用受控轻量目录选文并与 V1 组合，需固定对比实验证明增益后再另立实现任务 |
 | 对话安全与失败处理 | 已实现 | 限定能力范围，保存失败、支持抢占重试和中断恢复 |
@@ -122,6 +130,8 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 ### 文档规则
 
 后续每个需要深入设计的功能使用独立文档。当前不提前创建空文档。
+
+标准工具协议、首版三个工具、安全边界、调用记录和实施路线见 [受控工具调用](受控工具调用/README.md)。
 
 RAG 的知识边界、配置、索引、回滚、测试和故障处理统一维护在 [RAG知识库.md](../../02-架构设计/RAG知识库.md)，RAG V2 的受控目录、两阶段流程、固定实验和实施门槛见 [RAG目录导航V2](RAG目录导航V2/README.md)，本 README 不复制操作步骤。
 

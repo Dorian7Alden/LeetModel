@@ -72,3 +72,13 @@ AI 功能 owner 通过内部只读接口返回 `AiFeatureDefinitionDTO`，评价
 管理端创建实验时只允许从 `ENABLED` 版本下拉列表选择。服务端仍必须重新向 owner 校验状态，不能信任页面传值。当前 REVIEW 目录由 ai-review-service 提供，admin-service 只做代理；ASSISTANT 和 SUGGESTION 在隔离实验能力完成前不发布到评价平台目录。
 
 当前代码主要只有 review `workflowVersion`，其他字段由后续 S2、S4、S6、S7 的迁移新增。迁移期间不得把现有 `workflowVersion` 改名后复用为其他版本，也不得根据 `/v1` 或模型名反推缺失版本。
+
+### 工具集版本扩展
+
+受控工具调用设计增加第六类运行标识 `toolsetVersion`。开发者已于 2026-08-31 确认该扩展；字段尚未实现，不改变上文 D-05 已落地的五类运行事实。
+
+`toolsetVersion` 由使用工具的 AI 业务服务拥有，用于锁定一次运行可以暴露的工具名称、描述、输入 Schema、单工具版本、终止行为、次数限制和权限要求。示例标识为 `ASSISTANT_TOOLSET_0001`。
+
+工具集变化不自动改变模型、Prompt 或 RAG 索引。新增工具、删除工具、字段语义变化或终止行为变化时创建新的 `toolsetVersion`。工作流决定何时调用工具，因此工作流分支和调用顺序变化仍创建新的 `workflowVersion`。
+
+正式运行和实验运行应把 `toolsetVersion` 与现有五类适用标识一起保存。无需工具的历史工作流显式使用 `NONE`，不能根据当前注册表反推历史工具集。

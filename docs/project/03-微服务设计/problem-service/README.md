@@ -18,6 +18,7 @@ flowchart LR
         teamService["team-service"]
         submissionService["submission-service"]
         reviewService["ai-review-service"]
+        assistantService["ai-assistant-service，目标工具调用"]
     end
 
     subgraph problem["problem-service 题库管理"]
@@ -46,6 +47,7 @@ flowchart LR
     teamService --> internalApi
     submissionService --> internalApi
     reviewService --> internalApi
+    assistantService -.-> internalApi
     contestProblem --> problemDatabase
     tagPublish --> problemDatabase
     attachment --> problemDatabase
@@ -82,6 +84,8 @@ problem-service 独占 `lm_problem` 数据库，预置赛事、题目、Markdown
 
 team-service 通过内部接口获取题目摘要，用于创建绑定队伍和计算练习时间。submission-service 通过内部接口校验提交对应的题目。ai-review-service 只获取评审路由所需的题目和赛事信息，不直接读取题目数据库。
 
+目标工具版 AI 客服通过内部只读查询获取已发布题目的摘要、题面概览和受控推荐候选。problem-service 负责发布状态、筛选条件、稳定排序和结果上限；ai-assistant-service 负责工具选择和推荐解释。该目标接口尚未实现。
+
 ## 功能清单
 
 | 功能 | 功能说明 |
@@ -97,6 +101,7 @@ team-service 通过内部接口获取题目摘要，用于创建绑定队伍和�
 | 条件筛选 | 按赛事、难度、标签和关键条件筛选题目 |
 | 随机题目 | 为练习选题提供简单随机能力 |
 | 题目摘要 | 向队伍、提交、AI 评审和 AI 质量评价提供必要的单个或批量题目信息 |
+| AI 客服题目查询 | 设计已确认、未实现；向受控客服工具提供已发布题目查询和确定性候选筛选 |
 
 ## 文档索引
 
