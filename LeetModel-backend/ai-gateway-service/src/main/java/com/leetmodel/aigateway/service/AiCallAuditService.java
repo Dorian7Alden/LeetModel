@@ -1,6 +1,8 @@
 package com.leetmodel.aigateway.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import com.leetmodel.common.ai.model.AiChatRequest;
@@ -14,6 +16,9 @@ import com.leetmodel.aigateway.provider.ProviderEmbeddingResponse;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiModelCallStatsDTO;
+import com.leetmodel.common.api.dto.AiCallFilterOptionsDTO;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -115,7 +120,49 @@ public class AiCallAuditService {
     public List<AiCallLogDTO> list(AiCallQueryDTO query) {
         if (query == null) query = new AiCallQueryDTO();
         int limit = query.getLimit() == null ? 20 : query.getLimit();
-        LambdaQueryWrapper<AiCallLog> wrapper = new LambdaQueryWrapper<AiCallLog>()
+        LambdaQueryWrapper<AiCallLog> wrapper = queryWrapper(query)
+                .last("LIMIT " + limit);
+        return callLogMapper.selectList(wrapper).stream().map(this::toDto).toList();
+    }
+
+    public PageResult<AiCallLogDTO> page(AiCallQueryDTO query) {
+        if (query == null) query = new AiCallQueryDTO();
+        int pageNumber = query.getPage() == null ? 1 : query.getPage();
+        int pageSize = query.getPageSize() == null ? 20 : query.getPageSize();
+        Page<AiCallLog> result = callLogMapper.selectPage(
+                new Page<>(pageNumber, pageSize), queryWrapper(query));
+        return new PageResult<>(result.getTotal(), pageNumber, pageSize,
+                result.getRecords().stream().map(this::toDto).toList());
+    }
+
+    public List<AiModelCallStatsDTO> modelStats(AiCallQueryDTO query) {
+        return callLogMapper.selectModelStats(query == null ? new AiCallQueryDTO() : query);
+    }
+
+    public AiCallFilterOptionsDTO filterOptions() {
+        return new AiCallFilterOptionsDTO(
+                distinctValues("feature_code"),
+                distinctValues("operation_code"),
+                distinctValues("evaluation_task_id"),
+                distinctValues("provider"),
+                distinctValues("model"),
+                distinctValues("status")
+        );
+    }
+
+    private List<String> distinctValues(String column) {
+        QueryWrapper<AiCallLog> wrapper = new QueryWrapper<>();
+        wrapper.select("DISTINCT " + column)
+                .eq("deleted", 0)
+                .isNotNull(column)
+                .ne(column, "")
+                .orderByAsc(column)
+                .last("LIMIT 200");
+        return callLogMapper.selectObjs(wrapper).stream().map(String::valueOf).toList();
+    }
+
+    private LambdaQueryWrapper<AiCallLog> queryWrapper(AiCallQueryDTO query) {
+        return new LambdaQueryWrapper<AiCallLog>()
                 .eq(StringUtils.hasText(query.getScene()), AiCallLog::getScene, normalized(query.getScene()))
                 .eq(StringUtils.hasText(query.getModality()), AiCallLog::getModality, normalized(query.getModality()))
                 .eq(StringUtils.hasText(query.getCallerService()), AiCallLog::getCallerService,
@@ -145,9 +192,7 @@ public class AiCallAuditService {
                         normalized(query.getCostSource()))
                 .ge(query.getCreatedFrom() != null, AiCallLog::getCreateTime, query.getCreatedFrom())
                 .le(query.getCreatedTo() != null, AiCallLog::getCreateTime, query.getCreatedTo())
-                .orderByDesc(AiCallLog::getCreateTime)
-                .last("LIMIT " + limit);
-        return callLogMapper.selectList(wrapper).stream().map(this::toDto).toList();
+                .orderByDesc(AiCallLog::getCreateTime);
     }
 
     public AiCallStatsDTO stats(AiCallQueryDTO query) {

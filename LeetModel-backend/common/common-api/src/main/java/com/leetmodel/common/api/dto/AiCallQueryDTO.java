@@ -33,6 +33,8 @@ public class AiCallQueryDTO {
     private LocalDateTime createdFrom;
     private LocalDateTime createdTo;
     @Min(1) @Max(100) private Integer limit = 20;
+    @Min(1) private Integer page = 1;
+    @Min(10) @Max(100) private Integer pageSize = 20;
 
     public AiCallQueryDTO(String scene, String provider, String model, String status, Integer limit) {
         this.scene = scene;
