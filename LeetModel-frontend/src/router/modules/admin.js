@@ -32,13 +32,13 @@ export default [
       {
         path: "operations",
         name: "AdminOperations",
-        component: () => import("@/views/admin/pages/SubmissionListPage.vue"),
+        component: () => import("@/views/admin/pages/OperationsHubPage.vue"),
         meta: { title: "业务运营", description: "组队到评审排行的业务链", icon: "TrendCharts" },
       },
       {
         path: "ai",
         name: "AdminAiCenter",
-        component: () => import("@/views/admin/pages/AiCallListPage.vue"),
+        component: () => import("@/views/admin/pages/AiCenterPage.vue"),
         meta: { title: "AI 中枢", description: "调用、评价与生产版本治理", icon: "Cpu" },
       },
       legacyRedirect("users/list", { domain: "access", key: "users" }),
