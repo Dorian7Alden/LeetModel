@@ -16,11 +16,13 @@ flowchart LR
         aggregation["跨服务查询聚合"]
         writeForward["管理写操作转发"]
         aiControl["AI 测试与评价控制"]
+        productionControl["AI 生产版本控制"]
         resultAssembly["结果组装与局部失败标记"]
 
         adminApi --> aggregation
         adminApi --> writeForward
         adminApi --> aiControl
+        adminApi --> productionControl
         aggregation --> resultAssembly
         writeForward --> resultAssembly
         aiControl --> resultAssembly
@@ -31,6 +33,7 @@ flowchart LR
         reviewService["ai-review-service"]
         evaluationService["ai-evaluation-service"]
         aiGateway["ai-gateway-service"]
+        assistantService["ai-assistant-service"]
     end
 
     adminWeb --> apiGateway
@@ -43,6 +46,7 @@ flowchart LR
     aiControl --> reviewService
     aiControl --> evaluationService
     aiControl --> aiGateway
+    productionControl --> assistantService
 ```
 
 管理请求先经过 API 网关进入 admin-service。查询请求由聚合模块向数据所属服务读取并组装，写请求只负责鉴权、注入登录操作者并转发，最终规则和事务仍由领域服务执行。ai-evaluation-service 的固定数据集、评价任务、版本化权重和结果重算契约已由 admin-service 提供管理员入口；评价调用通过 ai-gateway-service 的结构化条件追踪。admin-service 当前没有独立业务数据库，也不直连任何下游数据库。
@@ -56,6 +60,7 @@ flowchart LR
 - 转发管理写操作，由数据所属服务执行校验和事务。
 - 聚合 ai-review-service 的评审数据、ai-evaluation-service 的稳定性统计与 ai-gateway-service 的资源消耗数据。
 - 提供 AI 调用监控、评审版本重复实验和稳定性结果查询入口。
+- 对 AI 客服生产版本操作执行管理员鉴权、操作者注入和命令转发。
 - 对聚合查询中的局部失败进行显式标记，对管理写操作失败返回明确错误。
 
 ### 不负责
@@ -68,7 +73,7 @@ flowchart LR
 
 ## 数据与协作边界
 
-admin-service 当前不独占业务数据库，是无状态的管理端聚合服务。单领域事实与统计由数据所属服务提供，跨领域视图由 admin-service 在查询时组装。用户与 RBAC 数据来自 user-service，团队数据来自 team-service，题目数据来自 problem-service，提交数据来自 submission-service，评审数据来自 ai-review-service，质量评价数据来自 ai-evaluation-service，模型调用和资源数据来自 ai-gateway-service。
+admin-service 当前不独占业务数据库，是无状态的管理端聚合服务。单领域事实与统计由数据所属服务提供，跨领域视图由 admin-service 在查询时组装。用户与 RBAC 数据来自 user-service，团队数据来自 team-service，题目数据来自 problem-service，提交数据来自 submission-service，评审数据来自 ai-review-service，质量评价数据来自 ai-evaluation-service，模型调用和资源数据来自 ai-gateway-service，客服生产版本与变更审计来自 ai-assistant-service。
 
 管理端发起写操作时，admin-service 负责入口保护、请求编排和结果转换，数据所属服务负责最终业务校验、状态变更和事务一致性。下游不可用时不得使用零值、空集合或成功响应掩盖故障。
 
@@ -86,6 +91,7 @@ admin-service 当前不独占业务数据库，是无状态的管理端聚合服
 | AI 版本评价控制 | 选择测试集、候选版本和重复次数并启动评价 |
 | AI 评价进度 | 聚合展示评审运行、质量评价和失败重试进度 |
 | AI 版本对比 | 聚合展示同口径方差、标准差、波动范围和运行诊断 |
+| AI 客服生产版本 | 展示实验候选与当前生产配置，代理二次确认激活和同协议回滚 |
 | 局部失败表达 | 在跨服务聚合失败时明确标记哪部分数据不可用 |
 
 ## 文档索引
@@ -95,3 +101,4 @@ admin-service 当前不独占业务数据库，是无状态的管理端聚合服
 | [服务设计.md](服务设计.md) | 聚合架构、管理接口边界、统计分层和拆分条件 |
 | [AI调用监控/](AI调用监控/) | 按模型和场景监控 Token、成本、延迟和成功率 |
 | [AI测试控制/](AI测试控制/) | 管理员启动固定样本重复实验并查看稳定性结果 |
+| [生产版本切换/](生产版本切换/) | 管理员查看、预览、确认和回滚 AI 客服生产版本 |
