@@ -47,7 +47,7 @@ public class RagWorkflowContextProvider {
         }
     }
 
-    /** 隔离实验使用物理索引版本检索；失败必须显式返回，禁止降级到别名或无 RAG。 */
+    /** 隔离实验和生产快照使用物理索引版本检索；失败时禁止降级到别名或无 RAG。 */
     public RagWorkflowContext retrieveExact(String query, String ragIndexVersion) {
         if (!properties.isEnabled() || ragIndexVersion == null || ragIndexVersion.isBlank()) {
             throw new IllegalStateException("RAG 实验未配置可用索引版本");

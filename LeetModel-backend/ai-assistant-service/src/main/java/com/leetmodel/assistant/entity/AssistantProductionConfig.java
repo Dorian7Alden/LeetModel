@@ -7,24 +7,15 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("assistant_message")
-public class AssistantMessage extends BaseEntity {
-    private Long conversationId;
-    private Long userId;
-    private String clientRequestId;
-    private Long replyToMessageId;
-    private String role;
-    private String status;
+@TableName("assistant_production_config")
+public class AssistantProductionConfig extends BaseEntity {
     private String productionConfigVersion;
-    private Long productionRevision;
     private String workflowVersion;
     private String promptVersion;
     private String modelExecutionConfigVersion;
     private String ragMode;
     private String ragIndexVersion;
-    private String content;
-    private String errorMessage;
-    private String toolContextJson;
-    private String modelName;
-    private String aiCallId;
+    private String ragIndexKey;
+    private Long createdBy;
+    private String reason;
 }

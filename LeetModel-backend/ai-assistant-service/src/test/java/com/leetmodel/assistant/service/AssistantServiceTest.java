@@ -9,6 +9,7 @@ import com.leetmodel.assistant.mapper.AssistantMessageMapper;
 import com.leetmodel.assistant.vo.AssistantMessageVO;
 import com.leetmodel.assistant.vo.AssistantReplyVO;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
+import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
@@ -49,13 +50,17 @@ class AssistantServiceTest {
     private ProblemFeignClient problemFeignClient;
     @Mock
     private AssistantWorkflow workflow;
+    @Mock
+    private AssistantProductionConfigService productionConfigService;
 
     private AssistantService service;
 
     @BeforeEach
     void setUp() {
         service = new AssistantService(conversationMapper, messageMapper, problemFeignClient,
-                workflow, new ObjectMapper());
+                workflow, new ObjectMapper(), productionConfigService);
+        org.mockito.Mockito.lenient().when(productionConfigService.currentSnapshot())
+                .thenReturn(noRagSnapshot());
     }
 
     @Test
@@ -65,7 +70,7 @@ class AssistantServiceTest {
         assignMessageIds();
         when(messageMapper.selectList(any())).thenReturn(List.of());
         when(workflow.needsProblemTool("如何上传 PDF？")).thenReturn(false);
-        when(workflow.reply(any(), any(), isNull())).thenReturn(response("进入提交页上传"));
+        when(workflow.reply(any(), any(), isNull(), any())).thenReturn(response("进入提交页上传"));
 
         AssistantReplyVO result = service.send(CONVERSATION_ID, USER_ID,
                 "  如何上传 PDF？  ", "request_001");
@@ -73,6 +78,10 @@ class AssistantServiceTest {
         assertThat(result.getUserMessage().getContent()).isEqualTo("如何上传 PDF？");
         assertThat(result.getAssistantMessage().getStatus()).isEqualTo("COMPLETED");
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("进入提交页上传");
+        assertThat(result.getAssistantMessage().getProductionConfigVersion())
+                .isEqualTo("ASSISTANT_PROD_CFG_0001");
+        assertThat(result.getAssistantMessage().getWorkflowVersion())
+                .isEqualTo("ASSISTANT_NO_RAG_V1");
         verify(problemFeignClient, never()).getPublishedOptions(any(), any());
         verify(messageMapper).complete(anyLong(), any(), isNull(), any(), any(), any());
     }
@@ -90,7 +99,7 @@ class AssistantServiceTest {
 
         assertThat(result.getAssistantMessage().getId()).isEqualTo(202L);
         verify(messageMapper, never()).insert(any(AssistantMessage.class));
-        verify(workflow, never()).reply(any(), any(), any());
+        verify(workflow, never()).reply(any(), any(), any(), any());
     }
 
     @Test
@@ -101,13 +110,13 @@ class AssistantServiceTest {
         when(messageMapper.selectList(any())).thenReturn(List.of());
         when(workflow.needsProblemTool("推荐题目")).thenReturn(true);
         when(problemFeignClient.getPublishedOptions(null, 8)).thenReturn(Result.ok(List.of()));
-        when(workflow.reply(any(), any(), any())).thenReturn(response("当前没有候选题目"));
+        when(workflow.reply(any(), any(), any(), any())).thenReturn(response("当前没有候选题目"));
 
         AssistantReplyVO result = service.send(CONVERSATION_ID, USER_ID,
                 "推荐题目", "request_002");
 
         assertThat(result.getAssistantMessage().getUsedProblemTool()).isTrue();
-        verify(workflow).reply(any(), any(), org.mockito.ArgumentMatchers.eq(List.of()));
+        verify(workflow).reply(any(), any(), org.mockito.ArgumentMatchers.eq(List.of()), any());
         verify(messageMapper).complete(anyLong(), any(), org.mockito.ArgumentMatchers.eq("[]"),
                 any(), any(), any());
     }
@@ -126,7 +135,7 @@ class AssistantServiceTest {
         assertThat(result.getAssistantMessage().getStatus()).isEqualTo("FAILED");
         assertThat(result.getAssistantMessage().getErrorMessage()).contains("题目查询服务暂不可用");
         verify(messageMapper).fail(anyLong(), any(), isNull(), any());
-        verify(workflow, never()).reply(any(), any(), any());
+        verify(workflow, never()).reply(any(), any(), any(), any());
     }
 
     @Test
@@ -136,7 +145,7 @@ class AssistantServiceTest {
         assignMessageIds();
         when(messageMapper.selectList(any())).thenReturn(List.of());
         when(workflow.needsProblemTool("如何组队？")).thenReturn(false);
-        when(workflow.reply(any(), any(), isNull()))
+        when(workflow.reply(any(), any(), isNull(), any()))
                 .thenThrow(new IllegalStateException(
                         "POST http://localhost:8090/internal/ai/chat connection refused"));
 
@@ -189,7 +198,7 @@ class AssistantServiceTest {
         when(messageMapper.claimRetry(anyLong(), any())).thenReturn(1);
         when(messageMapper.selectList(any())).thenReturn(List.of(user));
         when(workflow.needsProblemTool("如何组队？")).thenReturn(false);
-        when(workflow.reply(any(), any(), isNull())).thenReturn(response("打开队伍广场"));
+        when(workflow.reply(any(), any(), isNull(), any())).thenReturn(response("打开队伍广场"));
 
         AssistantMessageVO result = service.retry(202L, USER_ID);
 
@@ -198,6 +207,7 @@ class AssistantServiceTest {
         assertThat(result.getAiCallId()).isEqualTo("call-1");
         verify(messageMapper).complete(org.mockito.ArgumentMatchers.eq(202L), any(), isNull(),
                 any(), any(), any());
+        verify(productionConfigService, never()).currentSnapshot();
     }
 
     @Test
@@ -211,7 +221,7 @@ class AssistantServiceTest {
         assertThatThrownBy(() -> service.retry(202L, USER_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(40504);
-        verify(workflow, never()).reply(any(), any(), any());
+        verify(workflow, never()).reply(any(), any(), any(), any());
     }
 
     @Test
@@ -253,9 +263,24 @@ class AssistantServiceTest {
         message.setRole(role);
         message.setStatus(status);
         message.setContent(content);
+        if ("ASSISTANT".equals(role)) {
+            AssistantProductionSnapshot snapshot = noRagSnapshot();
+            message.setProductionConfigVersion(snapshot.productionConfigVersion());
+            message.setProductionRevision(snapshot.productionRevision());
+            message.setWorkflowVersion(snapshot.workflowVersion());
+            message.setPromptVersion(snapshot.promptVersion());
+            message.setModelExecutionConfigVersion(snapshot.modelExecutionConfigVersion());
+            message.setRagMode(snapshot.ragMode());
+        }
         message.setCreateTime(LocalDateTime.now());
         message.setUpdateTime(LocalDateTime.now());
         return message;
+    }
+
+    private AssistantProductionSnapshot noRagSnapshot() {
+        return new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_0001", 1,
+                "ASSISTANT_NO_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001",
+                "MODEL_CFG_ASSISTANT_TEXT_0001", "NONE", null);
     }
 
     private AiChatResponse response(String content) {

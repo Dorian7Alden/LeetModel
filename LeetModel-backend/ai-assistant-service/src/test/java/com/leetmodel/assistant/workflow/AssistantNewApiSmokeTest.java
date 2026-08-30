@@ -27,7 +27,10 @@ class AssistantNewApiSmokeTest {
         message.setRole("USER");
         message.setContent("只用一句话回答：什么是线性规划？");
 
-        AiChatResponse response = workflow.reply(List.of(message), message, null);
+        AiChatResponse response = workflow.reply(List.of(message), message, null,
+                new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_0001", 1,
+                        "ASSISTANT_NO_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001",
+                        "MODEL_CFG_ASSISTANT_TEXT_0001", "NONE", null));
 
         assertThat(response.callId()).isNotBlank();
         assertThat(response.providerResponseId()).isNotBlank();
