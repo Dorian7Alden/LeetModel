@@ -41,6 +41,7 @@ import { useRoute, useRouter } from "vue-router";
 import AiCallListPage from "./AiCallListPage.vue";
 import EvaluationPage from "./EvaluationPage.vue";
 import ProductionWorkflowPage from "./ProductionWorkflowPage.vue";
+import AiVersionCatalogPage from "./AiVersionCatalogPage.vue";
 import { getAdminAiCallStats, getAssistantProductionCurrent, listEvaluationTasks } from "@/api/admin-ai";
 
 const route = useRoute();
@@ -49,6 +50,7 @@ const summaryLoading = ref(false);
 const summary = ref({ total: "—", success: "—", tokens: "—", latency: "—", evaluations: "—", production: "暂不可用", revision: "未取得生产快照" });
 const views = [
   { key: "calls", label: "调用观测", hint: "事实", icon: "DataLine", component: AiCallListPage },
+  { key: "versions", label: "版本目录", hint: "查询", icon: "Tickets", component: AiVersionCatalogPage },
   { key: "evaluations", label: "质量评价", hint: "实验", icon: "Histogram", component: EvaluationPage },
   { key: "production", label: "生产版本", hint: "治理", icon: "SetUp", component: ProductionWorkflowPage },
 ];
