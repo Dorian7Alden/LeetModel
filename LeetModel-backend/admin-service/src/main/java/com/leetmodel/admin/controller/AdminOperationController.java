@@ -85,6 +85,11 @@ public class AdminOperationController {
         return executor.forward("排行服务", () -> rankingAdminClient.current(problemId, keyword));
     }
 
+    @GetMapping("/api/admin/rankings/global-stats")
+    public Result<Object> globalRankingStats() {
+        return executor.forward("排行服务", rankingAdminClient::globalStats);
+    }
+
     @PostMapping("/api/admin/rankings/problems/{problemId}/rebuild")
     public Result<Integer> rebuildRanking(@PathVariable @Positive Long problemId) {
         return executor.forward("排行服务", () -> rankingClient.rebuild(problemId));

@@ -3,6 +3,7 @@ package com.leetmodel.submission.controller;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.submission.service.SubmissionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +45,12 @@ public class InternalSubmissionController {
     @GetMapping("/count")
     public Result<Long> count() {
         return Result.ok(submissionService.count());
+    }
+
+    @Operation(summary = "按题目统计成功提交量")
+    @GetMapping("/stats/problems")
+    public Result<List<ProblemSubmissionStatsDTO>> problemStats() {
+        return Result.ok(submissionService.listProblemStats());
     }
 
     @Operation(summary = "查询最近提交快照")

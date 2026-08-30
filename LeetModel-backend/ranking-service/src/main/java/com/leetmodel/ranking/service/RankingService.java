@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
@@ -15,11 +18,14 @@ import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
 import com.leetmodel.ranking.vo.RankingEntryVO;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
+import com.leetmodel.ranking.vo.GlobalRankingOverviewVO;
+import com.leetmodel.ranking.vo.ProblemRankingStatsVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,6 +36,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.function.Supplier;
 
 /**
@@ -45,6 +54,7 @@ public class RankingService {
     private final SubmissionFeignClient submissionFeignClient;
     private final ReviewFeignClient reviewFeignClient;
     private final TeamFeignClient teamFeignClient;
+    private final ProblemFeignClient problemFeignClient;
 
     /**
      * 重建指定题目的当前排行。所有依赖数据先完整读取，失败时不会覆盖已有排行。
@@ -140,6 +150,86 @@ public class RankingService {
     public long countCurrent() {
         return snapshotMapper.selectCount(new LambdaQueryWrapper<RankingSnapshot>()
                 .eq(RankingSnapshot::getCurrentMarker, CURRENT));
+    }
+
+    /**
+     * 聚合所有题目的成功提交量、已完成评审分数与当前上榜队伍数。
+     * 数据来自各 owner 服务的全量事实，不使用管理端最近 N 条快照。
+     */
+    public GlobalRankingOverviewVO getGlobalStats() {
+        List<ProblemSubmissionStatsDTO> submissionStats = requiredData(
+                submissionFeignClient::getProblemSubmissionStats);
+        List<ReviewSummaryDTO> completedReviews = requiredData(
+                () -> reviewFeignClient.listCompleted(null));
+
+        Map<Long, ReviewSummaryDTO> latestReviewBySubmission = new HashMap<>();
+        for (ReviewSummaryDTO review : completedReviews) {
+            if (review == null || review.getSubmissionId() == null || review.getProblemId() == null
+                    || review.getScore() == null || !"COMPLETED".equals(review.getStatus())) continue;
+            latestReviewBySubmission.merge(review.getSubmissionId(), review, (left, right) -> {
+                LocalDateTime leftTime = left.getFinishedAt();
+                LocalDateTime rightTime = right.getFinishedAt();
+                if (leftTime == null) return right;
+                if (rightTime == null) return left;
+                return rightTime.isAfter(leftTime) ? right : left;
+            });
+        }
+
+        Map<Long, ScoreAggregate> scoreByProblem = new HashMap<>();
+        for (ReviewSummaryDTO review : latestReviewBySubmission.values()) {
+            scoreByProblem.computeIfAbsent(review.getProblemId(), ignored -> new ScoreAggregate())
+                    .add(review.getScore());
+        }
+
+        List<RankingSnapshot> currentSnapshots = snapshotMapper.selectList(
+                new LambdaQueryWrapper<RankingSnapshot>()
+                        .eq(RankingSnapshot::getCurrentMarker, CURRENT));
+        Map<Long, Long> rankedTeamsByProblem = currentSnapshots.stream()
+                .collect(Collectors.groupingBy(RankingSnapshot::getProblemId, Collectors.counting()));
+
+        Map<Long, Long> submissionsByProblem = submissionStats.stream()
+                .filter(item -> item.getProblemId() != null)
+                .collect(Collectors.toMap(ProblemSubmissionStatsDTO::getProblemId,
+                        item -> item.getSubmissionCount() == null ? 0L : item.getSubmissionCount(),
+                        Long::sum));
+        Set<Long> problemIds = new HashSet<>(submissionsByProblem.keySet());
+        problemIds.addAll(scoreByProblem.keySet());
+        problemIds.addAll(rankedTeamsByProblem.keySet());
+
+        Map<Long, ProblemPracticeDTO> problemById = problemIds.isEmpty() ? Map.of() : requiredData(
+                () -> problemFeignClient.getPracticeProblems(problemIds.stream().sorted().toList()))
+                .stream().filter(problem -> problem.getId() != null)
+                .collect(Collectors.toMap(ProblemPracticeDTO::getId, problem -> problem));
+
+        List<ProblemRankingStatsVO> items = problemIds.stream().map(problemId -> {
+            ProblemPracticeDTO problem = problemById.get(problemId);
+            ScoreAggregate scores = scoreByProblem.get(problemId);
+            return ProblemRankingStatsVO.builder()
+                    .problemId(problemId)
+                    .problemCode(problem == null ? null : problem.getCode())
+                    .problemTitle(problem == null ? "题目 " + problemId : problem.getTitle())
+                    .submissionCount(submissionsByProblem.getOrDefault(problemId, 0L))
+                    .reviewedSubmissionCount(scores == null ? 0L : scores.count)
+                    .rankedTeamCount(rankedTeamsByProblem.getOrDefault(problemId, 0L))
+                    .averageScore(scores == null ? null : scores.average())
+                    .highestScore(scores == null ? null : scores.highest)
+                    .build();
+        }).sorted(Comparator.comparing(ProblemRankingStatsVO::getSubmissionCount).reversed()
+                .thenComparing(ProblemRankingStatsVO::getAverageScore,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        ScoreAggregate overall = new ScoreAggregate();
+        latestReviewBySubmission.values().forEach(review -> overall.add(review.getScore()));
+        return GlobalRankingOverviewVO.builder()
+                .totalSubmissions(submissionsByProblem.values().stream().mapToLong(Long::longValue).sum())
+                .reviewedSubmissions(overall.count)
+                .rankedTeams(currentSnapshots.stream().map(RankingSnapshot::getTeamId).distinct().count())
+                .problemCount(items.size())
+                .overallAverageScore(overall.count == 0 ? null : overall.average())
+                .computedAt(LocalDateTime.now())
+                .items(items)
+                .build();
     }
 
     private List<RankingDraft> buildDrafts(Long problemId,
@@ -278,5 +368,22 @@ public class RankingService {
     private record RankingDraft(Long teamId, String teamName, Long submissionId,
                                 Long reviewTaskId, String workflowVersion, BigDecimal score,
                                 LocalDateTime submittedAt, LocalDateTime reviewFinishedAt) {
+    }
+
+    private static final class ScoreAggregate {
+        private long count;
+        private BigDecimal total = BigDecimal.ZERO;
+        private BigDecimal highest;
+
+        private void add(BigDecimal score) {
+            if (score == null) return;
+            count++;
+            total = total.add(score);
+            if (highest == null || score.compareTo(highest) > 0) highest = score;
+        }
+
+        private BigDecimal average() {
+            return count == 0 ? null : total.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+        }
     }
 }

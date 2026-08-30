@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
@@ -44,13 +47,15 @@ class RankingServiceTest {
     private ReviewFeignClient reviewFeignClient;
     @Mock
     private TeamFeignClient teamFeignClient;
+    @Mock
+    private ProblemFeignClient problemFeignClient;
 
     private RankingService rankingService;
 
     @BeforeEach
     void setUp() {
         rankingService = new RankingService(
-                snapshotMapper, submissionFeignClient, reviewFeignClient, teamFeignClient);
+                snapshotMapper, submissionFeignClient, reviewFeignClient, teamFeignClient, problemFeignClient);
     }
 
     @Test
@@ -163,6 +168,32 @@ class RankingServiceTest {
         assertThat(result.getTotal()).isEqualTo(1);
         assertThat(result.getItems().get(0).getRank()).isEqualTo(2);
         assertThat(result.getItems().get(0).getTeamName()).isEqualTo("Beta 数据队");
+    }
+
+    @Test
+    void globalStatsUseAllSubmissionFactsAndLatestCompletedReviewPerSubmission() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
+        ReviewSummaryDTO older = review(1001L, 101L, 1L, "70", now.minusMinutes(2));
+        ReviewSummaryDTO latest = review(1002L, 101L, 1L, "90", now);
+        when(submissionFeignClient.getProblemSubmissionStats()).thenReturn(Result.ok(List.of(
+                new ProblemSubmissionStatsDTO(PROBLEM_ID, 8L),
+                new ProblemSubmissionStatsDTO(52L, 3L))));
+        when(reviewFeignClient.listCompleted(null)).thenReturn(Result.ok(List.of(older, latest)));
+        when(snapshotMapper.selectList(org.mockito.ArgumentMatchers.<Wrapper<RankingSnapshot>>any()))
+                .thenReturn(List.of(snapshot(1L, 1), snapshot(2L, 2)));
+        when(problemFeignClient.getPracticeProblems(any())).thenReturn(Result.ok(List.of(
+                new ProblemPracticeDTO(PROBLEM_ID, 1001, "题目 A", 120, 1),
+                new ProblemPracticeDTO(52L, 1002, "题目 B", 120, 1))));
+
+        var result = rankingService.getGlobalStats();
+
+        assertThat(result.getTotalSubmissions()).isEqualTo(11L);
+        assertThat(result.getReviewedSubmissions()).isEqualTo(1L);
+        assertThat(result.getOverallAverageScore()).isEqualByComparingTo("90.00");
+        assertThat(result.getItems()).extracting(item -> item.getProblemTitle())
+                .containsExactly("题目 A", "题目 B");
+        assertThat(result.getItems().get(0).getSubmissionCount()).isEqualTo(8L);
+        assertThat(result.getItems().get(0).getAverageScore()).isEqualByComparingTo("90.00");
     }
 
     private SubmissionSnapshotDTO submission(Long id, Long teamId, LocalDateTime createdAt) {

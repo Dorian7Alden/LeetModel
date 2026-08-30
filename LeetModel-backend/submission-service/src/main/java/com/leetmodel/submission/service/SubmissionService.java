@@ -7,6 +7,7 @@ import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
@@ -174,6 +175,11 @@ public class SubmissionService {
      */
     public long count() {
         return submissionMapper.selectCount(null);
+    }
+
+    /** 按题目统计全部成功提交，不受管理端列表条数限制。 */
+    public List<ProblemSubmissionStatsDTO> listProblemStats() {
+        return submissionMapper.selectProblemStats();
     }
 
     /** 管理聚合使用的最近提交快照，不暴露下载地址。 */
