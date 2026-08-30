@@ -5,7 +5,6 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
-import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
@@ -21,13 +20,10 @@ import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.vo.SubmissionVO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -39,38 +35,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class SubmissionService {
-    private static final long MAX_PDF_SIZE = 20L * 1024 * 1024;
     private final SubmissionMapper submissionMapper;
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
     private final ReviewFeignClient reviewFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
-
-    @Transactional
-    public SubmissionVO submit(Long teamId, MultipartFile file, Long userId) {
-        TeamSubmissionAccessDTO access = requiredSubmissionAccess(teamId, userId);
-        validateWindow(access);
-        validatePdf(file);
-        String objectName = storageService.upload(file, "submissions/" + teamId);
-        Submission submission = new Submission();
-        submission.setTeamId(teamId); submission.setProblemId(access.getProblemId());
-        submission.setSubmitterId(userId); submission.setOriginalFilename(file.getOriginalFilename());
-        submission.setObjectName(objectName); submission.setFileSize(file.getSize()); submission.setStatus("SUCCESS");
-        try {
-            submission.setVersion(submissionMapper.selectMaxVersion(teamId) + 1);
-            submissionMapper.insert(submission);
-        } catch (DuplicateKeyException exception) {
-            storageService.delete(objectName);
-            throw exception;
-        }
-        Result<Long> task = reviewFeignClient.createTask(submission.getId(), submission.getTeamId(), submission.getProblemId());
-        if (task == null || !task.isSuccess()) {
-            storageService.delete(objectName);
-            throw new BusinessException(SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED);
-        }
-        return toVO(submission);
-    }
 
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
@@ -202,6 +172,33 @@ public class SubmissionService {
                 storageService.getUrl(submission.getObjectName()));
     }
 
+    /**
+     * 幂等触发提交的 AI 评审任务并转换响应。
+     * @param submission 提交记录
+     * @return 提交响应
+     */
+    public SubmissionVO triggerReview(Submission submission) {
+        Result<Long> task = reviewFeignClient.createTask(
+                submission.getId(),
+                submission.getTeamId(),
+                submission.getProblemId()
+        );
+        BusinessException.throwIf(
+                task == null || !task.isSuccess(),
+                SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED
+        );
+        return toVO(submission);
+    }
+
+    /**
+     * 按 ID 获取提交记录。
+     * @param submissionId 提交 ID
+     * @return 提交记录
+     */
+    public Submission getSubmission(Long submissionId) {
+        return requiredSubmission(submissionId);
+    }
+
     private TeamDTO requiredMemberTeam(Long teamId, Long userId) {
         Result<TeamDTO> teamResult = teamFeignClient.getTeamInfo(teamId);
         Result<List<Long>> membersResult = teamFeignClient.getMemberIds(teamId);
@@ -211,42 +208,6 @@ public class SubmissionService {
                         || membersResult.getData() == null || !membersResult.getData().contains(userId),
                 SubmissionErrorCode.NOT_TEAM_MEMBER);
         return teamResult.getData();
-    }
-
-    private TeamSubmissionAccessDTO requiredSubmissionAccess(Long teamId, Long userId) {
-        Result<TeamSubmissionAccessDTO> result = teamFeignClient.getSubmissionAccess(teamId, userId);
-        BusinessException.throwIf(result == null || !result.isSuccess() || result.getData() == null,
-                SubmissionErrorCode.TEAM_NOT_AVAILABLE);
-        BusinessException.throwIf(!Boolean.TRUE.equals(result.getData().getMember()),
-                SubmissionErrorCode.NOT_TEAM_MEMBER);
-        BusinessException.throwIf(!Boolean.TRUE.equals(result.getData().getCanSubmit()),
-                SubmissionErrorCode.SUBMISSION_PERMISSION_DENIED);
-        return result.getData();
-    }
-
-    private void validateWindow(TeamSubmissionAccessDTO access) {
-        BusinessException.throwIf(!"IN_PROGRESS".equals(access.getPracticeStatus()),
-                SubmissionErrorCode.PRACTICE_NOT_STARTED);
-        BusinessException.throwIf(access.getDeadlineAt() == null
-                        || !LocalDateTime.now().isBefore(access.getDeadlineAt()),
-                SubmissionErrorCode.DEADLINE_PASSED);
-    }
-
-    private void validatePdf(MultipartFile file) {
-        BusinessException.throwIf(file != null && file.getSize() > MAX_PDF_SIZE,
-                SubmissionErrorCode.PDF_SIZE_EXCEEDED);
-        boolean metadata = file != null && !file.isEmpty()
-                && "application/pdf".equalsIgnoreCase(file.getContentType())
-                && file.getOriginalFilename() != null
-                && file.getOriginalFilename().toLowerCase().endsWith(".pdf");
-        BusinessException.throwIf(!metadata, SubmissionErrorCode.PDF_ONLY);
-        try {
-            byte[] header = file.getInputStream().readNBytes(5);
-            BusinessException.throwIf(header.length != 5 || !"%PDF-".equals(new String(header)),
-                    SubmissionErrorCode.PDF_ONLY);
-        } catch (IOException exception) {
-            throw new BusinessException(SubmissionErrorCode.PDF_ONLY);
-        }
     }
 
     private Submission requiredSubmission(Long id) {

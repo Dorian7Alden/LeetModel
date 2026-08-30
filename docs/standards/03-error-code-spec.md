@@ -129,6 +129,33 @@ A - BB - CC
 | PRODUCTION_CHANGE_CONFLICT | 40507 | 生产配置已经变化 |
 | PRODUCTION_DEPENDENCY_UNAVAILABLE | 50501 | AI 客服目标配置依赖暂不可用 |
 
+### BB=06：作品提交（SubmissionErrorCode）
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| TEAM_NOT_AVAILABLE | 40601 | 队伍不存在或暂不可用 |
+| NOT_TEAM_MEMBER | 40602 | 用户不是队伍成员 |
+| PRACTICE_NOT_STARTED | 40603 | 练习尚未开始 |
+| DEADLINE_PASSED | 40604 | 提交截止时间已过 |
+| PDF_ONLY | 40605 | 仅支持 PDF 文件 |
+| SUBMISSION_NOT_FOUND | 40606 | 提交记录不存在 |
+| FINAL_SUBMISSION_NOT_FOUND | 40607 | 没有可锁定的成功提交 |
+| DEADLINE_NOT_REACHED | 40608 | 截止时间尚未到达 |
+| SUBMISSION_PERMISSION_DENIED | 40609 | 当前成员没有作品提交权限 |
+| PDF_SIZE_EXCEEDED | 40610 | 论文 PDF 超过 20MB |
+| UPLOAD_NOT_FOUND | 40611 | 上传会话不存在或不属于当前用户 |
+| UPLOAD_ALREADY_ACTIVE | 40612 | 队伍已有其他成员正在上传论文 |
+| UPLOAD_STATE_INVALID | 40613 | 上传会话状态不允许当前操作 |
+| UPLOAD_EXPIRED | 40614 | 上传会话已过期 |
+| CHUNK_INDEX_INVALID | 40615 | 分片序号不正确 |
+| CHUNK_SIZE_INVALID | 40616 | 分片大小不正确 |
+| CHUNK_CHECKSUM_MISMATCH | 40617 | 分片摘要校验失败 |
+| CHUNK_CONFLICT | 40618 | 同序号分片内容冲突 |
+| CHUNK_MISSING | 40619 | 分片尚未全部上传 |
+| FILE_CHECKSUM_MISMATCH | 40620 | 合并文件大小或摘要校验失败 |
+| UPLOAD_COMPLETING | 40621 | 论文正在合并 |
+| REVIEW_TASK_CREATE_FAILED | 50601 | 评审任务创建失败 |
+
 ### BB=11：AI 质量评价
 
 | 常量 | 编码 | 说明 |
