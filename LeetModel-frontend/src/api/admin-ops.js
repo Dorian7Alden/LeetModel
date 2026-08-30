@@ -32,6 +32,10 @@ export function getAdminRanking(problemId, keyword) {
   });
 }
 
+export function getAdminGlobalRankingStats() {
+  return request({ url: "/admin/rankings/global-stats", method: "get" });
+}
+
 export function rebuildAdminRanking(problemId) {
   return request({ url: `/admin/rankings/problems/${problemId}/rebuild`, method: "post" });
 }
