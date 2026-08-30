@@ -20,13 +20,13 @@ export default [
       {
         path: "access",
         name: "AdminAccess",
-        component: () => import("@/views/admin/pages/UserListPage.vue"),
+        component: () => import("@/views/admin/pages/AccessControlPage.vue"),
         meta: { title: "访问控制", description: "用户、角色与权限策略", icon: "Lock" },
       },
       {
         path: "content",
         name: "AdminContent",
-        component: () => import("@/views/admin/pages/ProblemListPage.vue"),
+        component: () => import("@/views/admin/pages/ContentHubPage.vue"),
         meta: { title: "内容中心", description: "题目、标签与赛事内容", icon: "Reading" },
       },
       {
