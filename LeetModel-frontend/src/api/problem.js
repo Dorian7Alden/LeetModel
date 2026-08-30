@@ -92,6 +92,10 @@ export function getAdminContentContests() {
   return request({ url: "/admin/content/contests", method: "get" });
 }
 
+export function updateAdminContentContest(contestId, data) {
+  return request({ url: `/admin/content/contests/${contestId}`, method: "put", data });
+}
+
 export function uploadAdminAttachment(problemId, file, options = {}) {
   const formData = new FormData();
   formData.append("file", file);

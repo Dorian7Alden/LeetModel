@@ -8,6 +8,10 @@ export function getAdminSubmissions(limit = 20) {
   return request({ url: "/admin/submissions", method: "get", params: { limit } });
 }
 
+export function getAdminSubmissionPreview(submissionId) {
+  return request({ url: `/admin/submissions/${submissionId}/preview`, method: "get" });
+}
+
 export function getAdminReviews(limit = 20) {
   return request({ url: "/admin/reviews", method: "get", params: { limit } });
 }
