@@ -2,6 +2,7 @@ package com.leetmodel.ranking.controller;
 
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.ranking.service.RankingService;
+import com.leetmodel.ranking.vo.GlobalRankingOverviewVO;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -31,5 +32,11 @@ public class InternalRankingController {
     @GetMapping("/count")
     public Result<Long> count() {
         return Result.ok(rankingService.countCurrent());
+    }
+
+    @Operation(summary = "获取全局排行统计")
+    @GetMapping("/global-stats")
+    public Result<GlobalRankingOverviewVO> globalStats() {
+        return Result.ok(rankingService.getGlobalStats());
     }
 }

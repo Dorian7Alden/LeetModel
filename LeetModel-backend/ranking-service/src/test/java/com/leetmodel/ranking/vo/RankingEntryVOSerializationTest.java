@@ -19,4 +19,17 @@ class RankingEntryVOSerializationTest {
         assertThat(json).contains("\"teamId\":\"9007199254740993\"");
         assertThat(json).contains("\"submissionId\":\"9007199254740995\"");
     }
+
+    @Test
+    void serializesGlobalProblemIdentifierAsStringButKeepsMetricsNumeric() throws Exception {
+        ProblemRankingStatsVO stats = ProblemRankingStatsVO.builder()
+                .problemId(2_092_421_535_190_147_074L)
+                .submissionCount(4L)
+                .build();
+
+        String json = new ObjectMapper().writeValueAsString(stats);
+
+        assertThat(json).contains("\"problemId\":\"2092421535190147074\"");
+        assertThat(json).contains("\"submissionCount\":4");
+    }
 }

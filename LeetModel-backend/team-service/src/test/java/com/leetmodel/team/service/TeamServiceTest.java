@@ -321,6 +321,35 @@ class TeamServiceTest {
     }
 
     @Test
+    @DisplayName("公共队伍查询遇到已删除成员时降级展示")
+    void pagePublicTeamsToleratesMissingUserSummary() {
+        TeamMember deletedMember = new TeamMember();
+        deletedMember.setId(12L);
+        deletedMember.setTeamId(1L);
+        deletedMember.setUserId(99L);
+        deletedMember.setRole("member");
+        deletedMember.setJoinedAt(LocalDateTime.now());
+        Page<Team> resultPage = new Page<>(1, 9, 1);
+        resultPage.setRecords(List.of(team));
+        when(teamMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenReturn(resultPage);
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of(deletedMember));
+        when(userFeignClient.getPublicSummaries(List.of(99L))).thenReturn(Result.ok(List.of()));
+        when(problemFeignClient.getPracticeProblems(List.of(100L)))
+                .thenReturn(Result.ok(List.of(new ProblemPracticeDTO(100L, 1001, "测试题目", 180, 1))));
+        when(applicationMapper.selectList(any())).thenReturn(List.of());
+        when(recruitmentMapper.selectList(any())).thenReturn(List.of());
+        TeamPublicPageQuery query = new TeamPublicPageQuery();
+        query.setPage(1);
+        query.setPageSize(9);
+
+        PageResult<TeamVO> result = teamService.pagePublicTeams(query, 20L);
+
+        assertEquals(1, result.getRows().size());
+        assertEquals(99L, result.getRows().get(0).getMembers().get(0).getUserId());
+        assertNull(result.getRows().get(0).getMembers().get(0).getNickname());
+    }
+
+    @Test
     @DisplayName("更新成员专业角色成功 —— 支持多选")
     void updateMemberRolesSuccess() {
         TeamMember member = new TeamMember();

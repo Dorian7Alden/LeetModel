@@ -3,6 +3,7 @@ package com.leetmodel.submission.service;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
+import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
@@ -143,6 +144,19 @@ class SubmissionServiceTest {
         assertTrue(result.get(0).getFinalVersion());
         assertFalse(result.get(1).getFinalVersion());
         verify(submissionMapper).selectList(any());
+    }
+
+    @Test
+    void createPreviewUrlOnlyWhenRequestedBySubmissionId() {
+        when(submissionMapper.selectById(101L)).thenReturn(submission(101L, 1));
+        when(storageService.getUrl("submissions/1/paper.pdf"))
+                .thenReturn("http://minio.test/presigned-paper.pdf");
+
+        SubmissionPreviewDTO preview = service.getPreview(101L);
+
+        assertEquals(101L, preview.getSubmissionId());
+        assertEquals("paper.pdf", preview.getOriginalFilename());
+        assertEquals("http://minio.test/presigned-paper.pdf", preview.getPreviewUrl());
     }
 
     private TeamDTO team() {

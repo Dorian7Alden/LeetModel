@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
+import com.leetmodel.common.api.dto.AiModelCallStatsDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -17,6 +18,8 @@ import java.util.List;
 public interface AiCallLogMapper extends BaseMapper<AiCallLog> {
 
     AiCallStatsDTO selectStats(AiCallQueryDTO query);
+
+    List<AiModelCallStatsDTO> selectModelStats(AiCallQueryDTO query);
 
     @Select("""
             SELECT * FROM ai_call_log

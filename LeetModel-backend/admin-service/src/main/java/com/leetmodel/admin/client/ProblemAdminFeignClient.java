@@ -32,6 +32,8 @@ public interface ProblemAdminFeignClient {
                                                            @RequestBody Map<String, Object> request);
     @DeleteMapping("/api/tags/{id}") Result<Void> deleteTag(@PathVariable("id") Long id);
     @GetMapping("/api/contests") Result<Object> listContests();
+    @PutMapping("/api/contests/{id}") Result<Object> updateContest(@PathVariable("id") Long id,
+                                                                   @RequestBody Map<String, Object> request);
 
     @PostMapping(value = "/api/problems/{id}/attachments", consumes = "multipart/form-data")
     Result<Object> uploadAttachment(@PathVariable("id") Long id,

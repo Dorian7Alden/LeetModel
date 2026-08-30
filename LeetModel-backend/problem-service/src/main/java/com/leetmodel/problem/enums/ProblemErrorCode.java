@@ -37,6 +37,7 @@ public enum ProblemErrorCode implements ErrorCode {
     STORAGE_NOT_ENABLED(40411, "附件存储服务未启用"),
     TAG_TYPE_CONFLICT(40412, "背景领域和题目类型分别只能选择一个标签"),
     INVALID_SCORE_RANGE(40413, "最低分不能大于最高分"),
+    CONTEST_CODE_DUPLICATE(40414, "赛事编码已存在"),
     PROBLEM_POOL_EXHAUSTED(40409, "题号已达上限，无法创建更多题目"),
     ;
 

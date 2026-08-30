@@ -10,11 +10,14 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingResponse;
-import com.leetmodel.common.ai.model.AiModelInfo;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.AiCallLogDTO;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiModelCallStatsDTO;
+import com.leetmodel.common.api.dto.AiCallFilterOptionsDTO;
+import com.leetmodel.common.api.dto.AiProviderModelDTO;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
@@ -78,8 +81,11 @@ public class InternalAiController {
      */
     @Operation(summary = "查询供应商官方模型列表")
     @GetMapping("/models/{provider}")
-    public Result<List<AiModelInfo>> listModels(@PathVariable AiProvider provider) {
-        return Result.ok(aiModelService.listModels(provider));
+    public Result<List<AiProviderModelDTO>> listModels(@PathVariable AiProvider provider) {
+        return Result.ok(aiModelService.listModels(provider).stream()
+                .map(model -> new AiProviderModelDTO(
+                        model.id(), model.provider().name(), model.ownedBy()))
+                .toList());
     }
 
     @Operation(summary = "查询最近 AI 调用审计")
@@ -88,10 +94,28 @@ public class InternalAiController {
         return Result.ok(aiCallAuditService.list(query));
     }
 
+    @Operation(summary = "分页查询 AI 调用审计")
+    @GetMapping("/calls/page")
+    public Result<PageResult<AiCallLogDTO>> pageCalls(@Valid AiCallQueryDTO query) {
+        return Result.ok(aiCallAuditService.page(query));
+    }
+
     @Operation(summary = "查询 AI 调用运行摘要")
     @GetMapping("/calls/stats")
     public Result<AiCallStatsDTO> callStats(@Valid AiCallQueryDTO query) {
         return Result.ok(aiCallAuditService.stats(query));
+    }
+
+    @Operation(summary = "按模型聚合 AI 调用事实")
+    @GetMapping("/calls/model-stats")
+    public Result<List<AiModelCallStatsDTO>> modelStats(@Valid AiCallQueryDTO query) {
+        return Result.ok(aiCallAuditService.modelStats(query));
+    }
+
+    @Operation(summary = "查询 AI 调用日志筛选项")
+    @GetMapping("/calls/filter-options")
+    public Result<AiCallFilterOptionsDTO> filterOptions() {
+        return Result.ok(aiCallAuditService.filterOptions());
     }
 
     @Operation(summary = "查询 AI 调用队列元数据")

@@ -157,6 +157,31 @@ class AiMeteringIntegrationTest {
             assertThat(row.getVectorDimension()).isEqualTo(2);
             assertThat(row.getInputTokens()).isEqualTo(6L);
         });
+
+        AiCallQueryDTO pageQuery = new AiCallQueryDTO();
+        pageQuery.setPage(1);
+        pageQuery.setPageSize(10);
+        var page = auditService.page(pageQuery);
+        assertThat(page.getTotal()).isEqualTo(4L);
+        assertThat(page.getRows()).hasSize(4);
+
+        assertThat(auditService.modelStats(new AiCallQueryDTO()))
+                .anySatisfy(item -> {
+                    assertThat(item.getCallType()).isEqualTo("CHAT");
+                    assertThat(item.getModel()).isEqualTo("deepseek-v4-flash");
+                    assertThat(item.getTotalCount()).isEqualTo(3L);
+                })
+                .anySatisfy(item -> {
+                    assertThat(item.getCallType()).isEqualTo("EMBEDDING");
+                    assertThat(item.getModel()).isEqualTo("embedding-model");
+                    assertThat(item.getTotalCount()).isEqualTo(1L);
+                });
+
+        var filterOptions = auditService.filterOptions();
+        assertThat(filterOptions.getFeatureCodes()).contains("PAPER_REVIEW", "RAG");
+        assertThat(filterOptions.getOperationCodes()).contains("EXPERIMENT_REVIEW", "INDEX_DOCUMENTS");
+        assertThat(filterOptions.getEvaluationTaskIds()).contains("evaluation:1", "evaluation:2", "evaluation:3");
+        assertThat(filterOptions.getModels()).contains("deepseek-v4-flash", "embedding-model");
     }
 
     private AiChatRequest request(String businessTaskId, String evaluationTaskId) {

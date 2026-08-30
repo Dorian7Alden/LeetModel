@@ -874,7 +874,12 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 ErrorCodeEnum.SYSTEM_ERROR);
         Map<Long, UserPublicSummaryDTO> summaries = new HashMap<>();
         for (UserPublicSummaryDTO summary : result.getData()) summaries.put(summary.getUserId(), summary);
-        BusinessException.throwIf(summaries.size() != distinctIds.size(), ErrorCodeEnum.SYSTEM_ERROR);
+        List<Long> missingIds = distinctIds.stream().filter(id -> !summaries.containsKey(id)).toList();
+        if (!missingIds.isEmpty()) {
+            // 用户属于其他服务的数据。历史队伍可能在用户清理后暂时保留，
+            // 列表展示应降级为空摘要，而不是让一条孤儿引用拖垮整页。
+            log.warn("用户公开摘要缺失，按空摘要降级展示: userIds={}", missingIds);
+        }
         return summaries;
     }
 

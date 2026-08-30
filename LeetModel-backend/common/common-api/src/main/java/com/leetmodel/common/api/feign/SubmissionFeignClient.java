@@ -2,6 +2,8 @@ package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
+import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +25,12 @@ public interface SubmissionFeignClient {
     @GetMapping("/internal/submissions/count")
     Result<Long> getSubmissionCount();
 
+    @GetMapping("/internal/submissions/stats/problems")
+    Result<List<ProblemSubmissionStatsDTO>> getProblemSubmissionStats();
+
     @GetMapping("/internal/submissions/recent")
     Result<List<SubmissionSnapshotDTO>> listRecent(@RequestParam("limit") Integer limit);
+
+    @GetMapping("/internal/submissions/{submissionId}/preview")
+    Result<SubmissionPreviewDTO> getPreview(@PathVariable Long submissionId);
 }

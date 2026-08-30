@@ -35,6 +35,16 @@
       </div>
     </div>
 
+    <div class="health-strip">
+      <div class="health-copy">
+        <span class="health-dot" :class="{ warning: partialFailure }"></span>
+        <span><strong>{{ partialFailure ? '部分服务需要关注' : '聚合链路运行正常' }}</strong><small>{{ availableMetricCount }}/{{ cardConfigs.length }} 个领域指标可用</small></span>
+      </div>
+      <div class="health-progress"><el-progress :percentage="availabilityRate" :stroke-width="7" :show-text="false" :color="partialFailure ? '#d97706' : '#16a34a'" /></div>
+      <div class="health-ai"><small>AI 调用成功率</small><strong>{{ aiSuccessRate }}</strong></div>
+      <div class="health-time"><small>数据时点</small><strong>{{ generatedAt || '等待刷新' }}</strong></div>
+    </div>
+
     <section class="charts-section">
       <div class="chart-row">
         <el-card shadow="never" class="chart-card">
@@ -63,17 +73,11 @@
       <h3 class="section-title">管理入口</h3>
       <div class="quick-grid">
         <router-link v-for="item in quickLinks" :key="item.path" :to="item.path" class="quick-link">
-          <el-icon :size="18"><component :is="item.icon" /></el-icon>
-          <span>{{ item.title }}</span>
+          <span class="quick-icon"><el-icon :size="19"><component :is="item.icon" /></el-icon></span>
+          <span class="quick-copy"><strong>{{ item.title }}</strong><small>{{ item.description }}</small></span>
+          <el-icon class="quick-arrow"><ArrowRight /></el-icon>
         </router-link>
       </div>
-    </section>
-
-    <section class="note-section">
-      <el-card shadow="never">
-        <template #header>关于数据</template>
-        <p>所有指标均由 admin-service 实时聚合，单个下游失败会独立标记为不可用，不会用零值掩盖故障。</p>
-      </el-card>
     </section>
   </div>
 </template>
@@ -110,18 +114,18 @@ const cardConfigs = [
 ];
 
 const quickLinks = [
-  { path: "/admin/problem/list", title: "题目管理", icon: "Document" },
-  { path: "/admin/tags/list", title: "标签管理", icon: "Collection" },
-  { path: "/admin/users/list", title: "用户管理", icon: "User" },
-  { path: "/admin/role/list", title: "角色管理", icon: "UserFilled" },
-  { path: "/admin/submissions/list", title: "提交管理", icon: "Upload" },
-  { path: "/admin/teams/list", title: "队伍管理", icon: "UserFilled" },
-  { path: "/admin/reviews/list", title: "评审管理", icon: "DataAnalysis" },
-  { path: "/admin/suggestions/list", title: "建议管理", icon: "ChatDotRound" },
-  { path: "/admin/rankings/list", title: "排行榜管理", icon: "Trophy" },
-  { path: "/admin/ai-calls/list", title: "AI 调用", icon: "Cpu" },
-  { path: "/admin/evaluations/list", title: "质量评价", icon: "Histogram" },
+  { path: "/admin/access", title: "访问控制", description: "用户、角色与授权策略", icon: "Lock" },
+  { path: "/admin/content", title: "内容中心", description: "题目、标签与赛事语境", icon: "Reading" },
+  { path: "/admin/operations", title: "业务运营", description: "组队、提交、评审与排行", icon: "TrendCharts" },
+  { path: "/admin/ai", title: "AI 中枢", description: "调用、评价与版本治理", icon: "Cpu" },
 ];
+
+const availableMetricCount = computed(() => cardConfigs.filter((config) => metrics.value[config.key]?.available !== false && metrics.value[config.key]).length);
+const availabilityRate = computed(() => Math.round((availableMetricCount.value / cardConfigs.length) * 100));
+const aiSuccessRate = computed(() => {
+  const total = Number(aiStats.value?.totalCount || 0);
+  return total ? `${Math.round(Number(aiStats.value?.successCount || 0) / total * 1000) / 10}%` : "—";
+});
 
 const metricCards = computed(() =>
   cardConfigs.map((config) => {
@@ -175,8 +179,12 @@ function renderCharts() {
         .filter((item) => item.show);
       metricChart.setOption({
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-        grid: { left: "3%", right: "4%", bottom: "3%", top: "12%", containLabel: true },
-        xAxis: { type: "category", data: data.map((d) => d.name), axisLabel: { color: "#64748b", fontSize: 11 } },
+        grid: { left: "3%", right: "4%", bottom: "10%", top: "12%", containLabel: true },
+        xAxis: {
+          type: "category",
+          data: data.map((d) => d.name),
+          axisLabel: { color: "#64748b", fontSize: 10, interval: 0, rotate: 24, hideOverlap: false },
+        },
         yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#f1f5f9" } } },
         series: [{
           type: "bar",
@@ -234,7 +242,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.dashboard-page { padding: 24px; }
+.dashboard-page { padding: 0; }
 .partial-alert { margin-bottom: 20px; }
 .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .page-title { margin: 0; font-size: 22px; color: var(--lm-text-primary); }
@@ -247,6 +255,13 @@ onBeforeUnmount(() => {
 .metric-title { font-size: 12px; color: var(--lm-text-muted); }
 .metric-value { font-size: 24px; line-height: 1.2; color: var(--lm-text-primary); }
 .metric-message { font-size: 11px; color: var(--lm-warning); }
+.health-strip { display: grid; grid-template-columns: minmax(210px, 1.2fr) minmax(150px, 1fr) minmax(120px, .6fr) minmax(170px, .8fr); align-items: center; gap: 18px; margin-top: 14px; padding: 13px 18px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 11px; }
+.health-copy { display: flex; align-items: center; gap: 10px; }
+.health-copy > span:last-child, .health-ai, .health-time { display: flex; flex-direction: column; }
+.health-copy strong, .health-ai strong, .health-time strong { color: var(--lm-text-primary); font-size: 12px; }
+.health-copy small, .health-ai small, .health-time small { color: var(--lm-text-muted); font-size: 10px; }
+.health-dot { width: 9px; height: 9px; flex: 0 0 9px; background: var(--lm-success); border-radius: 50%; box-shadow: 0 0 0 5px var(--lm-success-bg); }
+.health-dot.warning { background: var(--lm-warning); box-shadow: 0 0 0 5px var(--lm-warning-bg); }
 .charts-section { margin-top: 28px; }
 .chart-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .chart-card :deep(.el-card__header) { padding: 14px 18px; }
@@ -256,12 +271,15 @@ onBeforeUnmount(() => {
 .chart-container { width: 100%; height: 260px; }
 .quick-section { margin-top: 32px; }
 .section-title { margin: 0 0 14px; font-size: 16px; color: var(--lm-text-primary); }
-.quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.quick-link { display: flex; align-items: center; gap: 8px; padding: 14px 16px; color: var(--lm-text-secondary); background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 10px; text-decoration: none; transition: border-color var(--lm-transition), color var(--lm-transition); }
-.quick-link:hover { color: var(--lm-primary); border-color: var(--lm-primary); }
-.note-section { margin-top: 32px; }
-.note-section p { margin: 0; color: var(--lm-text-secondary); font-size: 13px; line-height: 1.7; }
-@media (max-width: 1200px) { .metric-grid, .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.quick-link { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 16px; color: var(--lm-text-secondary); background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 11px; text-decoration: none; transition: border-color var(--lm-transition), transform var(--lm-transition), box-shadow var(--lm-transition); }
+.quick-link:hover { color: var(--lm-primary); border-color: #bfdbfe; box-shadow: var(--lm-shadow-sm); transform: translateY(-1px); }
+.quick-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; color: var(--lm-primary); background: var(--lm-primary-bg); border-radius: 9px; }
+.quick-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.quick-copy strong { color: var(--lm-text-primary); font-size: 13px; }
+.quick-copy small { margin-top: 3px; overflow: hidden; color: var(--lm-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.quick-arrow { color: var(--lm-text-muted); }
+@media (max-width: 1200px) { .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .health-strip { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 1200px) { .chart-row { grid-template-columns: 1fr; } }
-@media (max-width: 720px) { .metric-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-page { padding: 16px; } }
+@media (max-width: 720px) { .metric-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

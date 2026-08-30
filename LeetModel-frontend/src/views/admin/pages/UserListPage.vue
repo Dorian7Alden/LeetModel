@@ -51,10 +51,11 @@
           v-model:current-page="page"
           v-model:page-size="pageSize"
           background
-          layout="prev, pager, next, total"
+          layout="total, sizes, prev, pager, next, jumper"
+          :page-sizes="[10, 20, 50]"
           :total="total"
           @current-change="load"
-          @size-change="load"
+          @size-change="handleSizeChange"
         />
       </div>
     </el-card>
@@ -86,7 +87,7 @@ const savingRoles = ref(false);
 const keyword = ref("");
 const status = ref(null);
 const page = ref(1);
-const pageSize = ref(20);
+const pageSize = ref(10);
 const total = ref(0);
 const roleDialogVisible = ref(false);
 const selectedUser = ref(null);
@@ -111,6 +112,11 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+function handleSizeChange() {
+  page.value = 1;
+  load();
 }
 
 async function openRoles(row) {

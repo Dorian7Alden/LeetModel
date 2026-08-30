@@ -20,7 +20,11 @@
         <el-table-column label="题号" width="90">
           <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
         </el-table-column>
-        <el-table-column prop="title" label="题目名称" min-width="200" />
+        <el-table-column prop="title" label="题目名称" min-width="220">
+          <template #default="scope">
+            <button class="problem-title-link" @click="openPreview(scope.row)">{{ scope.row.title }}</button>
+          </template>
+        </el-table-column>
         <el-table-column prop="contestName" label="赛事" width="180" />
         <el-table-column prop="year" label="年份" width="80" />
         <el-table-column prop="statementLanguage" label="题面" width="70"><template #default="scope">{{ scope.row.statementLanguage === 'EN' ? '英文' : '中文' }}</template></el-table-column>
@@ -40,8 +44,9 @@
         <el-table-column label="更新时间" width="180">
           <template #default="scope">{{ formatTime(scope.row.updateTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="scope">
+            <el-button size="small" type="success" link @click="openPreview(scope.row)">预览</el-button>
             <el-button size="small" type="primary" link @click="openEditDialog(scope.row)">编辑</el-button>
             <el-button size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
@@ -117,11 +122,35 @@
         <el-button type="primary" :loading="submitLoading" @click="onSubmit">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="previewVisible" size="min(860px, 76vw)" class="problem-preview-drawer" destroy-on-close>
+      <template #header>
+        <div class="preview-drawer-title">
+          <span class="preview-kicker">题目发布预览</span>
+          <strong>{{ previewProblem?.title || '加载中' }}</strong>
+        </div>
+      </template>
+      <div v-loading="previewLoading" class="preview-body">
+        <template v-if="previewProblem">
+          <div class="preview-meta">
+            <span><small>题号</small><strong>{{ previewProblem.code ?? previewProblem.id }}</strong></span>
+            <span><small>赛事</small><strong>{{ previewProblem.contestName || '未设置' }}</strong></span>
+            <span><small>年份</small><strong>{{ previewProblem.year || '—' }}</strong></span>
+            <span><small>难度</small><strong>{{ getDifficultyLabel(previewProblem.difficulty) }}</strong></span>
+          </div>
+          <div v-if="previewTagNames.length" class="preview-tags">
+            <el-tag v-for="tag in previewTagNames" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+          </div>
+          <article v-if="renderedPreview" class="markdown-body problem-markdown" v-html="renderedPreview"></article>
+          <el-empty v-else description="该题目尚未填写 Markdown 题面" />
+        </template>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 const formatTime = (val) => {
   if (!val) return '-';
@@ -134,6 +163,7 @@ const formatTime = (val) => {
 };
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import { renderSafeMarkdown } from '@/utils/markdown';
 import {
   getAdminContentProblems,
   getAdminContentProblem,
@@ -152,6 +182,14 @@ const pageSize = ref(10);
 const total = ref(0);
 const contests = ref([]);
 const tags = ref([]);
+const previewVisible = ref(false);
+const previewLoading = ref(false);
+const previewProblem = ref(null);
+const renderedPreview = computed(() => renderSafeMarkdown(previewProblem.value?.contentMarkdown || ''));
+const previewTagNames = computed(() => {
+  const value = previewProblem.value?.tagNames || previewProblem.value?.tags || [];
+  return value.map((item) => typeof item === 'string' ? item : item.name).filter(Boolean);
+});
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -217,6 +255,25 @@ const openCreateDialog = () => {
   isEdit.value = false;
   editId.value = null;
   dialogVisible.value = true;
+};
+
+const openPreview = async (row) => {
+  previewProblem.value = { ...row };
+  previewVisible.value = true;
+  previewLoading.value = true;
+  try {
+    const res = await getAdminContentProblem(row.id);
+    if (res.code === 20000 && res.data) {
+      previewProblem.value = res.data;
+    } else {
+      ElMessage.error(res.msg || '获取题目详情失败');
+    }
+  } catch (error) {
+    console.error('获取题目预览失败', error);
+    ElMessage.error(error.message || '题目预览加载失败');
+  } finally {
+    previewLoading.value = false;
+  }
 };
 
 const openEditDialog = async (row) => {
@@ -321,6 +378,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+@import 'github-markdown-css/github-markdown-light.css';
 .action-bar {
   display: flex;
   justify-content: space-between;
@@ -341,4 +399,18 @@ onMounted(() => {
   font-size: 13px;
 }
 .field-tip { margin-left: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
+.problem-title-link { max-width: 100%; overflow: hidden; padding: 0; color: var(--lm-text-primary); background: transparent; border: 0; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.problem-title-link:hover { color: var(--lm-primary); }
+.preview-drawer-title { display: flex; min-width: 0; flex-direction: column; }
+.preview-drawer-title .preview-kicker { margin-bottom: 4px; color: var(--lm-primary); font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+.preview-drawer-title strong { overflow: hidden; color: var(--lm-text-primary); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.preview-body { min-height: 280px; }
+.preview-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.preview-meta span { display: flex; min-width: 0; flex-direction: column; padding: 12px 14px; background: var(--lm-bg-secondary); border-radius: 9px; }
+.preview-meta small { color: var(--lm-text-muted); font-size: 10px; }
+.preview-meta strong { margin-top: 3px; overflow: hidden; color: var(--lm-text-primary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.preview-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.problem-markdown { min-height: 320px; padding: 28px 32px; color: #1f2937; background: #fff; border: 1px solid var(--lm-border); border-radius: 12px; }
+.problem-preview-drawer :deep(.el-drawer__header) { margin-bottom: 0; padding: 20px 24px; border-bottom: 1px solid var(--lm-border); }
+.problem-preview-drawer :deep(.el-drawer__body) { padding: 22px 24px 32px; background: #f8fafc; }
 </style>

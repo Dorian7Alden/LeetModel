@@ -47,4 +47,19 @@
           FROM ai_call_log
          WHERE <include refid="queryConditions"/>
     </select>
+
+    <select id="selectModelStats" parameterType="com.leetmodel.common.api.dto.AiCallQueryDTO"
+            resultType="com.leetmodel.common.api.dto.AiModelCallStatsDTO">
+        SELECT provider,
+               model,
+               call_type,
+               COUNT(*) AS total_count,
+               COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' THEN 1 ELSE 0 END), 0) AS success_count,
+               COALESCE(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failure_count,
+               ROUND(AVG(total_ms)) AS average_total_ms
+          FROM ai_call_log
+         WHERE <include refid="queryConditions"/>
+         GROUP BY provider, model, call_type
+         ORDER BY total_count DESC, provider ASC, model ASC
+    </select>
 </mapper>
