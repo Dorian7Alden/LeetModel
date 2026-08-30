@@ -18,6 +18,9 @@ import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.ai.model.AiToolChoice;
+import com.leetmodel.common.ai.model.AiToolChoiceType;
+import com.leetmodel.common.ai.model.AiToolDefinition;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,6 +84,84 @@ public class AssistantWorkflow {
     public AiChatResponse reply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
                                 List<ProblemOptionDTO> candidates,
                                 AssistantProductionSnapshot snapshot) throws JsonProcessingException {
+        List<AiMessage> messages = productionMessages(history, currentUserMessage,
+                candidates, snapshot);
+        String taskId = currentUserMessage.getId() == null
+                ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
+                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
+                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(), AiCallPriority.P0,
+                "assistant:" + taskId, Instant.now().plusSeconds(240));
+        AiChatResponse response = aiClient.chat(new AiChatRequest(
+                AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
+        if (response == null || response.content() == null || response.content().isBlank()) {
+            throw new IllegalArgumentException("AI 网关未返回客服回复");
+        }
+        return response;
+    }
+
+    /**
+     * 构造标准工具调用使用的生产对话消息，不注入旧关键词预取候选。
+     *
+     * @param history 最近已完成消息
+     * @param currentUserMessage 当前用户消息
+     * @param snapshot 不可变生产快照
+     * @return 系统、RAG 和历史消息
+     */
+    public List<AiMessage> toolConversationMessages(List<AssistantMessage> history,
+                                                    AssistantMessage currentUserMessage,
+                                                    AssistantProductionSnapshot snapshot)
+            throws JsonProcessingException {
+        return productionMessages(history, currentUserMessage, null, snapshot);
+    }
+
+    /**
+     * 执行工具循环中的一次规划或最终回答调用。
+     *
+     * @param messages 当前完整对话消息
+     * @param tools 当前快照允许的工具定义
+     * @param currentUserMessage 触发消息
+     * @param assistantMessageId 承载最终回复的消息
+     * @param attemptNo 生成尝试序号
+     * @param chatSequence 本次尝试内的 AI 调用序号
+     * @param deadline 整条回复共享截止时间
+     * @param snapshot 不可变生产快照
+     * @return 文本或结构化工具调用响应
+     */
+    public AiChatResponse toolChat(List<AiMessage> messages, List<AiToolDefinition> tools,
+                                   AssistantMessage currentUserMessage, Long assistantMessageId,
+                                   int attemptNo, int chatSequence, Instant deadline,
+                                   AssistantProductionSnapshot snapshot) {
+        String taskId = "message:" + currentUserMessage.getId();
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
+                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
+                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(),
+                AiCallPriority.P0,
+                "assistant:" + assistantMessageId + ":attempt:" + attemptNo
+                        + ":chat:" + chatSequence,
+                deadline);
+        AiChatResponse response = aiClient.chat(new AiChatRequest(
+                AiModality.TEXT, context, List.copyOf(messages), 1500, 0.2,
+                AiResponseFormat.TEXT, false, tools,
+                new AiToolChoice(AiToolChoiceType.AUTO, null)));
+        boolean hasToolCalls = response != null && response.toolCalls() != null
+                && !response.toolCalls().isEmpty();
+        boolean hasContent = response != null && response.content() != null
+                && !response.content().isBlank();
+        if (!hasToolCalls && !hasContent) {
+            throw new IllegalArgumentException("AI 网关未返回客服回复或工具调用");
+        }
+        return response;
+    }
+
+    /** 构造正式回复共享的系统、RAG 和历史消息。 */
+    private List<AiMessage> productionMessages(List<AssistantMessage> history,
+                                               AssistantMessage currentUserMessage,
+                                               List<ProblemOptionDTO> candidates,
+                                               AssistantProductionSnapshot snapshot)
+            throws JsonProcessingException {
         RagWorkflowContext ragContext = productionRagContext(currentUserMessage.getContent(), snapshot);
         List<AiMessage> messages = new ArrayList<>();
         messages.add(message(AiRole.SYSTEM, systemPrompt));
@@ -96,19 +177,7 @@ public class AssistantWorkflow {
             }
             messages.add(message(role, content));
         }
-        String taskId = currentUserMessage.getId() == null
-                ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
-        AiCallContext context = new AiCallContext(
-                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
-                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
-                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(), AiCallPriority.P0,
-                "assistant:" + taskId, Instant.now().plusSeconds(240));
-        AiChatResponse response = aiClient.chat(new AiChatRequest(
-                AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false));
-        if (response == null || response.content() == null || response.content().isBlank()) {
-            throw new IllegalArgumentException("AI 网关未返回客服回复");
-        }
-        return response;
+        return messages;
     }
 
     private RagWorkflowContext productionRagContext(String question,

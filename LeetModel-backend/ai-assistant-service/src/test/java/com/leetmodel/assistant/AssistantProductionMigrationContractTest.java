@@ -29,4 +29,25 @@ class AssistantProductionMigrationContractTest {
                 .contains("WHERE `role` = 'ASSISTANT'");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
     }
+
+    @Test
+    void v5CreatesVersionedToolCallAuditWithoutDestructiveStatements() throws Exception {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V5__create_assistant_tool_call.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("CREATE TABLE `assistant_tool_call`")
+                .contains("`attempt_no` INT NOT NULL")
+                .contains("`sequence_no` INT NOT NULL")
+                .contains("`toolset_version` VARCHAR(64) NOT NULL")
+                .contains("`arguments_json` JSON NULL")
+                .contains("`result_snapshot_json` JSON NULL")
+                .contains("`planning_ai_call_id` VARCHAR(64) NULL")
+                .contains("UNIQUE INDEX `uk_message_attempt_sequence`")
+                .contains("INDEX `idx_tool_status_create_time`");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }
