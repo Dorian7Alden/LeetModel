@@ -69,12 +69,13 @@ S0 至 S10、M1 和 U1 已完成。现进入 S11 AI 客服受控工具调用阶�
 
 验收：`deepseek-v4-flash` 经 new-api 的 `tool_choice=auto` 黑盒请求返回标准工具调用；common-ai 与 ai-gateway-service 共 93 项目标测试通过，后端 17 模块编译通过。公共协议、模型目录能力和不可变执行配置双重门禁已落地。
 
-#### [~] S11-02 题目查询内部契约
+#### [x] S11-02 题目查询内部契约
 
 - 为 problem-service 增加仅返回已发布题目的客服查询接口，支持题号/关键词查询和赛事、年份、难度、语言、时长等确定性筛选，单次最多返回 5 条。
 - 提供 Feign 公共 DTO、参数校验、服务端发布状态兜底与目标测试。
+- 验收：common-api 8 项、problem-service 42 项测试通过；真实 MySQL 演示数据验证题号查询、标题/标签推荐、稳定排序、草稿隔离、默认截断和未知赛事错误。
 
-#### [ ] S11-03 客服工具执行与审计
+#### [~] S11-03 客服工具执行与审计
 
 - 在 ai-assistant-service 建立版本化 `ToolRegistry`、受控执行循环、参数校验、次数/超时限制和 `assistant_tool_call` Flyway 审计表。
 - 接入 `search_problem` 与 `recommend_problem`，保存工具集版本、调用状态、参数摘要、结果摘要、耗时和 AI 调用关联。
