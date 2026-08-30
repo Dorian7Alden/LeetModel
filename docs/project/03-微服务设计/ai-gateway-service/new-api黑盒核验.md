@@ -46,6 +46,17 @@
 
 使用公开生成的 64×64 合成字母 PNG 返回 HTTP 200 并正确识别；未上传项目论文或知识库材料。1×1 data URL PNG 返回 HTTP 400、`invalid_request_error`，说明仅校验 MIME 和 Base64 长度不足以保证上游接受。正式评审可以沿用 `image_url` 映射，但必须使用项目渲染出的合法 PNG/JPEG，并把 HTTP 400 图片错误转换成媒体输入错误。
 
+### S11 工具调用门禁
+
+2026-08-31 使用仓库外 Relay Token 对 `deepseek-v4-flash` 执行最小只读函数工具请求，未记录 Prompt、回答、完整调用 ID 或 Token：
+
+| 请求方式 | 结果 | 结论 |
+|----------|------|------|
+| `tools` + `tool_choice=auto` | HTTP 200，`finish_reason=tool_calls`，返回 1 个函数调用，函数名正确且参数为合法 JSON Object | new-api、当前渠道与模型具备首版客服所需的原生自动工具调用能力 |
+| `tools` + 强制指定函数对象 | HTTP 400，`invalid_request_error` | 当前生产客服不使用强制指定方式；公共适配仍按标准 OpenAI 结构映射并由本地协议测试覆盖 |
+
+因此只把已实测的 `NEW_API/deepseek-v4-flash` 模型能力标记为 `tools=true`，既有无工具模型执行配置仍保持 `tools=false`。后续工具版工作流必须发布独立且显式允许工具的模型执行配置，不能修改旧版本获得新能力。
+
 ### 请求关联、usage、quota 与日志
 
 | 数据 | 同步 Chat 响应 | Token 查询 | Token 日志 | 结论 |
