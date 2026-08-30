@@ -156,6 +156,8 @@
         <span>&copy; 2026 数学建模在线评测系统. All rights reserved.</span>
       </div>
     </footer>
+
+    <AiAssistantWidget />
   </div>
 </template>
 
@@ -165,6 +167,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
 import { getCurrentAuthorization } from '@/api/user'
+import AiAssistantWidget from '@/components/common/AiAssistantWidget.vue'
 import {
   Trophy,
   Menu,
