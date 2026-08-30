@@ -38,6 +38,16 @@ class ModelExecutionConfigServiceTest {
                                 AiGatewayErrorCode.MODEL_EXECUTION_CONFIG_MISMATCH.getCode()));
     }
 
+    @Test
+    void availabilityChecksWorkflowAndPromptWithoutExposingPhysicalRoute() {
+        ModelExecutionConfigService service = new ModelExecutionConfigService(properties());
+
+        assertThat(service.availability("MODEL_CFG_ASSISTANT_TEXT_0001", "CHAT",
+                "ASSISTANT_CHAT_V1", "PROMPT_ASSISTANT_CHAT_0001").getAvailable()).isTrue();
+        assertThat(service.availability("MODEL_CFG_ASSISTANT_TEXT_0001", "CHAT",
+                "ASSISTANT_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001").getAvailable()).isFalse();
+    }
+
     private ModelExecutionConfigProperties properties() {
         ModelExecutionConfigProperties.Definition definition = new ModelExecutionConfigProperties.Definition();
         definition.setCallType("CHAT");
