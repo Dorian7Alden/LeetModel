@@ -183,7 +183,7 @@ class AiScheduledCallServiceTest {
             String logical = request instanceof AiEmbeddingRequest embedding ? embedding.logicalModel() : null;
             return new ModelExecutionSnapshot("MODEL_CFG_RAG_V1", type, logical,
                     AiProvider.NEW_API, "locked-model", AiModality.TEXT,
-                    64, null, null, false, 2, 32, 8192, 65536,
+                    64, null, null, false, false, 2, 32, 8192, 65536,
                     null, null);
         });
         return service;

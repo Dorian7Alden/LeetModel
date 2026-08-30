@@ -48,6 +48,20 @@ class ModelExecutionConfigServiceTest {
                 "ASSISTANT_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001").getAvailable()).isFalse();
     }
 
+    @Test
+    void rejectsToolsUnlessPublishedExecutionConfigAllowsThem() {
+        ModelExecutionConfigProperties properties = properties();
+        ModelExecutionConfigService service = new ModelExecutionConfigService(properties);
+
+        assertThatThrownBy(() -> service.resolve("CHAT", context(), toolRequest()))
+                .isInstanceOfSatisfying(BusinessException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(
+                                AiGatewayErrorCode.MODEL_EXECUTION_CONFIG_MISMATCH.getCode()));
+
+        properties.getExecutionConfigs().get("MODEL_CFG_ASSISTANT_TEXT_0001").setTools(true);
+        assertThat(service.resolve("CHAT", context(), toolRequest()).tools()).isTrue();
+    }
+
     private ModelExecutionConfigProperties properties() {
         ModelExecutionConfigProperties.Definition definition = new ModelExecutionConfigProperties.Definition();
         definition.setCallType("CHAT");
@@ -77,5 +91,15 @@ class ModelExecutionConfigServiceTest {
                 List.of(new AiMessage(AiRole.USER,
                         List.of(new AiContentPart(AiContentType.TEXT, "question", null)))),
                 1500, temperature, AiResponseFormat.TEXT, false);
+    }
+
+    private AiChatRequest toolRequest() {
+        AiToolDefinition tool = new AiToolDefinition(AiToolType.FUNCTION,
+                "search_problem", "查询题目", java.util.Map.of("type", "object"));
+        return new AiChatRequest(AiModality.TEXT, context(),
+                List.of(new AiMessage(AiRole.USER,
+                        List.of(new AiContentPart(AiContentType.TEXT, "question", null)))),
+                1500, 0.2, AiResponseFormat.TEXT, false,
+                List.of(tool), new AiToolChoice(AiToolChoiceType.AUTO, null));
     }
 }

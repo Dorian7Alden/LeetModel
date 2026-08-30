@@ -11,6 +11,11 @@ import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiToolCall;
+import com.leetmodel.common.ai.model.AiToolChoice;
+import com.leetmodel.common.ai.model.AiToolChoiceType;
+import com.leetmodel.common.ai.model.AiToolDefinition;
+import com.leetmodel.common.ai.model.AiToolType;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +27,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.SocketTimeoutException;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -105,6 +111,83 @@ class NewApiAdapterTest {
         assertThat(usage.cacheMissTokens()).isNull();
         assertThat(usage.outputTokens()).isNull();
         assertThat(usage.totalTokens()).isNull();
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldMapAndParseToolCalling() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.tools[0].type").value("function"))
+                .andExpect(jsonPath("$.tools[0].function.name").value("search_problem"))
+                .andExpect(jsonPath("$.tools[0].function.parameters.type").value("object"))
+                .andExpect(jsonPath("$.tools[0].function.parameters.additionalProperties").value(false))
+                .andExpect(jsonPath("$.tool_choice").value("auto"))
+                .andRespond(withSuccess("""
+                        {"id":"relay-tool-1","model":"deepseek-v4-flash",
+                         "choices":[{"message":{"content":null,"tool_calls":[
+                           {"id":"call-1","type":"function","function":{
+                             "name":"search_problem","arguments":"{\\\"code\\\":1001}"}}
+                         ]},"finish_reason":"tool_calls"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        AiChatResponse response = fixture.adapter.chat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, toolRequest());
+
+        assertThat(response.content()).isNull();
+        assertThat(response.finishReason()).isEqualTo("tool_calls");
+        assertThat(response.toolCalls()).containsExactly(
+                new AiToolCall("call-1", "search_problem", "{\"code\":1001}"));
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldMapAssistantToolCallAndLinkedToolResult() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.messages[1].role").value("assistant"))
+                .andExpect(jsonPath("$.messages[1].tool_calls[0].id").value("call-1"))
+                .andExpect(jsonPath("$.messages[1].tool_calls[0].function.name").value("search_problem"))
+                .andExpect(jsonPath("$.messages[2].role").value("tool"))
+                .andExpect(jsonPath("$.messages[2].tool_call_id").value("call-1"))
+                .andExpect(jsonPath("$.messages[2].name").value("search_problem"))
+                .andRespond(withSuccess("""
+                        {"id":"relay-final","model":"deepseek-v4-flash",
+                         "choices":[{"message":{"content":"未找到题目"},"finish_reason":"stop"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        AiChatResponse response = fixture.adapter.chat("deepseek-v4-flash",
+                AiApiProtocol.OPENAI_COMPLETIONS, toolResultRequest());
+
+        assertThat(response.content()).isEqualTo("未找到题目");
+        assertThat(response.toolCalls()).isNull();
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldRejectToolProtocolForUnverifiedProviderProtocol() {
+        Fixture fixture = fixture();
+
+        assertThatThrownBy(() -> fixture.adapter.chat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_RESPONSES, toolRequest()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41202);
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldRejectResponseWithoutContentOrValidToolCalls() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andRespond(withSuccess("""
+                        {"id":"relay-empty","model":"deepseek-v4-flash",
+                         "choices":[{"message":{"content":null},"finish_reason":"tool_calls"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> fixture.adapter.chat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, toolRequest()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(51203);
         fixture.server.verify();
     }
 
@@ -200,6 +283,38 @@ class NewApiAdapterTest {
                 new AiContentPart(AiContentType.IMAGE_URL, null, "https://fixture.test/page.png")));
         return new AiChatRequest(AiScene.MULTIMODAL, List.of(message), 128,
                 null, null, false);
+    }
+
+    private AiChatRequest toolRequest() {
+        AiMessage message = new AiMessage(AiRole.USER,
+                List.of(new AiContentPart(AiContentType.TEXT, "查询题号 1001", null)));
+        return new AiChatRequest(AiScene.GENERAL_TEXT, null, null,
+                List.of(message), 128, null, null, false,
+                List.of(toolDefinition()), new AiToolChoice(AiToolChoiceType.AUTO, null));
+    }
+
+    private AiChatRequest toolResultRequest() {
+        AiMessage user = new AiMessage(AiRole.USER,
+                List.of(new AiContentPart(AiContentType.TEXT, "查询题号 1001", null)));
+        AiMessage assistant = new AiMessage(AiRole.ASSISTANT, List.of(),
+                List.of(new AiToolCall("call-1", "search_problem", "{\"code\":1001}")),
+                null, null);
+        AiMessage tool = new AiMessage(AiRole.TOOL,
+                List.of(new AiContentPart(AiContentType.TEXT, "{\"items\":[]}", null)),
+                null, "call-1", "search_problem");
+        return new AiChatRequest(AiScene.GENERAL_TEXT, null, null,
+                List.of(user, assistant, tool), 128, null, null, false,
+                List.of(toolDefinition()), new AiToolChoice(AiToolChoiceType.AUTO, null));
+    }
+
+    private AiToolDefinition toolDefinition() {
+        return new AiToolDefinition(AiToolType.FUNCTION, "search_problem", "查询已发布题目",
+                Map.of(
+                        "type", "object",
+                        "properties", Map.of("code", Map.of("type", "integer")),
+                        "required", List.of("code"),
+                        "additionalProperties", false
+                ));
     }
 
     private record Fixture(NewApiAdapter adapter, MockRestServiceServer server) {

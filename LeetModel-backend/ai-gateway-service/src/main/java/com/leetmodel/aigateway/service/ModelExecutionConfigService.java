@@ -35,7 +35,7 @@ public class ModelExecutionConfigService {
         return new ModelExecutionSnapshot(version, callType, definition.getLogicalModel(),
                 definition.getProvider(), definition.getModel(), definition.getModality(),
                 definition.getMaxTokens(), definition.getTemperature(), definition.getResponseFormat(),
-                definition.getThinkingEnabled(), definition.getEmbeddingDimension(),
+                definition.getThinkingEnabled(), definition.isTools(), definition.getEmbeddingDimension(),
                 definition.getMaxBatchSize(), definition.getMaxInputChars(), definition.getMaxTotalChars(),
                 context.promptVersion(), context.workflowVersion());
     }
@@ -69,9 +69,23 @@ public class ModelExecutionConfigService {
                 && Objects.equals(request.temperature(), definition.getTemperature())
                 && request.responseFormat() == definition.getResponseFormat()
                 && Objects.equals(request.thinkingEnabled(), definition.getThinkingEnabled())
+                && (!usesToolProtocol(request) || definition.isTools())
                 && allows(definition.getPromptVersions(), context.promptVersion())
                 && allows(definition.getWorkflowVersions(), context.workflowVersion());
         BusinessException.throwIf(!matches, AiGatewayErrorCode.MODEL_EXECUTION_CONFIG_MISMATCH);
+    }
+
+    /**
+     * 判断请求是否使用工具协议。
+     *
+     * @param request 对话请求
+     * @return 是否使用工具
+     */
+    private boolean usesToolProtocol(AiChatRequest request) {
+        if (request.tools() != null && !request.tools().isEmpty()) return true;
+        return request.messages().stream().anyMatch(message ->
+                message.role() == com.leetmodel.common.ai.model.AiRole.TOOL
+                        || message.toolCalls() != null && !message.toolCalls().isEmpty());
     }
 
     private void validateEmbedding(AiEmbeddingRequest request,

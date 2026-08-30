@@ -24,6 +24,8 @@ class AiChatRequestCompatibilityTest {
 
         assertThat(request.effectiveModality()).isEqualTo(AiModality.TEXT);
         assertThat(request.context()).isNull();
+        assertThat(request.tools()).isNull();
+        assertThat(request.messages().get(0).toolCalls()).isNull();
         assertThat(validator.validate(request)).isEmpty();
     }
 

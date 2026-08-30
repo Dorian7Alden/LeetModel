@@ -15,6 +15,10 @@ import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiToolChoice;
+import com.leetmodel.common.ai.model.AiToolChoiceType;
+import com.leetmodel.common.ai.model.AiToolDefinition;
+import com.leetmodel.common.ai.model.AiToolType;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,6 +97,22 @@ class AiChatServiceTest {
                 .extracting("code").isEqualTo(41201);
         verify(auditService).recordFailure(any(), eq(request), eq(null), eq(null),
                 any(BusinessException.class), anyLong(), eq(0L));
+    }
+
+    @Test
+    void shouldRejectToolsWhenModelCapabilityIsDisabled() {
+        configureRoute();
+        AiMessage message = new AiMessage(AiRole.USER,
+                List.of(new AiContentPart(AiContentType.TEXT, "查询题目", null)));
+        AiToolDefinition tool = new AiToolDefinition(AiToolType.FUNCTION,
+                "search_problem", "查询题目", Map.of("type", "object"));
+        AiChatRequest request = new AiChatRequest(AiScene.GENERAL_TEXT, null, null,
+                List.of(message), 10, null, null, false,
+                List.of(tool), new AiToolChoice(AiToolChoiceType.AUTO, null));
+
+        assertThatThrownBy(() -> service().chat(request))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41202);
     }
 
     private AiChatService service() {

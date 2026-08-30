@@ -127,6 +127,8 @@ public class AiChatService {
                 AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         BusinessException.throwIf(Boolean.TRUE.equals(request.thinkingEnabled()) && !profile.isThinking(),
                 AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+        BusinessException.throwIf(request.tools() != null && !request.tools().isEmpty() && !profile.isTools(),
+                AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         var imageParts = request.messages().stream().flatMap(message -> message.content().stream())
                 .filter(part -> part.type() == AiContentType.IMAGE_URL).toList();
         BusinessException.throwIf(profile.getMaxImages() != null && imageParts.size() > profile.getMaxImages(),
@@ -189,7 +191,8 @@ public class AiChatService {
                 response.reasoningContent(),
                 response.finishReason(),
                 response.usage(),
-                response.cost()
+                response.cost(),
+                response.toolCalls()
         );
     }
 }

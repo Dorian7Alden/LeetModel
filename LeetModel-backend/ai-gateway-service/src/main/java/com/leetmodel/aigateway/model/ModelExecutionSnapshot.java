@@ -16,6 +16,7 @@ public record ModelExecutionSnapshot(
         Double temperature,
         AiResponseFormat responseFormat,
         Boolean thinkingEnabled,
+        boolean tools,
         Integer embeddingDimension,
         Integer maxBatchSize,
         Integer maxInputChars,

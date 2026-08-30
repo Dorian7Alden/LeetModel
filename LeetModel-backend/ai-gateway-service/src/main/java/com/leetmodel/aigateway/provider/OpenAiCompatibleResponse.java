@@ -25,7 +25,16 @@ record OpenAiCompatibleResponse(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record Message(String content, String reasoningContent) {
+    record Message(String content, String reasoningContent, List<ToolCall> toolCalls) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ToolCall(String id, String type, Function function) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Function(String name, String arguments) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
