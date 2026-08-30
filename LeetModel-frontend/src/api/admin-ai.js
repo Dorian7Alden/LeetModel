@@ -4,8 +4,24 @@ export function getAdminAiCalls(params) {
   return request({ url: "/admin/ai/calls", method: "get", params });
 }
 
-export function getAdminAiCallStats() {
-  return request({ url: "/admin/ai/calls/stats", method: "get" });
+export function getAdminAiCallPage(params) {
+  return request({ url: "/admin/ai/calls/page", method: "get", params });
+}
+
+export function getAdminAiCallStats(params) {
+  return request({ url: "/admin/ai/calls/stats", method: "get", params });
+}
+
+export function getAdminAiModelStats(params) {
+  return request({ url: "/admin/ai/calls/model-stats", method: "get", params });
+}
+
+export function getAdminAiCallFilterOptions() {
+  return request({ url: "/admin/ai/calls/filter-options", method: "get" });
+}
+
+export function getAdminProviderModels(provider = "NEW_API") {
+  return request({ url: `/admin/ai/models/${provider}`, method: "get" });
 }
 
 export function getAdminAiQueue(params) {
