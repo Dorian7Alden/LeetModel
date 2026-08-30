@@ -5,9 +5,16 @@ spring:
     active: dev
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 21MB
+      max-file-size: 5MB
+      max-request-size: 6MB
 minio:
   max-file-size: 20971520
+submission:
+  upload:
+    max-file-size: 20971520
+    chunk-size: 5242880
+    session-expiry-hours: 24
+    completion-stale-seconds: 120
+    cleanup-delay-ms: 3600000
 server:
   shutdown: graceful

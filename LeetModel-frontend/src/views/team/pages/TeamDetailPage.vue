@@ -75,13 +75,13 @@
                   <strong>{{ selectedPdf.name }}</strong>
                   <span>{{ formatFileSize(selectedPdf.size) }}</span>
                 </div>
-                <el-button text class="remove-file" @click="handlePdfRemove">移除</el-button>
+                <el-button text class="remove-file" :disabled="submitting" @click="handlePdfRemove">移除</el-button>
               </div>
               <div v-else class="file-placeholder">尚未选择文件</div>
-              <el-progress v-if="submitting" type="circle" :percentage="uploadProgress" :width="48" :stroke-width="5" class="upload-progress" />
+              <el-progress v-if="submitting || uploadProgress > 0" type="circle" :percentage="uploadProgress" :width="48" :stroke-width="5" class="upload-progress" />
               <el-button type="primary" :disabled="!selectedPdf" :loading="submitting" class="submit-button" @click="handleSubmitPdf">提交第 {{ nextVersion }} 版</el-button>
             </div>
-            <p class="upload-tip">仅支持 PDF 文件，大小不超过 20MB；每次成功提交都会保留为一个新版本。</p>
+            <p class="upload-tip">{{ uploadStage || '仅支持 20MB 以内 PDF；中断后重新选择同一文件可继续上传。' }}</p>
           </div>
           <div v-if="team.practiceStatus !== 'IN_PROGRESS'" class="final-version-bar">
             <span>{{ finalSubmission ? `最终提交已锁定为 V${finalSubmission.version}` : '练习已经结束，可以锁定并查看最终提交版本。' }}</span>
@@ -232,9 +232,10 @@ import { renderSafeMarkdown } from '@/utils/markdown'
 import { Calendar, User, UserFilled } from '@element-plus/icons-vue'
 import { cancelTeamApplication, closeTeamRecruitment, dissolveTeam, endTeamPractice, getTeamApplications, getTeamDetail, leaveTeam, publishTeamRecruitment, removeTeamMember, reviewTeamApplication, startTeamPractice, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamRecruitment, updateTeamSubmissionPermission } from '@/api/team'
 import { getPublicProblemDetail } from '@/api/problem'
-import { finalizeTeamSubmission, getTeamSubmissionHistory, submitTeamPdf } from '@/api/submission'
+import { finalizeTeamSubmission, getTeamSubmissionHistory } from '@/api/submission'
 import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { useUserStore } from '@/store/user'
+import { uploadPdfResumably } from '@/utils/resumablePdfUpload'
 import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
 import SubmissionSuggestionDialog from '../components/SubmissionSuggestionDialog.vue'
 
@@ -265,6 +266,7 @@ const suggestionSubmission = ref(null)
 const selectedPdf = ref(null)
 const submitting = ref(false)
 const uploadProgress = ref(0)
+const uploadStage = ref('')
 const finalizing = ref(false)
 const startingPractice = ref(false)
 const endingPractice = ref(false)
@@ -384,15 +386,19 @@ function handlePdfChange(file) {
   const isPdf = rawFile.name?.toLowerCase().endsWith('.pdf') && (!rawFile.type || rawFile.type === 'application/pdf')
   if (!isPdf) {
     selectedPdf.value = null
+    uploadStage.value = ''
     return ElMessage.warning('请选择 PDF 文件')
   }
   if (rawFile.size > MAX_PDF_SIZE) {
     selectedPdf.value = null
+    uploadStage.value = ''
     return ElMessage.warning('PDF 文件大小不能超过 20MB')
   }
   selectedPdf.value = rawFile
+  uploadProgress.value = 0
+  uploadStage.value = ''
 }
-function handlePdfRemove() { selectedPdf.value = null; uploadProgress.value = 0 }
+function handlePdfRemove() { selectedPdf.value = null; uploadProgress.value = 0; uploadStage.value = '' }
 
 async function loadSubmissions() {
   try { submissions.value = (await getTeamSubmissionHistory(team.value.id)).data || [] }
@@ -443,16 +449,25 @@ async function handleSubmitPdf() {
   submitting.value = true
   uploadProgress.value = 0
   try {
-    await submitTeamPdf(team.value.id, selectedPdf.value, event => {
-      if (event.total) uploadProgress.value = Math.min(100, Math.round(event.loaded * 100 / event.total))
+    await uploadPdfResumably({
+      teamId: team.value.id,
+      file: selectedPdf.value,
+      onProgress: value => { uploadProgress.value = value },
+      onStage: value => { uploadStage.value = value },
     })
     uploadProgress.value = 100
+    uploadStage.value = '提交完成'
     selectedPdf.value = null
     await refreshSubmissionReviews()
     ElMessage.success('PDF 提交成功')
+    uploadProgress.value = 0
+    uploadStage.value = ''
   }
-  catch (error) { ElMessage.error(error.message || 'PDF 提交失败') }
-  finally { submitting.value = false; uploadProgress.value = 0 }
+  catch (error) {
+    uploadStage.value = '上传已中断，再次提交将从已上传分片继续'
+    ElMessage.error(error.message || 'PDF 提交失败')
+  }
+  finally { submitting.value = false }
 }
 
 async function handleFinalize() {

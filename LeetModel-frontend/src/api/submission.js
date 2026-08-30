@@ -1,10 +1,32 @@
 import request from './request'
 
-export function submitTeamPdf(teamId, file, onUploadProgress) {
+export function initializeSubmissionUpload(data) {
+  return request.post('/submissions/uploads', data)
+}
+
+export function getSubmissionUpload(uploadId) {
+  return request.get(`/submissions/uploads/${uploadId}`)
+}
+
+export function uploadSubmissionChunk(uploadId, chunkIndex, file, sha256, onUploadProgress) {
   const data = new FormData()
-  data.append('teamId', teamId)
   data.append('file', file)
-  return request({ url: '/submissions', method: 'post', data, timeout: 30000, onUploadProgress })
+  return request({
+    url: `/submissions/uploads/${uploadId}/chunks/${chunkIndex}`,
+    method: 'put',
+    params: { sha256 },
+    data,
+    timeout: 60000,
+    onUploadProgress,
+  })
+}
+
+export function completeSubmissionUpload(uploadId) {
+  return request.post(`/submissions/uploads/${uploadId}/complete`)
+}
+
+export function cancelSubmissionUpload(uploadId) {
+  return request.delete(`/submissions/uploads/${uploadId}`)
 }
 
 export function getTeamSubmissionHistory(teamId) {
