@@ -3,12 +3,16 @@ package com.leetmodel.evaluation.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.leetmodel.evaluation.entity.EvaluationTask;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
+
+    @Select("SELECT id FROM evaluation_task WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    Long lockById(@Param("id") Long id);
 
     @Update("UPDATE evaluation_task SET status = 'PAUSED', last_operated_by = #{operatorId}, "
             + "last_operation = 'PAUSE', last_operated_at = #{now}, update_time = #{now} "
@@ -56,7 +60,7 @@ public interface EvaluationTaskMapper extends BaseMapper<EvaluationTask> {
             + "latency_score = #{latencyScore}, overall_score = #{overallScore}, "
             + "avg_duration_ms = #{avgDurationMs}, raw_metrics_json = #{rawMetricsJson}, "
             + "error_message = NULL, finished_at = #{now}, "
-            + "update_time = #{now} WHERE id = #{id} AND deleted = 0")
+            + "update_time = #{now} WHERE id = #{id} AND status IN ('WAITING','RUNNING') AND deleted = 0")
     int complete(@Param("id") Long id, @Param("terminalSlots") Integer terminalSlots,
                  @Param("failedSlots") Integer failedSlots,
                  @Param("validityScore") BigDecimal validityScore,

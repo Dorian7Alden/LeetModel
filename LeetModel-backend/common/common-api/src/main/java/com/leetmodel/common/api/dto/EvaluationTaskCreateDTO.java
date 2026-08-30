@@ -37,6 +37,10 @@ public class EvaluationTaskCreateDTO {
     @Size(max = 100, message = "RAG索引版本不能超过100个字符")
     private String ragIndexVersion;
 
+    @NotNull(message = "权重方案标识不能为空")
+    @Positive(message = "权重方案标识必须为正整数")
+    private Long weightSchemeId;
+
     public EvaluationTaskCreateDTO(Long datasetId, String workflowVersion, Integer repeatCount,
                                    String clientRequestId) {
         this(datasetId, workflowVersion, repeatCount, clientRequestId, null, null);
@@ -51,5 +55,13 @@ public class EvaluationTaskCreateDTO {
         this.clientRequestId = clientRequestId;
         this.modelExecutionConfigVersion = modelExecutionConfigVersion;
         this.ragIndexVersion = ragIndexVersion;
+    }
+
+    public EvaluationTaskCreateDTO(Long datasetId, String workflowVersion, Integer repeatCount,
+                                   String clientRequestId, String modelExecutionConfigVersion,
+                                   String ragIndexVersion, Long weightSchemeId) {
+        this(datasetId, workflowVersion, repeatCount, clientRequestId,
+                modelExecutionConfigVersion, ragIndexVersion);
+        this.weightSchemeId = weightSchemeId;
     }
 }

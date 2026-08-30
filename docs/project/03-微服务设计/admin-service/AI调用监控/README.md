@@ -25,7 +25,9 @@ AI 调用监控用于管理员查看平台内的 AI 使用情况，关注资源�
 
 | 管理员接口 | 用途 |
 |------------|------|
-| `GET /api/admin/ai/queue` | 查询队列元数据；支持 `state`、`priority`、`callerService`、`minWaitMs`、`limit` |
+| `GET /api/admin/ai/calls` | 查询调用记录；评价页面使用 `evaluationTaskId` 追踪到单次 `callId` |
+| `GET /api/admin/ai/calls/stats` | 按同一组结构化条件统计调用资源与状态 |
+| `GET /api/admin/ai/queue` | 查询队列元数据；支持 `state`、`priority`、`callerService`、`evaluationTaskId`、`minWaitMs`、`limit` |
 | `POST /api/admin/ai/queue/{taskId}/cancel` | 条件取消 `QUEUED/LEASED/RUNNING` 任务 |
 
 查询最多返回 100 条。响应只包含 `taskId/callId`、来源、调用类型、feature/operation、有效优先级、状态、attempt 次数、取消标记、稳定错误、dead-letter 原因、排队耗时和阶段时间。不得增加 request/result payload、Prompt、回答、论文、知识片段、图片、向量、幂等键或请求哈希。接口受管理员角色保护；网关内部接口仍只供服务间调用。

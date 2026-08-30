@@ -1,5 +1,9 @@
 package com.leetmodel.assistant.rag.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.assistant.rag.index.RagElasticsearchConfiguration;
+import com.leetmodel.assistant.rag.retrieval.ElasticsearchRagVectorSearchStore;
+import com.leetmodel.assistant.rag.retrieval.RagVectorSearchStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -51,6 +55,20 @@ class RagPropertiesTest {
                     assertThat(properties.isEnabled()).isTrue();
                     assertThat(properties.getStoreType()).isEqualTo(RagProperties.StoreType.IN_MEMORY);
                     assertThat(properties.getRequestTimeout()).isEqualTo(Duration.ofMillis(750));
+                });
+    }
+
+    @Test
+    void defaultElasticsearchModeRegistersVectorStore() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(TestConfiguration.class,
+                        RagElasticsearchConfiguration.class,
+                        ElasticsearchRagVectorSearchStore.class)
+                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(RagVectorSearchStore.class);
+                    assertThat(context).hasSingleBean(org.elasticsearch.client.RestClient.class);
                 });
     }
 

@@ -17,6 +17,10 @@ public enum EvaluationErrorCode implements ErrorCode {
     SCALE_LIMIT_EXCEEDED(41108, "评价批次规模超过服务端限制"),
     DUPLICATE_CANDIDATE(41109, "评价批次不能包含重复候选版本"),
     TASK_STATE_CONFLICT(41110, "评价任务当前状态不允许该操作"),
+    WEIGHT_SCHEME_INVALID(41111, "权重方案配置不兼容"),
+    WEIGHT_SCHEME_VERSION_DUPLICATE(41112, "权重方案版本已存在"),
+    WEIGHT_SCHEME_NOT_FOUND(41113, "权重方案不存在"),
+    SCORE_RECALCULATION_NOT_ALLOWED(41114, "当前评价数据不满足重新计算条件"),
     DEPENDENCY_UNAVAILABLE(51101, "质量评价依赖服务暂不可用");
 
     private final int code;

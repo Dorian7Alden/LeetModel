@@ -8,7 +8,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -17,7 +17,8 @@ import java.util.Map;
 
 /** 创建并校验 RAG 物理向量索引；不会覆盖或删除任何已有索引。 */
 @Component
-@ConditionalOnBean(RestClient.class)
+@ConditionalOnProperty(prefix = "assistant.rag", name = "store-type", havingValue = "ELASTICSEARCH",
+        matchIfMissing = true)
 public class RagElasticsearchIndexManager {
 
     private final RestClient client;

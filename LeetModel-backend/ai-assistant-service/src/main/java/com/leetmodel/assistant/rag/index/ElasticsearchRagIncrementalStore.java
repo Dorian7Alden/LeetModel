@@ -7,7 +7,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -18,7 +18,8 @@ import java.util.Set;
 
 /** 基于 Elasticsearch _search 与 _reindex 实现快照式增量更新。 */
 @Component
-@ConditionalOnBean(RestClient.class)
+@ConditionalOnProperty(prefix = "assistant.rag", name = "store-type", havingValue = "ELASTICSEARCH",
+        matchIfMissing = true)
 public class ElasticsearchRagIncrementalStore implements RagIncrementalStore {
 
     private final RestClient client;

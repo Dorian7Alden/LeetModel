@@ -127,6 +127,13 @@ A - BB - CC
 | TASK_NOT_FOUND | 41105 | 质量评价任务不存在 |
 | TASK_NOT_FAILED | 41106 | 当前任务不可重试 |
 | IDEMPOTENCY_CONFLICT | 41107 | 请求标识已用于其他评价配置 |
+| SCALE_LIMIT_EXCEEDED | 41108 | 评价批次规模超过服务端限制 |
+| DUPLICATE_CANDIDATE | 41109 | 评价批次包含重复候选版本 |
+| TASK_STATE_CONFLICT | 41110 | 评价任务状态不允许当前操作 |
+| WEIGHT_SCHEME_INVALID | 41111 | 权重方案配置与指标口径不兼容 |
+| WEIGHT_SCHEME_VERSION_DUPLICATE | 41112 | 权重方案版本已存在 |
+| WEIGHT_SCHEME_NOT_FOUND | 41113 | 权重方案不存在 |
+| SCORE_RECALCULATION_NOT_ALLOWED | 41114 | 当前评价数据不满足重新计算条件 |
 | DEPENDENCY_UNAVAILABLE | 51101 | 质量评价依赖服务暂不可用 |
 
 ### BB=12：AI 网关

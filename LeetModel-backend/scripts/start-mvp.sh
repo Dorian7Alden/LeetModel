@@ -19,7 +19,7 @@ services=(
   submission-service ai-review-service ranking-service ai-suggestion-service
   ai-assistant-service ai-evaluation-service admin-service gateway-service
 )
-ports=(8081 8083 8082 8090 8085 8086 8087 8088 8089 8091 8084 8080)
+ports=(8081 8083 8082 8090 8092 8086 8087 8088 8089 8091 8084 8080)
 
 mkdir -p "${RUNTIME_DIR}/logs"
 

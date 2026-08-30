@@ -11,7 +11,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -22,7 +22,8 @@ import java.util.Map;
 
 /** Elasticsearch cosine dense_vector 基础召回。 */
 @Component
-@ConditionalOnBean(RestClient.class)
+@ConditionalOnProperty(prefix = "assistant.rag", name = "store-type", havingValue = "ELASTICSEARCH",
+        matchIfMissing = true)
 public class ElasticsearchRagVectorSearchStore implements RagVectorSearchStore {
 
     private final RestClient client;

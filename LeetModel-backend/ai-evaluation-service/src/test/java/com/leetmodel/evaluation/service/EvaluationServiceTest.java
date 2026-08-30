@@ -8,6 +8,7 @@ import com.leetmodel.common.api.dto.EvaluationTaskCreateDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
+import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
@@ -64,6 +65,9 @@ class EvaluationServiceTest {
     @Mock AiGatewayFeignClient aiGatewayFeignClient;
     @Mock EvaluationPersistenceService persistenceService;
     @Mock EvaluationMetricsCalculator metricsCalculator;
+    @Mock EvaluationWeightSchemeService weightSchemeService;
+    @Mock EvaluationScoreResultService scoreResultService;
+    @Mock EvaluationCompletionPersistenceService completionPersistenceService;
 
     private EvaluationService service;
 
@@ -79,7 +83,10 @@ class EvaluationServiceTest {
                 datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
                 submissionFeignClient, aiGatewayFeignClient, registry, estimateService, persistenceService,
-                metricsCalculator, new EvaluationMetricRegistry(), mapper);
+                metricsCalculator, new EvaluationMetricRegistry(), weightSchemeService,
+                scoreResultService, completionPersistenceService, mapper);
+        org.mockito.Mockito.lenient().when(weightSchemeService.requireActiveForTask(any(), any(), any()))
+                .thenReturn(weightScheme());
         ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
@@ -156,7 +163,7 @@ class EvaluationServiceTest {
         when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("ENABLED")));
 
         var result = service.createTask(new EvaluationTaskCreateDTO(
-                10L, "BASIC_REVIEW_V1", 3, "request_001"));
+                10L, "BASIC_REVIEW_V1", 3, "request_001", null, null, 701L));
 
         ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
         ArgumentCaptor<List<EvaluationRunAttempt>> runsCaptor = ArgumentCaptor.forClass(List.class);
@@ -164,6 +171,8 @@ class EvaluationServiceTest {
         assertThat(taskCaptor.getValue().getTotalSlots()).isEqualTo(6);
         assertThat(taskCaptor.getValue().getDatasetVersion()).isEqualTo("REVIEW_DATASET_V1");
         assertThat(taskCaptor.getValue().getMetricSetVersion()).isEqualTo("METRIC_SET_V2");
+        assertThat(taskCaptor.getValue().getWeightSchemeVersion()).isEqualTo("REVIEW_BALANCED_V1");
+        assertThat(taskCaptor.getValue().getWeightSchemeSnapshotJson()).contains("REVIEW_BALANCED_V1");
         assertThat(taskCaptor.getValue().getMetricDefinitionSnapshotJson())
                 .contains("varianceDenominator", "POPULATION_N", "missingValuePolicy");
         assertThat(runsCaptor.getValue()).hasSize(6)
@@ -179,7 +188,7 @@ class EvaluationServiceTest {
         when(taskMapper.selectOne(any())).thenReturn(existing);
 
         assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
-                11L, "BASIC_REVIEW_V1", 2, "request_001")))
+                11L, "BASIC_REVIEW_V1", 2, "request_001", null, null, 701L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41107);
         verify(datasetMapper, never()).selectById(anyLong());
@@ -193,7 +202,7 @@ class EvaluationServiceTest {
         when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("DISABLED")));
 
         assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
-                10L, "BASIC_REVIEW_V1", 1, "request_002")))
+                10L, "BASIC_REVIEW_V1", 1, "request_002", null, null, 701L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41104);
         verify(persistenceService, never()).createTask(any(), any());
@@ -209,7 +218,7 @@ class EvaluationServiceTest {
         when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
 
         service.createTask(new EvaluationTaskCreateDTO(10L, "ASSISTANT_RAG_V1", 2,
-                "assistant_request_1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc"));
+                "assistant_request_1", "MODEL_CFG_ASSISTANT_TEXT_0001", "rag-v1-abc", 701L));
 
         ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
         verify(persistenceService).createTask(taskCaptor.capture(), any());
@@ -229,7 +238,7 @@ class EvaluationServiceTest {
         when(assistantFeignClient.getFeatureDefinition()).thenReturn(Result.ok(assistantFeature()));
 
         assertThatThrownBy(() -> service.createTask(new EvaluationTaskCreateDTO(
-                10L, "ASSISTANT_RAG_V1", 1, "assistant_request_2")))
+                10L, "ASSISTANT_RAG_V1", 1, "assistant_request_2", null, null, 701L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41104);
         verify(persistenceService, never()).createTask(any(), any());
@@ -265,9 +274,9 @@ class EvaluationServiceTest {
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq("call-1"),
                 org.mockito.ArgumentMatchers.eq(50_000L),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class));
-        verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
+        verify(completionPersistenceService).complete(any(),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(0),
-                any(), any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any());
     }
 
     @Test
@@ -373,9 +382,9 @@ class EvaluationServiceTest {
 
         service.processNext();
 
-        verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(20L),
+        verify(completionPersistenceService).complete(any(),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
-                any(), any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any());
     }
 
     @Test
@@ -642,5 +651,12 @@ class EvaluationServiceTest {
                 new BigDecimal("100.00"), null, new BigDecimal("100.00"),
                 new BigDecimal("100.00"), new BigDecimal("100.00"), 50_000L,
                 new EvaluationRawMetricsDTO());
+    }
+
+    private EvaluationWeightSchemeDTO weightScheme() {
+        return new EvaluationWeightSchemeDTO(
+                701L, "REVIEW_BALANCED", "REVIEW_BALANCED_V1", "均衡方案", "测试目标",
+                "REVIEW", "METRIC_SET_V2", "ACTIVE", 9L, LocalDateTime.now(),
+                null, null, List.of());
     }
 }

@@ -24,6 +24,12 @@ public class EvaluationTaskSummaryDTO {
     private String modelExecutionConfigVersion;
     private String ragIndexVersion;
     private String metricSetVersion;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long weightSchemeId;
+    private String weightSchemeVersion;
+    private String latestScoreResultVersion;
+    private String latestScoreStatus;
+    private BigDecimal versionSelectionIndex;
     private Integer repeatCount;
     private String status;
     private Integer totalSlots;

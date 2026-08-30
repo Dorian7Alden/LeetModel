@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DashboardAuthorizationTest.TestApplication.class,
         DashboardController.class,
         AdminAiController.class,
+        AdminEvaluationController.class,
         SaTokenAnnotationConfig.class,
         SecurityConfig.class,
         AuthExceptionHandler.class
@@ -79,5 +81,14 @@ class DashboardAuthorizationTest {
                 .andExpect(jsonPath("$.code").value(40101));
 
         verifyNoInteractions(aiGateway, adminFeignExecutor);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachEvaluationWriteProxy() throws Exception {
+        mockMvc.perform(post("/api/admin/ai/evaluations/weight-schemes/1/deactivate"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(evaluations, adminFeignExecutor);
     }
 }

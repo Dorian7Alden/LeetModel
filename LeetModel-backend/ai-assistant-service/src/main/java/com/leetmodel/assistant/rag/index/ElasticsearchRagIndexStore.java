@@ -9,7 +9,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -21,7 +21,8 @@ import java.util.Map;
 
 /** 使用确定性 chunkId 批量写入 Elasticsearch。 */
 @Component
-@ConditionalOnBean(RestClient.class)
+@ConditionalOnProperty(prefix = "assistant.rag", name = "store-type", havingValue = "ELASTICSEARCH",
+        matchIfMissing = true)
 public class ElasticsearchRagIndexStore implements RagIndexStore {
 
     private final RestClient client;
