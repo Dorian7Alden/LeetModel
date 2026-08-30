@@ -1,4 +1,4 @@
-package com.leetmodel.assistant;
+package com.leetmodel.suggestion;
 
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
@@ -9,9 +9,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(scanBasePackages = "com.leetmodel")
 @EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
 @EnableScheduling
-@MapperScan("com.leetmodel.assistant.mapper")
-public class AssistantApplication {
+@MapperScan("com.leetmodel.suggestion.mapper")
+public class AiSuggestionApplication {
+
     public static void main(String[] args) {
-        SpringApplication.run(AssistantApplication.class, args);
+        SpringApplication.run(AiSuggestionApplication.class, args);
     }
 }

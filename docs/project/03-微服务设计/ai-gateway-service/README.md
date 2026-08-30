@@ -224,16 +224,15 @@ AI 网关独占 `lm_ai` 数据库，只持久化业务调用追溯、调度和�
 
 ## 本地运行与密钥
 
-目标链路开启真实 AI 调用需要为 `ai-gateway-service` 注入 new-api Relay Token，并启用业务服务的 AI 客户端：
+目标链路开启真实 AI 调用时，`ai-gateway-service` 的运行环境必须提供 new-api Relay Token，业务服务的 AI 客户端也必须启用。Relay Token 的本地存储和加载方式不由项目文档约定。
 
 ```bash
-export NEW_API_RELAY_TOKEN=<你的new-api Relay Token>
 export NEW_API_BASE_URL=http://127.0.0.1:3000/v1
 export COMMON_AI_CLIENT_ENABLED=true
 java -jar ai-gateway-service/target/ai-gateway-service-0.0.1-SNAPSHOT.jar
 ```
 
-- 业务服务和 `ai-gateway-service` 均不持有供应商密钥；Relay Token 只通过 AI 网关运行环境变量注入。
+- 业务服务和 `ai-gateway-service` 均不持有供应商密钥；Relay Token 只由 AI 网关运行环境提供。
 - `COMMON_AI_CLIENT_ENABLED=true` 覆盖 `application.yml` 中 `common.ai-client.enabled: false` 的默认值。
 - 若未配置 Relay Token 或客户端未启用，评审/建议/客服/质量评价会明确返回不可用状态，属于预期边界。
 - 建议任务生成较慢，`common-ai` 客户端默认读取超时已放宽到 5 分钟（可通过 `common.ai-client.read-timeout` 调整）。

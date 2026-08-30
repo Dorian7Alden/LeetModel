@@ -76,6 +76,6 @@ admin-service 只做管理员鉴权、登录操作者注入和无状态 Feign �
 
 ### 验收环境与密钥边界
 
-本地开发 new-api 的测试 Relay Token 位于仓库外 `~/Desktop/new-api-test-key.txt`。该路径用于跨会话定位测试凭据，但文件内容不得复制到仓库、日志、测试夹具或提交记录；测试时只临时注入进程环境。2026-08-28 已核验本地 new-api 可用 DeepSeek、Kimi 和 `qwen3.7-text-embedding`，这是当日环境事实，不是永久模型承诺，每次真实冒烟前仍需查询模型目录并执行最小请求。
+本地开发和真实冒烟由 `ai-gateway-service` 的运行环境提供 Relay Token，凭据不得进入仓库、日志、测试夹具或提交记录。2026-08-28 已核验本地 new-api 可用 DeepSeek、Kimi 和 `qwen3.7-text-embedding`，这是当日环境事实，不是永久模型承诺，每次真实冒烟前仍需查询模型目录并执行最小请求。
 
 阶段 S1 至 S6 的真实冒烟均遵守此边界。详细测试策略见 [ai-gateway-service/22-测试与验收.md](../03-微服务设计/ai-gateway-service/22-测试与验收.md)。

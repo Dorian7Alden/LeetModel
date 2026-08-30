@@ -8,6 +8,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableFeignClients(basePackages = "com.leetmodel.common.api.feign")
 @MapperScan("com.leetmodel.review.mapper")
 @SpringBootApplication(scanBasePackages = "com.leetmodel")
-public class ReviewApplication {
-    public static void main(String[] args) { SpringApplication.run(ReviewApplication.class, args); }
+public class AiReviewApplication {
+    public static void main(String[] args) { SpringApplication.run(AiReviewApplication.class, args); }
 }
