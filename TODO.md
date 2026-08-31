@@ -78,7 +78,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2 和 MQ3 已完成。Rocket
 - 完成摘要：最终提交锁和评审完成分别与 `FINAL_SUBMISSION_CHANGED`、`REVIEW_COMPLETED` Outbox 同事务提交；ranking-service 两个独立 Inbox 消费组把事件收敛到每题唯一 revision 任务。并发 1 Worker 使用 300 秒租约、20 秒逐任务 heartbeat 和 fencing 写入，失败事务保留旧排行，运行中新增事件只触发一次补跑，每小时权威事实 SHA-256 指纹对账修复漏事件。
 - 验收：后端全量 574 项测试中 559 项通过、15 项外部门禁跳过、零失败；目标模块 submission-service 26 项、ai-review-service 38 项、ranking-service 19 项测试零失败。打开门禁后真实 RocketMQ 以任意顺序重复投递两个事件，两个消费组各只执行一次业务请求；submission V1→V4、review V1→V6、ranking V1→V4 在真实 MySQL 完成迁移，并验证 revision 合并、过期租约接管与 recovery 计数；ranking-service 使用新库真实启动并完成 Flyway V1→V4。
 
-### [ ] MQ4 建议任务唤醒与租约恢复
+### [~] MQ4 建议任务唤醒与租约恢复
 
 - 目标：把建议任务从高频数据库轮询迁移为“任务事实加 Outbox、MQ 唤醒、租约 Worker”，保持多次生成和历史结果语义。
 - 依赖：MQ2。
