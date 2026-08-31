@@ -220,6 +220,42 @@ class AssistantToolOrchestratorTest {
         verify(auditService, never()).complete(any(), any(), any(), anyLong());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void terminalKnowledgeToolReturnsNestedAnswerWithoutOuterRewrite() throws Exception {
+        AssistantTool<Object> terminalTool = org.mockito.Mockito.mock(AssistantTool.class);
+        AssistantToolDescriptor terminalDescriptor = new AssistantToolDescriptor(
+                "explain_modeling_knowledge", "EXPLAIN_MODELING_KNOWLEDGE_0001",
+                new AiToolDefinition(AiToolType.FUNCTION, "explain_modeling_knowledge",
+                        "讲解数学建模知识", Map.of("type", "object", "properties", Map.of())),
+                true, Duration.ofSeconds(120), Set.of("ASSISTANT_TOOLS_NO_RAG_V1"));
+        when(terminalTool.descriptor()).thenReturn(terminalDescriptor);
+        when(registry.find(anyString(), eq("explain_modeling_knowledge")))
+                .thenReturn(Optional.of(terminalTool));
+        AiToolCall knowledgeCall = new AiToolCall("knowledge-1",
+                "explain_modeling_knowledge", "{\"topic\":\"层次分析法\"}");
+        PreparedAssistantToolCall prepared = new PreparedAssistantToolCall(
+                terminalTool, new Object(), "{\"topic\":\"层次分析法\"}");
+        when(registry.prepare(anyString(), anyString(),
+                eq("explain_modeling_knowledge"), anyString())).thenReturn(prepared);
+        AiChatResponse nested = response("层次分析法用于多准则决策。", List.of(), "nested-call");
+        when(executionService.execute(eq(prepared), any())).thenReturn(
+                new AssistantToolOutput("{\"answerSha256\":\"abc\"}",
+                        "{\"answerSha256\":\"abc\"}", nested));
+        when(workflow.toolChat(any(), any(), any(), any(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(response(null, List.of(knowledgeCall), "planning-call"));
+
+        AssistantToolRunResult result = run();
+
+        assertThat(result.response().callId()).isEqualTo("nested-call");
+        assertThat(result.response().content()).contains("多准则决策");
+        assertThat(result.executedToolCalls()).isEqualTo(1);
+        verify(workflow, times(1)).toolChat(any(), any(), any(), any(),
+                anyInt(), anyInt(), any(), any());
+        verify(auditService).complete(any(), contains("answerSha256"),
+                eq("nested-call"), anyLong());
+    }
+
     private AssistantToolRunResult run() throws Exception {
         return orchestrator.run(List.of(userMessage), userMessage, assistantMessage, snapshot,
                 AssistantToolRegistry.TOOLSET_V1, 1, Instant.now().plusSeconds(240));

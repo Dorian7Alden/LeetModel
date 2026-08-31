@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.assistant.tool.problem.RecommendProblemTool;
 import com.leetmodel.assistant.tool.problem.SearchProblemTool;
+import com.leetmodel.assistant.tool.knowledge.ExplainModelingKnowledgeTool;
 import com.leetmodel.common.ai.model.AiToolDefinition;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -34,12 +35,14 @@ public class AssistantToolRegistry {
 
     public AssistantToolRegistry(ObjectMapper objectMapper, Validator validator,
                                  SearchProblemTool searchProblemTool,
-                                 RecommendProblemTool recommendProblemTool) {
+                                 RecommendProblemTool recommendProblemTool,
+                                 ExplainModelingKnowledgeTool explainModelingKnowledgeTool) {
         this.objectMapper = objectMapper;
         this.validator = validator;
         Map<String, AssistantTool<?>> v1 = new LinkedHashMap<>();
         register(v1, searchProblemTool);
         register(v1, recommendProblemTool);
+        register(v1, explainModelingKnowledgeTool);
         this.toolsets = Map.of(TOOLSET_V1, Map.copyOf(v1));
     }
 

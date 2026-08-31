@@ -5,6 +5,9 @@ import com.leetmodel.assistant.tool.problem.RecommendProblemInput;
 import com.leetmodel.assistant.tool.problem.RecommendProblemTool;
 import com.leetmodel.assistant.tool.problem.SearchProblemInput;
 import com.leetmodel.assistant.tool.problem.SearchProblemTool;
+import com.leetmodel.assistant.tool.knowledge.ExplainModelingKnowledgeTool;
+import com.leetmodel.assistant.rag.workflow.RagWorkflowContextProvider;
+import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -23,13 +26,15 @@ class AssistantToolRegistryTest {
     private AssistantToolRegistry registry;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         ProblemFeignClient problemClient = mock(ProblemFeignClient.class);
         registry = new AssistantToolRegistry(objectMapper, validator,
                 new SearchProblemTool(problemClient, objectMapper),
-                new RecommendProblemTool(problemClient, objectMapper));
+                new RecommendProblemTool(problemClient, objectMapper),
+                new ExplainModelingKnowledgeTool(mock(AiClient.class),
+                        mock(RagWorkflowContextProvider.class), objectMapper));
     }
 
     @Test
@@ -38,7 +43,8 @@ class AssistantToolRegistryTest {
                 "ASSISTANT_TOOLS_NO_RAG_V1");
 
         assertThat(definitions).extracting("name")
-                .containsExactlyInAnyOrder("search_problem", "recommend_problem");
+                .containsExactlyInAnyOrder("search_problem", "recommend_problem",
+                        "explain_modeling_knowledge");
         assertThat(definitions).allSatisfy(definition -> {
             assertThat(definition.inputSchema()).containsEntry("type", "object")
                     .containsEntry("additionalProperties", false);
