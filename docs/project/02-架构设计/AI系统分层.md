@@ -18,6 +18,13 @@ AI 业务能力层直接产生用户能够理解和使用的业务结果。
 这一层拥有业务 Prompt、业务工作流、业务输出契约和业务结果。它不直接适配模型供应商，也不拥有其他领域服务的主数据。
 
 
+### AI 知识检索支撑层
+
+`knowledge-retrieval-service` 是已确认的目标独立服务，为 AI 助手、论文建议和后续真实消费者提供版本化、可追溯的参考上下文。它拥有知识源清单、检索工作流、索引生命周期、来源适用性校验和检索运行快照，但不生成最终客服回答、评分或修改建议。
+
+当前向量 RAG V1 仍实现在 ai-assistant-service 内；目标迁移不改变该历史版本的算法语义。新消费者不复制客服内置 RAG，而是调用独立服务的已发布检索工作流。
+
+
 ### AI 评价层
 
 `ai-evaluation-service` 负责评价 AI 业务能力及其版本，而不代替业务服务生成用户结果。当前实现范围只有论文评审重复运行稳定性；目标平台还管理具备标准答案或人工标注证据的质量指标、资源指标的评价引用、归一化口径、权重方案和版本选择指数。
@@ -62,6 +69,10 @@ flowchart TB
         ASSISTANT[ai-assistant-service<br/>对话与选题推荐]
     end
 
+    subgraph KNOWLEDGE[AI 知识检索支撑层]
+        RETRIEVAL[knowledge-retrieval-service<br/>检索工作流、来源与快照]
+    end
+
     subgraph QUALITY[AI 评价层]
         EVALUATION[ai-evaluation-service<br/>隔离实验、指标与版本选择指数]
     end
@@ -89,9 +100,13 @@ flowchart TB
     PROBLEM -->|题目内容| SUGGESTION
     PROBLEM -->|候选题目查询| ASSISTANT
 
+    SUGGESTION -->|有依据的参考上下文| RETRIEVAL
+    ASSISTANT -->|客服知识上下文| RETRIEVAL
+
     REVIEW --> COMMON_AI
     SUGGESTION --> COMMON_AI
     ASSISTANT --> COMMON_AI
+    RETRIEVAL --> COMMON_AI
     COMMON_AI --> AI_GATEWAY
     AI_GATEWAY --> NEW_API
     NEW_API --> MODEL
@@ -108,7 +123,7 @@ flowchart TB
     ADMIN -->|查询调用运行事实| AI_GATEWAY
 ```
 
-实线表示已经明确需要的协作方向，虚线表示尚未进入实现的成本关联或其他 AI 功能稳定性实验方向。该图只表达服务交互和数据方向，不代表已经确定使用同步调用、消息队列或其他具体调度技术。
+实线表示已经明确需要的目标协作方向，不等于相应服务已实现；虚线表示尚未进入实现的成本关联或其他 AI 功能稳定性实验方向。该图只表达服务交互和数据方向，不代表已经确定使用同步调用、消息队列或其他具体调度技术。
 
 
 ### 边界判断原则
@@ -127,6 +142,7 @@ flowchart TB
 
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
 - ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前稳定性评价只覆盖 AI 评审版本；现有评价实现仍需从极差和综合得分口径调整为方差与标准差口径。建议与客服不规划 AI 二次评价。
+- knowledge-retrieval-service 当前只有目标设计，尚无 Maven 模块、数据库和运行接口；客服 RAG V1 仍在 ai-assistant-service 内运行。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
 - new-api 已作为独立 Docker 基础设施部署并承载默认 Chat 链路；`ai-gateway-service` 只保留 NewApiAdapter，旧供应商官方接口直连已删除。
 - 当前代码未实现旧设计声称的本地并发保护。LeetModel 业务优先级、公平调度和背压由后续 S5 系列任务负责；供应商渠道限流和健康由 new-api 负责。
