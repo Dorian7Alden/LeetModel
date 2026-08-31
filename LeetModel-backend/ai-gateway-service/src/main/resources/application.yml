@@ -48,6 +48,18 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_ASSISTANT_CHAT_0001]
         workflow-versions: [ASSISTANT_CHAT_V1, ASSISTANT_NO_RAG_V1, ASSISTANT_RAG_V1]
+      MODEL_CFG_ASSISTANT_KNOWLEDGE_0001:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash
+        modality: TEXT
+        max-tokens: 500
+        temperature: 0.1
+        response-format: TEXT
+        thinking-enabled: false
+        tools: false
+        prompt-versions: [PROMPT_ASSISTANT_KNOWLEDGE_0001]
+        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1]
       MODEL_CFG_REVIEW_MULTIMODAL_0001:
         call-type: CHAT
         provider: NEW_API
