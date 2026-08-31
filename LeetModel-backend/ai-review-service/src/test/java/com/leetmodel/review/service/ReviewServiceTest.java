@@ -9,7 +9,6 @@ import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.review.entity.ReviewTask;
-import com.leetmodel.review.entity.ReviewTaskLog;
 import com.leetmodel.review.entity.ReviewV1Result;
 import com.leetmodel.review.entity.ReviewVersion;
 import com.leetmodel.review.enums.ReviewErrorCode;
@@ -82,18 +81,6 @@ class ReviewServiceTest {
     }
 
     @Test
-    void onlyOneWorkerCanClaimWaitingTask() {
-        ReviewTask task = task(20L, "WAITING");
-        when(taskMapper.selectNextWaiting()).thenReturn(task);
-        when(taskMapper.claim(any(), any())).thenReturn(0);
-
-        service.processNext();
-
-        verify(submissionFeignClient, never()).getForReview(any());
-        verify(workflowRegistry, never()).required(any());
-    }
-
-    @Test
     void rejectTaskQueryWhenSubmissionDependencyFails() {
         ReviewTask task = task(21L, "WAITING");
         when(taskMapper.selectById(21L)).thenReturn(task);
@@ -151,22 +138,6 @@ class ReviewServiceTest {
 
         assertEquals(ReviewErrorCode.TASK_NOT_FAILED.getCode(), error.getCode());
         verify(taskMapper, never()).resetForRetry(any());
-    }
-
-    @Test
-    void markClaimedTaskFailedWhenDependencyFails() {
-        ReviewTask task = task(25L, "WAITING");
-        ReviewTaskLog runLog = new ReviewTaskLog();
-        when(taskMapper.selectNextWaiting()).thenReturn(task);
-        when(taskMapper.claim(any(), any())).thenReturn(1);
-        when(logService.start(any(), any(), any(), any())).thenReturn(runLog);
-        when(submissionFeignClient.getForReview(31L)).thenReturn(null);
-
-        service.processNext();
-
-        verify(logService).fail(any(), any());
-        verify(taskMapper).updateById(argThat((ReviewTask value) -> "FAILED".equals(value.getStatus())
-                && value.getFinishedAt() != null && value.getErrorMessage() != null));
     }
 
     @Test

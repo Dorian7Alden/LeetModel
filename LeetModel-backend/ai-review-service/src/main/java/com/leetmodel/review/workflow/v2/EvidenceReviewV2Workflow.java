@@ -132,9 +132,7 @@ public class EvidenceReviewV2Workflow implements ReviewWorkflow {
                     task.getModelExecutionConfigVersion() == null
                             ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
                     task.getEvaluationTaskId(), task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
-                    task.getExperimentIdempotencyKey() == null
-                            ? "evidence-review:" + taskKey + ":attempt:" + task.getAttemptNo()
-                            : task.getExperimentIdempotencyKey(), Instant.now().plusSeconds(420));
+                    idempotencyKey(task, taskKey), Instant.now().plusSeconds(420));
             AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                     List.of(message(AiRole.SYSTEM, task.getPromptSnapshot()),
                             message(AiRole.USER, userPrompt)),
@@ -148,6 +146,14 @@ public class EvidenceReviewV2Workflow implements ReviewWorkflow {
             logService.fail(step, exception);
             throw exception;
         }
+    }
+
+    private String idempotencyKey(ReviewTask task, String taskKey) {
+        if (task.getExperimentIdempotencyKey() != null) return task.getExperimentIdempotencyKey();
+        if (task.getAiIdempotencyKey() != null && !task.getAiIdempotencyKey().isBlank()) {
+            return task.getAiIdempotencyKey();
+        }
+        return "evidence-review:" + taskKey + ":attempt:" + task.getAttemptNo();
     }
 
     private void validate(EvidenceReviewV2Output output, PaperDocumentV1 document) {

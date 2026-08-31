@@ -3,5 +3,26 @@ spring:
     name: ai-review-service
   profiles:
     active: dev
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-ai-review-v1
+    send-message-timeout: 3000
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: false
+review:
+  messaging:
+    consumer-enabled: true
+  worker:
+    enabled: true
+    concurrency: 2
+    poll-delay-ms: 1000
+    lease-seconds: 120
+    heartbeat-ms: 20000
+    max-attempts: 3
 server:
   shutdown: graceful

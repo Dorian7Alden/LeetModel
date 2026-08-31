@@ -13,6 +13,7 @@ import com.leetmodel.submission.entity.SubmissionLock;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.vo.SubmissionVO;
+import com.leetmodel.submission.config.ReviewDispatchProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +30,8 @@ class SubmissionServiceTest {
     @Mock TeamFeignClient teamFeignClient; @Mock ReviewFeignClient reviewFeignClient;
     @Mock ProblemFeignClient problemFeignClient;
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
+    @Mock ReviewDispatchProperties reviewDispatchProperties;
+    @Mock ReviewDispatchQueryService reviewDispatchQueryService;
 
     @Test
     void markLockedSubmissionAsFinalVersionInHistory() {
@@ -105,6 +108,33 @@ class SubmissionServiceTest {
         assertEquals(101L, preview.getSubmissionId());
         assertEquals("paper.pdf", preview.getOriginalFilename());
         assertEquals("http://minio.test/presigned-paper.pdf", preview.getPreviewUrl());
+    }
+
+    @Test
+    void mqPrimaryReturnsWaitingDispatchWithoutRequestThreadFeignCall() {
+        Submission submission = submission(101L, 1);
+        when(reviewDispatchProperties.getTransport())
+                .thenReturn(ReviewDispatchProperties.Transport.MQ_PRIMARY);
+        when(reviewDispatchQueryService.status(101L)).thenReturn("WAITING_DISPATCH");
+
+        SubmissionVO response = service.triggerReview(submission);
+
+        assertEquals("WAITING_DISPATCH", response.getReviewDispatchStatus());
+        verify(reviewFeignClient, never()).createVersionedTask(any(), any(), any(), any());
+    }
+
+    @Test
+    void legacyModeUsesOnlyIdempotentRequestThreadFeignCall() {
+        Submission submission = submission(101L, 1);
+        when(reviewDispatchProperties.getTransport())
+                .thenReturn(ReviewDispatchProperties.Transport.LEGACY_FEIGN);
+        when(reviewFeignClient.createVersionedTask(101L, 1L, 100L, "EVIDENCE_REVIEW_V2"))
+                .thenReturn(Result.ok(901L));
+
+        SubmissionVO response = service.triggerReview(submission);
+
+        assertEquals("DISPATCHED", response.getReviewDispatchStatus());
+        verify(reviewFeignClient).createVersionedTask(101L, 1L, 100L, "EVIDENCE_REVIEW_V2");
     }
 
     private TeamDTO team() {

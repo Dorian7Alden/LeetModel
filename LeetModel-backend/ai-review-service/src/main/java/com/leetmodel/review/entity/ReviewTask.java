@@ -8,8 +8,11 @@ import java.time.LocalDateTime;
 @Data @EqualsAndHashCode(callSuper = true) @TableName("review_task")
 public class ReviewTask extends BaseEntity {
     private Long submissionId; private Long versionId; private Long teamId; private Long problemId;
-    private String status; private String workflowVersion;
+    private String status; private Integer priority; private String traceId; private String workflowVersion;
     private String promptSnapshot; private Integer retryCount; private Integer attemptNo;
+    private Integer maxAttempts; private String leaseOwner; private String leaseToken;
+    private LocalDateTime leaseExpiresAt; private LocalDateTime heartbeatAt;
+    private Integer recoveryCount; private String failureType; private String aiIdempotencyKey;
     private LocalDateTime nextRunAt; private LocalDateTime startedAt;
     private LocalDateTime finishedAt; private String errorMessage;
     @TableField(exist = false) private String experimentRunId;

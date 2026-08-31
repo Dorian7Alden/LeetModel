@@ -15,6 +15,7 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionLock;
+import com.leetmodel.submission.config.ReviewDispatchProperties;
 import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
@@ -41,6 +42,8 @@ public class SubmissionService {
     private final ReviewFeignClient reviewFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
+    private final ReviewDispatchProperties reviewDispatchProperties;
+    private final ReviewDispatchQueryService reviewDispatchQueryService;
 
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
@@ -173,22 +176,22 @@ public class SubmissionService {
     }
 
     /**
-     * 幂等触发提交的 AI 评审任务并转换响应。
+     * 按互斥迁移模式返回评审派发状态；仅 LEGACY_FEIGN 在请求线程触发评审。
      * @param submission 提交记录
      * @return 提交响应
      */
     public SubmissionVO triggerReview(Submission submission) {
+        SubmissionVO response = toVO(submission);
+        if (reviewDispatchProperties.getTransport() != ReviewDispatchProperties.Transport.LEGACY_FEIGN) {
+            return response;
+        }
         Result<Long> task = reviewFeignClient.createVersionedTask(
-                submission.getId(),
-                submission.getTeamId(),
-                submission.getProblemId(),
-                "EVIDENCE_REVIEW_V2"
-        );
-        BusinessException.throwIf(
-                task == null || !task.isSuccess(),
-                SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED
-        );
-        return toVO(submission);
+                submission.getId(), submission.getTeamId(), submission.getProblemId(),
+                com.leetmodel.submission.messaging.ReviewTaskMessageContract.WORKFLOW_VERSION);
+        BusinessException.throwIf(task == null || !task.isSuccess(),
+                SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED);
+        response.setReviewDispatchStatus("DISPATCHED");
+        return response;
     }
 
     /**
@@ -225,6 +228,7 @@ public class SubmissionService {
         return SubmissionVO.builder().id(value.getId()).teamId(value.getTeamId()).problemId(value.getProblemId())
                 .submitterId(value.getSubmitterId()).version(value.getVersion())
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
+                .reviewDispatchStatus(reviewDispatchQueryService.status(value.getId()))
                 .finalVersion(value.getId().equals(finalSubmissionId))
                 .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
     }

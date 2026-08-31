@@ -20,15 +20,27 @@ public class ReviewResultPersistenceService {
                                           ReviewV2ResultMapper v2ResultMapper) {
         this.taskMapper = taskMapper; this.resultMapper = resultMapper; this.v2ResultMapper = v2ResultMapper;
     }
+    /**
+     * 在同一事务中写版本化结果，并用 fencing token 推进任务终态。
+     *
+     * @param task 评审任务
+     * @param submission 提交快照
+     * @param workflowResult 工作流结果
+     * @param leaseToken 当前执行租约 token
+     */
     @Transactional
-    public void complete(ReviewTask task, SubmissionReviewDTO submission, ReviewWorkflowResult workflowResult) {
+    public void complete(ReviewTask task, SubmissionReviewDTO submission,
+                         ReviewWorkflowResult workflowResult, String leaseToken) {
         if (EvidenceReviewV2Workflow.VERSION_CODE.equals(task.getWorkflowVersion())) {
             completeV2(task, submission, workflowResult);
         } else {
             completeV1(task, submission, workflowResult);
         }
-        task.setStatus("COMPLETED"); task.setFinishedAt(LocalDateTime.now()); task.setErrorMessage(null);
-        taskMapper.updateById(task);
+        LocalDateTime finishedAt = LocalDateTime.now();
+        if (taskMapper.markCompleted(task.getId(), leaseToken, finishedAt) == 0) {
+            throw new IllegalStateException("评审任务租约已丢失，拒绝提交结果");
+        }
+        task.setStatus("COMPLETED"); task.setFinishedAt(finishedAt); task.setErrorMessage(null);
     }
 
     private void completeV1(ReviewTask task, SubmissionReviewDTO submission, ReviewWorkflowResult workflowResult) {
