@@ -75,9 +75,20 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - JDK 17、Maven 3.9+
 - Node.js 20+、npm 10+
 - Docker Engine 与 Docker Compose
-- 本地 Nacos（默认路径 `~/repo/nacos`），或通过 `NACOS_HOME` 指定安装目录
 
-MySQL、Redis、MinIO 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
+MySQL、Redis、MinIO、Nacos 2.3.2 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
+
+#### 启动 Nacos
+
+Nacos 使用单机内置 Derby，配置和日志分别持久化到 `nacos-data` 和 `nacos-logs` 命名卷：
+
+```bash
+cd LeetModel-backend
+docker compose up -d --wait nacos
+curl --fail http://127.0.0.1:8848/nacos/v1/console/health/readiness
+```
+
+Nacos 控制台为 `http://127.0.0.1:8848/nacos`。常规停止可使用 `docker compose stop nacos`；`docker compose down` 会停止容器，但默认保留命名卷。不要使用 `down -v` 或删除 `nacos-data`，除非明确要清空 Nacos 配置。
 
 #### 启动 new-api
 
@@ -131,7 +142,7 @@ cd LeetModel-backend
 ./scripts/stop-mvp.sh
 ```
 
-该脚本只停止业务服务，保留 MySQL、Redis、MinIO 和 Nacos。如需停止 Docker 基础设施，再执行 `docker compose down`。
+该脚本只停止业务服务，保留 MySQL、Redis、MinIO 和 Nacos 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`。
 
 ### 验证命令
 
