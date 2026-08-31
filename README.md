@@ -66,7 +66,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `ai-assistant-service` | AI 客服会话、消息历史和受控工具 |
 | `ranking-service` | 最终提交排名计算与查询 |
 | `ai-evaluation-service` | AI 评审版本的固定测试集与质量评价 |
-| `common` | 公共模块，含 common-core、common-api、common-security、common-cache、common-ai |
+| `common` | 公共模块，含 common-core、common-api、common-security、common-cache、common-messaging、common-ai |
 
 ### 本地运行
 
@@ -76,7 +76,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - Node.js 20+、npm 10+
 - Docker Engine 与 Docker Compose
 
-MySQL、安全状态 Redis、业务缓存 Redis、MinIO、Nacos 2.3.2 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务缓存 Redis 绑定 `127.0.0.1:6380`，使用 `volatile-lfu` 且不持久化；Token 黑名单继续使用 `6379` 的安全状态 Redis。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
+MySQL、安全状态 Redis、业务缓存 Redis、MinIO、Nacos 2.3.2、Elasticsearch 8.14.3、RocketMQ 5.5.0 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务缓存 Redis 绑定 `127.0.0.1:6380`，使用 `volatile-lfu` 且不持久化；Token 黑名单继续使用 `6379` 的安全状态 Redis。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
 
 #### 启动 Nacos
 
@@ -112,6 +112,21 @@ curl -fsS http://127.0.0.1:9200/_cluster/health
 
 本地端口仅绑定 `127.0.0.1:9200`，JVM 堆限制为 512 MiB，容器内存限制为 1 GiB。常规停止使用 `docker compose stop elasticsearch`；`docker compose down` 默认保留命名卷。不要使用 `down -v` 或删除 `elasticsearch-data`，除非明确要清空本地索引。
 
+#### 启动 RocketMQ
+
+本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个 NORMAL Topic 和五个消费组：
+
+```bash
+cd LeetModel-backend
+docker compose up -d --wait rocketmq-namesrv rocketmq-broker
+./scripts/init-rocketmq.sh
+./scripts/verify-rocketmq.sh
+```
+
+需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
+
+NameServer、Broker 和 Dashboard 均只绑定本机端口。本地 Broker 数据保存在 `rocketmq-broker-store` 命名卷；常规停止使用 `docker compose stop rocketmq-broker rocketmq-namesrv`。`docker compose down` 默认保留消息，禁止使用 `down -v` 或删除 RocketMQ 命名卷，除非明确要清空本地消息与消费位点。当前单 Broker、无 ACL 配置只用于本地开发，生产环境必须另行部署多副本集群并通过 `rocketmq.producer.access-key`、`secret-key` 等外部密钥配置启用 ACL。
+
 #### 1. 启动后端
 
 ```bash
@@ -119,7 +134,7 @@ cd LeetModel-backend
 ./scripts/start-mvp.sh
 ```
 
-脚本会确保 Elasticsearch 等项目基础设施就绪，并构建、启动 13 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 13 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
 AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 
@@ -142,7 +157,7 @@ cd LeetModel-backend
 ./scripts/stop-mvp.sh
 ```
 
-该脚本只停止业务服务，保留 MySQL、Redis、MinIO、Nacos 和 Elasticsearch 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`。
+该脚本只停止业务服务，保留 MySQL、Redis、MinIO、Nacos、Elasticsearch 和 RocketMQ 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`；该命令默认保留命名卷。
 
 ### 验证命令
 

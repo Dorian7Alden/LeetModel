@@ -37,19 +37,22 @@
 | C1 | 完成 HTTP、Caffeine、Redis 三级缓存策略设计，首期锁定公开题库和当前排行，明确多级回填、版本化 Cache Aside、Outbox 可靠失效、Pub/Sub 与版本对账、故障降级和可量化验收门槛，尚未写运行时代码。 | [缓存策略](docs/project/02-架构设计/缓存策略.md) |
 | C2 | 公开题库与当前排行完成 HTTP、Caffeine、独立业务 Redis 三级缓存，具备 Outbox 可靠失效、Pub/Sub、五秒对账、空值与 Redis 故障降级。 | [缓存策略](docs/project/02-架构设计/缓存策略.md#实施与验收结果) |
 | MQ0 | 完成 RocketMQ 多级任务与事件设计，确认 Outbox/Inbox、领域任务租约、在线与批任务隔离、DLQ、配置、迁移和故障验收边界，尚未写运行时代码。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md) |
+| MQ1 | 固定 Broker Docker 5.5.0 与 RocketMQ Spring 2.3.3，完成显式 NORMAL 资源、持久化本地设施、消息信封、事务 Outbox/Inbox、租约 Relay、指标与真实协议验证。 | [common-messaging](docs/project/03-微服务设计/common/common-messaging/README.md) |
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1、C1、C2 和 MQ0 已完成。下一阶段为 RocketMQ 可靠异步链路，按 MQ1 至 MQ6 串行实施；当前下一张任务卡是 MQ1。
+S0 至 S12、M1、U1、I1、C1、C2、MQ0 和 MQ1 已完成。RocketMQ 可靠异步链路按 MQ2 至 MQ6 串行实施；当前下一张任务卡是 MQ2。
 
-### [ ] MQ1 RocketMQ 基础设施与公共契约
+### [x] MQ1 RocketMQ 基础设施与公共契约
 
 - 目标：建立可复现的 RocketMQ 本地基础设施和不含业务语义的 `common-messaging` 公共能力。
 - 依赖：MQ0 设计已确认。
-- 主流程：固定并真实验证 Broker 5.5.1 与 RocketMQ Spring 2.3.3 目标基线；Docker Compose 启动 NameServer、Broker 与可选 Dashboard；版本化脚本显式创建 NORMAL Topic 和消费组；公共模块提供 `MessageEnvelopeV1`、64 KiB 校验、Outbox Relay、Inbox 幂等、配置校验、低基数指标和测试替身。
+- 主流程：固定并真实验证 Broker Docker 5.5.0 与 RocketMQ Spring 2.3.3 基线；Docker Compose 启动 NameServer、Broker 与可选 Dashboard；版本化脚本显式创建 NORMAL Topic 和消费组；公共模块提供 `MessageEnvelopeV1`、64 KiB 校验、Outbox Relay、Inbox 幂等、配置校验、低基数指标和测试替身。
 - 完成标准：JDK 17、Spring Boot 3 下真实发送、消费、重复投递、Broker 重启和数据卷恢复通过；Topic 类型、namespace、ACL 预留、健康检查和停机说明完整；不使用自动创建伪装资源初始化成功。
 - 修改范围：父 POM、`common-messaging`、Docker Compose、基础设施脚本、启动停止脚本、公共测试和运行文档。
 - 非目标：不迁移任何业务生产者或消费者，不启用事务、延迟和顺序消息，不建设生产多副本集群。
+- 完成摘要：Docker Compose 使用固定 5.5.0 镜像运行 NameServer、单 Broker 和可选 Dashboard，关闭 Topic/消费组自动创建并通过脚本显式建立 5 个 NORMAL Topic、5 个最大重试 5 次的消费组；`common-messaging` 提供 UUID/ULID 与 64 KiB 契约校验、同库 Outbox、逐条续租 Relay、分级退避与 BLOCKED、同事务 Inbox、低基数指标、健康检查和内存测试发布器。
+- 验收：公共模块 19 项常规测试通过，其中 1 项外部协议测试默认按门禁跳过；后端全量 544 项测试中 531 项通过、13 项按既有门禁跳过、无失败。打开门禁后 RocketMQ Spring 2.3.3 真实发布、消费、同 eventId 重复投递一次执行和一次失败重投通过。资源初始化、消费组策略、Dashboard 启动、Broker 重启、offset 与按 Key 数据卷恢复均真实验证；5.5.1 无 Docker Hub 标签，因此可复现镜像基线校准为 5.5.0。
 
 ### [ ] MQ2 提交到评审可靠异步链路
 

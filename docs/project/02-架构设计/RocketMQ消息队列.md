@@ -1,8 +1,8 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计，尚未写入 RocketMQ 运行时代码。
+> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力，业务链路按 MQ2 至 MQ6 继续迁移。
 >
-> 设计基线：Apache RocketMQ Broker 5.5.1，RocketMQ Spring 2.3.3。实施前必须通过真实协议测试确认 Spring Boot 3、JDK 17、Broker、客户端和管理命令兼容性，验证失败时只调整依赖基线，不改变本文业务语义。
+> 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0，RocketMQ Spring 2.3.3（历史 Remoting 客户端 5.1.4）。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复已在 MQ1 验证。
 
 
 ### 设计目标与当前边界
