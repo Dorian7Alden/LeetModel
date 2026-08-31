@@ -32,6 +32,7 @@ class SubmissionServiceTest {
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
     @Mock ReviewDispatchProperties reviewDispatchProperties;
     @Mock ReviewDispatchQueryService reviewDispatchQueryService;
+    @Mock SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
     @Test
     void markLockedSubmissionAsFinalVersionInHistory() {

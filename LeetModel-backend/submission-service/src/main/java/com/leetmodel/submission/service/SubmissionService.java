@@ -44,6 +44,7 @@ public class SubmissionService {
     private final StorageService storageService;
     private final ReviewDispatchProperties reviewDispatchProperties;
     private final ReviewDispatchQueryService reviewDispatchQueryService;
+    private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
@@ -79,7 +80,8 @@ public class SubmissionService {
         BusinessException.throwIf(!"ENDED".equals(team.getPracticeStatus())
                         && (team.getDeadlineAt() == null || LocalDateTime.now().isBefore(team.getDeadlineAt())),
                 SubmissionErrorCode.DEADLINE_NOT_REACHED);
-        return lockFinal(team);
+        Submission finalSubmission = finalizationPersistenceService.lockFinal(team);
+        return toVO(finalSubmission, finalSubmission.getId());
     }
 
     @Scheduled(fixedDelayString = "${submission.finalizer.delay-ms:60000}")
@@ -88,27 +90,11 @@ public class SubmissionService {
         if (response == null || !response.isSuccess() || response.getData() == null) return;
         for (TeamDTO team : response.getData()) {
             try {
-                lockFinal(team);
+                finalizationPersistenceService.lockFinal(team);
             } catch (BusinessException ignored) {
                 // 没有成功提交的队伍保持原状态，等待人工处理。
             }
         }
-    }
-
-    private SubmissionVO lockFinal(TeamDTO team) {
-        Long teamId = team.getId();
-        SubmissionLock existing = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
-                .eq(SubmissionLock::getTeamId, teamId));
-        if (existing != null) return toVO(requiredSubmission(existing.getSubmissionId()), existing.getSubmissionId());
-        LocalDateTime effectiveEnd = team.getEndedAt() != null ? team.getEndedAt() : team.getDeadlineAt();
-        Submission latest = submissionMapper.selectOne(new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTeamId, teamId).eq(Submission::getStatus, "SUCCESS")
-                .le(Submission::getCreateTime, effectiveEnd).orderByDesc(Submission::getVersion).last("LIMIT 1"));
-        BusinessException.throwIf(latest == null, SubmissionErrorCode.FINAL_SUBMISSION_NOT_FOUND);
-        SubmissionLock lock = new SubmissionLock();
-        lock.setTeamId(teamId); lock.setSubmissionId(latest.getId()); lock.setLockedAt(LocalDateTime.now());
-        lockMapper.insert(lock);
-        return toVO(latest, latest.getId());
     }
 
     public SubmissionReviewDTO getForReview(Long id) {

@@ -13,7 +13,7 @@ leetmodel:
     enabled: true
     namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
     relay:
-      enabled: false
+      enabled: true
 review:
   messaging:
     consumer-enabled: true
