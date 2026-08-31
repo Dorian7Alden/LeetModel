@@ -32,7 +32,7 @@ public class SuggestionController {
     @Operation(summary = "创建论文建议任务")
     @PostMapping
     public Result<SuggestionVO> create(@Valid @RequestBody SuggestionCreateRequest request) {
-        return Result.ok(suggestionService.create(request.getSubmissionId(), UserContext.getUserId()));
+        return Result.ok(suggestionService.create(request, UserContext.getUserId()));
     }
 
     @Operation(summary = "查询论文建议任务")
@@ -42,11 +42,11 @@ public class SuggestionController {
         return Result.ok(suggestionService.get(taskId, UserContext.getUserId()));
     }
 
-    @Operation(summary = "按提交查询论文建议")
+    @Operation(summary = "按提交查询论文建议历史")
     @GetMapping("/submissions/{submissionId}")
-    public Result<SuggestionVO> getBySubmission(
+    public Result<List<SuggestionVO>> getBySubmission(
             @PathVariable @Positive(message = "提交标识必须为正整数") Long submissionId) {
-        return Result.ok(suggestionService.getBySubmission(submissionId, UserContext.getUserId()));
+        return Result.ok(suggestionService.listBySubmission(submissionId, UserContext.getUserId()));
     }
 
     @Operation(summary = "查询队伍论文建议历史")

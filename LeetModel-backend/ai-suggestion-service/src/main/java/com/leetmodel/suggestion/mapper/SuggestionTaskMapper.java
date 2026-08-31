@@ -19,12 +19,14 @@ public interface SuggestionTaskMapper extends BaseMapper<SuggestionTask> {
     int claim(@Param("id") Long id, @Param("now") LocalDateTime now);
 
     @Update("UPDATE suggestion_task SET status = 'WAITING', retry_count = retry_count + 1, "
+            + "attempt_no = attempt_no + 1, current_stage = 'PREPARING', "
             + "next_run_at = #{now}, started_at = NULL, finished_at = NULL, error_message = NULL, "
             + "result_json = NULL, model_name = NULL, ai_call_id = NULL, update_time = #{now} "
             + "WHERE id = #{id} AND status = 'FAILED' AND deleted = 0")
     int resetForRetry(@Param("id") Long id, @Param("now") LocalDateTime now);
 
     @Update("UPDATE suggestion_task SET status = 'WAITING', retry_count = retry_count + 1, "
+            + "attempt_no = attempt_no + 1, current_stage = 'PREPARING', "
             + "next_run_at = #{now}, started_at = NULL, error_message = '任务中断，已自动恢复', "
             + "update_time = #{now} WHERE status = 'RUNNING' AND started_at < #{cutoff} AND deleted = 0")
     int recoverStale(@Param("cutoff") LocalDateTime cutoff, @Param("now") LocalDateTime now);

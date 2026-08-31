@@ -7,7 +7,7 @@ RUNTIME_DIR="${BACKEND_DIR}/.mvp-runtime"
 
 services=(
   gateway-service admin-service ai-evaluation-service ai-assistant-service
-  ai-suggestion-service ranking-service ai-review-service submission-service
+  ai-suggestion-service knowledge-retrieval-service ranking-service ai-review-service submission-service
   ai-gateway-service team-service problem-service user-service
 )
 

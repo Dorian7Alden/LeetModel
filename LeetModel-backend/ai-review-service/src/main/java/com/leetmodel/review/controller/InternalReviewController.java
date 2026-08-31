@@ -7,7 +7,9 @@ import com.leetmodel.common.api.dto.ReviewVersionDTO;
 import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
 import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.PaperParseDTO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.review.parse.PaperParseService;
 import com.leetmodel.review.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +34,34 @@ import java.util.List;
 public class InternalReviewController {
 
     private final ReviewService reviewService;
+    private final PaperParseService paperParseService;
 
     @Operation(summary = "创建基础评审任务")
     @PostMapping("/tasks")
     public Result<Long> create(@RequestParam Long submissionId, @RequestParam Long teamId, @RequestParam Long problemId) {
         return Result.ok(reviewService.createTask(submissionId, teamId, problemId));
+    }
+
+    @Operation(summary = "按指定不可变评审版本创建任务")
+    @PostMapping("/tasks/versioned")
+    public Result<Long> createVersioned(@RequestParam Long submissionId,
+                                        @RequestParam Long teamId,
+                                        @RequestParam Long problemId,
+                                        @RequestParam String workflowVersion) {
+        return Result.ok(reviewService.createTask(submissionId, teamId, problemId, workflowVersion));
+    }
+
+    @Operation(summary = "按任务查询评审摘要")
+    @GetMapping("/tasks/{taskId}")
+    public Result<ReviewSummaryDTO> getByTask(@PathVariable Long taskId) {
+        return Result.ok(reviewService.getSummaryByTask(taskId));
+    }
+
+    @Operation(summary = "确保指定版本的 PDF 解析产物存在")
+    @PostMapping("/parses/{submissionId}/ensure")
+    public Result<PaperParseDTO> ensureParse(@PathVariable Long submissionId,
+                                             @RequestParam String workflowVersion) {
+        return Result.ok(paperParseService.ensure(submissionId, workflowVersion));
     }
 
     @Operation(summary = "按提交查询评审摘要")

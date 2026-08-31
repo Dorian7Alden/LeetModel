@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: knowledge-retrieval-service
+  profiles:
+    active: dev
+server:
+  shutdown: graceful

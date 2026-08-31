@@ -24,6 +24,8 @@ class AiPriorityPolicyTest {
                 AiOperationCode.FORMAL_REVIEW, AiCallPriority.P1);
         assertPriority("ai-suggestion-service", AiFeatureCode.PAPER_SUGGESTION,
                 AiOperationCode.GENERATE_SUGGESTION, AiCallPriority.P1);
+        assertPriority("knowledge-retrieval-service", AiFeatureCode.RAG,
+                AiOperationCode.RETRIEVE_CONTEXT, AiCallPriority.P1);
         assertPriority("admin-service", AiFeatureCode.ADMIN_TEST,
                 AiOperationCode.ADMIN_MODEL_TEST, AiCallPriority.P2);
         assertPriority("ai-review-service", AiFeatureCode.PAPER_REVIEW,

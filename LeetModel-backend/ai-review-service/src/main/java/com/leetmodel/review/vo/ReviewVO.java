@@ -14,5 +14,5 @@ public class ReviewVO {
     private String status; private String workflowVersion;
     private String versionName; private String versionDescription; private String processSummary;
     private Integer retryCount; private Integer attemptNo; private String errorMessage; private BigDecimal score;
-    private String resultJson; private String modelName; private LocalDateTime finishedAt;
+    private String resultJson; private String modelName; private String aiCallId; private LocalDateTime finishedAt;
 }
