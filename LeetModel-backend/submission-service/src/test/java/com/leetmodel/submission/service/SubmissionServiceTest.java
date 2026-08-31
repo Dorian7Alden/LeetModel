@@ -135,6 +135,7 @@ class SubmissionServiceTest {
 
         assertEquals("DISPATCHED", response.getReviewDispatchStatus());
         verify(reviewFeignClient).createVersionedTask(101L, 1L, 100L, "EVIDENCE_REVIEW_V2");
+        verify(reviewDispatchQueryService).markLegacyDispatched(101L, 901L);
     }
 
     private TeamDTO team() {

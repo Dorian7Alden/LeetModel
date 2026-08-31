@@ -48,15 +48,18 @@ public interface ReviewTaskMapper extends BaseMapper<ReviewTask> {
                     @Param("now") LocalDateTime now,
                     @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
 
-    /** 批量延长当前实例持有的活动租约。 */
+    /** 只延长仍由本地执行器跟踪且 token 匹配的活动租约。 */
     @Update("""
             UPDATE review_task
             SET heartbeat_at = #{now}, lease_expires_at = #{leaseExpiresAt}, update_time = #{now}
-            WHERE lease_owner = #{owner} AND status IN ('LEASED', 'RUNNING') AND deleted = 0
+            WHERE id = #{id} AND lease_owner = #{owner} AND lease_token = #{token}
+              AND status IN ('LEASED', 'RUNNING') AND deleted = 0
             """)
-    int heartbeatOwned(@Param("owner") String owner,
-                       @Param("now") LocalDateTime now,
-                       @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
+    int heartbeat(@Param("id") Long id,
+                  @Param("owner") String owner,
+                  @Param("token") String token,
+                  @Param("now") LocalDateTime now,
+                  @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
 
     /** 执行器拒绝任务时立即释放尚未开始的租约。 */
     @Update("""

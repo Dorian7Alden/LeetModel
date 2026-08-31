@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 
@@ -28,6 +29,7 @@ public class ReviewTaskWorkerCoordinator {
     private final ReviewWorkerProperties properties;
     private final ThreadPoolTaskExecutor executor;
     private final Semaphore permits;
+    private final ConcurrentHashMap<Long, String> activeLeases = new ConcurrentHashMap<>();
     private final String owner = "ai-review-service:" + UUID.randomUUID();
 
     /**
@@ -70,6 +72,7 @@ public class ReviewTaskWorkerCoordinator {
                 permits.release();
                 continue;
             }
+            activeLeases.put(candidate.getId(), token);
             submit(candidate.getId(), token);
         }
     }
@@ -80,7 +83,8 @@ public class ReviewTaskWorkerCoordinator {
     @Scheduled(fixedDelayString = "${review.worker.heartbeat-ms:20000}")
     public void heartbeat() {
         LocalDateTime now = LocalDateTime.now();
-        taskMapper.heartbeatOwned(owner, now, now.plusSeconds(properties.getLeaseSeconds()));
+        activeLeases.forEach((taskId, token) -> taskMapper.heartbeat(
+                taskId, owner, token, now, now.plusSeconds(properties.getLeaseSeconds())));
     }
 
     private void submit(Long taskId, String token) {
@@ -89,10 +93,12 @@ public class ReviewTaskWorkerCoordinator {
                 try {
                     worker.execute(taskId, owner, token);
                 } finally {
+                    activeLeases.remove(taskId, token);
                     permits.release();
                 }
             });
         } catch (RejectedExecutionException exception) {
+            activeLeases.remove(taskId, token);
             taskMapper.releaseClaim(taskId, token);
             permits.release();
             log.warn("评审执行器拒绝任务，已释放租约: taskId={}", taskId);

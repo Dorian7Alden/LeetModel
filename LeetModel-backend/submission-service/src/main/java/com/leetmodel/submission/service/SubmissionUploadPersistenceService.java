@@ -13,6 +13,7 @@ import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.mapper.SubmissionUploadMapper;
 import com.leetmodel.submission.messaging.ReviewTaskMessageContract;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +43,8 @@ public class SubmissionUploadPersistenceService {
         if (upload.getSubmissionId() != null) {
             Submission existing = submissionMapper.selectById(upload.getSubmissionId());
             BusinessException.throwIf(existing == null, SubmissionErrorCode.SUBMISSION_NOT_FOUND);
+            // 兼容升级前已创建提交、但尚未派发评审的记录；重复补偿由唯一幂等键收敛。
+            enqueueReviewTask(existing);
             return existing;
         }
 
@@ -59,6 +62,11 @@ public class SubmissionUploadPersistenceService {
 
         // 同一事务写上传关联和评审 Outbox，Broker 故障不影响提交事实
         uploadMapper.linkSubmission(upload.getId(), submission.getId());
+        enqueueReviewTask(submission);
+        return submission;
+    }
+
+    private void enqueueReviewTask(Submission submission) {
         ReviewTaskReadyPayload payload = new ReviewTaskReadyPayload(
                 submission.getId(), submission.getTeamId(), submission.getProblemId(),
                 ReviewTaskMessageContract.WORKFLOW_VERSION);
@@ -70,11 +78,14 @@ public class SubmissionUploadPersistenceService {
                         submission.getId(), ReviewTaskMessageContract.WORKFLOW_VERSION),
                 currentTraceId(),
                 payload);
-        messageOutbox.enqueue(
-                ReviewTaskMessageContract.TOPIC,
-                ReviewTaskMessageContract.EVENT_TYPE,
-                envelope);
-        return submission;
+        try {
+            messageOutbox.enqueue(
+                    ReviewTaskMessageContract.TOPIC,
+                    ReviewTaskMessageContract.EVENT_TYPE,
+                    envelope);
+        } catch (DuplicateKeyException ignored) {
+            // 上传行已加锁；唯一键冲突只表示相同业务事件已经进入 Outbox。
+        }
     }
 
     private String currentTraceId() {

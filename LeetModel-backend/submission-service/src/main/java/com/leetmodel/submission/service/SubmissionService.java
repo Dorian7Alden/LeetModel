@@ -190,6 +190,7 @@ public class SubmissionService {
                 com.leetmodel.submission.messaging.ReviewTaskMessageContract.WORKFLOW_VERSION);
         BusinessException.throwIf(task == null || !task.isSuccess(),
                 SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED);
+        reviewDispatchQueryService.markLegacyDispatched(submission.getId(), task.getData());
         response.setReviewDispatchStatus("DISPATCHED");
         return response;
     }

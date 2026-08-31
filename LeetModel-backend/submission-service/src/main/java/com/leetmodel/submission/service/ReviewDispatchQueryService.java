@@ -44,4 +44,21 @@ public class ReviewDispatchQueryService {
             default -> "WAITING_DISPATCH";
         };
     }
+
+    /**
+     * Legacy Feign 成功后将同一 Outbox 事件收敛为已派发，避免历史查询永久显示等待。
+     *
+     * @param submissionId 提交标识
+     * @param taskId 幂等创建得到的评审任务标识
+     */
+    public void markLegacyDispatched(Long submissionId, Long taskId) {
+        jdbcTemplate.update("""
+                UPDATE message_outbox
+                SET status = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
+                    broker_message_id = ?, update_time = CURRENT_TIMESTAMP
+                WHERE event_type = ? AND idempotency_key = ? AND status <> 'PUBLISHED'
+                """, "legacy-feign:" + taskId, ReviewTaskMessageContract.EVENT_TYPE,
+                ReviewTaskMessageContract.idempotencyKey(
+                        submissionId, ReviewTaskMessageContract.WORKFLOW_VERSION));
+    }
 }

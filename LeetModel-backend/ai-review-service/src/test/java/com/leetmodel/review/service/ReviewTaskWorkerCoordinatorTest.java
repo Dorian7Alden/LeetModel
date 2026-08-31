@@ -51,8 +51,15 @@ class ReviewTaskWorkerCoordinatorTest {
 
     @Test
     void heartbeatRenewsEveryOwnedRunningLease() {
+        ReviewTask candidate = new ReviewTask();
+        candidate.setId(9L);
+        when(taskMapper.selectNextClaimable(any())).thenReturn(candidate, (ReviewTask) null);
+        when(taskMapper.claim(eq(9L), anyString(), anyString(), any(), any())).thenReturn(1);
+        doAnswer(invocation -> null).when(executor).execute(any(Runnable.class));
+        coordinator.poll();
+
         coordinator.heartbeat();
 
-        verify(taskMapper).heartbeatOwned(anyString(), any(), any());
+        verify(taskMapper).heartbeat(eq(9L), anyString(), anyString(), any(), any());
     }
 }

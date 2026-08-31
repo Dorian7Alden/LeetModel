@@ -33,6 +33,8 @@ class SubmissionOutboxTransactionTest {
     private JdbcTemplate jdbcTemplate;
     private TransactionTemplate transactionTemplate;
     private SubmissionUploadPersistenceService service;
+    private SubmissionUpload upload;
+    private SubmissionMapper submissionMapper;
 
     @BeforeEach
     void setUp() {
@@ -56,8 +58,8 @@ class SubmissionOutboxTransactionTest {
         transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
 
         SubmissionUploadMapper uploadMapper = mock(SubmissionUploadMapper.class);
-        SubmissionMapper submissionMapper = mock(SubmissionMapper.class);
-        SubmissionUpload upload = new SubmissionUpload();
+        submissionMapper = mock(SubmissionMapper.class);
+        upload = new SubmissionUpload();
         upload.setId(1L);
         upload.setTeamId(2L);
         upload.setProblemId(3L);
@@ -102,5 +104,20 @@ class SubmissionOutboxTransactionTest {
 
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM domain_submission", Long.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isZero();
+    }
+
+    @Test
+    void repairMissingOutboxForSubmissionCreatedBeforeUpgradeAndRemainIdempotent() {
+        Submission existing = new Submission();
+        existing.setId(101L);
+        existing.setTeamId(2L);
+        existing.setProblemId(3L);
+        upload.setSubmissionId(101L);
+        when(submissionMapper.selectById(101L)).thenReturn(existing);
+
+        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
+        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isEqualTo(1);
     }
 }
