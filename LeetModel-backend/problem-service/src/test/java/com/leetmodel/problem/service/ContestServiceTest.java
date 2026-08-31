@@ -1,6 +1,7 @@
 package com.leetmodel.problem.service;
 
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ContestMapper;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ContestServiceTest {
     @Mock ContestMapper contestMapper;
+    @Mock CacheInvalidator cacheInvalidator;
     @InjectMocks ContestServiceImpl contestService;
     private Contest contest;
 

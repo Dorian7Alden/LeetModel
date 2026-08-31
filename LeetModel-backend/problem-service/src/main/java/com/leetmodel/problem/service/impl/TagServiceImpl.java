@@ -3,6 +3,8 @@ package com.leetmodel.problem.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.cache.CacheInvalidator;
+import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
@@ -13,6 +15,7 @@ import com.leetmodel.problem.service.TagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 标签服务实现。
@@ -23,19 +26,23 @@ import org.springframework.stereotype.Service;
 public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagService {
 
     private final ProblemTagMapper problemTagMapper;
+    private final CacheInvalidator cacheInvalidator;
 
     @Override
+    @Transactional
     public Tag createTag(String name, TagType type) {
         checkNameDuplicate(name, null);
         Tag tag = new Tag();
         tag.setName(name);
         tag.setType(type.name());
         save(tag);
+        recordPublicInvalidation();
         log.info("创建标签: {} [ID: {}]", name, tag.getId());
         return tag;
     }
 
     @Override
+    @Transactional
     public Tag updateTag(Long id, String name, TagType type) {
         Tag tag = getById(id);
         BusinessException.throwIf(tag == null, ProblemErrorCode.TAG_NOT_FOUND);
@@ -51,6 +58,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         tag.setName(name);
         tag.setType(type.name());
         updateById(tag);
+        recordPublicInvalidation();
         log.info("更新标签: {} [ID: {}]", name, id);
         return tag;
     }
@@ -60,6 +68,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
      * @param id 标签 ID
      */
     @Override
+    @Transactional
     public void deleteTag(Long id) {
         // 校验标签存在
         Tag tag = getById(id);
@@ -72,7 +81,19 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
 
         // 删除标签
         removeById(id);
+        recordPublicInvalidation();
         log.info("删除标签: {} [ID: {}]", tag.getName(), id);
+    }
+
+    /**
+     * 在当前事务中记录公开题库失效事件。
+     */
+    private void recordPublicInvalidation() {
+        cacheInvalidator.record(
+                ProblemPublicCacheService.REGION,
+                ProblemPublicCacheService.SCOPE,
+                ProblemPublicCacheService.SCHEMA_VERSION
+        );
     }
 
     /**

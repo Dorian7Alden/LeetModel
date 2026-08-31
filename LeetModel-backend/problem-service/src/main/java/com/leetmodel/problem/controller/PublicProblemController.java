@@ -4,22 +4,21 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.service.ProblemService;
+import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.vo.ProblemVO;
 import com.leetmodel.problem.vo.ProblemFilterOptionsVO;
-import com.leetmodel.problem.entity.Contest;
-import com.leetmodel.problem.entity.Tag;
-import com.leetmodel.problem.mapper.ContestMapper;
-import com.leetmodel.problem.mapper.TagMapper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.leetmodel.common.cache.HttpCacheSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * 题目公开接口（无需认证，仅返回已发布题目）。
@@ -31,39 +30,60 @@ import java.util.List;
 public class PublicProblemController {
 
     private final ProblemService problemService;
-    private final ContestMapper contestMapper;
-    private final TagMapper tagMapper;
+    private final ProblemPublicCacheService publicCacheService;
 
     @Operation(summary = "查询公开题库筛选项")
     @GetMapping("/filter-options")
-    public Result<ProblemFilterOptionsVO> filterOptions() {
-        List<Contest> contests = contestMapper.selectList(
-                new LambdaQueryWrapper<Contest>().orderByAsc(Contest::getId)
-        );
-        List<Tag> tags = tagMapper.selectList(
-                new LambdaQueryWrapper<Tag>().orderByAsc(Tag::getType).orderByAsc(Tag::getName)
-        );
-        return Result.ok(new ProblemFilterOptionsVO(contests, tags));
+    public ResponseEntity<Result<ProblemFilterOptionsVO>> filterOptions(
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
+    ) {
+        HttpCacheSupport.Validator validator = publicCacheService.filterValidator();
+        if (validator.matches(ifNoneMatch)) return validator.notModified();
+        return validator.ok(Result.ok(publicCacheService.filterOptions()));
     }
 
     @Operation(summary = "分页浏览已发布题目")
     @GetMapping
-    public Result<PageResult<ProblemVO>> page(@Valid ProblemPageQuery query) {
-        // 公开接口强制只查询已发布题目
+    public ResponseEntity<Result<PageResult<ProblemVO>>> page(
+            @Valid ProblemPageQuery query,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
+    ) {
         query.setStatus(1);
-        return Result.ok(PageResult.from(problemService.pageProblems(query)));
+        if (!publicCacheService.isPageCacheable(query)) {
+            return noStore(Result.ok(publicCacheService.page(query)));
+        }
+        HttpCacheSupport.Validator validator = publicCacheService.pageValidator(query);
+        if (validator.matches(ifNoneMatch)) return validator.notModified();
+        return validator.ok(Result.ok(publicCacheService.page(query)));
     }
 
     @Operation(summary = "浏览题目详情")
     @GetMapping("/{id}")
-    public Result<ProblemVO> detail(@PathVariable Long id) {
-        ProblemVO vo = problemService.getPublishedProblemDetail(id);
-        return Result.ok(vo);
+    public ResponseEntity<Result<ProblemVO>> detail(
+            @PathVariable Long id,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
+    ) {
+        HttpCacheSupport.Validator validator = publicCacheService.detailValidator(id);
+        if (validator.matches(ifNoneMatch)) return validator.notModified();
+        return validator.ok(Result.ok(publicCacheService.detail(id)));
     }
 
     @Operation(summary = "随机获取已发布题目")
     @GetMapping("/random")
-    public Result<ProblemVO> random(@Valid ProblemPageQuery query) {
-        return Result.ok(problemService.getRandomPublishedProblem(query));
+    public ResponseEntity<Result<ProblemVO>> random(@Valid ProblemPageQuery query) {
+        return noStore(Result.ok(problemService.getRandomPublishedProblem(query)));
+    }
+
+    /**
+     * 返回禁止任何中间层存储的响应。
+     *
+     * @param body 响应体
+     * @param <T> 数据类型
+     * @return no-store 响应
+     */
+    private <T> ResponseEntity<Result<T>> noStore(Result<T> body) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(body);
     }
 }
