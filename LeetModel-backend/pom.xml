@@ -26,6 +26,7 @@
         <module>common/common-api</module>
         <module>common/common-security</module>
         <module>common/common-cache</module>
+        <module>common/common-messaging</module>
         <module>common/common-ai</module>
         <module>user-service</module>
         <module>problem-service</module>
@@ -78,7 +79,7 @@
         <minio.version>8.5.10</minio.version>
 
         <!-- === 消息队列 === -->
-        <rocketmq-spring-boot.version>2.3.0</rocketmq-spring-boot.version>
+        <rocketmq-spring-boot.version>2.3.3</rocketmq-spring-boot.version>
 
         <!-- === 插件版本 === -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -225,6 +226,11 @@
             <dependency>
                 <groupId>com.leetmodel</groupId>
                 <artifactId>common-cache</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.leetmodel</groupId>
+                <artifactId>common-messaging</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

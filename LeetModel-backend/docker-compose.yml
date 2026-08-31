@@ -145,6 +145,82 @@ services:
       retries: 30
       start_period: 30s
 
+  # RocketMQ 5.5.0 本地 NameServer。只绑定回环地址，不作为生产拓扑。
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.5.0
+    container_name: leetmodel-rocketmq-namesrv
+    restart: unless-stopped
+    user: root
+    command:
+      - /bin/bash
+      - -c
+      - >-
+        install -d -o rocketmq -g rocketmq /home/rocketmq/logs &&
+        exec runuser -u rocketmq -- ./mqnamesrv
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx256m -Xmn64m
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:9876:9876"
+    volumes:
+      - rocketmq-namesrv-logs:/home/rocketmq/logs
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9876'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  # 经典 Remoting 客户端使用的单 Broker，本地数据与日志通过命名卷保留。
+  rocketmq-broker:
+    image: apache/rocketmq:5.5.0
+    container_name: leetmodel-rocketmq-broker
+    restart: unless-stopped
+    user: root
+    command:
+      - /bin/bash
+      - -c
+      - >-
+        install -d -o rocketmq -g rocketmq /home/rocketmq/logs /home/rocketmq/store &&
+        exec runuser -u rocketmq -- ./mqbroker
+        -c /home/rocketmq/rocketmq-5.5.0/conf/leetmodel-broker.conf
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+      JAVA_OPT_EXT: -Xms256m -Xmx512m -Xmn128m
+      TZ: Asia/Shanghai
+    depends_on:
+      rocketmq-namesrv:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:10909:10909"
+      - "127.0.0.1:10911:10911"
+      - "127.0.0.1:10912:10912"
+    volumes:
+      - ./docker/rocketmq/broker.conf:/home/rocketmq/rocketmq-5.5.0/conf/leetmodel-broker.conf:ro
+      - rocketmq-broker-logs:/home/rocketmq/logs
+      - rocketmq-broker-store:/home/rocketmq/store
+    healthcheck:
+      test: ["CMD-SHELL", "./mqadmin clusterList -n rocketmq-namesrv:9876 | grep -q LeetModelLocalCluster"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # 可选观察工具：docker compose --profile tools up -d rocketmq-dashboard
+  rocketmq-dashboard:
+    image: apacherocketmq/rocketmq-dashboard:2.1.0
+    container_name: leetmodel-rocketmq-dashboard
+    restart: unless-stopped
+    profiles: ["tools"]
+    # Broker 为宿主机 Java 客户端通告 127.0.0.1；Dashboard 使用 host 网络读取同一路由。
+    network_mode: host
+    environment:
+      JAVA_OPTS: -Drocketmq.namesrv.addr=127.0.0.1:9876 -Dserver.port=8180
+      TZ: Asia/Shanghai
+    depends_on:
+      rocketmq-broker:
+        condition: service_healthy
+
 volumes:
   mysql-data:
   redis-data:
@@ -153,3 +229,6 @@ volumes:
   nacos-logs:
   new-api-data:
   elasticsearch-data:
+  rocketmq-namesrv-logs:
+  rocketmq-broker-logs:
+  rocketmq-broker-store:
