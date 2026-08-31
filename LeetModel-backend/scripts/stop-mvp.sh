@@ -39,4 +39,4 @@ for _ in {1..20}; do
   sleep 1
 done
 
-echo "MVP 后端服务已停止；MySQL、Redis、MinIO 和本地 Nacos 保持运行。"
+echo "MVP 后端服务已停止；Docker 基础设施保持运行。"
