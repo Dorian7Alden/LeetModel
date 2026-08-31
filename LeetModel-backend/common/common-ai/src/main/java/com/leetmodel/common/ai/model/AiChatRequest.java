@@ -7,7 +7,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 统一 AI 对话请求。
@@ -18,6 +20,8 @@ import java.util.List;
  * @param temperature 采样温度
  * @param responseFormat 响应格式
  * @param thinkingEnabled 是否启用思考
+ * @param tools 当前调用允许使用的工具
+ * @param toolChoice 工具选择约束
  */
 public record AiChatRequest(
         AiScene scene,
@@ -27,20 +31,33 @@ public record AiChatRequest(
         @Min(1) @Max(131072) Integer maxTokens,
         Double temperature,
         AiResponseFormat responseFormat,
-        Boolean thinkingEnabled
+        Boolean thinkingEnabled,
+        @Valid List<@Valid AiToolDefinition> tools,
+        @Valid AiToolChoice toolChoice
 ) {
     /** 新调用使用的构造器，不再混用旧 scene。 */
     public AiChatRequest(AiModality modality, AiCallContext context, List<AiMessage> messages,
                          Integer maxTokens, Double temperature, AiResponseFormat responseFormat,
                          Boolean thinkingEnabled) {
-        this(null, modality, context, messages, maxTokens, temperature, responseFormat, thinkingEnabled);
+        this(null, modality, context, messages, maxTokens, temperature, responseFormat,
+                thinkingEnabled, null, null);
+    }
+
+    /** 新工具调用使用的构造器。 */
+    public AiChatRequest(AiModality modality, AiCallContext context, List<AiMessage> messages,
+                         Integer maxTokens, Double temperature, AiResponseFormat responseFormat,
+                         Boolean thinkingEnabled, List<AiToolDefinition> tools,
+                         AiToolChoice toolChoice) {
+        this(null, modality, context, messages, maxTokens, temperature, responseFormat,
+                thinkingEnabled, tools, toolChoice);
     }
 
     /** 旧 Java 调用的源码兼容入口；生产消费者应迁移到 modality + context。 */
     @Deprecated
     public AiChatRequest(AiScene scene, List<AiMessage> messages, Integer maxTokens,
                          Double temperature, AiResponseFormat responseFormat, Boolean thinkingEnabled) {
-        this(scene, null, null, messages, maxTokens, temperature, responseFormat, thinkingEnabled);
+        this(scene, null, null, messages, maxTokens, temperature, responseFormat,
+                thinkingEnabled, null, null);
     }
 
     @JsonIgnore
@@ -61,5 +78,24 @@ public record AiChatRequest(
     @AssertTrue(message = "scene 与 modality 不一致")
     public boolean isLegacySceneCompatible() {
         return scene == null || modality == null || effectiveModality() == modality;
+    }
+
+    /**
+     * 校验工具名称唯一且工具选择引用当前请求中的工具。
+     *
+     * @return 工具配置是否一致
+     */
+    @JsonIgnore
+    @AssertTrue(message = "工具定义或工具选择不合法")
+    public boolean isToolConfigurationValid() {
+        List<AiToolDefinition> definitions = tools == null ? List.of() : tools;
+        Set<String> names = new HashSet<>();
+        for (AiToolDefinition definition : definitions) {
+            if (definition != null && definition.name() != null && !names.add(definition.name())) return false;
+        }
+        if (toolChoice == null || toolChoice.type() == null) return true;
+        if (toolChoice.type() == AiToolChoiceType.NONE) return true;
+        if (definitions.isEmpty()) return false;
+        return toolChoice.type() != AiToolChoiceType.NAMED || names.contains(toolChoice.name());
     }
 }

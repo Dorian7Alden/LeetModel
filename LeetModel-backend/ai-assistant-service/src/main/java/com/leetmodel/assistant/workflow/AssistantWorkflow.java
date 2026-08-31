@@ -18,6 +18,9 @@ import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.ai.model.AiToolChoice;
+import com.leetmodel.common.ai.model.AiToolChoiceType;
+import com.leetmodel.common.ai.model.AiToolDefinition;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +46,8 @@ public class AssistantWorkflow {
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final RagWorkflowContextProvider ragContextProvider;
-    private final String systemPrompt;
+    private final String legacySystemPrompt;
+    private final String toolSystemPrompt;
 
     public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper) throws Exception {
         this(aiClient, objectMapper, RagWorkflowContextProvider.disabled());
@@ -55,7 +59,9 @@ public class AssistantWorkflow {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
         this.ragContextProvider = ragContextProvider;
-        this.systemPrompt = new ClassPathResource("prompts/assistant-v1.st")
+        this.legacySystemPrompt = new ClassPathResource("prompts/assistant-v1.st")
+                .getContentAsString(StandardCharsets.UTF_8);
+        this.toolSystemPrompt = new ClassPathResource("prompts/assistant-tools-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
 
@@ -81,21 +87,8 @@ public class AssistantWorkflow {
     public AiChatResponse reply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
                                 List<ProblemOptionDTO> candidates,
                                 AssistantProductionSnapshot snapshot) throws JsonProcessingException {
-        RagWorkflowContext ragContext = productionRagContext(currentUserMessage.getContent(), snapshot);
-        List<AiMessage> messages = new ArrayList<>();
-        messages.add(message(AiRole.SYSTEM, systemPrompt));
-        if (ragContext.present()) {
-            messages.add(message(AiRole.SYSTEM, ragContext.text()));
-        }
-        for (AssistantMessage item : history) {
-            AiRole role = "ASSISTANT".equals(item.getRole()) ? AiRole.ASSISTANT : AiRole.USER;
-            String content = item.getContent();
-            if (Objects.equals(item.getId(), currentUserMessage.getId()) && candidates != null) {
-                content += "\n\n系统只读题目候选（只能依据这些数据推荐）：\n"
-                        + objectMapper.writeValueAsString(candidates);
-            }
-            messages.add(message(role, content));
-        }
+        List<AiMessage> messages = productionMessages(history, currentUserMessage,
+                candidates, snapshot);
         String taskId = currentUserMessage.getId() == null
                 ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
         AiCallContext context = new AiCallContext(
@@ -109,6 +102,92 @@ public class AssistantWorkflow {
             throw new IllegalArgumentException("AI 网关未返回客服回复");
         }
         return response;
+    }
+
+    /**
+     * 构造标准工具调用使用的生产对话消息，不注入旧关键词预取候选。
+     *
+     * @param history 最近已完成消息
+     * @param currentUserMessage 当前用户消息
+     * @param snapshot 不可变生产快照
+     * @return 系统、RAG 和历史消息
+     */
+    public List<AiMessage> toolConversationMessages(List<AssistantMessage> history,
+                                                    AssistantMessage currentUserMessage,
+                                                    AssistantProductionSnapshot snapshot)
+            throws JsonProcessingException {
+        return productionMessages(history, currentUserMessage, null, snapshot);
+    }
+
+    /**
+     * 执行工具循环中的一次规划或最终回答调用。
+     *
+     * @param messages 当前完整对话消息
+     * @param tools 当前快照允许的工具定义
+     * @param currentUserMessage 触发消息
+     * @param assistantMessageId 承载最终回复的消息
+     * @param attemptNo 生成尝试序号
+     * @param chatSequence 本次尝试内的 AI 调用序号
+     * @param deadline 整条回复共享截止时间
+     * @param snapshot 不可变生产快照
+     * @return 文本或结构化工具调用响应
+     */
+    public AiChatResponse toolChat(List<AiMessage> messages, List<AiToolDefinition> tools,
+                                   AssistantMessage currentUserMessage, Long assistantMessageId,
+                                   int attemptNo, int chatSequence, Instant deadline,
+                                   AssistantProductionSnapshot snapshot) {
+        String taskId = "message:" + currentUserMessage.getId();
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
+                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
+                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(),
+                AiCallPriority.P0,
+                "assistant:" + assistantMessageId + ":attempt:" + attemptNo
+                        + ":chat:" + chatSequence,
+                deadline);
+        AiChatResponse response = aiClient.chat(new AiChatRequest(
+                AiModality.TEXT, context, List.copyOf(messages), 1500, 0.2,
+                AiResponseFormat.TEXT, false, tools,
+                new AiToolChoice(AiToolChoiceType.AUTO, null)));
+        boolean hasToolCalls = response != null && response.toolCalls() != null
+                && !response.toolCalls().isEmpty();
+        boolean hasContent = response != null && response.content() != null
+                && !response.content().isBlank();
+        if (!hasToolCalls && !hasContent) {
+            throw new IllegalArgumentException("AI 网关未返回客服回复或工具调用");
+        }
+        return response;
+    }
+
+    /** 构造正式回复共享的系统、RAG 和历史消息。 */
+    private List<AiMessage> productionMessages(List<AssistantMessage> history,
+                                               AssistantMessage currentUserMessage,
+                                               List<ProblemOptionDTO> candidates,
+                                               AssistantProductionSnapshot snapshot)
+            throws JsonProcessingException {
+        RagWorkflowContext ragContext = productionRagContext(currentUserMessage.getContent(), snapshot);
+        List<AiMessage> messages = new ArrayList<>();
+        messages.add(message(AiRole.SYSTEM, systemPrompt(snapshot.promptVersion())));
+        if (ragContext.present()) {
+            messages.add(message(AiRole.SYSTEM, ragContext.text()));
+        }
+        for (AssistantMessage item : history) {
+            AiRole role = "ASSISTANT".equals(item.getRole()) ? AiRole.ASSISTANT : AiRole.USER;
+            String content = item.getContent();
+            if (Objects.equals(item.getId(), currentUserMessage.getId()) && candidates != null) {
+                content += "\n\n系统只读题目候选（只能依据这些数据推荐）：\n"
+                        + objectMapper.writeValueAsString(candidates);
+            }
+            messages.add(message(role, content));
+        }
+        return messages;
+    }
+
+    /** 按不可变 Prompt 版本选择客服系统指令。 */
+    private String systemPrompt(String promptVersion) {
+        if ("PROMPT_ASSISTANT_CHAT_0001".equals(promptVersion)) return legacySystemPrompt;
+        if ("PROMPT_ASSISTANT_TOOLS_0001".equals(promptVersion)) return toolSystemPrompt;
+        throw new IllegalArgumentException("AI 客服 Prompt 版本不受支持");
     }
 
     private RagWorkflowContext productionRagContext(String question,
@@ -136,7 +215,7 @@ public class AssistantWorkflow {
                                           String modelExecutionConfigVersion,
                                           String evaluationTaskId, String idempotencyKey) {
         List<AiMessage> messages = new ArrayList<>();
-        messages.add(message(AiRole.SYSTEM, systemPrompt));
+        messages.add(message(AiRole.SYSTEM, legacySystemPrompt));
         if (ragContext.present()) messages.add(message(AiRole.SYSTEM, ragContext.text()));
         messages.add(message(AiRole.USER, question));
         String taskId = "experiment:" + experimentRunId;

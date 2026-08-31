@@ -7,6 +7,8 @@ import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.vo.ProblemVO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -32,6 +34,13 @@ public interface ProblemService extends IService<Problem> {
     ProblemVO getPublishedProblemDetail(Long id);
 
     ProblemVO getRandomPublishedProblem(ProblemPageQuery query);
+
+    /**
+     * 查询供 AI 客服使用的最小已发布题目事实。
+     * @param query 受控查询条件
+     * @return 题目工具结果
+     */
+    AssistantProblemResultDTO queryForAssistant(AssistantProblemQueryDTO query);
 
     /**
      * 创建题目。

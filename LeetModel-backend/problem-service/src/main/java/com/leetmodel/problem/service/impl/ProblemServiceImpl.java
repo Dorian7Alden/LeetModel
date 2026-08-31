@@ -5,7 +5,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
@@ -167,6 +171,214 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Problem problem = baseMapper.selectOne(wrapper);
         BusinessException.throwIf(problem == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
         return toVO(problem, getTagNames(problem.getId()), getAttachments(problem.getId()));
+    }
+
+    // ==================== AI 客服查询 ====================
+
+    /**
+     * 查询供 AI 客服使用的最小已发布题目事实。
+     *
+     * @param query 受控查询条件
+     * @return 题目工具结果
+     */
+    @Override
+    public AssistantProblemResultDTO queryForAssistant(AssistantProblemQueryDTO query) {
+        // 防御服务层直接调用
+        BusinessException.throwIf(
+                query == null || query.getMode() == null || !query.isModeFieldsValid(),
+                ErrorCodeEnum.PARAM_INVALID
+        );
+
+        // 查询比返回上限多一条，用于标记候选截断
+        int limit = assistantLimit(query);
+        List<Problem> selected = selectAssistantProblems(query, limit + 1);
+        boolean truncated = selected.size() > limit;
+        List<Problem> problems = truncated ? selected.subList(0, limit) : selected;
+
+        // 批量组装标签、赛事和受限题面概览
+        List<Long> problemIds = problems.stream().map(Problem::getId).toList();
+        Map<Long, List<String>> tagMap = batchGetTagNames(problemIds);
+        Map<Long, Contest> contestMap = batchGetContests(problems);
+        List<AssistantProblemResultDTO.Item> items = new ArrayList<>();
+        for (Problem problem : problems) {
+            OverviewValue overview = overview(problem, query);
+            truncated = truncated || overview.truncated();
+            Contest contest = contestMap.get(problem.getContestId());
+            items.add(new AssistantProblemResultDTO.Item(
+                    problem.getCode(),
+                    problem.getTitle(),
+                    contest == null ? null : contest.getCode(),
+                    contest == null ? null : contest.getName(),
+                    problem.getYear(),
+                    problem.getStatementLanguage(),
+                    problem.getDifficulty(),
+                    problem.getDurationMinutes(),
+                    tagMap.getOrDefault(problem.getId(), List.of()),
+                    overview.text()
+            ));
+        }
+        return new AssistantProblemResultDTO(
+                items,
+                assistantMatchType(query),
+                truncated,
+                matchedConditions(query)
+        );
+    }
+
+    /**
+     * 查询符合条件的已发布题目。
+     *
+     * @param query 受控查询条件
+     * @param fetchLimit 数据库读取上限
+     * @return 稳定排序的候选
+     */
+    private List<Problem> selectAssistantProblems(AssistantProblemQueryDTO query, int fetchLimit) {
+        LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
+                .eq(Problem::getStatus, 1);
+        String keyword = normalized(query.getKeyword());
+        if (query.getMode() == AssistantProblemQueryMode.SEARCH) {
+            wrapper.eq(query.getCode() != null, Problem::getCode, query.getCode())
+                    .like(keyword != null, Problem::getTitle, keyword);
+        } else {
+            applyRecommendationKeyword(wrapper, keyword);
+            Contest contest = assistantContest(query.getContestCode());
+            if (contest != null) wrapper.eq(Problem::getContestId, contest.getId());
+            if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
+            if (query.getDifficulty() != null) wrapper.eq(Problem::getDifficulty, query.getDifficulty());
+            if (query.getStatementLanguage() != null) {
+                wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
+            }
+            if (query.getMaxDurationMinutes() != null) {
+                wrapper.le(Problem::getDurationMinutes, query.getMaxDurationMinutes());
+            }
+        }
+        wrapper.orderByDesc(Problem::getYear)
+                .orderByAsc(Problem::getCode)
+                .last("LIMIT " + fetchLimit);
+        return baseMapper.selectList(wrapper);
+    }
+
+    /**
+     * 应用标题或标签关键词条件。
+     *
+     * @param wrapper 题目查询
+     * @param keyword 标准化关键词
+     */
+    private void applyRecommendationKeyword(LambdaQueryWrapper<Problem> wrapper, String keyword) {
+        if (keyword == null) return;
+        List<Tag> tags = tagMapper.selectList(new LambdaQueryWrapper<Tag>().like(Tag::getName, keyword));
+        if (tags.isEmpty()) {
+            wrapper.like(Problem::getTitle, keyword);
+            return;
+        }
+        List<Long> problemIds = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                        .in(ProblemTag::getTagId, tags.stream().map(Tag::getId).toList()))
+                .stream()
+                .map(ProblemTag::getProblemId)
+                .distinct()
+                .toList();
+        if (problemIds.isEmpty()) {
+            wrapper.like(Problem::getTitle, keyword);
+            return;
+        }
+        wrapper.and(nested -> nested.like(Problem::getTitle, keyword)
+                .or()
+                .in(Problem::getId, problemIds));
+    }
+
+    /**
+     * 按赛事编码解析赛事。
+     *
+     * @param contestCode 赛事编码
+     * @return 赛事；未传时为 null
+     */
+    private Contest assistantContest(String contestCode) {
+        if (contestCode == null) return null;
+        Contest contest = contestMapper.selectOne(new LambdaQueryWrapper<Contest>()
+                .eq(Contest::getCode, contestCode));
+        BusinessException.throwIf(contest == null, ProblemErrorCode.CONTEST_NOT_FOUND);
+        return contest;
+    }
+
+    /**
+     * 计算工具返回数量。
+     *
+     * @param query 查询条件
+     * @return 1 到 5 的返回上限
+     */
+    private int assistantLimit(AssistantProblemQueryDTO query) {
+        if (query.getMode() == AssistantProblemQueryMode.SEARCH && query.getCode() != null) return 1;
+        int defaultLimit = query.getMode() == AssistantProblemQueryMode.RECOMMEND ? 3 : 5;
+        int requested = query.getLimit() == null ? defaultLimit : query.getLimit();
+        return Math.max(1, Math.min(requested, 5));
+    }
+
+    /**
+     * 生成最多 500 个 Unicode 码点的题面概览。
+     *
+     * @param problem 题目
+     * @param query 查询条件
+     * @return 概览与截断标识
+     */
+    private OverviewValue overview(Problem problem, AssistantProblemQueryDTO query) {
+        if (query.getMode() != AssistantProblemQueryMode.SEARCH
+                || !Boolean.TRUE.equals(query.getIncludeOverview())) {
+            return new OverviewValue(null, false);
+        }
+        String markdown = problem.getContentMarkdown();
+        if (markdown == null || markdown.isBlank()) return new OverviewValue(null, false);
+        int codePoints = markdown.codePointCount(0, markdown.length());
+        if (codePoints <= 500) return new OverviewValue(markdown, false);
+        int end = markdown.offsetByCodePoints(0, 500);
+        return new OverviewValue(markdown.substring(0, end), true);
+    }
+
+    /**
+     * 返回匹配方式。
+     *
+     * @param query 查询条件
+     * @return 匹配方式
+     */
+    private String assistantMatchType(AssistantProblemQueryDTO query) {
+        if (query.getMode() == AssistantProblemQueryMode.RECOMMEND) return "FILTER";
+        return query.getCode() == null ? "KEYWORD" : "CODE";
+    }
+
+    /**
+     * 返回已经应用的推荐条件。
+     *
+     * @param query 查询条件
+     * @return 稳定顺序的条件摘要
+     */
+    private List<String> matchedConditions(AssistantProblemQueryDTO query) {
+        if (query.getMode() != AssistantProblemQueryMode.RECOMMEND) return List.of();
+        List<String> conditions = new ArrayList<>();
+        if (normalized(query.getKeyword()) != null) conditions.add("keyword:" + normalized(query.getKeyword()));
+        if (query.getContestCode() != null) conditions.add("contestCode:" + query.getContestCode());
+        if (query.getYear() != null) conditions.add("year:" + query.getYear());
+        if (query.getDifficulty() != null) conditions.add("difficulty:" + query.getDifficulty());
+        if (query.getStatementLanguage() != null) {
+            conditions.add("statementLanguage:" + query.getStatementLanguage());
+        }
+        if (query.getMaxDurationMinutes() != null) {
+            conditions.add("maxDurationMinutes:" + query.getMaxDurationMinutes());
+        }
+        return conditions;
+    }
+
+    /**
+     * 标准化可空关键词。
+     *
+     * @param value 原始值
+     * @return 去除首尾空白后的值
+     */
+    private String normalized(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
+    }
+
+    /** 题面概览和截断标识。 */
+    private record OverviewValue(String text, boolean truncated) {
     }
 
     // ==================== 创建 ====================

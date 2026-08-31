@@ -3,6 +3,8 @@ package com.leetmodel.common.api.feign;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +46,11 @@ public class ProblemFeignFallback implements FallbackFactory<ProblemFeignClient>
 
             @Override
             public Result<List<ProblemOptionDTO>> getPublishedOptions(String keyword, Integer limit) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<AssistantProblemResultDTO> queryForAssistant(AssistantProblemQueryDTO request) {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
         };

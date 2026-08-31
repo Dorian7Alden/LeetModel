@@ -10,6 +10,8 @@ import com.leetmodel.assistant.vo.AssistantMessageVO;
 import com.leetmodel.assistant.vo.AssistantReplyVO;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
+import com.leetmodel.assistant.tool.AssistantToolOrchestrator;
+import com.leetmodel.assistant.tool.AssistantToolRunResult;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
@@ -52,15 +54,19 @@ class AssistantServiceTest {
     private AssistantWorkflow workflow;
     @Mock
     private AssistantProductionConfigService productionConfigService;
+    @Mock
+    private AssistantToolOrchestrator toolOrchestrator;
 
     private AssistantService service;
 
     @BeforeEach
     void setUp() {
         service = new AssistantService(conversationMapper, messageMapper, problemFeignClient,
-                workflow, new ObjectMapper(), productionConfigService);
+                workflow, new ObjectMapper(), productionConfigService, toolOrchestrator);
         org.mockito.Mockito.lenient().when(productionConfigService.currentSnapshot())
                 .thenReturn(noRagSnapshot());
+        org.mockito.Mockito.lenient().when(messageMapper.beginAttempt(anyLong(), any()))
+                .thenReturn(1);
     }
 
     @Test
@@ -100,6 +106,7 @@ class AssistantServiceTest {
         assertThat(result.getAssistantMessage().getId()).isEqualTo(202L);
         verify(messageMapper, never()).insert(any(AssistantMessage.class));
         verify(workflow, never()).reply(any(), any(), any(), any());
+        verify(messageMapper, never()).beginAttempt(anyLong(), any());
     }
 
     @Test
@@ -225,6 +232,64 @@ class AssistantServiceTest {
     }
 
     @Test
+    void toolWorkflowUsesLockedToolsetAndPersistsFinalNestedOrOuterCall() throws Exception {
+        when(conversationMapper.selectOne(any())).thenReturn(conversation("ACTIVE"));
+        when(messageMapper.selectOne(any())).thenReturn(null).thenReturn(null);
+        assignMessageIds();
+        when(messageMapper.selectList(any())).thenReturn(List.of());
+        when(productionConfigService.currentSnapshot()).thenReturn(toolSnapshot());
+        when(toolOrchestrator.run(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("ASSISTANT_TOOLSET_0001"),
+                org.mockito.ArgumentMatchers.eq(1), any())).thenReturn(
+                new AssistantToolRunResult(response("层次分析法用于多准则决策"),
+                        "[{\"name\":\"explain_modeling_knowledge\"}]", 1));
+
+        AssistantReplyVO result = service.send(CONVERSATION_ID, USER_ID,
+                "什么是层次分析法", "request_tool_001");
+
+        assertThat(result.getAssistantMessage().getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getAssistantMessage().getToolsetVersion())
+                .isEqualTo("ASSISTANT_TOOLSET_0001");
+        assertThat(result.getAssistantMessage().getAttemptCount()).isEqualTo(1);
+        assertThat(result.getAssistantMessage().getUsedTool()).isTrue();
+        assertThat(result.getAssistantMessage().getUsedProblemTool()).isFalse();
+        verify(workflow, never()).needsProblemTool(any());
+        verify(workflow, never()).reply(any(), any(), any(), any());
+        verify(problemFeignClient, never()).getPublishedOptions(any(), any());
+    }
+
+    @Test
+    void toolWorkflowRetryStartsNewAttemptWithoutChangingSnapshot() throws Exception {
+        AssistantMessage failed = message(202L, "ASSISTANT", "FAILED", null);
+        failed.setConversationId(CONVERSATION_ID);
+        failed.setReplyToMessageId(201L);
+        failed.setAttemptCount(1);
+        failed.setWorkflowVersion("ASSISTANT_TOOLS_NO_RAG_V1");
+        failed.setPromptVersion("PROMPT_ASSISTANT_TOOLS_0001");
+        failed.setModelExecutionConfigVersion("MODEL_CFG_ASSISTANT_TOOLS_0001");
+        failed.setToolsetVersion("ASSISTANT_TOOLSET_0001");
+        AssistantMessage user = message(201L, "USER", "COMPLETED", "推荐一道简单题");
+        when(messageMapper.selectById(202L)).thenReturn(failed);
+        when(messageMapper.selectById(201L)).thenReturn(user);
+        when(conversationMapper.selectOne(any())).thenReturn(conversation("ACTIVE"));
+        when(messageMapper.claimRetry(anyLong(), any())).thenReturn(1);
+        when(messageMapper.selectList(any())).thenReturn(List.of(user));
+        when(toolOrchestrator.run(any(), any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.eq(2), any())).thenReturn(
+                new AssistantToolRunResult(response("推荐 1003"),
+                        "[{\"name\":\"recommend_problem\"}]", 1));
+
+        AssistantMessageVO result = service.retry(202L, USER_ID);
+
+        assertThat(result.getAttemptCount()).isEqualTo(2);
+        assertThat(result.getUsedProblemTool()).isTrue();
+        verify(toolOrchestrator).run(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("ASSISTANT_TOOLSET_0001"),
+                org.mockito.ArgumentMatchers.eq(2), any());
+        verify(productionConfigService, never()).currentSnapshot();
+    }
+
+    @Test
     void repeatedCloseIsIdempotentAndRecoveryCoversInterruptedGeneration() {
         when(conversationMapper.selectOne(any())).thenReturn(conversation("CLOSED"));
         when(messageMapper.selectList(any())).thenReturn(List.of());
@@ -270,6 +335,8 @@ class AssistantServiceTest {
             message.setWorkflowVersion(snapshot.workflowVersion());
             message.setPromptVersion(snapshot.promptVersion());
             message.setModelExecutionConfigVersion(snapshot.modelExecutionConfigVersion());
+            message.setToolsetVersion(snapshot.toolsetVersion());
+            message.setAttemptCount(0);
             message.setRagMode(snapshot.ragMode());
         }
         message.setCreateTime(LocalDateTime.now());
@@ -281,6 +348,13 @@ class AssistantServiceTest {
         return new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_0001", 1,
                 "ASSISTANT_NO_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001",
                 "MODEL_CFG_ASSISTANT_TEXT_0001", "NONE", null);
+    }
+
+    private AssistantProductionSnapshot toolSnapshot() {
+        return new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_TOOLS", 2,
+                "ASSISTANT_TOOLS_NO_RAG_V1", "PROMPT_ASSISTANT_TOOLS_0001",
+                "MODEL_CFG_ASSISTANT_TOOLS_0001", "ASSISTANT_TOOLSET_0001",
+                "NONE", null);
     }
 
     private AiChatResponse response(String content) {

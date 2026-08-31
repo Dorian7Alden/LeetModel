@@ -172,6 +172,19 @@ class AssistantWorkflowTest {
         assertThat(request.messages().get(1).content().get(0).text()).isEqualTo("单轮问题");
     }
 
+    @Test
+    void toolWorkflowUsesDedicatedScopeAndMandatoryToolPrompt() throws Exception {
+        AssistantMessage current = message(2L, "USER", "什么是层次分析法");
+
+        List<com.leetmodel.common.ai.model.AiMessage> messages =
+                workflow.toolConversationMessages(List.of(current), current, toolSnapshot());
+
+        assertThat(messages.get(0).content().get(0).text())
+                .contains("专属 AI 客服", "必须调用 explain_modeling_knowledge",
+                        "每次只调用一个工具", "我只解答 LeetModel");
+        assertThat(messages.get(1).content().get(0).text()).isEqualTo("什么是层次分析法");
+    }
+
     private AssistantMessage message(Long id, String role, String content) {
         AssistantMessage message = new AssistantMessage();
         message.setId(id);
@@ -190,6 +203,13 @@ class AssistantWorkflowTest {
         return new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_RAG", 2,
                 "ASSISTANT_RAG_V1", "PROMPT_ASSISTANT_CHAT_0001",
                 "MODEL_CFG_ASSISTANT_TEXT_0001", "FIXED_INDEX", "rag-v1-test");
+    }
+
+    private AssistantProductionSnapshot toolSnapshot() {
+        return new AssistantProductionSnapshot("ASSISTANT_PROD_CFG_TOOLS", 2,
+                "ASSISTANT_TOOLS_NO_RAG_V1", "PROMPT_ASSISTANT_TOOLS_0001",
+                "MODEL_CFG_ASSISTANT_TOOLS_0001", "ASSISTANT_TOOLSET_0001",
+                "NONE", null);
     }
 
     private AiChatResponse response(String content) {

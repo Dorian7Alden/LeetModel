@@ -80,6 +80,10 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
     public AiChatResponse chat(String model, AiApiProtocol protocol, AiChatRequest request) {
         // 检查供应商配置
         validateApiKey();
+        BusinessException.throwIf(
+                usesToolProtocol(request) && protocol != AiApiProtocol.OPENAI_COMPLETIONS,
+                AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED
+        );
 
         return switch (protocol) {
             case OPENAI_COMPLETIONS -> {
@@ -89,6 +93,19 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
             case OPENAI_RESPONSES -> executeResponses(model, request);
             case ANTHROPIC_MESSAGES -> executeAnthropic(model, request);
         };
+    }
+
+    /**
+     * 判断请求是否包含工具协议字段。
+     *
+     * @param request 统一请求
+     * @return 是否需要工具协议
+     */
+    private boolean usesToolProtocol(AiChatRequest request) {
+        if (request.tools() != null && !request.tools().isEmpty()) return true;
+        return request.messages().stream().anyMatch(message ->
+                message.role() == com.leetmodel.common.ai.model.AiRole.TOOL
+                        || message.toolCalls() != null && !message.toolCalls().isEmpty());
     }
 
     /**

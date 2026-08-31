@@ -3,6 +3,9 @@ package com.leetmodel.assistant.service;
 import com.leetmodel.assistant.entity.AssistantProductionConfig;
 import com.leetmodel.assistant.rag.config.RagProperties;
 import com.leetmodel.assistant.rag.retrieval.RagVectorSearchStore;
+import com.leetmodel.assistant.tool.AssistantToolException;
+import com.leetmodel.assistant.tool.AssistantToolRegistry;
+import com.leetmodel.assistant.tool.knowledge.ExplainModelingKnowledgeTool;
 import com.leetmodel.common.api.dto.ModelExecutionConfigAvailabilityDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.core.result.Result;
@@ -15,13 +18,16 @@ public class AssistantProductionDependencyValidator {
     private final AiGatewayFeignClient aiGatewayClient;
     private final RagProperties ragProperties;
     private final RagVectorSearchStore ragStore;
+    private final AssistantToolRegistry toolRegistry;
 
     public AssistantProductionDependencyValidator(AiGatewayFeignClient aiGatewayClient,
                                                   RagProperties ragProperties,
-                                                  RagVectorSearchStore ragStore) {
+                                                  RagVectorSearchStore ragStore,
+                                                  AssistantToolRegistry toolRegistry) {
         this.aiGatewayClient = aiGatewayClient;
         this.ragProperties = ragProperties;
         this.ragStore = ragStore;
+        this.toolRegistry = toolRegistry;
     }
 
     /**
@@ -40,6 +46,23 @@ public class AssistantProductionDependencyValidator {
         boolean modelReady = response != null && response.isSuccess() && response.getData() != null
                 && Boolean.TRUE.equals(response.getData().getAvailable());
         if (!modelReady) return false;
+        // 工具工作流还必须同时具备本地工具集和终止式知识模型配置
+        if (config.getToolsetVersion() != null) {
+            try {
+                toolRegistry.definitions(config.getToolsetVersion(), config.getWorkflowVersion());
+            } catch (AssistantToolException exception) {
+                return false;
+            }
+            Result<ModelExecutionConfigAvailabilityDTO> knowledgeResponse =
+                    aiGatewayClient.getModelExecutionConfigAvailability(
+                            ExplainModelingKnowledgeTool.MODEL_CONFIG_VERSION, "CHAT",
+                            config.getWorkflowVersion(),
+                            ExplainModelingKnowledgeTool.PROMPT_VERSION);
+            boolean knowledgeReady = knowledgeResponse != null
+                    && knowledgeResponse.isSuccess() && knowledgeResponse.getData() != null
+                    && Boolean.TRUE.equals(knowledgeResponse.getData().getAvailable());
+            if (!knowledgeReady) return false;
+        }
         // 无 RAG 不接受索引；固定 RAG 必须检查物理索引和维度
         if ("NONE".equals(config.getRagMode())) return config.getRagIndexVersion() == null;
         return "FIXED_INDEX".equals(config.getRagMode()) && ragProperties.isEnabled()

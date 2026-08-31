@@ -6,11 +6,16 @@ import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiToolCall;
+import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
+import com.leetmodel.common.core.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** new-api OpenAI 兼容 Relay 适配器；不实现渠道选择或重试。 */
@@ -45,10 +50,34 @@ public class NewApiAdapter extends AbstractOpenAiCompatibleAdapter {
     @Override
     protected AiChatResponse toChatResponse(OpenAiCompatibleResponse response) {
         OpenAiCompatibleResponse.Choice choice = response.choices().get(0);
+        List<AiToolCall> toolCalls = toToolCalls(choice.message().toolCalls());
+        BusinessException.throwIf(
+                !StringUtils.hasText(choice.message().content())
+                        && (toolCalls == null || toolCalls.isEmpty()),
+                AiGatewayErrorCode.RESPONSE_INVALID
+        );
         AiUsage usage = toUsage(response.usage());
         return new AiChatResponse(null, provider(), response.model(), response.id(),
                 choice.message().content(), choice.message().reasoningContent(),
-                choice.finishReason(), usage);
+                choice.finishReason(), usage, null, toolCalls);
+    }
+
+    /**
+     * 转换并校验供应商工具调用。
+     *
+     * @param source 供应商工具调用
+     * @return 统一工具调用
+     */
+    private List<AiToolCall> toToolCalls(List<OpenAiCompatibleResponse.ToolCall> source) {
+        if (source == null || source.isEmpty()) return null;
+        return source.stream().map(item -> {
+            boolean invalid = item == null || !StringUtils.hasText(item.id())
+                    || !"function".equals(item.type()) || item.function() == null
+                    || !StringUtils.hasText(item.function().name())
+                    || !StringUtils.hasText(item.function().arguments());
+            BusinessException.throwIf(invalid, AiGatewayErrorCode.RESPONSE_INVALID);
+            return new AiToolCall(item.id(), item.function().name(), item.function().arguments());
+        }).toList();
     }
 
     private AiUsage toUsage(OpenAiCompatibleResponse.Usage source) {

@@ -122,6 +122,34 @@ class AssistantProductionConfigServiceTest {
                         "ASSISTANT_PROD_CFG_0001:true");
     }
 
+    @Test
+    void toolActivationFreezesToolsetAndShowsItInPreviewDifference() {
+        AssistantProductionConfig current = config(1L, "ASSISTANT_PROD_CFG_0001",
+                "ASSISTANT_NO_RAG_V1", "NONE", null);
+        AssistantProductionConfig target = config(3L, "ASSISTANT_PROD_CFG_TOOLS",
+                "ASSISTANT_TOOLS_NO_RAG_V1", "NONE", null);
+        target.setPromptVersion("PROMPT_ASSISTANT_TOOLS_0001");
+        target.setModelExecutionConfigVersion("MODEL_CFG_ASSISTANT_TOOLS_0001");
+        target.setToolsetVersion("ASSISTANT_TOOLSET_0001");
+        when(pointerMapper.selectById(1L)).thenReturn(pointer(1L, 4L));
+        when(configMapper.selectById(1L)).thenReturn(current);
+        when(workflowMapper.selectOne(any())).thenReturn(
+                workflow("ASSISTANT_NO_RAG_V1", "NONE"),
+                toolWorkflow("ASSISTANT_TOOLS_NO_RAG_V1", "NONE"));
+        when(configMapper.selectOne(any())).thenReturn(target);
+        when(validator.isReady(target)).thenReturn(true);
+
+        var preview = service.preview(new AssistantProductionChangePreviewRequestDTO(
+                "ACTIVATE", 4L, "ASSISTANT_TOOLS_NO_RAG_V1", null,
+                null, "启用受控工具工作流进行生产观察", 7L));
+
+        assertThat(preview.getTarget().getToolsetVersion())
+                .isEqualTo("ASSISTANT_TOOLSET_0001");
+        assertThat(preview.getDifferences())
+                .anyMatch(item -> item.contains("工具集版本")
+                        && item.contains("ASSISTANT_TOOLSET_0001"));
+    }
+
     private AssistantProductionPointer pointer(Long configId, Long revision) {
         AssistantProductionPointer pointer = new AssistantProductionPointer();
         pointer.setId(1L);
@@ -160,6 +188,14 @@ class AssistantProductionConfigServiceTest {
         workflow.setCompatibility("历史可读");
         workflow.setImpactScope("只影响新回复");
         workflow.setExperimentCandidate(true);
+        return workflow;
+    }
+
+    private AssistantWorkflowVersion toolWorkflow(String version, String ragMode) {
+        AssistantWorkflowVersion workflow = workflow(version, ragMode);
+        workflow.setPromptVersion("PROMPT_ASSISTANT_TOOLS_0001");
+        workflow.setModelExecutionConfigVersion("MODEL_CFG_ASSISTANT_TOOLS_0001");
+        workflow.setToolsetVersion("ASSISTANT_TOOLSET_0001");
         return workflow;
     }
 }

@@ -18,6 +18,7 @@ public class AssistantProductionConfigDTO {
     private String workflowName;
     private String promptVersion;
     private String modelExecutionConfigVersion;
+    private String toolsetVersion;
     private String ragMode;
     private String ragIndexVersion;
     private String impactScope;

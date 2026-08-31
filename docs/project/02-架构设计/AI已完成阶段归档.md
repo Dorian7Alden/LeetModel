@@ -74,6 +74,16 @@ admin-service 只做管理员鉴权、登录操作者注入和无状态 Feign �
 
 配置所有权、安全协议与后端证据见 [生产工作流版本治理](../03-微服务设计/ai-assistant-service/生产工作流版本治理/README.md)，管理流程与真实验收见 [生产版本切换](../03-微服务设计/admin-service/生产版本切换/README.md)。阶段末后端 17 模块 416 项测试中 407 项通过、9 项外部 smoke 按门控跳过，前端生产构建通过。REST `/v1`、`/v2` 的触发盘点没有发现真实外部不兼容需求，因此未预建全局版本路由；结论与重新触发条件见 [REST API 版本化触发评估](REST%20API版本化触发评估.md)。
 
+### S11 AI 客服受控工具调用
+
+公共 AI 契约新增供应商无关的工具定义、选择、助手工具调用和工具结果消息，AI 网关只做模型能力门禁与 new-api OpenAI 兼容协议映射，不解释或执行业务工具。`deepseek-v4-flash` 已通过 `tool_choice=auto` 真实黑盒门禁；旧模型执行配置继续禁用工具，工具版使用独立不可变配置。
+
+problem-service 提供只返回已发布题目的内部只读查询，支持题号/关键词以及赛事、年份、难度、语言和时长的确定性筛选。ai-assistant-service 拥有 `ASSISTANT_TOOLSET_0001`、严格参数 Schema、单响应单工具、最多两次、禁止重复、独立线程池与共享截止时间，并实现 `search_problem`、`recommend_problem` 和终止式 `explain_modeling_knowledge`。知识工具使用独立 Prompt 和禁用递归工具的模型配置，输出不超过 300 码点；审计只保存回答哈希与长度，不保存知识回答正文。
+
+V5 至 V7 Flyway 建立工具调用事实，把 `toolsetVersion` 和 `attemptCount` 纳入工作流、不可变生产配置和消息快照，并将尚未接入隔离实验入口的工具工作流标为生产专用。两个工具版工作流与旧 V1 并存，迁移不会自动切换生产指针。真实客服入口完成题号查询、入门题推荐、层次分析法讲解和越界拒答；工具版按 revision 7→8 激活后又按 8→9 回滚至 `ASSISTANT_PROD_CFG_0001`，历史工具消息继续按自身 revision 8 和工具集快照解释。
+
+完整契约、安全状态、测试矩阵和真实验收见 [受控工具调用](../03-微服务设计/ai-assistant-service/受控工具调用/README.md)。阶段目标 Reactor 共执行 260 项测试，252 项通过、8 项外部条件测试按门禁跳过，零失败；真实 MySQL V4→V7 迁移、new-api 调用和生产激活/回滚均通过。
+
 ### 验收环境与密钥边界
 
 本地开发和真实冒烟由 `ai-gateway-service` 的运行环境提供 Relay Token，凭据不得进入仓库、日志、测试夹具或提交记录。2026-08-28 已核验本地 new-api 可用 DeepSeek、Kimi 和 `qwen3.7-text-embedding`，这是当日环境事实，不是永久模型承诺，每次真实冒烟前仍需查询模型目录并执行最小请求。

@@ -29,6 +29,7 @@ public class ModelExecutionConfigProperties {
         private Double temperature;
         private AiResponseFormat responseFormat;
         private Boolean thinkingEnabled;
+        private boolean tools;
         private Integer embeddingDimension;
         private Integer maxBatchSize;
         private Integer maxInputChars;
