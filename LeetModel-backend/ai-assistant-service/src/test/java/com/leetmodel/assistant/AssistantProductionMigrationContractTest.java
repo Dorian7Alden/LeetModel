@@ -70,4 +70,19 @@ class AssistantProductionMigrationContractTest {
                 .doesNotContain("UPDATE `assistant_production_config`");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
     }
+
+    @Test
+    void v7KeepsToolWorkflowsOutOfUnsupportedExperimentCatalog() throws Exception {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V7__mark_tool_workflows_production_only.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("UPDATE `assistant_workflow_version`")
+                .contains("SET `experiment_candidate` = 0")
+                .contains("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }
