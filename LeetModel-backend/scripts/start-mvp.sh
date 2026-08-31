@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_DIR="${BACKEND_DIR}/.mvp-runtime"
-NACOS_DIR="${NACOS_HOME:-${HOME}/repo/nacos}"
 SKIP_BUILD=false
 
 if [[ "${1:-}" == "--skip-build" ]]; then
@@ -24,28 +23,8 @@ ports=(8081 8083 8082 8090 8092 8086 8087 8088 8089 8091 8084 8080)
 mkdir -p "${RUNTIME_DIR}/logs"
 
 cd "${BACKEND_DIR}"
-docker compose up -d --wait mysql redis minio
-
-if ! curl -fsS "http://127.0.0.1:8848/nacos/v1/console/health/readiness" >/dev/null 2>&1; then
-  if [[ ! -x "${NACOS_DIR}/bin/startup.sh" ]]; then
-    echo "Nacos 未运行，且未找到 ${NACOS_DIR}/bin/startup.sh。可通过 NACOS_HOME 指定目录。" >&2
-    exit 1
-  fi
-  "${NACOS_DIR}/bin/startup.sh" -m standalone
-  nacos_ready=false
-  for _ in {1..60}; do
-    if curl -fsS "http://127.0.0.1:8848/nacos/v1/console/health/readiness" >/dev/null 2>&1; then
-      nacos_ready=true
-      break
-    fi
-    sleep 1
-  done
-  if [[ "${nacos_ready}" == false ]]; then
-    echo "Nacos 在 60 秒内未就绪，请检查 ${NACOS_DIR}/logs/start.out。" >&2
-    exit 1
-  fi
-fi
-echo "Nacos 已就绪（${NACOS_DIR}）"
+docker compose up -d --wait mysql redis minio nacos
+echo "Docker 基础设施已就绪（MySQL、Redis、MinIO、Nacos）"
 
 if [[ "${SKIP_BUILD}" == false ]]; then
   mvn -DskipTests package
