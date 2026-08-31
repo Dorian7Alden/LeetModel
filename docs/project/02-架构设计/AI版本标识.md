@@ -1,6 +1,6 @@
 ## AI 版本标识
 
-> 设计状态：D-05 已确认。五类标识分别演进、分别展示，任何 `/v1`、`/v2` 路径都不能代替业务工作流版本。
+> 设计状态：已确认。五类核心标识分别演进、分别展示，任何 `/v1`、`/v2` 路径都不能代替业务工作流版本。已发布的 AI 功能不允许被原地覆盖；每次功能调整都必须通过新版本表达。
 
 ### 统一定义
 
@@ -10,7 +10,7 @@
 | `workflowVersion` | 工作流版本 | 执行该 AI 功能的业务服务 | 标识一套完整业务步骤、依赖、程序规则和输出语义 | 功能编码、步骤图、依赖、确定性处理规则和业务输出契约 |
 | `promptVersion` | 提示词版本 | 拥有对应 Prompt 的 AI 业务服务 | 标识某工作流步骤使用的不可变 Prompt 内容 | Prompt 原文或模板、变量契约、适用步骤、内容哈希和安全约束 |
 | `modelExecutionConfigVersion` | 模型执行配置版本 | `ai-gateway-service` | 把一个或多个逻辑步骤绑定到精确模型、参数和能力要求 | 逻辑模型、new-api 模型名、供应商可核对版本、采样参数、能力要求及步骤绑定 |
-| `ragIndexVersion` | RAG 索引版本 | 当前为 `ai-assistant-service` | 标识一套可查询的 RAG 索引快照 | 知识源集合、内容版本、切分规则、Embedding 配置、索引 schema 和构建结果摘要 |
+| `ragIndexVersion` | RAG 索引版本 | 当前构建发布仍为 `ai-assistant-service`；`knowledge-retrieval-service` 可锁定查询 | 标识一套可查询的 RAG 索引快照 | 知识源集合、内容版本、切分规则、Embedding 配置、索引 schema 和构建结果摘要 |
 
 “所有者”负责生成标识、保证唯一性、保存不可变定义并提供查询；调用方只保存引用和运行快照，不复制所有者的版本表。
 
@@ -40,6 +40,7 @@
 3. 业务任务和实验运行在创建时保存适用版本引用；进入执行前再校验引用仍可执行，但不得静默替换。
 4. 调用审计保存实际执行的版本快照和 `callId`。评价比较必须至少锁定 `workflowVersion`、`modelExecutionConfigVersion`，并按功能需要锁定 `promptVersion` 与 `ragIndexVersion`。
 5. 版本删除只允许发生在从未发布、从未引用的草稿；已引用版本只能停用。
+6. 版本升级可以复用上一版代码或重新实现，但不得修改已发布版本的分支、Prompt 快照、输出契约、默认依赖或历史数据来伪装升级。
 
 ### 各层使用边界
 
@@ -47,7 +48,18 @@
 - AI 业务任务、结果、实验候选项和页面的“功能版本”使用 `workflowVersion`，不得填写 `/v1`、`/v2`。
 - Prompt 调试和审计使用 `promptVersion`；不得把一段 Prompt 文本或文件路径当版本标识。
 - 业务服务引用 `modelExecutionConfigVersion`，由 AI 网关解析并校验不可变配置；new-api 的渠道 ID 和模型别名不直接充当该版本。
-- 客服 RAG 调用和评价样本使用 `ragIndexVersion`；“向量 RAG V1”“AI 目录导航 V2”是架构代际名称，不是索引快照标识。
+- 知识检索运行和评价样本使用 `ragIndexVersion`；“向量 RAG V1”“AI 目录导航 V2”是架构代际名称，不是索引快照标识。迁移后由 knowledge-retrieval-service 保存不可变定义，调用方只保存引用和运行快照。
+
+### 领域子工作流版本
+
+PDF 解析与知识检索都是可独立演进、可被上层工作流引用的领域子工作流：
+
+| 引用字段 | 所有者 | 语义 |
+|----------|--------|------|
+| `paperParsingWorkflowVersion` | `ai-review-service` | 锁定 PDF 解析步骤、工具、质量门和产物契约，例如 `PAPER_PARSE_V1` |
+| `retrievalWorkflowVersion` | `knowledge-retrieval-service` | 锁定检索分支、排序、裁剪、适用性与失败规则，例如 `VECTOR_RAG_V1` |
+
+这两个字段是对 `workflowVersion` 类型在特定领域中的明确命名，不是新的通用版本类型。上层评审或建议工作流必须在任务创建时保存它们的引用，不能在执行时读取“当前默认”后静默漂移。
 
 ### 功能与版本发现契约
 
@@ -71,7 +83,7 @@ AI 功能 owner 通过内部只读接口返回 `AiFeatureDefinitionDTO`，评价
 
 管理端创建实验时只允许从 `ENABLED` 版本下拉列表选择。服务端仍必须重新向 owner 校验状态，不能信任页面传值。当前 REVIEW 目录由 ai-review-service 提供，admin-service 只做代理；ASSISTANT 和 SUGGESTION 在隔离实验能力完成前不发布到评价平台目录。
 
-当前代码主要只有 review `workflowVersion`，其他字段由后续 S2、S4、S6、S7 的迁移新增。迁移期间不得把现有 `workflowVersion` 改名后复用为其他版本，也不得根据 `/v1` 或模型名反推缺失版本。
+当前不同 AI 功能的版本完整度不同，以 [AI功能版本现状.md](AI功能版本现状.md) 和对应服务实现为准。迁移期间不得把现有 `workflowVersion` 改名后复用为其他版本，也不得根据 `/v1`、模型名或当前默认值反推历史任务缺失的版本。
 
 ### 工具集版本扩展
 

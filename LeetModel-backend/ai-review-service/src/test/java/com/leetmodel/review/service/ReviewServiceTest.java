@@ -19,6 +19,7 @@ import com.leetmodel.review.mapper.ReviewVersionMapper;
 import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
 import com.leetmodel.review.workflow.ReviewWorkflowResult;
+import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -279,6 +280,32 @@ class ReviewServiceTest {
                 && "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
                 task.getModelExecutionConfigVersion())), any());
         verify(taskMapper, never()).insert(any(ReviewTask.class));
+    }
+
+    @Test
+    void evidenceV2CanUseTheExistingSubmissionReferenceDatasetWithItsOwnModelConfig() throws Exception {
+        ReviewVersion enabled = version(EvidenceReviewV2Workflow.VERSION_CODE, "ENABLED",
+                EvidenceReviewV2Workflow.RESULT_SCHEMA_VERSION);
+        when(versionMapper.selectOne(any())).thenReturn(enabled);
+        when(workflowRegistry.required(EvidenceReviewV2Workflow.VERSION_CODE)).thenReturn(workflow);
+        when(workflow.versionId()).thenReturn(EvidenceReviewV2Workflow.VERSION_ID);
+        when(workflow.versionCode()).thenReturn(EvidenceReviewV2Workflow.VERSION_CODE);
+        when(workflow.currentPrompt()).thenReturn("prompt-v2");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("82"), "{\"score\":82}", "model", "call-v2", 77L));
+        var request = new AiExperimentRequestDTO("review-v2-slot", "REVIEW",
+                new AiExperimentSampleDTO("SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
+                        "{\"submissionId\":31}"), EvidenceReviewV2Workflow.VERSION_CODE,
+                "MODEL_CFG_REVIEW_TEXT_0002", null, "P3",
+                null, null, null, null);
+
+        var result = service.runExperiment(request);
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        assertEquals("MODEL_CFG_REVIEW_TEXT_0002", result.getModelExecutionConfigVersion());
+        verify(workflow).execute(argThat(task ->
+                "MODEL_CFG_REVIEW_TEXT_0002".equals(task.getModelExecutionConfigVersion())), any());
     }
 
     @Test

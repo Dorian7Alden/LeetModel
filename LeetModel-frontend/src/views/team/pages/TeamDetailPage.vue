@@ -212,9 +212,19 @@
         <el-empty v-else-if="selectedReview.status !== 'COMPLETED'" :description="selectedReview.status === 'RUNNING' ? 'AI 正在阅读论文，请稍后刷新' : '评审任务正在等待执行'" :image-size="72" />
         <template v-else-if="selectedReviewResult">
           <div class="review-score"><span>论文总分</span><strong>{{ selectedReviewResult.score }}</strong><small>/ 100</small></div>
-          <p class="review-summary">{{ selectedReviewResult.summary }}</p>
-          <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} 分</span></div><p>{{ item.value?.comment }}</p></div></div>
-          <div v-for="section in reviewLists" :key="section.key" class="review-list"><h4>{{ section.label }}</h4><ul><li v-for="item in section.items" :key="item">{{ item }}</li></ul></div>
+          <template v-if="selectedReviewIsV2">
+            <el-alert title="平台训练评分，用于练习反馈，不代表赛事官方评分" type="info" :closable="false" show-icon />
+            <p class="review-summary">{{ selectedReviewResult.overallAssessment }}</p>
+            <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} / {{ item.value?.maxScore }} 分</span></div><p>{{ item.value?.reason }}</p></div></div>
+            <div class="review-list"><h4>题目要求覆盖</h4><div v-for="item in selectedReviewResult.requirementCoverage" :key="item.requirementId" class="coverage-item"><el-tag size="small" :type="coverageType(item.status)">{{ coverageLabel(item.status) }}</el-tag><div><strong>{{ item.requirement }}</strong><p>{{ item.explanation }}</p></div></div></div>
+            <div class="review-list"><h4>结构化评审发现</h4><div v-for="item in v2Findings" :key="item.findingId" class="finding-item"><div><el-tag size="small" :type="item.type === 'STRENGTH' ? 'success' : 'warning'">{{ item.type === 'STRENGTH' ? '优点' : item.severity }}</el-tag><strong>{{ item.findingId }} · {{ item.statement }}</strong></div><p>{{ item.scoreImpact }}</p><span v-if="item.pages.length">论文第 {{ item.pages.join('、') }} 页</span></div></div>
+            <p v-if="selectedReviewResult.limitations?.length" class="review-limitations">运行限制：{{ selectedReviewResult.limitations.join('；') }}</p>
+          </template>
+          <template v-else>
+            <p class="review-summary">{{ selectedReviewResult.summary }}</p>
+            <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} 分</span></div><p>{{ item.value?.comment }}</p></div></div>
+            <div v-for="section in reviewLists" :key="section.key" class="review-list"><h4>{{ section.label }}</h4><ul><li v-for="item in section.items" :key="item">{{ item }}</li></ul></div>
+          </template>
         </template>
         <el-alert v-else type="warning" title="评审结果暂时无法解析" :closable="false" show-icon />
       </div>
@@ -291,7 +301,11 @@ const allRolesCovered = computed(() => coveredRoleCount.value === 3)
 const remainingSeconds = computed(() => Math.max(0, Math.floor((new Date(team.value?.deadlineAt || 0).getTime() - now.value) / 1000)))
 const remainingTimeText = computed(() => { const seconds = remainingSeconds.value; const hours = Math.floor(seconds / 3600); const minutes = Math.floor((seconds % 3600) / 60); return `${String(hours).padStart(2, '0')} : ${String(minutes).padStart(2, '0')} : ${String(seconds % 60).padStart(2, '0')}` })
 const nextVersion = computed(() => Math.max(0, ...submissions.value.map(item => item.version || 0)) + 1)
-const reviewBySubmissionId = computed(() => new Map(reviews.value.map(item => [String(item.submissionId), item])))
+const reviewBySubmissionId = computed(() => {
+  const map = new Map()
+  reviews.value.forEach(item => { if (!map.has(String(item.submissionId))) map.set(String(item.submissionId), item) })
+  return map
+})
 const submissionRows = computed(() => submissions.value.map(item => ({ ...item, review: reviewBySubmissionId.value.get(String(item.id)) })))
 const finalSubmission = computed(() => submissions.value.find(item => item.finalVersion))
 const scoreSummary = computed(() => {
@@ -306,7 +320,11 @@ const selectedReviewResult = computed(() => {
   if (!selectedReview.value?.resultJson) return null
   try { return JSON.parse(selectedReview.value.resultJson) } catch { return null }
 })
+const selectedReviewIsV2 = computed(() => selectedReview.value?.workflowVersion === 'EVIDENCE_REVIEW_V2')
 const reviewDimensions = computed(() => {
+  if (selectedReviewIsV2.value) {
+    return (selectedReviewResult.value?.dimensions || []).map(item => ({ key: item.dimensionId, label: item.name, value: item }))
+  }
   const values = selectedReviewResult.value?.dimensions || {}
   return [
     { key: 'assumptionRationality', label: '假设合理性', value: values.assumptionRationality },
@@ -320,6 +338,13 @@ const reviewLists = computed(() => [
   { key: 'weaknesses', label: '主要问题', items: selectedReviewResult.value?.weaknesses || [] },
   { key: 'suggestions', label: '改进建议', items: selectedReviewResult.value?.suggestions || [] },
 ])
+const v2Findings = computed(() => {
+  const evidence = new Map((selectedReviewResult.value?.evidence || []).map(item => [item.evidenceId, item]))
+  return (selectedReviewResult.value?.findings || []).map(item => ({
+    ...item,
+    pages: [...new Set((item.evidenceIds || []).map(id => evidence.get(id)?.physicalPage).filter(Boolean))],
+  }))
+})
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
 
 async function loadTeam() {
@@ -378,6 +403,8 @@ function formatDuration(minutes) { return minutes % 60 === 0 ? `${minutes / 60} 
 function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
 function reviewStatusLabel(value) { return ({ WAITING: '等待评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败' })[value] || '等待评审' }
 function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', RUNNING: 'warning' })[value] || 'info' }
+function coverageLabel(value) { return ({ COMPLETED: '已完成', PARTIAL: '部分完成', MISSING: '缺失', UNVERIFIABLE: '无法判断' })[value] || value }
+function coverageType(value) { return ({ COMPLETED: 'success', PARTIAL: 'warning', MISSING: 'danger', UNVERIFIABLE: 'info' })[value] || 'info' }
 function memberRoles(member) { return [member.modeler && '建模', member.programmer && '编程', member.writer && '论文'].filter(Boolean) }
 const MAX_PDF_SIZE = 20 * 1024 * 1024
 function handlePdfChange(file) {
@@ -668,6 +695,11 @@ watch(remainingSeconds, (value, previous) => {
 .dimension-card span { color: var(--el-color-primary); font-weight: 600; }
 .review-list h4 { margin: 0 0 8px; }
 .review-list ul { margin: 0; padding-left: 22px; color: var(--lm-text-secondary); line-height: 1.8; }
+.coverage-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--lm-border-light); }
+.coverage-item p, .finding-item p { margin: 5px 0 0; color: var(--lm-text-secondary); line-height: 1.6; }
+.finding-item { padding: 12px 0; border-bottom: 1px solid var(--lm-border-light); }
+.finding-item > div { display: flex; align-items: center; gap: 8px; }
+.finding-item > span, .review-limitations { color: var(--lm-text-muted); font-size: 12px; }
 @media (max-width: 720px) { .dimension-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   .upload-toolbar { align-items: stretch; flex-direction: column; }

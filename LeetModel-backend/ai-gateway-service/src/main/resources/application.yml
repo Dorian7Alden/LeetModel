@@ -83,6 +83,17 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_BASIC_REVIEW_0001]
         workflow-versions: [BASIC_REVIEW_V1]
+      MODEL_CFG_REVIEW_TEXT_0002:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash
+        modality: TEXT
+        max-tokens: 8192
+        temperature: 0.1
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions: [PROMPT_EVIDENCE_REVIEW_0001]
+        workflow-versions: [EVIDENCE_REVIEW_V2]
       MODEL_CFG_SUGGESTION_TEXT_0001:
         call-type: CHAT
         provider: NEW_API
@@ -94,6 +105,28 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_PAPER_SUGGESTION_0001]
         workflow-versions: [IMPROVEMENT_V1]
+      MODEL_CFG_SUGGESTION_TEXT_0002:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash
+        modality: TEXT
+        max-tokens: 8192
+        temperature: 0.15
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions: [PROMPT_GROUNDED_SUGGESTION_0001]
+        workflow-versions: [GROUNDED_SUGGESTION_V2]
+      MODEL_CFG_KNOWLEDGE_DIRECTORY_0001:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash
+        modality: TEXT
+        max-tokens: 1200
+        temperature: 0.0
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions: [PROMPT_AI_DIRECTORY_0001]
+        workflow-versions: [AI_DIRECTORY_V1]
       MODEL_CFG_RAG_V1:
         call-type: EMBEDDING
         logical-model: RAG_V1

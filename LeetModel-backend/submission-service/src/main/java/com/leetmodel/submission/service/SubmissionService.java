@@ -178,10 +178,11 @@ public class SubmissionService {
      * @return 提交响应
      */
     public SubmissionVO triggerReview(Submission submission) {
-        Result<Long> task = reviewFeignClient.createTask(
+        Result<Long> task = reviewFeignClient.createVersionedTask(
                 submission.getId(),
                 submission.getTeamId(),
-                submission.getProblemId()
+                submission.getProblemId(),
+                "EVIDENCE_REVIEW_V2"
         );
         BusinessException.throwIf(
                 task == null || !task.isSuccess(),

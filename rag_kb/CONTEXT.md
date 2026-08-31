@@ -4,7 +4,7 @@
 
 `rag_kb/` 是 LeetModel 当前知识内容源，不是应用代码目录。知识内容的事实源是受 Git 管理的 Markdown；Elasticsearch 索引是可重建的派生数据。
 
-在线 RAG V1 归 `ai-assistant-service`，使用 LangChain4j、统一 Embedding 调用和 Elasticsearch 基础向量召回。`.kb/` 定义原子笔记、目录组织、人工维护和纯 AI 导航规则；纯 AI 目录导航命名为 RAG V2，当前不进入运行时实现。
+历史客服在线 RAG V1 归 `ai-assistant-service`，并继续拥有当前索引构建工具。S12 新增的 `knowledge-retrieval-service` 实现 `VECTOR_RAG_V1` 及实验性的 `AI_DIRECTORY_V1`、`HYBRID_RETRIEVAL_V1`；正式论文建议只启用向量分支。目录选文只读取受控清单并由服务端校验路径。`.kb/` 继续定义原子笔记、目录组织和人工维护规则，不进入模型上下文。
 
 
 ## 读取顺序
@@ -12,7 +12,7 @@
 1. 阅读本文件确认运行索引边界。
 2. 维护知识内容时阅读 [知识库规范总纲](.kb/README.md)，再按其索引加载相关规范。
 3. 只执行人工目录导航时阅读 [AI 导航检索工作流](.kb/03-检索工作流.md)。
-4. 设计或实现在线 RAG 时阅读 [RAG 知识库架构](../docs/project/02-架构设计/RAG知识库.md) 和 [assistant 模块说明](../docs/project/03-微服务设计/ai-assistant-service/README.md)，不把 AI 导航检索工作流当作 V1 算法。
+4. 设计或实现在线检索时阅读 [RAG 知识库架构](../docs/project/02-架构设计/RAG知识库.md)、[知识检索服务](../docs/project/03-微服务设计/knowledge-retrieval-service/README.md) 和对应调用方说明，不把人工导航规则当作可自由访问文件的授权。
 
 
 ## RAG V1 索引边界
@@ -40,7 +40,7 @@
 
 ## 版本与降级
 
-在线索引使用独立 `ragIndexVersion`，并记录内容、Embedding 模型和切分策略版本。检索失败时 assistant 记录不含正文的错误并降级为无 RAG 回答；知识目录本身不承担在线可用性保证。
+在线索引使用独立 `ragIndexVersion`，并记录内容、Embedding 模型和切分策略版本。检索失败时历史 assistant 降级为无 RAG 回答；`GROUNDED_SUGGESTION_V2` 则明确失败，不允许无参考资料生成。知识目录本身不承担在线可用性保证。
 
 
 ## Agent 入口

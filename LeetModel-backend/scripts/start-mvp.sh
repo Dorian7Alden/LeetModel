@@ -15,16 +15,16 @@ fi
 
 services=(
   user-service problem-service team-service ai-gateway-service
-  submission-service ai-review-service ranking-service ai-suggestion-service
-  ai-assistant-service ai-evaluation-service admin-service gateway-service
+  submission-service ai-review-service ranking-service knowledge-retrieval-service
+  ai-suggestion-service ai-assistant-service ai-evaluation-service admin-service gateway-service
 )
-ports=(8081 8083 8082 8090 8092 8086 8087 8088 8089 8091 8084 8080)
+ports=(8081 8083 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080)
 
 mkdir -p "${RUNTIME_DIR}/logs"
 
 cd "${BACKEND_DIR}"
-docker compose up -d --wait mysql redis minio nacos
-echo "Docker 基础设施已就绪（MySQL、Redis、MinIO、Nacos）"
+docker compose up -d --wait mysql redis minio nacos elasticsearch
+echo "Docker 基础设施已就绪（MySQL、Redis、MinIO、Nacos、Elasticsearch）"
 
 if [[ "${SKIP_BUILD}" == false ]]; then
   mvn -DskipTests package

@@ -1,29 +1,30 @@
 # RAG 知识库
 
-> 实现状态：S4 已完成 RAG V1 的受控知识加载、统一 Embedding、Elasticsearch 索引、基础向量检索、客服接入、版本审计和安全降级。AI 目录导航仍定义为 RAG V2，仅保留设计。
+> 实现与目标：S4 已在 ai-assistant-service 完成客服向量 RAG V1；S12 已建立独立 `knowledge-retrieval-service` 并落地向量查询、受控目录选文和固定混合查询。客服历史工作流与索引构建尚未迁移。
 
 ## 设计目标
 
-第一版 RAG 为 `ai-assistant-service` 的客服回答提供数学建模知识上下文。它使用 LangChain4j 组织文档加载、切分、Embedding 和召回，使用 Elasticsearch 保存正式向量索引，并通过统一 AI 调用链获取 Embedding。
+第一版 RAG 为 `ai-assistant-service` 的客服回答提供数学建模知识上下文。目标知识检索服务复用这一经验，将知识源、索引、检索工作流、适用性校验和检索快照从单一客服场景中独立出来，为客服和论文建议提供统一能力。
 
-RAG 不替代助手的会话、历史上下文、题目工具和回答工作流。检索命中只作为受边界约束的参考上下文；检索失败时继续现有无 RAG 回答，Chat 失败仍返回现有失败回复。
+知识检索不替代调用方的业务工作流，只返回受边界约束、带稳定来源的参考上下文。是否允许无命中降级由每个已发布业务工作流显式定义：客服 V1 保持无 RAG 回答，`GROUNDED_SUGGESTION_V2` 不允许在无可靠参考上下文时凭空生成。
 
 
 ## 版本定义
 
 | 名称 | 定义 | 当前状态 |
 |------|------|----------|
-| RAG V1 | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 已实现 |
-| RAG V2 | AI 读取目录与元数据，自主选择受控文档，可与向量召回组合 | 仅保留设计，S9 评估 |
+| RAG V1 / `VECTOR_RAG_V1` | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 独立服务查询已实现；客服历史实现保留 |
+| RAG V2 / `AI_DIRECTORY_V1` | AI 读取目录与元数据，选择受控文档 | 独立服务实验实现，未进入正式调用方 |
+| `HYBRID_RETRIEVAL_V1` | 按固定规则组合向量召回与受控 AI 选文 | 独立服务实验实现，未进入正式调用方 |
 
-V1 和 V2 表示检索工作流，不是 REST API 版本、Prompt 版本或索引版本。具体索引使用独立的 `ragIndexVersion` 标识。
+RAG V1/V2 是历史架构代际名称；目标服务对外发布不可变的 `retrievalWorkflowVersion`。它们都不是 REST API 版本、Prompt 版本或索引版本，具体索引仍使用独立 `ragIndexVersion`。
 
 
 ## 服务归属
 
-RAG V1 归 `ai-assistant-service`。该服务拥有客服回答流程，能够决定何时检索、怎样注入上下文、何时降级并解释最终回答。`common-ai` 只提供 Chat 与 Embedding 客户端契约；`ai-gateway-service` 只治理单次模型调用；两者都不拥有知识检索业务。
+历史客服 RAG V1 当前归 `ai-assistant-service`。`knowledge-retrieval-service` 已拥有新消费者使用的检索工作流、受控目录、来源校验和检索运行契约；索引构建、别名切换和回滚仍暂由 ai-assistant-service 的 S4 工具负责。ai-assistant-service 继续拥有何时检索、怎样把上下文注入客服回答以及客服降级规则。`common-ai` 只提供 Chat 与 Embedding 客户端契约；`ai-gateway-service` 只治理单次模型调用。
 
-`ai-review-service` 不读取此知识库，也不是第一版 RAG 所有者。论文评审是否使用知识检索必须在出现真实需求后另建任务，不能复用客服 RAG 时越过服务边界。
+`ai-suggestion-service` 是第二个已确认消费者，只通过检索契约获取带来源与适用性的上下文。`ai-review-service` 的 `EVIDENCE_REVIEW_V2` 不依赖该知识库：评分根据题面与论文证据，参考知识只用于下游“如何改”。
 
 
 ## 整体架构
@@ -34,13 +35,17 @@ flowchart TB
         content[rag_kb/数学建模 内容 Markdown]
     end
 
-    subgraph assistant[ai-assistant-service]
+    subgraph retrieval[knowledge-retrieval-service]
         loader[过滤、加载与元数据提取]
         cleaner[清洗与结构化切分]
         indexer[全量或增量索引]
         retriever[Query Embedding 与向量召回]
-        workflow[现有 AssistantWorkflow]
+        navigation[受控 AI 目录选文]
+        validate[适用性与来源校验]
     end
+
+    assistant[ai-assistant-service]
+    suggestion[ai-suggestion-service]
 
     commonAi[common-ai Embedding 与 Chat 客户端]
     aiGateway[ai-gateway-service]
@@ -50,14 +55,22 @@ flowchart TB
     content --> loader --> cleaner --> indexer
     indexer --> commonAi --> aiGateway --> newApi
     indexer --> es
-    workflow --> retriever
+    assistant --> retriever
+    suggestion --> retriever
+    assistant --> navigation
+    suggestion --> navigation
     retriever --> commonAi
     retriever --> es
-    retriever -->|来源化知识上下文| workflow
-    workflow --> commonAi
+    navigation --> commonAi
+    retriever --> validate
+    navigation --> validate
+    validate -->|来源化知识上下文| assistant
+    validate -->|来源化知识上下文| suggestion
+    assistant --> commonAi
+    suggestion --> commonAi
 ```
 
-正式环境使用 Elasticsearch；自动化单元测试可以使用确定性假 Embedding 和内存 Store。内存 Store 不是生产降级方案。
+上图同时包含当前与后续归属：retriever、navigation 和 validate 已在独立服务落地；loader、cleaner、indexer 仍位于 ai-assistant-service。正式环境使用 Elasticsearch；自动化测试使用确定性假 AI 响应。内存 Store 不是生产降级方案。
 
 
 ## 知识源边界
@@ -145,7 +158,9 @@ V1 不做查询改写、多路召回、关键词混合检索、Rerank 或由 AI 
 知识内容由 Git 管理，V1 不建设在线上传、发布或回滚页面。索引是可重建的派生数据，不是知识内容的事实源。
 
 
-## 运行与运维
+## 当前 ai-assistant-service 内置 RAG 运行与运维
+
+本节是现有客服 RAG V1 与索引构建的实际操作说明，在索引生命周期和客服调用方完成迁移前继续有效。独立服务使用 `VECTOR_RAG_V1` 等检索版本，不沿用 `ASSISTANT_RAG_*` 冒充业务工作流。
 
 ### 基础设施和配置
 
@@ -236,30 +251,24 @@ RUN_RAG_E2E_SMOKE=true mvn -pl ai-assistant-service \
 `rag-retrieval` 日志中的 `status`、`type`、`durationMs`、`ragIndexVersion` 和 `recallCount` 用于区分降级原因；日志不得增加用户问题、知识正文、Prompt、回答、向量或上游异常 message。
 
 
-## 独立服务触发条件
+## 独立服务决策
 
-第一版不拆独立 RAG 微服务。只有出现以下至少一项真实条件，才重新评估：
+原设计规定出现第二个真实知识消费者后重新评估独立服务。证据化论文建议使该条件成立，S12 已建立 [knowledge-retrieval-service](../03-微服务设计/knowledge-retrieval-service/README.md)，建议 V2 只通过其内部契约获取知识上下文。
 
-- 出现第二个真实在线消费者，并且共享检索规则能够稳定抽象。
-- 需要独立扩缩容，assistant 的资源模型无法承载索引或查询负载。
-- 需要在线知识上传、审核、发布、权限隔离或多租户管理。
-- 知识索引生命周期需要独立部署和故障隔离。
-
-即使触发评估，也必须先确认数据所有权和 API 边界，不能仅为了复用提前拆服务。
+迁移必须先冻结当前 `ASSISTANT_RAG_V1` 基线、发布等价 `VECTOR_RAG_V1` 契约、完成双读或固定快照对比，再通过新的 assistant 工作流切换调用方。不得把原有客服工作流原地改为远程检索，也不在迁移时同时修改召回算法。
 
 
 ## RAG V2 边界
 
 V2 继承 `rag_kb/.kb/` 已有的目录、README、文件名和 frontmatter 导航思路。完整方案见 [RAG 目录导航 V2](../03-微服务设计/ai-assistant-service/RAG目录导航V2/README.md)：轻量 manifest 只含目录、文档名、tags、summary、版本和路径白名单；模型最多选择 4 个精确成员，服务端完成路径校验、受限加载和确定性裁剪，再与 V1 向量结果组合。选择失败、目录漂移、越界或超时均保留 V1，不允许模型自由构造路径。
 
-V2 当前已完成设计但不进入实现。只有 V1 固定基线和双人标注真值完整，并且固定配对实验同时满足答案支持、召回、精度、安全、失败率、P95 延迟、Token 与费用门槛后，才允许另立实现任务；费用缺失或人工覆盖不足均不视为通过。在线文件管理、独立 RAG 服务、任意文件访问和自动生产激活继续排除。
+`AI_DIRECTORY_V1` 已完成实验运行实现：只暴露受控清单、校验精确相对路径并按预算加载正文，但不进入 `GROUNDED_SUGGESTION_V2` 或任何客服生产工作流。生产激活仍必须完成固定对比实验，并通过新的业务工作流版本发布；在线文件管理、任意文件访问和自动生产激活继续排除。
 
 
 ## 非目标
 
-- 不为论文评审接入知识库。
-- 不建立独立 RAG 服务。
+- 不为 `EVIDENCE_REVIEW_V2` 的评分接入知识库；知识上下文用于下游修改建议。
 - 不实现在线知识管理。
 - 不索引原始抓取数据和 PDF。
-- 不实现混合检索、查询改写、Rerank 或自主 Agent 读库。
+- 本期不实现开放查询改写、未版本化 Rerank 或自主 Agent 读库；组合检索只能在已发布工作流中按固定规则实现。
 - 不让业务服务直连 Embedding 供应商或 new-api。
