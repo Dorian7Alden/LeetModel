@@ -21,14 +21,14 @@ flowchart LR
         versionRecord["提交版本与最终提交"]
         snapshotApi["不可变 PDF 快照"]
         reviewTrigger["AI 评审触发<br/>事务 Outbox"]
-        finalEvent["最终提交变化事件<br/>目标设计"]
+        finalEvent["最终提交变化事件"]
 
         submitApi --> uploadTask
         uploadTask --> eligibility
         eligibility --> versionRecord
         versionRecord --> snapshotApi
         versionRecord --> reviewTrigger
-        versionRecord -.-> finalEvent
+        versionRecord --> finalEvent
         queryApi --> versionRecord
     end
 
@@ -55,13 +55,13 @@ flowchart LR
     versionRecord --> submissionDatabase
     reviewTrigger --> messageOutbox
     messageOutbox -->|"RocketMQ / Feign Relay"| reviewService
-    finalEvent -.-> messageOutbox
+    finalEvent --> messageOutbox
     snapshotApi --> reviewService
     snapshotApi -.-> suggestionService
     snapshotApi -.-> evaluationService
 ```
 
-论文先完成分片、文件和提交资格校验，再在同一本地事务中形成提交版本、上传关联和 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；历史上已经形成提交但缺失 Outbox 的记录，会在重复完成请求中按业务幂等键补建。最终提交变化事件仍属于 MQ3。评审执行状态仍由 ai-review-service 自己维护。
+论文先完成分片、文件和提交资格校验，再在同一本地事务中形成提交版本、上传关联和 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；历史上已经形成提交但缺失 Outbox 的记录，会在重复完成请求中按业务幂等键补建。最终提交锁与 `FINAL_SUBMISSION_CHANGED` Outbox 也在同一事务提交，并可为历史锁补建事件。评审执行状态仍由 ai-review-service 自己维护。
 
 ## 职责边界
 
@@ -72,7 +72,7 @@ flowchart LR
 - 校验文件类型、大小、分片数量、队伍上传资格和题目绑定。
 - 维护原始 PDF 在 MinIO 中的路由与必要文件元数据。
 - 在提交成功后触发评审链路，并提供不可变的提交与文件快照。
-- 拥有评审请求生产端 Outbox，提供等待、已派发和阻塞状态；最终提交变化 Outbox 属于 MQ3。
+- 拥有评审请求与最终提交变化的生产端 Outbox，并提供评审消息等待、已派发和阻塞状态。
 - 提供提交历史、当前状态和提交详情查询。
 
 ### 不负责
@@ -98,7 +98,7 @@ submission-service 独占 `lm_submission` 数据库，并拥有原始 PDF 对象
 | 提交历史 | 查询队伍的历史提交记录 |
 | 最终提交锁定 | 在截止时间后锁定符合规则的最终提交版本 |
 | AI 评审触发 | 提交事务同时写 `REVIEW_TASK_READY` Outbox，默认由 RocketMQ 异步派发 |
-| 最终提交事件 | 目标设计在最终提交锁定或变化时可靠发布 `FINAL_SUBMISSION_CHANGED` |
+| 最终提交事件 | 最终提交锁与 `FINAL_SUBMISSION_CHANGED` Outbox 同事务提交 |
 | 提交详情与下载 | 查询提交摘要并为有权访问者生成文件访问地址 |
 | 内部 PDF 快照 | 向 AI 评审、AI 质量评价和 AI 改善建议提供不可变的提交摘要与文件引用 |
 

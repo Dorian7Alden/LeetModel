@@ -39,10 +39,11 @@
 | MQ0 | 完成 RocketMQ 多级任务与事件设计，确认 Outbox/Inbox、领域任务租约、在线与批任务隔离、DLQ、配置、迁移和故障验收边界，尚未写运行时代码。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md) |
 | MQ1 | 固定 Broker Docker 5.5.0 与 RocketMQ Spring 2.3.3，完成显式 NORMAL 资源、持久化本地设施、消息信封、事务 Outbox/Inbox、租约 Relay、指标与真实协议验证。 | [common-messaging](docs/project/03-微服务设计/common/common-messaging/README.md) |
 | MQ2 | 提交到评审改为事务 Outbox、RocketMQ、Inbox 与领域任务链路，完成有界 Worker、租约恢复、稳定 AI 幂等键、UNKNOWN 保护和 Feign Relay 回退。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#提交触发评审) |
+| MQ3 | 最终提交与评审完成事件可靠驱动按题目合并排行重建，完成 revision 合并、租约 fencing、失败保旧与权威事实指纹对账。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#排行重建) |
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1 和 MQ2 已完成。RocketMQ 可靠异步链路按 MQ3 至 MQ6 串行实施；当前下一张任务卡是 MQ3。
+S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2 和 MQ3 已完成。RocketMQ 可靠异步链路按 MQ4 至 MQ6 串行实施；当前下一张任务卡是 MQ4。
 
 ### [x] MQ1 RocketMQ 基础设施与公共契约
 
@@ -66,7 +67,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1 和 MQ2 已完成。RocketMQ 可
 - 完成摘要：提交版本、上传关联和 `REVIEW_TASK_READY` Outbox 在同一本地事务提交，默认请求线程不调用评审 Feign；真实消费者以 Inbox 和领域唯一键收敛重复消息。评审 Worker 使用并发 2 的有界领取、租约、逐任务 token heartbeat、fencing completion、分级依赖重试、稳定 AI 幂等键和 UNKNOWN 终态；支持读取同一 Outbox 的 `FEIGN_RELAY` 受控回退，并为历史缺失 Outbox 的既有提交提供幂等补偿。
 - 验收：后端全量 560 项测试中 546 项通过、14 项外部门禁跳过、零失败；MQ2 目标模块 submission-service 24 项与 ai-review-service 36 项测试零失败。打开门禁后，真实 RocketMQ 重复投递同一 eventId 仅执行一次 Inbox 业务处理；事务提交/回滚、Outbox 退避、消费者回滚、租约丢失与过期恢复、fencing、AI UNKNOWN 不重试和 Feign Relay 均有自动化或真实协议证据。submission V1→V4、review V1→V5 在真实 MySQL 完成迁移并验证过期 RUNNING 任务被新 owner 领取；前端生产构建通过。
 
-### [~] MQ3 评审与最终提交驱动排行
+### [x] MQ3 评审与最终提交驱动排行
 
 - 目标：让评审完成和最终提交变化可靠触发排行，并在事件洪峰中按题目合并全量重建。
 - 依赖：MQ2。
@@ -74,6 +75,8 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1 和 MQ2 已完成。RocketMQ 可
 - 完成标准：两个事件到达顺序任意、重复、并发和重建中再次到达均收敛到正确当前排行；依赖失败不覆盖旧批次；周期对账能修复漏事件；同题洪峰不会形成同数量的全量重建。
 - 修改范围：submission-service、ai-review-service、ranking-service、Flyway、测试、管理查询和文档。
 - 非目标：消息不携带或复制分数，不用 MQ 替代排行快照与缓存失效机制。
+- 完成摘要：最终提交锁和评审完成分别与 `FINAL_SUBMISSION_CHANGED`、`REVIEW_COMPLETED` Outbox 同事务提交；ranking-service 两个独立 Inbox 消费组把事件收敛到每题唯一 revision 任务。并发 1 Worker 使用 300 秒租约、20 秒逐任务 heartbeat 和 fencing 写入，失败事务保留旧排行，运行中新增事件只触发一次补跑，每小时权威事实 SHA-256 指纹对账修复漏事件。
+- 验收：后端全量 574 项测试中 559 项通过、15 项外部门禁跳过、零失败；目标模块 submission-service 26 项、ai-review-service 38 项、ranking-service 19 项测试零失败。打开门禁后真实 RocketMQ 以任意顺序重复投递两个事件，两个消费组各只执行一次业务请求；submission V1→V4、review V1→V6、ranking V1→V4 在真实 MySQL 完成迁移，并验证 revision 合并、过期租约接管与 recovery 计数；ranking-service 使用新库真实启动并完成 Flyway V1→V4。
 
 ### [ ] MQ4 建议任务唤醒与租约恢复
 
@@ -157,4 +160,4 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1 和 MQ2 已完成。RocketMQ 可
 2. 默认由用户确认任务范围；托管模式下 Agent 按依赖自动领取并在完成后报告代码、测试、文档和未解决风险。
 3. 任务依赖未满足时不得用临时硬编码绕过，应明确标记阻塞。
 4. 新发现的问题若不阻断当前闭环，只记录到后续任务，不扩大当前任务。
-5. 已完成阶段只在本文件保留摘要；关键决策与验收依据归档到对应 docs 文档。当前可执行任务卡为 MQ3，后续任务按依赖串行领取。
+5. 已完成阶段只在本文件保留摘要；关键决策与验收依据归档到对应 docs 文档。当前可执行任务卡为 MQ4，后续任务按依赖串行领取。

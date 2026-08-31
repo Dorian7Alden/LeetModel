@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路，后续按 MQ3 至 MQ6 继续迁移。
+> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建，后续按 MQ4 至 MQ6 继续迁移。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0，RocketMQ Spring 2.3.3（历史 Remoting 客户端 5.1.4）。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复已在 MQ1 验证。
 
@@ -327,6 +327,8 @@ ranking-service 分别消费 `FINAL_SUBMISSION_CHANGED` 和 `REVIEW_COMPLETED`�
 - 每小时对近期最终提交和已完成评审做轻量版本对账，修复消息过期、误归档或运维错误造成的漏触发。
 
 排行事件是触发信号，不携带或直接写入分数。现有排行缓存失效 Outbox 仍在排行重建本地事务中执行，不能由 MQ 事件替代。
+
+MQ3 实施结果：最终提交锁与 `FINAL_SUBMISSION_CHANGED`、评审结果与 `REVIEW_COMPLETED` 分别在事实所有者的本地事务写入 Outbox。ranking-service 使用两个独立 Inbox 消费组，把任意顺序和重复事件合并到每题唯一任务。Worker 单实例并发 1，使用 300 秒租约、20 秒逐任务 token heartbeat 和分级退避；写入前在同一事务锁定任务行并校验 fencing token，随后替换排行快照、记录原有缓存失效 Outbox 并推进 completed revision。运行中新增 revision 只安排一次补跑，每小时权威事实 SHA-256 指纹对账修复漏事件。
 
 #### 后台评价
 
