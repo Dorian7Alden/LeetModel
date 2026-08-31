@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力，业务链路按 MQ2 至 MQ6 继续迁移。
+> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路，后续按 MQ3 至 MQ6 继续迁移。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0，RocketMQ Spring 2.3.3（历史 Remoting 客户端 5.1.4）。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复已在 MQ1 验证。
 
@@ -263,7 +263,7 @@ Outbox 已发布记录至少保留 30 天，RocketMQ 消息保留期首期目标
 - 工作线程在进入外部 AI 调用前生成稳定 AI 幂等键。进程重启后必须使用相同键查询或复用 AI 网关任务，不能盲目产生第二次调用。
 - AI 网关 attempt 已进入 `DISPATCHING` 或 `ACKNOWLEDGED` 后结果不明时，业务任务进入人工可见的未知或失败状态，不自动重新计费。
 
-ai-review-service 当前缺少运行任务租约恢复，MQ 阶段必须补齐；ai-suggestion-service 现有十分钟扫描恢复应迁移为租约和心跳，避免合法长任务被误重置。
+ai-review-service 已在 MQ2 补齐运行任务的租约、逐任务 fencing token heartbeat、过期恢复和 AI UNKNOWN 保护；ai-suggestion-service 现有十分钟扫描恢复仍应在 MQ4 迁移为租约和心跳，避免合法长任务被误重置。
 
 #### 业务重试矩阵
 
@@ -307,6 +307,8 @@ sequenceDiagram
 提交接口在 submission 与 Outbox 一起提交后即可成功，不因 Broker 暂时不可用回滚已经完整保存的 PDF。响应和进度接口必须能表达“等待消息派发”，不能把尚未创建 review_task 伪装成评审不存在或提交失败。
 
 迁移后 submission-service 不再在用户请求线程直接调用 `ReviewFeignClient.createVersionedTask`。回退使用读取同一 Outbox 的 `FEIGN_RELAY` 模式，目标接口保持幂等，禁止 MQ 和 Feign 两条主路径同时无条件触发。
+
+MQ2 实施结果：默认 `MQ_PRIMARY` 已启用，submission、上传关联与 Outbox 同事务提交；重复完成可补偿升级前缺失的 Outbox。ai-review-service 使用 Inbox 短事务和领域唯一键创建任务，消费线程不执行 PDF 或 AI。Worker 初始并发 2，采用数据库条件领取、120 秒租约、20 秒逐任务 token heartbeat 与 fencing 写入；依赖错误按 10 秒、1 分钟、5 分钟重试，AI 网关待定复用同一幂等键，结果未知进入 `UNKNOWN` 且不自动重试。`FEIGN_RELAY` 推进同一 Outbox，启动校验拒绝双主配置。
 
 #### 手动建议任务
 

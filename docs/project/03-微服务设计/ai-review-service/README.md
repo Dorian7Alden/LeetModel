@@ -19,15 +19,15 @@ flowchart LR
 
     subgraph review["ai-review-service 版本化评审"]
         taskApi["评审任务与查询 API"]
-        mqConsumer["评审任务消费者<br/>目标设计"]
-        scheduler["任务调度与状态管理"]
+        mqConsumer["REVIEW_TASK_READY 消费者"]
+        scheduler["有界 Worker、租约与状态管理"]
         inputPreparation["提交与题目快照"]
         pdfParser["版本化 PDF 解析<br/>V2 强制"]
         workflow["版本化评审工作流"]
         resultValidation["引用、分项和总分校验"]
 
         taskApi --> scheduler
-        mqConsumer -.-> scheduler
+        mqConsumer --> scheduler
         scheduler --> inputPreparation
         inputPreparation --> pdfParser --> workflow --> resultValidation
     end
@@ -40,12 +40,12 @@ flowchart LR
 
     subgraph data["评审事实"]
         reviewDatabase[(lm_review)]
-        messageInbox[(message_inbox，目标设计)]
+        messageInbox[(message_inbox)]
         messageOutbox[(message_outbox，目标设计)]
     end
 
-    submissionService -->|"创建任务 / 提供 PDF 引用"| taskApi
-    submissionService -.->|"REVIEW_TASK_READY"| mqConsumer
+    submissionService -->|"提供 PDF 引用"| taskApi
+    submissionService -->|"REVIEW_TASK_READY"| mqConsumer
     evaluationService -.->|"隔离实验"| taskApi
     adminService -->|"查询任务与结果"| taskApi
     inputPreparation --> problemService
@@ -53,13 +53,13 @@ flowchart LR
     scheduler --> reviewDatabase
     pdfParser --> reviewDatabase
     resultValidation --> reviewDatabase
-    mqConsumer -.-> messageInbox
+    mqConsumer --> messageInbox
     resultValidation -.-> messageOutbox
 ```
 
 V1 仍按历史语义将 PDF 页面图像直接交给模型，不产生可复用解析产物。V2 先锁定题目和 PDF，必须成功产生通过质量门的版本化解析产物，再执行题目要求对齐、证据定位、分项评分和结果校验。
 
-虚线是 MQ0 已确认但尚未实现的 RocketMQ 链路。消费者只在短事务中写 Inbox 并幂等创建 review_task，随后立即 ACK；PDF 解析和 AI 工作流仍由本服务持久化任务 Worker 执行。评审结果与 `REVIEW_COMPLETED` Outbox 同事务提交。
+`REVIEW_TASK_READY` 链路已在 MQ2 实现。消费者只在短事务中写 Inbox 并按 `(submission_id, workflow_version)` 幂等创建 review_task，随后立即 ACK；PDF 解析和 AI 工作流由独立的有界 Worker 执行。图中仍为虚线的 `REVIEW_COMPLETED` Outbox 属于 MQ3。
 
 
 ### 职责边界
@@ -72,7 +72,7 @@ V1 仍按历史语义将 PDF 页面图像直接交给模型，不产生可复用
 - 按工作流版本产生评分、评分说明、要求覆盖和稳定发现标识。
 - 校验页码、引用、分项计算和 `[0,100]` 最终总分。
 - 保留历史版本、任务、解析产物、评审结果和重试轮次。
-- 目标设计中消费 `REVIEW_TASK_READY`、维护消费 Inbox，并可靠生产 `REVIEW_COMPLETED`。
+- 消费 `REVIEW_TASK_READY`、维护消费 Inbox；MQ3 再可靠生产 `REVIEW_COMPLETED`。
 - 使用任务租约、heartbeat 和稳定 AI 幂等键恢复崩溃任务，不在 MQ 消费线程执行评审。
 
 #### 不负责
@@ -85,7 +85,7 @@ V1 仍按历史语义将 PDF 页面图像直接交给模型，不产生可复用
 
 ### 数据与协作边界
 
-ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、最终评分、版本专属结果、解析工作流版本和解析产物。目标设计中的 Inbox、Outbox、任务租约和 attempt 也归本服务数据库。建议服务优先读取某次已完成评审锁定的解析产物；对历史 V1 论文可按明确版本请求补齐。建议服务不自行解析、不选择“当前最新”解析结果。
+ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、最终评分、版本专属结果、解析工作流版本、解析产物、Inbox、Outbox、任务租约和 attempt。建议服务优先读取某次已完成评审锁定的解析产物；对历史 V1 论文可按明确版本请求补齐。建议服务不自行解析、不选择“当前最新”解析结果。
 
 
 ### 功能清单
@@ -98,8 +98,8 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、�
 | 评审结果校验 | V1/V2 均已实现 | V2 服务端汇总六项总分并校验发现、证据、页码和 blockId |
 | 评审结果查询 | 已实现 | 根据版本返回可展示的评分说明和发现，历史 V1 不伪造 V2 字段 |
 | 隔离评审 | REVIEW 实验入口已存在 | V2 已进入版本目录；V2 专属数据集与质量基线仍需后续评价任务 |
-| RocketMQ 任务接入 | 当前由 submission-service 通过 Feign 创建 | 消费 `REVIEW_TASK_READY`，Inbox 与 review_task 同事务落库 |
-| 崩溃恢复 | 当前评审 RUNNING 缺少租约恢复 | 增加租约、heartbeat、attempt 分类和 AI UNKNOWN 保护 |
+| RocketMQ 任务接入 | 已实现 | 消费 `REVIEW_TASK_READY`，Inbox 与 review_task 同事务落库，重复投递只创建一个任务 |
+| 崩溃恢复 | 已实现 | 并发 2 的有界 Worker、逐任务 token heartbeat、过期租约恢复、attempt 分类和 AI UNKNOWN 保护 |
 | 完成事件 | 尚未实现 | 评审结果与 `REVIEW_COMPLETED` Outbox 同事务提交 |
 
 
