@@ -6,3 +6,22 @@ spring:
 
 server:
   shutdown: graceful
+
+leetmodel:
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    environment: ${CACHE_ENVIRONMENT:${spring.profiles.active:dev}}
+    maximum-weight: ${CACHE_LOCAL_MAXIMUM_WEIGHT:67108864}
+    maximum-value-bytes: ${CACHE_MAXIMUM_VALUE_BYTES:524288}
+    degraded-ttl: 5s
+    reconcile-interval: 5000
+    outbox-interval: 1000
+    ttl-jitter: 0.2
+    redis:
+      host: ${CACHE_REDIS_HOST:localhost}
+      port: ${CACHE_REDIS_PORT:6380}
+      database: ${CACHE_REDIS_DATABASE:0}
+      password: ${CACHE_REDIS_PASSWORD:}
+      ssl: ${CACHE_REDIS_SSL:false}
+      connect-timeout: 200ms
+      command-timeout: 100ms

@@ -12,6 +12,11 @@ import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.cache.CacheInvalidator;
+import com.leetmodel.common.cache.CacheSpec;
+import com.leetmodel.common.cache.MultiLevelCache;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.ranking.cache.RankingCachePolicy;
 import com.leetmodel.ranking.entity.RankingSnapshot;
 import com.leetmodel.ranking.enums.RankingErrorCode;
 import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
@@ -40,6 +45,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Supplier;
+import java.time.Duration;
 
 /**
  * 负责从最终提交和已完成评审构建可追溯的当前排行。
@@ -55,6 +61,9 @@ public class RankingService {
     private final ReviewFeignClient reviewFeignClient;
     private final TeamFeignClient teamFeignClient;
     private final ProblemFeignClient problemFeignClient;
+    private final MultiLevelCache cache;
+    private final CacheInvalidator cacheInvalidator;
+    private final ObjectMapper objectMapper;
 
     /**
      * 重建指定题目的当前排行。所有依赖数据先完整读取，失败时不会覆盖已有排行。
@@ -93,6 +102,11 @@ public class RankingService {
             snapshotMapper.insert(snapshot);
             saved.add(snapshot);
         }
+        cacheInvalidator.record(
+                RankingCachePolicy.REGION,
+                RankingCachePolicy.scope(problemId),
+                RankingCachePolicy.SCHEMA_VERSION
+        );
         return toOverview(problemId, saved);
     }
 
@@ -104,14 +118,21 @@ public class RankingService {
      * @return 当前排行；尚未构建时返回空列表
      */
     public RankingOverviewVO getCurrent(Long problemId, String keyword) {
-        List<RankingSnapshot> snapshots = listCurrent(problemId);
+        RankingOverviewVO current = currentOverview(problemId);
+        List<RankingEntryVO> entries = current.getItems();
         if (keyword != null && !keyword.isBlank()) {
             String normalized = keyword.trim().toLowerCase(Locale.ROOT);
-            snapshots = snapshots.stream()
+            entries = entries.stream()
                     .filter(item -> item.getTeamName().toLowerCase(Locale.ROOT).contains(normalized))
                     .toList();
         }
-        return toOverview(problemId, snapshots);
+        return RankingOverviewVO.builder()
+                .problemId(current.getProblemId())
+                .batchId(current.getBatchId())
+                .computedAt(current.getComputedAt())
+                .total(entries.size())
+                .items(entries)
+                .build();
     }
 
     /**
@@ -123,10 +144,10 @@ public class RankingService {
      * @return 当前队伍与附近排行
      */
     public TeamRankingContextVO locate(Long problemId, Long teamId, int radius) {
-        List<RankingSnapshot> snapshots = listCurrent(problemId);
+        List<RankingEntryVO> entries = currentOverview(problemId).getItems();
         int currentIndex = -1;
-        for (int index = 0; index < snapshots.size(); index++) {
-            if (Objects.equals(snapshots.get(index).getTeamId(), teamId)) {
+        for (int index = 0; index < entries.size(); index++) {
+            if (Objects.equals(entries.get(index).getTeamId(), teamId)) {
                 currentIndex = index;
                 break;
             }
@@ -134,11 +155,11 @@ public class RankingService {
         BusinessException.throwIf(currentIndex < 0, RankingErrorCode.TEAM_RANKING_NOT_FOUND);
         int safeRadius = Math.max(0, Math.min(radius, 10));
         int from = Math.max(0, currentIndex - safeRadius);
-        int to = Math.min(snapshots.size(), currentIndex + safeRadius + 1);
+        int to = Math.min(entries.size(), currentIndex + safeRadius + 1);
         return TeamRankingContextVO.builder()
-                .current(toEntry(snapshots.get(currentIndex)))
-                .nearby(snapshots.subList(from, to).stream().map(this::toEntry).toList())
-                .total(snapshots.size())
+                .current(entries.get(currentIndex))
+                .nearby(entries.subList(from, to))
+                .total(entries.size())
                 .build();
     }
 
@@ -326,6 +347,30 @@ public class RankingService {
                 .orderByDesc(RankingSnapshot::getScore)
                 .orderByAsc(RankingSnapshot::getSubmittedAt)
                 .orderByAsc(RankingSnapshot::getTeamId));
+    }
+
+    /**
+     * 通过 Caffeine 和 Redis 读取整份当前排行读模型。
+     *
+     * @param problemId 题目 ID
+     * @return 未经关键词过滤的当前排行
+     */
+    private RankingOverviewVO currentOverview(Long problemId) {
+        CacheSpec spec = new CacheSpec(
+                RankingCachePolicy.REGION,
+                RankingCachePolicy.scope(problemId),
+                RankingCachePolicy.SCHEMA_VERSION,
+                "overview",
+                Duration.ofSeconds(15),
+                Duration.ofMinutes(5),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30)
+        );
+        return cache.get(
+                spec,
+                objectMapper.constructType(RankingOverviewVO.class),
+                () -> toOverview(problemId, listCurrent(problemId))
+        );
     }
 
     private RankingOverviewVO toOverview(Long problemId, List<RankingSnapshot> snapshots) {
