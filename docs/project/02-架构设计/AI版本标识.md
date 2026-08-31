@@ -10,7 +10,7 @@
 | `workflowVersion` | 工作流版本 | 执行该 AI 功能的业务服务 | 标识一套完整业务步骤、依赖、程序规则和输出语义 | 功能编码、步骤图、依赖、确定性处理规则和业务输出契约 |
 | `promptVersion` | 提示词版本 | 拥有对应 Prompt 的 AI 业务服务 | 标识某工作流步骤使用的不可变 Prompt 内容 | Prompt 原文或模板、变量契约、适用步骤、内容哈希和安全约束 |
 | `modelExecutionConfigVersion` | 模型执行配置版本 | `ai-gateway-service` | 把一个或多个逻辑步骤绑定到精确模型、参数和能力要求 | 逻辑模型、new-api 模型名、供应商可核对版本、采样参数、能力要求及步骤绑定 |
-| `ragIndexVersion` | RAG 索引版本 | 当前为 `ai-assistant-service`；目标迁移至 `knowledge-retrieval-service` | 标识一套可查询的 RAG 索引快照 | 知识源集合、内容版本、切分规则、Embedding 配置、索引 schema 和构建结果摘要 |
+| `ragIndexVersion` | RAG 索引版本 | 当前构建发布仍为 `ai-assistant-service`；`knowledge-retrieval-service` 可锁定查询 | 标识一套可查询的 RAG 索引快照 | 知识源集合、内容版本、切分规则、Embedding 配置、索引 schema 和构建结果摘要 |
 
 “所有者”负责生成标识、保证唯一性、保存不可变定义并提供查询；调用方只保存引用和运行快照，不复制所有者的版本表。
 

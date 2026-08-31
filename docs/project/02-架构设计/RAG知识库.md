@@ -1,6 +1,6 @@
 # RAG 知识库
 
-> 实现与目标：S4 已在 ai-assistant-service 完成向量 RAG V1；AI 目录导航已完成候选设计。因论文建议已成为第二个真实知识消费者，项目已确认目标独立 `knowledge-retrieval-service`。本文同时记录现有运行事实与迁移后边界。
+> 实现与目标：S4 已在 ai-assistant-service 完成客服向量 RAG V1；S12 已建立独立 `knowledge-retrieval-service` 并落地向量查询、受控目录选文和固定混合查询。客服历史工作流与索引构建尚未迁移。
 
 ## 设计目标
 
@@ -13,16 +13,16 @@
 
 | 名称 | 定义 | 当前状态 |
 |------|------|----------|
-| RAG V1 / `VECTOR_RAG_V1` | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 客服内置实现；目标按原语义迁移 |
-| RAG V2 / `AI_DIRECTORY_V1` | AI 读取目录与元数据，选择受控文档 | 已设计、未实现 |
-| `HYBRID_RETRIEVAL_V1` | 按固定规则组合向量召回与受控 AI 选文 | 目标设计 |
+| RAG V1 / `VECTOR_RAG_V1` | Query Embedding 加 Elasticsearch Top K 向量召回、阈值过滤和 Token 预算裁剪 | 独立服务查询已实现；客服历史实现保留 |
+| RAG V2 / `AI_DIRECTORY_V1` | AI 读取目录与元数据，选择受控文档 | 独立服务实验实现，未进入正式调用方 |
+| `HYBRID_RETRIEVAL_V1` | 按固定规则组合向量召回与受控 AI 选文 | 独立服务实验实现，未进入正式调用方 |
 
 RAG V1/V2 是历史架构代际名称；目标服务对外发布不可变的 `retrievalWorkflowVersion`。它们都不是 REST API 版本、Prompt 版本或索引版本，具体索引仍使用独立 `ragIndexVersion`。
 
 
 ## 服务归属
 
-RAG V1 当前归 `ai-assistant-service`。目标迁移后，`knowledge-retrieval-service` 拥有受控知识源、索引、检索工作流、来源校验和检索运行；ai-assistant-service 仍拥有何时检索、怎样把上下文注入客服回答以及客服降级规则。`common-ai` 只提供 Chat 与 Embedding 客户端契约；`ai-gateway-service` 只治理单次模型调用。
+历史客服 RAG V1 当前归 `ai-assistant-service`。`knowledge-retrieval-service` 已拥有新消费者使用的检索工作流、受控目录、来源校验和检索运行契约；索引构建、别名切换和回滚仍暂由 ai-assistant-service 的 S4 工具负责。ai-assistant-service 继续拥有何时检索、怎样把上下文注入客服回答以及客服降级规则。`common-ai` 只提供 Chat 与 Embedding 客户端契约；`ai-gateway-service` 只治理单次模型调用。
 
 `ai-suggestion-service` 是第二个已确认消费者，只通过检索契约获取带来源与适用性的上下文。`ai-review-service` 的 `EVIDENCE_REVIEW_V2` 不依赖该知识库：评分根据题面与论文证据，参考知识只用于下游“如何改”。
 
@@ -35,7 +35,7 @@ flowchart TB
         content[rag_kb/数学建模 内容 Markdown]
     end
 
-    subgraph retrieval[knowledge-retrieval-service 目标]
+    subgraph retrieval[knowledge-retrieval-service]
         loader[过滤、加载与元数据提取]
         cleaner[清洗与结构化切分]
         indexer[全量或增量索引]
@@ -70,7 +70,7 @@ flowchart TB
     suggestion --> commonAi
 ```
 
-上图表达目标归属；当前 loader、cleaner、indexer 和 retriever 仍位于 ai-assistant-service。正式环境使用 Elasticsearch；自动化单元测试可以使用确定性假 Embedding 和内存 Store。内存 Store 不是生产降级方案。
+上图同时包含当前与后续归属：retriever、navigation 和 validate 已在独立服务落地；loader、cleaner、indexer 仍位于 ai-assistant-service。正式环境使用 Elasticsearch；自动化测试使用确定性假 AI 响应。内存 Store 不是生产降级方案。
 
 
 ## 知识源边界
@@ -160,7 +160,7 @@ V1 不做查询改写、多路召回、关键词混合检索、Rerank 或由 AI 
 
 ## 当前 ai-assistant-service 内置 RAG 运行与运维
 
-本节是现有 RAG V1 的实际操作说明，在 knowledge-retrieval-service 完成迁移前继续有效。目标服务不得直接沿用 `ASSISTANT_RAG_*` 命名对外冒充新契约；实现时需单独设计迁移、兼容和回滚配置。
+本节是现有客服 RAG V1 与索引构建的实际操作说明，在索引生命周期和客服调用方完成迁移前继续有效。独立服务使用 `VECTOR_RAG_V1` 等检索版本，不沿用 `ASSISTANT_RAG_*` 冒充业务工作流。
 
 ### 基础设施和配置
 
@@ -253,7 +253,7 @@ RUN_RAG_E2E_SMOKE=true mvn -pl ai-assistant-service \
 
 ## 独立服务决策
 
-原设计规定出现第二个真实知识消费者后重新评估独立服务。证据化论文建议需要与客服共享可版本化检索、来源快照和知识生命周期，该条件已满足。因此目标决策是建立 [knowledge-retrieval-service](../03-微服务设计/knowledge-retrieval-service/README.md)。
+原设计规定出现第二个真实知识消费者后重新评估独立服务。证据化论文建议使该条件成立，S12 已建立 [knowledge-retrieval-service](../03-微服务设计/knowledge-retrieval-service/README.md)，建议 V2 只通过其内部契约获取知识上下文。
 
 迁移必须先冻结当前 `ASSISTANT_RAG_V1` 基线、发布等价 `VECTOR_RAG_V1` 契约、完成双读或固定快照对比，再通过新的 assistant 工作流切换调用方。不得把原有客服工作流原地改为远程检索，也不在迁移时同时修改召回算法。
 
@@ -262,7 +262,7 @@ RUN_RAG_E2E_SMOKE=true mvn -pl ai-assistant-service \
 
 V2 继承 `rag_kb/.kb/` 已有的目录、README、文件名和 frontmatter 导航思路。完整方案见 [RAG 目录导航 V2](../03-微服务设计/ai-assistant-service/RAG目录导航V2/README.md)：轻量 manifest 只含目录、文档名、tags、summary、版本和路径白名单；模型最多选择 4 个精确成员，服务端完成路径校验、受限加载和确定性裁剪，再与 V1 向量结果组合。选择失败、目录漂移、越界或超时均保留 V1，不允许模型自由构造路径。
 
-V2 当前已完成设计但不进入运行实现。只有 V1 固定基线和双人标注真值完整，并且固定配对实验同时满足答案支持、召回、精度、安全、失败率、P95 延迟、Token 与费用门槛后，才允许发布 `AI_DIRECTORY_V1`；费用缺失或人工覆盖不足均不视为通过。在线文件管理、任意文件访问和自动生产激活继续排除。
+`AI_DIRECTORY_V1` 已完成实验运行实现：只暴露受控清单、校验精确相对路径并按预算加载正文，但不进入 `GROUNDED_SUGGESTION_V2` 或任何客服生产工作流。生产激活仍必须完成固定对比实验，并通过新的业务工作流版本发布；在线文件管理、任意文件访问和自动生产激活继续排除。
 
 
 ## 非目标

@@ -1,6 +1,6 @@
 ## 知识检索服务
 
-> 设计状态：目标服务，尚无 Maven 模块、数据库、接口或运行时代码。当前 RAG V1 仍由 ai-assistant-service 内置实现。
+> 实现状态：S12 已建立独立 Maven 运行模块和内部检索接口，落地 `VECTOR_RAG_V1`、`AI_DIRECTORY_V1`、`HYBRID_RETRIEVAL_V1` 三个不可变执行分支。正式论文建议只启用 `VECTOR_RAG_V1`；目录与混合分支在固定对比实验通过前保持实验用途。客服历史 `ASSISTANT_RAG_V1` 仍由 ai-assistant-service 内置执行。
 
 knowledge-retrieval-service 负责把受控知识源转换为可版本化、可查询、可追溯的上下文，为 AI 客服、论文建议和后续业务提供统一检索能力。
 
@@ -9,7 +9,7 @@ knowledge-retrieval-service 负责把受控知识源转换为可版本化、可�
 ```mermaid
 flowchart LR
     subgraph callers[上游业务服务]
-        ASSISTANT[ai-assistant-service]
+        ASSISTANT[ai-assistant-service 后续新工作流]
         SUGGESTION[ai-suggestion-service]
         FUTURE[后续知识消费者]
     end
@@ -37,11 +37,7 @@ flowchart LR
         GATEWAY[ai-gateway-service]
     end
 
-    subgraph data[检索事实]
-        DB[(目标 lm_knowledge_retrieval)]
-    end
-
-    ASSISTANT --> API
+    ASSISTANT -.-> API
     SUGGESTION --> API
     FUTURE -.-> API
     KB --> VECTOR
@@ -50,11 +46,9 @@ flowchart LR
     VECTOR --> COMMON
     NAVIGATION --> COMMON
     COMMON --> GATEWAY
-    VERSION --> DB
-    VALIDATE --> DB
 ```
 
-实线表示已确认的目标协作，虚线表示出现真实需求后才能接入的消费者。知识内容仍以 Git 管理的 `rag_kb/` Markdown 为事实源，Elasticsearch 和轻量目录都是可重建派生数据。
+实线表示当前已落地的论文建议协作，虚线表示必须通过新客服工作流完成的后续迁移。知识内容仍以 Git 管理的 `rag_kb/` Markdown 为事实源，Elasticsearch 和轻量目录都是可重建派生数据。
 
 ### 职责边界
 
@@ -64,7 +58,7 @@ flowchart LR
 - 发布不可变的检索工作流版本。
 - 执行向量 RAG、受控 AI 目录选文或明确组合的检索工作流。
 - 校验路径、来源适用性、片段预算和返回契约。
-- 保存检索运行、实际分支、索引或目录版本和非敏感审计事实。
+- 为每次运行生成 `retrievalRunId`，返回实际分支、索引或目录版本和引用快照；当前由业务调用方随结果持久化所需快照。
 - 返回带稳定来源标识的上下文片段。
 
 #### 不负责
@@ -77,7 +71,7 @@ flowchart LR
 
 ### 数据与协作边界
 
-目标服务拥有检索工作流目录、索引发布记录、目录版本、检索运行和派生索引。`rag_kb/` 内容仍由 Git 管理，不以数据库或 Elasticsearch 覆盖源文件。
+服务拥有检索工作流实现、受控目录清单生成、路径与来源校验；`rag_kb/` 内容仍由 Git 管理，不以数据库或 Elasticsearch 覆盖源文件。S12 不建立服务自有数据库：检索运行标识和完整引用快照由 ai-suggestion-service 锁定保存，运行日志只记录非正文摘要。索引构建和发布记录仍沿用 ai-assistant-service 的 S4 工具，后续迁移不得覆盖历史客服工作流。
 
 调用方负责把业务事实转换成最小必要的检索问题和过滤条件。知识检索服务只解释检索契约，不理解“论文为什么扣分”或“客服最终怎样回答”。调用方保存 `retrievalRunId` 和业务结果所需的来源快照，不复制完整知识库。
 
@@ -85,14 +79,22 @@ flowchart LR
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| 向量 RAG 检索 | 待迁移 | 当前实现位于 ai-assistant-service，目标迁入本服务并保持原版本语义 |
-| 受控 AI 选文 | 已有设计、待迁移实现 | 基于轻量目录由 AI 选择精确成员，再由服务端受限加载 |
-| 组合检索 | 目标设计 | 只有明确发布的工作流可以组合向量与 AI 选文，不允许运行时自由拼接 |
-| 检索版本目录 | 目标设计 | 查询启用和停用的不可变检索工作流 |
-| 知识索引生命周期 | 待迁移 | 构建、原子切换、回滚和版本追踪 |
-| 来源适用性校验 | 目标设计 | 防止其他题目的专属评分细则被错误用于当前题目 |
-| 检索运行审计 | 目标设计 | 保存版本、耗时、命中数量、失败类型和调用标识，不保存业务正文 |
+| 向量 RAG 检索 | 已实现执行分支 | `VECTOR_RAG_V1` 复用 S4 索引格式，支持锁定物理索引版本、阈值和预算 |
+| 受控 AI 选文 | 实验实现 | `AI_DIRECTORY_V1` 只向模型暴露受控清单，服务端校验精确成员后加载正文；未用于正式建议 |
+| 组合检索 | 实验实现 | `HYBRID_RETRIEVAL_V1` 固定组合向量与目录结果；未用于正式建议 |
+| 检索版本目录 | 代码常量发布 | 请求必须显式选择三个已实现版本；独立数据库目录和启停管理尚未建设 |
+| 知识索引生命周期 | 沿用 S4 | 构建、原子切换和回滚仍由 ai-assistant-service 的既有工具负责 |
+| 来源适用性校验 | MVP 已实现 | 返回 L3/L4/L5 权威层级与适用性；建议 V2 禁止 P0/P1 仅由 L5 支撑 |
+| 检索运行审计 | MVP 已实现 | 返回运行标识和版本快照，记录不含正文的命中摘要；调用方保存业务快照 |
 | 在线知识管理 | 非目标 | 本期不建设上传、审核、编辑和发布后台 |
+
+### 运行接口
+
+- Spring 服务名：`knowledge-retrieval-service`，本地端口 `8093`。
+- 内部接口：`POST /internal/knowledge-retrieval/runs`。
+- 请求锁定 `workflowVersion`、查询、Top K、Token 预算和可选物理索引版本；当前正式建议固定使用 `VECTOR_RAG_V1`。
+- 响应返回 `retrievalRunId`、实际执行分支、索引 / manifest / 内容版本以及带内容哈希的引用。
+- 服务只读取 `rag_kb/数学建模/` 下非 README 的受控 Markdown，不接受客户端文件路径。
 
 ### 文档索引
 

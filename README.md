@@ -119,7 +119,7 @@ cd LeetModel-backend
 ./scripts/start-mvp.sh
 ```
 
-脚本会构建并启动 12 个业务服务，网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+脚本会确保 Elasticsearch 等项目基础设施就绪，并构建、启动 13 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
 AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 
@@ -142,7 +142,7 @@ cd LeetModel-backend
 ./scripts/stop-mvp.sh
 ```
 
-该脚本只停止业务服务，保留 MySQL、Redis、MinIO 和 Nacos 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`。
+该脚本只停止业务服务，保留 MySQL、Redis、MinIO、Nacos 和 Elasticsearch 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`。
 
 ### 验证命令
 

@@ -20,9 +20,9 @@ AI 业务能力层直接产生用户能够理解和使用的业务结果。
 
 ### AI 知识检索支撑层
 
-`knowledge-retrieval-service` 是已确认的目标独立服务，为 AI 助手、论文建议和后续真实消费者提供版本化、可追溯的参考上下文。它拥有知识源清单、检索工作流、索引生命周期、来源适用性校验和检索运行快照，但不生成最终客服回答、评分或修改建议。
+`knowledge-retrieval-service` 已在 S12 建立独立运行模块，为论文建议及后续新工作流提供版本化、可追溯的参考上下文。它拥有检索工作流、受控知识清单、来源适用性校验和检索运行快照契约，但不生成最终客服回答、评分或修改建议。
 
-当前向量 RAG V1 仍实现在 ai-assistant-service 内；目标迁移不改变该历史版本的算法语义。新消费者不复制客服内置 RAG，而是调用独立服务的已发布检索工作流。
+当前向量 RAG V1 的索引构建与历史客服执行仍实现在 ai-assistant-service 内；独立服务已实现兼容的向量查询、受控目录选文和混合查询。后续客服迁移必须发布新工作流，不改变历史版本算法语义。
 
 
 ### AI 评价层
@@ -142,7 +142,7 @@ flowchart TB
 
 - ai-gateway-service 和 ai-review-service 已有后端运行模块，后端模块名、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。
 - ai-evaluation-service、ai-assistant-service 和 ai-suggestion-service 已建立 MVP Maven 运行模块和各自数据库。当前稳定性评价只覆盖 AI 评审版本；现有评价实现仍需从极差和综合得分口径调整为方差与标准差口径。建议与客服不规划 AI 二次评价。
-- knowledge-retrieval-service 当前只有目标设计，尚无 Maven 模块、数据库和运行接口；客服 RAG V1 仍在 ai-assistant-service 内运行。
+- knowledge-retrieval-service 已有 Maven 模块、内部检索接口和三个版本化执行分支；当前不建自有数据库，建议任务保存检索标识与引用快照。客服 RAG V1 仍在 ai-assistant-service 内运行，索引构建生命周期也尚未迁移。
 - common-ai 已实现为公共 Maven Jar，不是独立运行服务；项目已确认保留该模块，用于统一 AI 网关契约和客户端调用。
 - new-api 已作为独立 Docker 基础设施部署并承载默认 Chat 链路；`ai-gateway-service` 只保留 NewApiAdapter，旧供应商官方接口直连已删除。
 - 当前代码未实现旧设计声称的本地并发保护。LeetModel 业务优先级、公平调度和背压由后续 S5 系列任务负责；供应商渠道限流和健康由 new-api 负责。
