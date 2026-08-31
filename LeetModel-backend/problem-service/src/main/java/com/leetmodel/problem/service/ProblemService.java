@@ -7,6 +7,7 @@ import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.vo.ProblemVO;
+import com.leetmodel.problem.cache.ProblemDetailReadModel;
 import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
 import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +33,20 @@ public interface ProblemService extends IService<Problem> {
      * @return 已发布题目详情
      */
     ProblemVO getPublishedProblemDetail(Long id);
+
+    /**
+     * 查找不含预签名 URL 的已发布题目读模型。
+     * @param id 题目 ID
+     * @return 稳定读模型；题目不存在或未发布时为 null
+     */
+    ProblemDetailReadModel findPublishedProblemReadModel(Long id);
+
+    /**
+     * 为稳定题目读模型生成当前附件下载 URL。
+     * @param readModel 稳定读模型
+     * @return 公开题目响应
+     */
+    ProblemVO materializePublishedProblem(ProblemDetailReadModel readModel);
 
     ProblemVO getRandomPublishedProblem(ProblemPageQuery query);
 

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
@@ -57,6 +58,7 @@ class ProblemServiceTest {
     @Mock private ContestMapper contestMapper;
     @Mock private ObjectProvider<StorageService> storageServiceProvider;
     @Mock private StorageService storageService;
+    @Mock private CacheInvalidator cacheInvalidator;
 
     @InjectMocks
     private ProblemServiceImpl problemService;

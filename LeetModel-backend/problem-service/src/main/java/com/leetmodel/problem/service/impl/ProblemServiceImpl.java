@@ -7,10 +7,13 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
 import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
 import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
+import com.leetmodel.problem.cache.ProblemDetailReadModel;
+import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
@@ -57,6 +60,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private final ProblemAttachmentMapper problemAttachmentMapper;
     private final ContestMapper contestMapper;
     private final ObjectProvider<StorageService> storageServiceProvider;
+    private final CacheInvalidator cacheInvalidator;
 
     // ==================== 分页查询 ====================
 
@@ -133,14 +137,80 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      */
     @Override
     public ProblemVO getPublishedProblemDetail(Long id) {
+        ProblemDetailReadModel readModel = findPublishedProblemReadModel(id);
+        BusinessException.throwIf(readModel == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        return materializePublishedProblem(readModel);
+    }
+
+    /**
+     * 查找不含预签名 URL 的已发布题目读模型。
+     *
+     * @param id 题目 ID
+     * @return 稳定读模型；不存在时为 null
+     */
+    @Override
+    public ProblemDetailReadModel findPublishedProblemReadModel(Long id) {
         Problem problem = getById(id);
-        BusinessException.throwIf(
-                problem == null || !Integer.valueOf(1).equals(problem.getStatus()),
-                ProblemErrorCode.PROBLEM_NOT_FOUND
-        );
+        if (problem == null || !Integer.valueOf(1).equals(problem.getStatus())) return null;
         List<String> tagNames = getTagNames(id);
         List<ProblemAttachment> attachments = getAttachments(id);
-        return toVO(problem, tagNames, attachments);
+        ProblemVO stableProblem = toVO(problem, tagNames, List.of());
+        List<ProblemDetailReadModel.AttachmentReadModel> stableAttachments = attachments.stream()
+                .map(attachment -> new ProblemDetailReadModel.AttachmentReadModel(
+                        attachment.getId(),
+                        attachment.getFileName(),
+                        attachment.getObjectKey(),
+                        attachment.getContentType(),
+                        attachment.getFileSize(),
+                        attachment.getDescription(),
+                        attachment.getSortOrder()
+                ))
+                .toList();
+        return new ProblemDetailReadModel(stableProblem, stableAttachments);
+    }
+
+    /**
+     * 为稳定题目读模型生成当前附件下载 URL。
+     *
+     * @param readModel 稳定读模型
+     * @return 公开题目响应
+     */
+    @Override
+    public ProblemVO materializePublishedProblem(ProblemDetailReadModel readModel) {
+        ProblemVO source = readModel.getProblem();
+        StorageService storageService = storageServiceProvider.getIfAvailable();
+        List<ProblemVO.AttachmentVO> attachments = readModel.getAttachments().stream()
+                .map(attachment -> ProblemVO.AttachmentVO.builder()
+                        .id(attachment.getId())
+                        .fileName(attachment.getFileName())
+                        .contentType(attachment.getContentType())
+                        .fileSize(attachment.getFileSize())
+                        .description(attachment.getDescription())
+                        .sortOrder(attachment.getSortOrder())
+                        .downloadUrl(storageService == null
+                                ? null : storageService.getUrl(attachment.getObjectKey()))
+                        .build())
+                .toList();
+        return ProblemVO.builder()
+                .id(source.getId())
+                .code(source.getCode())
+                .title(source.getTitle())
+                .contentMarkdown(source.getContentMarkdown())
+                .contestId(source.getContestId())
+                .contestCode(source.getContestCode())
+                .contestName(source.getContestName())
+                .year(source.getYear())
+                .statementLanguage(source.getStatementLanguage())
+                .durationMinutes(source.getDurationMinutes())
+                .difficulty(source.getDifficulty())
+                .averageScore(source.getAverageScore())
+                .status(source.getStatus())
+                .creatorId(source.getCreatorId())
+                .createTime(source.getCreateTime())
+                .updateTime(source.getUpdateTime())
+                .tagNames(source.getTagNames())
+                .attachments(attachments)
+                .build();
     }
 
     @Override
@@ -406,6 +476,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         // 保存标签
         List<String> tagNames = saveTags(problem.getId(), request.getTagIds());
+        recordPublicInvalidation();
         return toVO(problem, tagNames, List.of());
     }
 
@@ -470,6 +541,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         }
 
         log.info("更新题目: {}", id);
+        recordPublicInvalidation();
         return toVO(problem, tagNames, getAttachments(id));
     }
 
@@ -499,6 +571,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         deleteObjectsAfterCommit(attachments.stream()
                 .map(ProblemAttachment::getObjectKey)
                 .toList());
+        recordPublicInvalidation();
         log.info("删除题目: {}", id);
     }
 
@@ -513,6 +586,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * @return 附件响应
      */
     @Override
+    @Transactional
     public ProblemVO.AttachmentVO uploadAttachment(
             Long problemId,
             MultipartFile file,
@@ -537,6 +611,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         try {
             problemAttachmentMapper.insert(attachment);
+            recordPublicInvalidation();
         } catch (RuntimeException exception) {
             deleteUploadedObject(storageService, objectKey);
             throw exception;
@@ -562,6 +637,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         // 删除元数据，提交后删除对象
         problemAttachmentMapper.deleteById(attachmentId);
         deleteObjectsAfterCommit(List.of(attachment.getObjectKey()));
+        recordPublicInvalidation();
     }
 
     // ==================== 标签名称查询 ====================
@@ -853,5 +929,16 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 log.error("删除附件对象失败: {}", objectKey, exception);
             }
         }
+    }
+
+    /**
+     * 在当前业务事务中记录公开题库失效事件。
+     */
+    private void recordPublicInvalidation() {
+        cacheInvalidator.record(
+                ProblemPublicCacheService.REGION,
+                ProblemPublicCacheService.SCOPE,
+                ProblemPublicCacheService.SCHEMA_VERSION
+        );
     }
 }

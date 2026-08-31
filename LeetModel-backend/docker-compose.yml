@@ -1,5 +1,5 @@
 # ==================== LeetModel 本地开发基础设施 ====================
-# 使用方式：docker compose up -d --wait mysql redis minio nacos new-api elasticsearch
+# 使用方式：docker compose up -d --wait mysql redis cache-redis minio nacos new-api elasticsearch
 
 services:
   mysql:
@@ -31,6 +31,28 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  cache-redis:
+    image: redis:7.2-alpine
+    container_name: leetmodel-cache-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - volatile-lfu
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

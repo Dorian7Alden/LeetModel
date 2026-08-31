@@ -12,6 +12,9 @@ import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.cache.internal.NoOpCacheSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leetmodel.ranking.entity.RankingSnapshot;
 import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
@@ -54,8 +57,17 @@ class RankingServiceTest {
 
     @BeforeEach
     void setUp() {
+        NoOpCacheSupport cacheSupport = new NoOpCacheSupport();
         rankingService = new RankingService(
-                snapshotMapper, submissionFeignClient, reviewFeignClient, teamFeignClient, problemFeignClient);
+                snapshotMapper,
+                submissionFeignClient,
+                reviewFeignClient,
+                teamFeignClient,
+                problemFeignClient,
+                cacheSupport,
+                cacheSupport,
+                new ObjectMapper().registerModule(new JavaTimeModule())
+        );
     }
 
     @Test

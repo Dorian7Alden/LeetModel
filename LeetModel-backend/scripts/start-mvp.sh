@@ -23,8 +23,8 @@ ports=(8081 8083 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080)
 mkdir -p "${RUNTIME_DIR}/logs"
 
 cd "${BACKEND_DIR}"
-docker compose up -d --wait mysql redis minio nacos elasticsearch
-echo "Docker 基础设施已就绪（MySQL、Redis、MinIO、Nacos、Elasticsearch）"
+docker compose up -d --wait mysql redis cache-redis minio nacos elasticsearch
+echo "Docker 基础设施已就绪（MySQL、安全 Redis、业务缓存 Redis、MinIO、Nacos、Elasticsearch）"
 
 if [[ "${SKIP_BUILD}" == false ]]; then
   mvn -DskipTests package

@@ -1,6 +1,7 @@
 package com.leetmodel.problem.service;
 
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.enums.TagType;
@@ -34,6 +35,9 @@ class TagServiceTest {
 
     @Mock
     private ProblemTagMapper problemTagMapper;
+
+    @Mock
+    private CacheInvalidator cacheInvalidator;
 
     @InjectMocks
     private TagServiceImpl tagService;

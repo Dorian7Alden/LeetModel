@@ -25,6 +25,7 @@
         <module>common/common-core</module>
         <module>common/common-api</module>
         <module>common/common-security</module>
+        <module>common/common-cache</module>
         <module>common/common-ai</module>
         <module>user-service</module>
         <module>problem-service</module>
@@ -219,6 +220,11 @@
             <dependency>
                 <groupId>com.leetmodel</groupId>
                 <artifactId>common-security</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.leetmodel</groupId>
+                <artifactId>common-cache</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

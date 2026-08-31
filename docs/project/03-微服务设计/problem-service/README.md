@@ -22,7 +22,7 @@ flowchart LR
     end
 
     subgraph problem["problem-service 题库管理"]
-        publicApi["公开题库 API"]
+        publicApi["公开题库 API 与三级缓存"]
         manageApi["题目管理 API"]
         internalApi["题目摘要内部 API"]
         contestProblem["赛事、题目与题面"]
@@ -40,6 +40,7 @@ flowchart LR
     subgraph data["题目数据与文件"]
         problemDatabase[(lm_problem)]
         minio["MinIO 题目附件"]
+        cacheRedis["独立业务缓存 Redis"]
     end
 
     apiGateway --> publicApi
@@ -52,6 +53,7 @@ flowchart LR
     tagPublish --> problemDatabase
     attachment --> problemDatabase
     attachment --> minio
+    publicApi --> cacheRedis
 ```
 
 公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，附件二进制归 MinIO 保存。
@@ -84,7 +86,13 @@ problem-service 独占 `lm_problem` 数据库，预置赛事、题目、Markdown
 
 team-service 通过内部接口获取题目摘要，用于创建绑定队伍和计算练习时间。submission-service 通过内部接口校验提交对应的题目。ai-review-service 只获取评审路由所需的题目和赛事信息，不直接读取题目数据库。
 
-目标工具版 AI 客服通过内部只读查询获取已发布题目的摘要、题面概览和受控推荐候选。problem-service 负责发布状态、筛选条件、稳定排序和结果上限；ai-assistant-service 负责工具选择和推荐解释。该目标接口尚未实现。
+工具版 AI 客服通过内部只读查询获取已发布题目的摘要、题面概览和受控推荐候选。problem-service 负责发布状态、筛选条件、稳定排序和结果上限；ai-assistant-service 负责工具选择和推荐解释。
+
+## 公开题库缓存
+
+公开筛选项、页码不大于 10 且每页不大于 50 的无关键词分页、已发布题目详情使用 HTTP、Caffeine、Redis 三级缓存。随机题目和自由文本搜索返回 `no-store`，不会制造高基数缓存 Key。
+
+所有公开题库缓存共用 `public/all/v1` 区域版本。题目、标签、赛事和附件写事务会同时写入 `cache_invalidation_outbox`，提交后推进 Redis 区域版本并发布 Caffeine 失效消息。详情缓存只保存附件对象路径等稳定元数据，MinIO 预签名 URL 在每次响应组装时生成。
 
 ## 功能清单
 

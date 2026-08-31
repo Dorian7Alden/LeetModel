@@ -40,3 +40,7 @@ management:
     web:
       exposure:
         include: health,info
+
+leetmodel:
+  cache:
+    enabled: false

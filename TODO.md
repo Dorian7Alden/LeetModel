@@ -34,11 +34,23 @@
 | S11 | AI 客服完成公共工具协议、题目查询/推荐、知识讲解、受控编排、调用审计、工具版生产快照和真实激活/回滚。 | [归档](docs/project/02-架构设计/AI已完成阶段归档.md#s11-ai-客服受控工具调用) |
 | S12 | 完成强制版本化 PDF 解析、证据化评审 V2、独立知识检索和有依据建议 V2；支持逐论文版本手动多次生成并完整保留 V1。 | [归档](docs/project/02-架构设计/AI已完成阶段归档.md#s12-有依据的-ai-论文建议闭环) |
 | I1 | Nacos 2.3.2 纳入 Docker Compose，使用单机 Derby 命名卷持久化，`start-mvp.sh` 不再依赖宿主机安装目录。 | [运行说明](README.md#启动-nacos) |
-| C1 | 完成跨服务缓存策略设计，首期锁定公开题库和当前排行，明确业务缓存与 Token 黑名单物理隔离、版本化 Cache Aside、故障回源和可量化验收门槛，尚未写运行时代码。 | [缓存策略](docs/project/02-架构设计/缓存策略.md) |
+| C1 | 完成 HTTP、Caffeine、Redis 三级缓存策略设计，首期锁定公开题库和当前排行，明确多级回填、版本化 Cache Aside、Outbox 可靠失效、Pub/Sub 与版本对账、故障降级和可量化验收门槛，尚未写运行时代码。 | [缓存策略](docs/project/02-架构设计/缓存策略.md) |
+| C2 | 公开题库与当前排行完成 HTTP、Caffeine、独立业务 Redis 三级缓存，具备 Outbox 可靠失效、Pub/Sub、五秒对账、空值与 Redis 故障降级。 | [缓存策略](docs/project/02-架构设计/缓存策略.md#实施与验收结果) |
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1 和 C1 已完成。当前没有进行中的阶段任务。
+S0 至 S12、M1、U1、I1、C1 和 C2 已完成。当前没有进行中的阶段任务。
+
+### [x] C2 三级缓存开发
+
+- 目标：让公开题库与当前排行真实使用 HTTP、Caffeine、Redis 三级缓存，并在写入、消息丢失和 Redis 故障时按 C1 设计收敛。
+- 入口：`/api/public/problems`、`/api/rankings/problems/{problemId}` 与题库管理、排行重建写入入口。
+- 主流程：公开 GET 先处理 HTTP 条件缓存，服务内按 Caffeine、独立业务 Redis、MySQL 命中与回填；写事务同时记录 Outbox，提交后幂等推进区域版本并广播 L2 失效。
+- 完成标准：三层命中与回填、`304`、空值、版本并发、Outbox 重试、Pub/Sub 丢失对账、Redis 降级和 Token 黑名单物理隔离均有自动化证据，目标服务可按真实配置启动。
+- 修改范围：新增 `common-cache`，调整 problem-service、ranking-service、Docker Compose、Flyway、目标服务配置、测试和相关文档。
+- 非目标：不缓存权限、运行中任务、上传状态、AI 内容、自由文本搜索和全局管理聚合，不引入布隆过滤器或启动全量预热。
+- 完成摘要：新增 `common-cache`，题库筛选、受控分页、已发布详情和单题当前排行完成三级命中与回填；写事务通过本地 Outbox 推进区域版本并广播失效，Redis 不可用时回源并收紧到五秒本地缓存。
+- 验收：公共缓存 21 项测试、problem-service 42 项测试、ranking-service 9 项测试通过；真实 Redis/MySQL 协议、两项 Flyway 迁移、`200/304`、版本化 Key、Redis 停机降级与恢复代际切换通过。
 
 ### [x] S12 有依据的 AI 论文建议闭环
 

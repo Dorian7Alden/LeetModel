@@ -66,7 +66,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `ai-assistant-service` | AI 客服会话、消息历史和受控工具 |
 | `ranking-service` | 最终提交排名计算与查询 |
 | `ai-evaluation-service` | AI 评审版本的固定测试集与质量评价 |
-| `common` | 公共模块，含 common-core、common-api、common-security |
+| `common` | 公共模块，含 common-core、common-api、common-security、common-cache、common-ai |
 
 ### 本地运行
 
@@ -76,7 +76,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - Node.js 20+、npm 10+
 - Docker Engine 与 Docker Compose
 
-MySQL、Redis、MinIO、Nacos 2.3.2 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
+MySQL、安全状态 Redis、业务缓存 Redis、MinIO、Nacos 2.3.2 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务缓存 Redis 绑定 `127.0.0.1:6380`，使用 `volatile-lfu` 且不持久化；Token 黑名单继续使用 `6379` 的安全状态 Redis。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
 
 #### 启动 Nacos
 
