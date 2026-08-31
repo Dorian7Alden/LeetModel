@@ -18,13 +18,16 @@ flowchart LR
 
     subgraph suggestion["ai-suggestion-service 论文建议"]
         taskApi["手动创建与查询 API"]
+        mqWakeup["任务就绪消费者<br/>目标设计"]
         taskLifecycle["任务调度与多次生成"]
         inputSnapshot["题目、解析与评审依据快照"]
         suggestionWorkflow["版本化建议工作流"]
         evidenceValidation["依据链与页码校验"]
         result["独立建议报告"]
 
-        taskApi --> taskLifecycle --> inputSnapshot --> suggestionWorkflow
+        taskApi --> taskLifecycle
+        mqWakeup -.-> taskLifecycle
+        taskLifecycle --> inputSnapshot --> suggestionWorkflow
         suggestionWorkflow --> evidenceValidation --> result
     end
 
@@ -39,6 +42,7 @@ flowchart LR
 
     subgraph data["建议事实"]
         suggestionDatabase[(lm_ai_suggestion)]
+        messageStore[(Outbox 与 Inbox，目标设计)]
     end
 
     apiGateway --> taskApi
@@ -49,10 +53,14 @@ flowchart LR
     suggestionWorkflow --> retrievalService
     suggestionWorkflow --> commonAi --> aiGateway
     taskLifecycle --> suggestionDatabase
+    taskLifecycle -.-> messageStore
+    mqWakeup -.-> messageStore
     result --> suggestionDatabase
 ```
 
 目标流程是具备论文访问权限和建议功能权限的用户，对任何“存在已完成且兼容评审”的论文版本手动发起建议。同一论文版本和同一评审可以多次发起，每次产生独立任务、输入快照和报告；仅同一用户操作的重复请求由 `clientRequestId` 幂等去重。
+
+RocketMQ 目标链路中，建议任务与 `SUGGESTION_TASK_READY` Outbox 在创建事务中一起提交，消息只负责可靠唤醒。消费者快速写 Inbox 并唤醒既有 task 后 ACK，耗时工作流继续由带租约的本地 Worker 执行。
 
 
 ### 职责边界
@@ -65,6 +73,7 @@ flowchart LR
 - 从问题覆盖、假设、数据、建模、求解、结果、验证、稳健性、表达与规范等数学建模维度生成建议。
 - 对每条建议保存问题、影响、修改动作、验收方式以及论文 / 评审 / 知识依据链。
 - 校验页码、评审发现标识和检索引用确实存在，不让模型自由伪造依据。
+- 目标设计中生产并消费建议任务就绪消息，以任务表、租约和稳定 AI 幂等键恢复崩溃。
 
 #### 不负责
 
@@ -76,7 +85,7 @@ flowchart LR
 
 ### 数据与协作边界
 
-ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有建议版本目录、手动生成任务、输入快照引用、历史评语兼容投影、建议条目和报告。原始 PDF 归 submission-service，题目归 problem-service，评审与 PDF 解析产物归 ai-review-service，检索运行与引用快照归 knowledge-retrieval-service，模型调用通过 ai-gateway-service 完成。兼容投影只引用原评语字段，不成为第二份评审结果。
+ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有建议版本目录、手动生成任务、输入快照引用、历史评语兼容投影、建议条目和报告，以及目标设计中的消息 Outbox、Inbox 和任务租约。原始 PDF 归 submission-service，题目归 problem-service，评审与 PDF 解析产物归 ai-review-service，检索运行与引用快照归 knowledge-retrieval-service，模型调用通过 ai-gateway-service 完成。兼容投影只引用原评语字段，不成为第二份评审结果。
 
 
 ### 功能清单
@@ -88,6 +97,8 @@ ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有建议版本�
 | 知识上下文 | V2 已实现 | 正式建议固定调用 `VECTOR_RAG_V1`；目录与混合版本保留实验实现，达到门槛后再发布新建议版本 |
 | 证据化建议 | V2 已实现 | 每项校验论文 blockId/页码、评审 findingId 和知识 citationId |
 | 任务进度与重试 | V2 已实现 | 展示准备、解析、评审准备、检索、生成和校验阶段；重试复用锁定快照 |
+| RocketMQ 任务唤醒 | 尚未实现 | task 与 Outbox 同事务创建，Inbox 幂等唤醒，低频对账修复漏唤醒 |
+| 崩溃恢复 | 当前十分钟扫描重置 RUNNING | 迁移为租约、heartbeat、attempt 分类和 AI UNKNOWN 保护 |
 | 版本目录 | 已实现 | Flyway 发布 `GROUNDED_SUGGESTION_V2`，并保留 `IMPROVEMENT_V1` 可读 |
 | 隔离实验与质量评价 | 尚未实现 | 后续通过新版本接入，不修改已发布版本 |
 
