@@ -54,7 +54,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0 和 MQ1 已完成。RocketMQ 可靠异
 - 完成摘要：Docker Compose 使用固定 5.5.0 镜像运行 NameServer、单 Broker 和可选 Dashboard，关闭 Topic/消费组自动创建并通过脚本显式建立 5 个 NORMAL Topic、5 个最大重试 5 次的消费组；`common-messaging` 提供 UUID/ULID 与 64 KiB 契约校验、同库 Outbox、逐条续租 Relay、分级退避与 BLOCKED、同事务 Inbox、低基数指标、健康检查和内存测试发布器。
 - 验收：公共模块 19 项常规测试通过，其中 1 项外部协议测试默认按门禁跳过；后端全量 544 项测试中 531 项通过、13 项按既有门禁跳过、无失败。打开门禁后 RocketMQ Spring 2.3.3 真实发布、消费、同 eventId 重复投递一次执行和一次失败重投通过。资源初始化、消费组策略、Dashboard 启动、Broker 重启、offset 与按 Key 数据卷恢复均真实验证；5.5.1 无 Docker Hub 标签，因此可复现镜像基线校准为 5.5.0。
 
-### [ ] MQ2 提交到评审可靠异步链路
+### [~] MQ2 提交到评审可靠异步链路
 
 - 目标：把提交成功后的评审触发从请求线程 Feign 改为 Outbox、RocketMQ、Inbox 与 review_task 的可靠链路，同时补齐长评审崩溃恢复。
 - 依赖：MQ1。
