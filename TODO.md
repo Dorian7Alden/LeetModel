@@ -66,7 +66,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1 和 MQ2 已完成。RocketMQ 可
 - 完成摘要：提交版本、上传关联和 `REVIEW_TASK_READY` Outbox 在同一本地事务提交，默认请求线程不调用评审 Feign；真实消费者以 Inbox 和领域唯一键收敛重复消息。评审 Worker 使用并发 2 的有界领取、租约、逐任务 token heartbeat、fencing completion、分级依赖重试、稳定 AI 幂等键和 UNKNOWN 终态；支持读取同一 Outbox 的 `FEIGN_RELAY` 受控回退，并为历史缺失 Outbox 的既有提交提供幂等补偿。
 - 验收：后端全量 560 项测试中 546 项通过、14 项外部门禁跳过、零失败；MQ2 目标模块 submission-service 24 项与 ai-review-service 36 项测试零失败。打开门禁后，真实 RocketMQ 重复投递同一 eventId 仅执行一次 Inbox 业务处理；事务提交/回滚、Outbox 退避、消费者回滚、租约丢失与过期恢复、fencing、AI UNKNOWN 不重试和 Feign Relay 均有自动化或真实协议证据。submission V1→V4、review V1→V5 在真实 MySQL 完成迁移并验证过期 RUNNING 任务被新 owner 领取；前端生产构建通过。
 
-### [ ] MQ3 评审与最终提交驱动排行
+### [~] MQ3 评审与最终提交驱动排行
 
 - 目标：让评审完成和最终提交变化可靠触发排行，并在事件洪峰中按题目合并全量重建。
 - 依赖：MQ2。
