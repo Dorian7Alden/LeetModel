@@ -14,6 +14,7 @@ public class AssistantProductionWorkflowDTO {
     private String status;
     private String promptVersion;
     private String modelExecutionConfigVersion;
+    private String toolsetVersion;
     private String ragMode;
     private String inputSchema;
     private String outputSchema;

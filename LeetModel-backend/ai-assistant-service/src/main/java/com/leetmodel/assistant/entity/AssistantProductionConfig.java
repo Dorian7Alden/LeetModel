@@ -13,6 +13,7 @@ public class AssistantProductionConfig extends BaseEntity {
     private String workflowVersion;
     private String promptVersion;
     private String modelExecutionConfigVersion;
+    private String toolsetVersion;
     private String ragMode;
     private String ragIndexVersion;
     private String ragIndexKey;

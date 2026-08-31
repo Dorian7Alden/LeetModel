@@ -12,6 +12,9 @@ import com.leetmodel.assistant.vo.AssistantReplyVO;
 import com.leetmodel.assistant.vo.ConversationVO;
 import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
+import com.leetmodel.assistant.tool.AssistantToolException;
+import com.leetmodel.assistant.tool.AssistantToolOrchestrator;
+import com.leetmodel.assistant.tool.AssistantToolRunResult;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
@@ -25,6 +28,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +49,7 @@ public class AssistantService {
     private final AssistantWorkflow workflow;
     private final ObjectMapper objectMapper;
     private final AssistantProductionConfigService productionConfigService;
+    private final AssistantToolOrchestrator toolOrchestrator;
 
     /**
      * 创建当前用户的会话。
@@ -197,16 +202,30 @@ public class AssistantService {
         List<ProblemOptionDTO> candidates = null;
         String toolContextJson = null;
         try {
-            if (workflow.needsProblemTool(userMessage.getContent())) {
-                Result<List<ProblemOptionDTO>> response = problemFeignClient.getPublishedOptions(null, 8);
-                if (response == null || !response.isSuccess() || response.getData() == null) {
-                    throw new IllegalStateException("题目查询服务暂不可用");
+            int attemptNo = beginAttempt(existingReply);
+            AssistantProductionSnapshot snapshot = snapshot(existingReply);
+            AiChatResponse response;
+            if (snapshot.toolsetVersion() != null) {
+                AssistantToolRunResult toolResult = toolOrchestrator.run(
+                        recentCompletedMessages(conversation.getId()), userMessage,
+                        existingReply, snapshot, snapshot.toolsetVersion(), attemptNo,
+                        Instant.now().plusSeconds(240));
+                response = toolResult.response();
+                toolContextJson = toolResult.toolContextJson();
+            } else {
+                if (workflow.needsProblemTool(userMessage.getContent())) {
+                    Result<List<ProblemOptionDTO>> candidateResponse =
+                            problemFeignClient.getPublishedOptions(null, 8);
+                    if (candidateResponse == null || !candidateResponse.isSuccess()
+                            || candidateResponse.getData() == null) {
+                        throw new IllegalStateException("题目查询服务暂不可用");
+                    }
+                    candidates = candidateResponse.getData();
+                    toolContextJson = objectMapper.writeValueAsString(candidates);
                 }
-                candidates = response.getData();
-                toolContextJson = objectMapper.writeValueAsString(candidates);
+                response = workflow.reply(recentCompletedMessages(conversation.getId()),
+                        userMessage, candidates, snapshot);
             }
-            AiChatResponse response = workflow.reply(recentCompletedMessages(conversation.getId()),
-                    userMessage, candidates, snapshot(existingReply));
             return persistReply(existingReply, conversation, userMessage, "COMPLETED",
                     response.content(), null, toolContextJson, response.model(), response.callId());
         } catch (Exception exception) {
@@ -232,6 +251,8 @@ public class AssistantService {
         reply.setWorkflowVersion(snapshot.workflowVersion());
         reply.setPromptVersion(snapshot.promptVersion());
         reply.setModelExecutionConfigVersion(snapshot.modelExecutionConfigVersion());
+        reply.setToolsetVersion(snapshot.toolsetVersion());
+        reply.setAttemptCount(0);
         reply.setRagMode(snapshot.ragMode());
         reply.setRagIndexVersion(snapshot.ragIndexVersion());
         reply.setCreateTime(now);
@@ -355,13 +376,16 @@ public class AssistantService {
                 .workflowVersion(message.getWorkflowVersion())
                 .promptVersion(message.getPromptVersion())
                 .modelExecutionConfigVersion(message.getModelExecutionConfigVersion())
+                .toolsetVersion(message.getToolsetVersion())
+                .attemptCount(message.getAttemptCount())
                 .ragMode(message.getRagMode())
                 .ragIndexVersion(message.getRagIndexVersion())
                 .content(message.getContent())
                 .errorMessage(message.getErrorMessage())
                 .modelName(message.getModelName())
                 .aiCallId(message.getAiCallId())
-                .usedProblemTool(message.getToolContextJson() != null)
+                .usedTool(message.getToolContextJson() != null)
+                .usedProblemTool(usedProblemTool(message))
                 .createTime(message.getCreateTime())
                 .build();
     }
@@ -374,13 +398,42 @@ public class AssistantService {
                         || reply.getModelExecutionConfigVersion() == null
                         || reply.getRagMode() == null,
                 AssistantErrorCode.PRODUCTION_CONFIG_UNAVAILABLE);
+        boolean toolWorkflow = reply.getWorkflowVersion().startsWith("ASSISTANT_TOOLS_");
+        BusinessException.throwIf(toolWorkflow != (reply.getToolsetVersion() != null),
+                AssistantErrorCode.PRODUCTION_CONFIG_UNAVAILABLE);
         return new AssistantProductionSnapshot(reply.getProductionConfigVersion(),
                 reply.getProductionRevision(), reply.getWorkflowVersion(),
                 reply.getPromptVersion(), reply.getModelExecutionConfigVersion(),
-                reply.getRagMode(), reply.getRagIndexVersion());
+                reply.getToolsetVersion(), reply.getRagMode(), reply.getRagIndexVersion());
+    }
+
+    /** 原子增加回复尝试次数并返回本次不可变 attemptNo。 */
+    private int beginAttempt(AssistantMessage reply) {
+        LocalDateTime now = LocalDateTime.now();
+        if (messageMapper.beginAttempt(reply.getId(), now) != 1) {
+            throw new IllegalStateException("AI 客服回复未取得生成执行权");
+        }
+        int attemptNo = (reply.getAttemptCount() == null ? 0 : reply.getAttemptCount()) + 1;
+        reply.setAttemptCount(attemptNo);
+        reply.setUpdateTime(now);
+        return attemptNo;
+    }
+
+    /** 判断消息是否使用题目工具，同时兼容旧关键词预取上下文。 */
+    private boolean usedProblemTool(AssistantMessage message) {
+        String context = message.getToolContextJson();
+        if (context == null) return false;
+        if (message.getToolsetVersion() == null) return true;
+        return context.contains("\"name\":\"search_problem\"")
+                || context.contains("\"name\":\"recommend_problem\"");
     }
 
     private String userFacingError(Exception exception) {
+        if (exception instanceof AssistantToolException toolException) {
+            return "TOOL_TIMEOUT".equals(toolException.getErrorCode())
+                    ? "AI 客服工具调用超时，请稍后重试"
+                    : "AI 客服暂时无法完成该查询，请稍后重试";
+        }
         String message = exception.getMessage();
         if ("题目查询服务暂不可用".equals(message)
                 || "AI 网关未返回客服回复".equals(message)) {

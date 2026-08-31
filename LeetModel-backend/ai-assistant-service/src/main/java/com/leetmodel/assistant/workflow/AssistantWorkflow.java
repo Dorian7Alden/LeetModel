@@ -46,7 +46,8 @@ public class AssistantWorkflow {
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final RagWorkflowContextProvider ragContextProvider;
-    private final String systemPrompt;
+    private final String legacySystemPrompt;
+    private final String toolSystemPrompt;
 
     public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper) throws Exception {
         this(aiClient, objectMapper, RagWorkflowContextProvider.disabled());
@@ -58,7 +59,9 @@ public class AssistantWorkflow {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
         this.ragContextProvider = ragContextProvider;
-        this.systemPrompt = new ClassPathResource("prompts/assistant-v1.st")
+        this.legacySystemPrompt = new ClassPathResource("prompts/assistant-v1.st")
+                .getContentAsString(StandardCharsets.UTF_8);
+        this.toolSystemPrompt = new ClassPathResource("prompts/assistant-tools-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
 
@@ -164,7 +167,7 @@ public class AssistantWorkflow {
             throws JsonProcessingException {
         RagWorkflowContext ragContext = productionRagContext(currentUserMessage.getContent(), snapshot);
         List<AiMessage> messages = new ArrayList<>();
-        messages.add(message(AiRole.SYSTEM, systemPrompt));
+        messages.add(message(AiRole.SYSTEM, systemPrompt(snapshot.promptVersion())));
         if (ragContext.present()) {
             messages.add(message(AiRole.SYSTEM, ragContext.text()));
         }
@@ -178,6 +181,13 @@ public class AssistantWorkflow {
             messages.add(message(role, content));
         }
         return messages;
+    }
+
+    /** 按不可变 Prompt 版本选择客服系统指令。 */
+    private String systemPrompt(String promptVersion) {
+        if ("PROMPT_ASSISTANT_CHAT_0001".equals(promptVersion)) return legacySystemPrompt;
+        if ("PROMPT_ASSISTANT_TOOLS_0001".equals(promptVersion)) return toolSystemPrompt;
+        throw new IllegalArgumentException("AI 客服 Prompt 版本不受支持");
     }
 
     private RagWorkflowContext productionRagContext(String question,
@@ -205,7 +215,7 @@ public class AssistantWorkflow {
                                           String modelExecutionConfigVersion,
                                           String evaluationTaskId, String idempotencyKey) {
         List<AiMessage> messages = new ArrayList<>();
-        messages.add(message(AiRole.SYSTEM, systemPrompt));
+        messages.add(message(AiRole.SYSTEM, legacySystemPrompt));
         if (ragContext.present()) messages.add(message(AiRole.SYSTEM, ragContext.text()));
         messages.add(message(AiRole.USER, question));
         String taskId = "experiment:" + experimentRunId;

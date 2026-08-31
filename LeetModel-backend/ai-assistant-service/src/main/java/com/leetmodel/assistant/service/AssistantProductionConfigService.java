@@ -88,7 +88,8 @@ public class AssistantProductionConfigService {
         return new AssistantProductionSnapshot(state.config().getProductionConfigVersion(),
                 state.pointer().getRevision(), state.config().getWorkflowVersion(),
                 state.config().getPromptVersion(),
-                state.config().getModelExecutionConfigVersion(), state.config().getRagMode(),
+                state.config().getModelExecutionConfigVersion(),
+                state.config().getToolsetVersion(), state.config().getRagMode(),
                 state.config().getRagIndexVersion());
     }
 
@@ -239,6 +240,7 @@ public class AssistantProductionConfigService {
         created.setWorkflowVersion(workflow.getWorkflowVersion());
         created.setPromptVersion(workflow.getPromptVersion());
         created.setModelExecutionConfigVersion(workflow.getModelExecutionConfigVersion());
+        created.setToolsetVersion(workflow.getToolsetVersion());
         created.setRagMode(workflow.getRagMode());
         created.setRagIndexVersion(ragIndex);
         created.setRagIndexKey(ragKey);
@@ -335,7 +337,11 @@ public class AssistantProductionConfigService {
         AssistantProductionConfig config = configMapper.selectById(pointer.getActiveConfigId());
         BusinessException.throwIf(config == null,
                 AssistantErrorCode.PRODUCTION_CONFIG_UNAVAILABLE);
-        return new State(pointer, config, requiredWorkflow(config.getWorkflowVersion()));
+        AssistantWorkflowVersion workflow = requiredWorkflow(config.getWorkflowVersion());
+        BusinessException.throwIf(!java.util.Objects.equals(config.getToolsetVersion(),
+                        workflow.getToolsetVersion()),
+                AssistantErrorCode.PRODUCTION_CONFIG_UNAVAILABLE);
+        return new State(pointer, config, workflow);
     }
 
     /**
@@ -360,7 +366,8 @@ public class AssistantProductionConfigService {
     private AssistantProductionWorkflowDTO toWorkflow(AssistantWorkflowVersion workflow) {
         return new AssistantProductionWorkflowDTO(workflow.getWorkflowVersion(),
                 workflow.getName(), workflow.getStatus(), workflow.getPromptVersion(),
-                workflow.getModelExecutionConfigVersion(), workflow.getRagMode(),
+                workflow.getModelExecutionConfigVersion(), workflow.getToolsetVersion(),
+                workflow.getRagMode(),
                 workflow.getInputSchema(), workflow.getOutputSchema(),
                 workflow.getCompatibility(), workflow.getImpactScope(),
                 workflow.getExperimentCandidate());
@@ -383,7 +390,8 @@ public class AssistantProductionConfigService {
                         .eq(AssistantProductionAudit::getToConfigId, config.getId())) > 0;
         return new AssistantProductionConfigDTO(config.getProductionConfigVersion(),
                 config.getWorkflowVersion(), workflow.getName(), config.getPromptVersion(),
-                config.getModelExecutionConfigVersion(), config.getRagMode(),
+                config.getModelExecutionConfigVersion(), config.getToolsetVersion(),
+                config.getRagMode(),
                 config.getRagIndexVersion(), workflow.getImpactScope(),
                 everActive,
                 pointer == null ? null : pointer.getRevision(),
@@ -407,6 +415,8 @@ public class AssistantProductionConfigService {
                 target.getPromptVersion());
         addDifference(differences, "模型执行配置", current.getModelExecutionConfigVersion(),
                 target.getModelExecutionConfigVersion());
+        addDifference(differences, "工具集版本", current.getToolsetVersion(),
+                target.getToolsetVersion());
         addDifference(differences, "RAG模式", current.getRagMode(), target.getRagMode());
         addDifference(differences, "RAG索引", current.getRagIndexVersion(),
                 target.getRagIndexVersion());

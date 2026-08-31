@@ -20,6 +20,8 @@ public class AssistantMessage extends BaseEntity {
     private String workflowVersion;
     private String promptVersion;
     private String modelExecutionConfigVersion;
+    private String toolsetVersion;
+    private Integer attemptCount;
     private String ragMode;
     private String ragIndexVersion;
     private String content;

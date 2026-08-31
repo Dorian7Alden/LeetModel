@@ -171,7 +171,7 @@ public class AssistantProductionChangeTransactionService {
         return new AssistantProductionConfigDTO(config.getProductionConfigVersion(),
                 config.getWorkflowVersion(), workflow == null ? null : workflow.getName(),
                 config.getPromptVersion(), config.getModelExecutionConfigVersion(),
-                config.getRagMode(), config.getRagIndexVersion(),
+                config.getToolsetVersion(), config.getRagMode(), config.getRagIndexVersion(),
                 workflow == null ? null : workflow.getImpactScope(), true, pointer.getRevision(),
                 pointer.getActivatedBy(), pointer.getActivatedAt(), pointer.getObservationUntil());
     }

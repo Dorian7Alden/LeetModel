@@ -9,6 +9,11 @@ import java.time.LocalDateTime;
 
 public interface AssistantMessageMapper extends BaseMapper<AssistantMessage> {
 
+    @Update("UPDATE assistant_message SET attempt_count = attempt_count + 1, update_time = #{now} "
+            + "WHERE id = #{id} AND role = 'ASSISTANT' "
+            + "AND status IN ('PROCESSING', 'RETRYING') AND deleted = 0")
+    int beginAttempt(@Param("id") Long id, @Param("now") LocalDateTime now);
+
     @Update("UPDATE assistant_message SET status = 'RETRYING', error_message = NULL, "
             + "update_time = #{now} WHERE id = #{id} AND role = 'ASSISTANT' "
             + "AND status = 'FAILED' AND deleted = 0")
