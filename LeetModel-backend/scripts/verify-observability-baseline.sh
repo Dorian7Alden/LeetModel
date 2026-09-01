@@ -174,12 +174,19 @@ if ! jq -e '.data.result | any(.value[1] == "1")' <<<"${prometheus_response}" >/
 fi
 echo "[通过] Prometheus 指标抓取"
 
-if ! rg -q 'Started UserApplication' "${SMOKE_LOG}" || ! rg -q 'SELECT COUNT' "${SMOKE_LOG}"; then
-  echo "本地日志未包含启动与 JDBC 冒烟证据。" >&2
-  tail -n 80 "${SMOKE_LOG}" >&2
-  exit 1
-fi
-echo "[通过] 本地运行日志"
+python3 - "${SMOKE_LOG}" <<'PY'
+import json
+import pathlib
+import sys
+
+lines = [line for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if line]
+events = [json.loads(line) for line in lines]
+if not events or any(event.get("schemaVersion") != "leetmodel.log.v1" for event in events):
+    raise SystemExit("本地日志不是统一 JSON schema")
+if not any("Started UserApplication" in event.get("message", "") for event in events):
+    raise SystemExit("本地日志缺少服务启动证据")
+PY
+echo "[通过] 本地结构化运行日志；JDBC 执行证据由 OAP Span 验证，不输出 SQL 参数"
 
 dependency_output="$(mvn -pl user-service dependency:tree -Dincludes='io.micrometer:micrometer-tracing*,io.opentelemetry:opentelemetry-exporter-*')"
 if rg -q 'io\.micrometer:micrometer-tracing|io\.opentelemetry:opentelemetry-exporter-' <<<"${dependency_output}"; then
