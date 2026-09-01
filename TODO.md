@@ -41,10 +41,11 @@
 | MQ2 | 提交到评审改为事务 Outbox、RocketMQ、Inbox 与领域任务链路，完成有界 Worker、租约恢复、稳定 AI 幂等键、UNKNOWN 保护和 Feign Relay 回退。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#提交触发评审) |
 | MQ3 | 最终提交与评审完成事件可靠驱动按题目合并排行重建，完成 revision 合并、租约 fencing、失败保旧与权威事实指纹对账。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#排行重建) |
 | MQ4 | 建议任务改为事务 Outbox、Inbox 与 RocketMQ 可靠唤醒，完成单并发有界 Worker、租约 fencing、稳定 AI 幂等键、UNKNOWN 保护、积压拒绝与低频对账。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#手动建议任务) |
+| MQ5 | 后台评价槽位改为独立 Topic、Inbox 与事务 Outbox 可靠唤醒，完成单并发租约 Worker、P0/P1 水位保护、fencing、UNKNOWN 与低频对账。 | [RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md#后台评价) |
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。RocketMQ 可靠异步链路继续按 MQ5 至 MQ6 串行实施；当前正在执行 MQ5。
+S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3、MQ4 和 MQ5 已完成。RocketMQ 可靠异步链路进入最后的 MQ6 运维治理、故障演练与旧链清理。
 
 ### [x] MQ1 RocketMQ 基础设施与公共契约
 
@@ -90,7 +91,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。
 - 完成摘要：建议任务创建和 `SUGGESTION_TASK_READY` Outbox 在同一事务提交，Inbox 只推进一次领域唤醒并对重复消息再次发出有界本地信号。Worker 固定单并发，使用 120 秒租约、20 秒 heartbeat、逐任务 fencing token 与稳定 AI 幂等键；只对明确的依赖不可用形成最多 3 个 attempt，证据等待不增加 attempt，AI 结果未知进入 `UNKNOWN`。30 秒 reconciliation 只修复到期等待和过期租约，严重积压返回 `40807`。
 - 验收：后端全量 585 项测试中 569 项通过、16 项外部门禁跳过、零失败；ai-suggestion-service 34 项中 33 项通过、1 项真实 Broker 门禁默认跳过。打开门禁后 RocketMQ 5.5.0 与 Client 5.3.1 下同一 eventId 重复投递只执行一次 Inbox 领域动作并发出两次可恢复唤醒；任务与 Outbox 提交/回滚、租约领取与丢失、heartbeat、稳定 AI 键、UNKNOWN、依赖重试和积压拒绝均有自动化证据。真实 MySQL 8 完成 Flyway V1→V3，服务以真实消息消费者完整启动；前端生产构建通过。
 
-### [~] MQ5 后台评价隔离
+### [x] MQ5 后台评价隔离
 
 - 目标：用独立 Topic、消费组和低并发 Worker 承载评价槽位，证明批任务不会挤占正式评审、建议和客服。
 - 依赖：MQ1、MQ4。
@@ -98,8 +99,10 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。
 - 完成标准：暂停、恢复、取消、重复消息、进程重启和大量积压均保持统计口径与 attempt 历史；客服 P0 和正式 P1 的现有容量保护回归通过。
 - 修改范围：ai-evaluation-service、admin-service 管理控制、Flyway、测试和文档。
 - 非目标：不修改评价指标、权重或版本选择指数，不用 Broker 消费失败实现限速。
+- 完成摘要：评价任务创建、失败项重试和恢复与 `EVALUATION_SLOT_READY` Outbox 同事务提交；独立 Inbox 消费组只推进一次领域唤醒，并在重复投递时再次发出有界本地信号。Worker 固定单并发，使用 120 秒租约、20 秒 heartbeat 和逐 attempt fencing token；30 秒 reconciliation 只补偿到期等待槽位。领取前读取 AI 网关 P0/P1 排队数量和最老等待时间，达到水位或水位查询失败时 fail-closed 暂停，恢复后自动继续；评价原子调用仍由可信映射保持 P3。
+- 验收：后端全量 596 项测试中 579 项通过、17 项外部门禁跳过、零失败；ai-evaluation-service 96 项中 95 项通过、1 项真实 Broker 门禁默认跳过。打开门禁后 RocketMQ 5.5.0 下同一 eventId 重复投递只执行一次 Inbox 领域动作并发出两次可恢复唤醒；任务/Outbox 提交回滚、压力暂停、单并发领取、租约 heartbeat、fencing、暂停/恢复/取消、attempt 历史和 UNKNOWN 均有自动化证据。真实 MySQL 8 完成 Flyway V1→V9，服务以真实 RocketMQ 消费者完整启动。
 
-### [ ] MQ6 运维治理、故障演练与旧链清理
+### [~] MQ6 运维治理、故障演练与旧链清理
 
 - 目标：完成积压、Outbox、Inbox、领域任务、DLQ 和重放的统一运维闭环，并在全链验收后删除旧主路径。
 - 依赖：MQ2 至 MQ5。
@@ -163,4 +166,4 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。
 2. 默认由用户确认任务范围；托管模式下 Agent 按依赖自动领取并在完成后报告代码、测试、文档和未解决风险。
 3. 任务依赖未满足时不得用临时硬编码绕过，应明确标记阻塞。
 4. 新发现的问题若不阻断当前闭环，只记录到后续任务，不扩大当前任务。
-5. 已完成阶段只在本文件保留摘要；关键决策与验收依据归档到对应 docs 文档。当前可执行任务卡为 MQ5，后续任务按依赖串行领取。
+5. 已完成阶段只在本文件保留摘要；关键决策与验收依据归档到对应 docs 文档。当前可执行任务卡为 MQ6，后续任务按依赖串行领取。
