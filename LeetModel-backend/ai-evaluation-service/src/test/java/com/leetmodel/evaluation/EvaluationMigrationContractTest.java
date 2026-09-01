@@ -121,4 +121,24 @@ class EvaluationMigrationContractTest {
         assertThat(sql.toUpperCase())
                 .doesNotContain("DROP ", "DELETE ", "TRUNCATE", "SET `RAW_METRICS_JSON`", "SET `OVERALL_SCORE`");
     }
+
+    @Test
+    void v9AddsReliableDispatchFactsWithoutRewritingEvaluationHistory() throws IOException {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V9__add_reliable_evaluation_dispatch.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("CREATE TABLE `message_inbox`")
+                .contains("CREATE TABLE `message_outbox`")
+                .contains("ADD COLUMN `trace_id`")
+                .contains("ADD COLUMN `next_run_at`")
+                .contains("ADD COLUMN `lease_token`")
+                .contains("ADD COLUMN `recovery_count`")
+                .contains("idx_evaluation_run_claim")
+                .contains("idx_evaluation_run_reconcile");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }

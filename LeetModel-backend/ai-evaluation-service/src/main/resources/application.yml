@@ -7,7 +7,34 @@ spring:
 server:
   shutdown: graceful
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-ai-evaluation-v1
+    send-message-timeout: 3000
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: true
+
 evaluation:
+  messaging:
+    consumer-enabled: true
+  worker:
+    enabled: true
+    concurrency: 1
+    lease-seconds: 120
+    heartbeat-ms: 20000
+    signal-capacity: 512
+    signal-drain-ms: 500
+    reconciliation-delay-ms: 30000
+    reconciliation-batch-size: 100
+    online-warning-count: 20
+    online-warning-wait-ms: 30000
+    pressure-cache-ms: 5000
   limits:
     max-samples: ${EVALUATION_MAX_SAMPLES:100}
     max-versions: ${EVALUATION_MAX_VERSIONS:8}
