@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建；MQ4 已实现建议任务可靠唤醒与租约恢复；MQ5 已实现后台评价隔离调度，后续由 MQ6 完成统一运维治理、故障演练与旧链清理。
+> 设计状态：MQ0 已完成目标设计；MQ1 至 MQ5 已完成基础设施和五条可靠异步业务链路；MQ6 已完成统一运维治理、故障演练与旧链清理。RocketMQ 首期设计、实现与验收已闭环。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0、RocketMQ Spring 2.3.3 与 RocketMQ Client 5.3.1。Spring Boot BOM 默认的历史 Client 5.1.4 缺少 Starter 所需的 `setNamespaceV2` API，MQ4 已统一覆盖相关客户端组件并通过真实服务启动。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复均有验证证据。
 
@@ -458,6 +458,15 @@ MQ6 的实际运维入口位于管理端“AI 中心 / 消息运维”：
 - 正式评审与建议不会被评价和索引任务挤占，AI 网关现有 P0 保留与 P1/P3/P4 策略保持有效。
 - 排行同时响应最终提交变化和评审完成，重复事件按题目合并，消息遗漏可由对账修复。
 - 全链路可以通过 traceId 和 eventId 关联，消息中不含论文、Prompt、模型回答和密钥。
+
+#### MQ6 实施与验收结果
+
+- 后端全量 `mvn clean test` 共发现 605 项测试，588 项通过、17 项外部门禁按预期跳过、零失败；20 个 Reactor 项目的 `mvn -DskipTests package` 全部成功，前端 `npm run build` 成功。
+- review、ranking、suggestion、evaluation 与 common-messaging 的五条真实 RocketMQ 协议门禁全部通过，覆盖重复 eventId、Inbox 业务一次效果、短暂失败重投和乱序事件隔离。ranking 门禁使用固定正式消费组，但只断言本次随机 eventId，避免本地 Broker 保留的历史同 Tag 消息污染测试结果。
+- submission、review、ranking、suggestion、evaluation 和 ai-gateway 分别使用全新 MySQL 8 验收库启动，到达 Flyway V5、V7、V5、V4、V10、V9；五个 `message_inbox.trace_id` 以及 `ai_call_task.trace_id`、`ai_call_log.trace_id` 均真实存在。
+- ai-review-service 连接真实 RocketMQ 5.5.0 后，`/internal/messaging/overview` 返回运行中的正式 consumer；`/internal/messaging/dlq` 从 `%DLQ%lm-dev%cg-ai-review-task-v1` 读取到 2 条历史死信及最早时间。查询过程只使用 Broker 管理读接口，没有订阅 DLQ、自动回灌或移动消费位点。
+- 管理端只允许管理员执行操作。DLQ 重放先在消费者服务按精确 eventId 定位并校验完整集合，再委托消息来源服务重置同一 Outbox 事件；任何 eventId 缺失都会拒绝整批，批量上限为 20。操作不返回 payload、幂等键、Broker 地址或密钥。
+- `scripts/drill-messaging-failures.sh` 将每种破坏性演练拆成单一显式动作，避免网络、数据库与进程故障被自动串联。真实启动所用六个临时数据库已在验收后精确删除。
 
 
 ### 非目标与关键取舍

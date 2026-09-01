@@ -45,7 +45,7 @@
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3、MQ4 和 MQ5 已完成。RocketMQ 可靠异步链路进入最后的 MQ6 运维治理、故障演练与旧链清理。
+S0 至 S12、M1、U1、I1、C1、C2、MQ0 以及 MQ1 至 MQ6 已完成。RocketMQ 可靠异步链路的设计、实现与运维验收已经闭环。
 
 ### [x] MQ1 RocketMQ 基础设施与公共契约
 
@@ -102,7 +102,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3、MQ4 和 MQ5 已完
 - 完成摘要：评价任务创建、失败项重试和恢复与 `EVALUATION_SLOT_READY` Outbox 同事务提交；独立 Inbox 消费组只推进一次领域唤醒，并在重复投递时再次发出有界本地信号。Worker 固定单并发，使用 120 秒租约、20 秒 heartbeat 和逐 attempt fencing token；30 秒 reconciliation 只补偿到期等待槽位。领取前读取 AI 网关 P0/P1 排队数量和最老等待时间，达到水位或水位查询失败时 fail-closed 暂停，恢复后自动继续；评价原子调用仍由可信映射保持 P3。
 - 验收：后端全量 596 项测试中 579 项通过、17 项外部门禁跳过、零失败；ai-evaluation-service 96 项中 95 项通过、1 项真实 Broker 门禁默认跳过。打开门禁后 RocketMQ 5.5.0 下同一 eventId 重复投递只执行一次 Inbox 领域动作并发出两次可恢复唤醒；任务/Outbox 提交回滚、压力暂停、单并发领取、租约 heartbeat、fencing、暂停/恢复/取消、attempt 历史和 UNKNOWN 均有自动化证据。真实 MySQL 8 完成 Flyway V1→V9，服务以真实 RocketMQ 消费者完整启动。
 
-### [~] MQ6 运维治理、故障演练与旧链清理
+### [x] MQ6 运维治理、故障演练与旧链清理
 
 - 目标：完成积压、Outbox、Inbox、领域任务、DLQ 和重放的统一运维闭环，并在全链验收后删除旧主路径。
 - 依赖：MQ2 至 MQ5。
@@ -110,6 +110,8 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3、MQ4 和 MQ5 已完
 - 完成标准：设计文档中的故障矩阵全部有证据；DLQ 不自动回灌；`MQ_PRIMARY` 可稳定运行并可回退到 `FEIGN_RELAY`；确认无调用方后删除用户请求线程旧 Feign 触发和无界轮询，后端全量测试、真实服务启动与前端关键路径通过。
 - 修改范围：admin-service、相关业务服务、运维脚本、Dashboard/指标接入、端到端测试、README 与归档。
 - 非目标：不实现生产多副本 RocketMQ 集群，不执行远端部署或 push。
+- 完成摘要：五个消息所有者服务通过统一内网契约提供脱敏 Outbox、Inbox、领域任务、真实 consumer 和 Broker DLQ 状态，admin-service 以部分成功语义聚合并提供积压告警、traceId 链路查询、真实消费暂停/恢复、原 eventId Outbox 补发，以及先定位死信再按源服务补发的单条/最多 20 条人工 DLQ 重放。DLQ 不自动回灌、不移动 Broker offset；AI 网关调度与调用事实持久化 traceId。故障脚本覆盖应用 SIGKILL、Broker 重启/暂停、MySQL 暂停和重复投递探针；提交请求线程旧 Feign 触发和 `LEGACY_FEIGN` 状态已删除，仅保留读取同一 Outbox 的 `MQ_PRIMARY` 与 `FEIGN_RELAY`。
+- 验收：后端全量 605 项测试中 588 项通过、17 项外部门禁跳过、零失败，20 项 Maven Reactor 全部构建成功，前端生产构建通过。五条业务消息协议均通过真实 RocketMQ 5.5.0 门禁；submission、review、ranking、suggestion、evaluation 与 ai-gateway 使用全新 MySQL 8 库真实启动并完成 V5/V7/V5/V4/V10/V9 迁移。ai-review 真实运维端点返回运行中 consumer，并从 `%DLQ%lm-dev%cg-ai-review-task-v1` 读取到 2 条历史死信而未自动消费。临时验收库已删除。
 
 ### [x] C2 三级缓存开发
 
