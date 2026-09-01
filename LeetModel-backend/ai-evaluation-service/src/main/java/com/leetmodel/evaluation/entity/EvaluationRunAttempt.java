@@ -20,6 +20,14 @@ public class EvaluationRunAttempt extends BaseEntity {
     private String experimentRunId;
     private String idempotencyKey;
     private String status;
+    private LocalDateTime nextRunAt;
+    private String leaseOwner;
+    private String leaseToken;
+    private LocalDateTime leaseExpiresAt;
+    private LocalDateTime heartbeatAt;
+    private Integer recoveryCount;
+    private LocalDateTime lastWakeupAt;
+    private LocalDateTime lastWakeupEventAt;
     private String failureType;
     private BigDecimal score;
     private String resultJson;

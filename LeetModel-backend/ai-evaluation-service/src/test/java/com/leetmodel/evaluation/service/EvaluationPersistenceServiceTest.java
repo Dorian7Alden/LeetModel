@@ -52,11 +52,10 @@ class EvaluationPersistenceServiceTest {
     void staleRunningAttemptBecomesUnknownAndNeverCreatesAnotherAttempt() {
         EvaluationRunAttempt stale = new EvaluationRunAttempt();
         stale.setId(301L);
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(15);
-        when(runMapper.markStaleUnknown(org.mockito.ArgumentMatchers.eq(301L),
-                org.mockito.ArgumentMatchers.eq(cutoff), any())).thenReturn(1);
+        LocalDateTime now = LocalDateTime.now();
+        when(runMapper.markExpiredUnknown(301L, now)).thenReturn(1);
 
-        assertThat(service.recoverStale(stale, cutoff)).isTrue();
+        assertThat(service.recoverExpired(stale, now)).isTrue();
 
         verify(runMapper, never()).insert(any(EvaluationRunAttempt.class));
     }
