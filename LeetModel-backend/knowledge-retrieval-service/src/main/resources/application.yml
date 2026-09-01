@@ -3,5 +3,8 @@ spring:
     name: knowledge-retrieval-service
   profiles:
     active: dev
+  config:
+    import:
+      - classpath:leetmodel-observability.yml
 server:
   shutdown: graceful

@@ -13,12 +13,6 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

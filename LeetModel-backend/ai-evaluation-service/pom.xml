@@ -9,6 +9,14 @@
     </parent>
     <artifactId>ai-evaluation-service</artifactId>
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency><groupId>com.leetmodel</groupId><artifactId>common-core</artifactId></dependency>
         <dependency><groupId>com.leetmodel</groupId><artifactId>common-api</artifactId></dependency>
         <dependency><groupId>com.leetmodel</groupId><artifactId>common-security</artifactId></dependency>

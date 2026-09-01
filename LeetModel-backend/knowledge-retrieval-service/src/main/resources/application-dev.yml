@@ -20,8 +20,3 @@ knowledge:
     token-budget: ${KNOWLEDGE_TOKEN_BUDGET:3000}
     score-threshold: ${KNOWLEDGE_SCORE_THRESHOLD:0.65}
     request-timeout: ${KNOWLEDGE_REQUEST_TIMEOUT:5s}
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info

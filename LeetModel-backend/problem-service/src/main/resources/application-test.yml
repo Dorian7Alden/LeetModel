@@ -35,12 +35,6 @@ springdoc:
       paths-to-match: '/**'
       packages-to-scan: com.leetmodel.problem.controller
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
 leetmodel:
   cache:
     enabled: false

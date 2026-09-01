@@ -7,6 +7,7 @@ spring:
     active: dev
   config:
     import:
+      - classpath:leetmodel-observability.yml
       # Nacos 配置中心（optional: Nacos 不可用时回退到本地 yml）
       - optional:nacos:gateway-service-${spring.profiles.active}.yml
   cloud:

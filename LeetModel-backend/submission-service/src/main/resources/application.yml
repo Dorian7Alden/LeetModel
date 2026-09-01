@@ -3,6 +3,9 @@ spring:
     name: submission-service
   profiles:
     active: dev
+  config:
+    import:
+      - classpath:leetmodel-observability.yml
   servlet:
     multipart:
       max-file-size: 5MB
