@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiUsage;
@@ -39,6 +40,7 @@ public class AiCallAuditService {
 
     private static final String UNKNOWN = "UNRESOLVED";
     private final AiCallLogMapper callLogMapper;
+    private final AiGatewayMetrics metrics;
 
     public void recordSuccess(String callId, AiChatRequest request, String routeProvider,
                               String routeModel, AiChatResponse response, long durationMs) {
@@ -330,6 +332,8 @@ public class AiCallAuditService {
             // 供应商调用成功后不能因审计写入失败诱发上游重试和重复模型费用。
             log.error("AI 调用审计写入失败 callId={}, status={}",
                     record.getCallId(), record.getStatus(), exception);
+        } finally {
+            metrics.call(record);
         }
     }
 

@@ -4,10 +4,13 @@ import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.entity.AiCallAttempt;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.scheduling.AiQueueRecoveryService;
 import com.leetmodel.aigateway.scheduling.AiTaskWaitRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -31,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "mybatis-plus.configuration.map-underscore-to-camel-case=true",
         "ai.cost-enrichment.poll-delay-ms=3600000", "ai.scheduling.enabled=false"
 })
+@AutoConfigureObservability
 class AiCallTaskRepositoryIntegrationTest {
 
     @Autowired
@@ -38,6 +42,9 @@ class AiCallTaskRepositoryIntegrationTest {
 
     @Autowired
     private AiCallAttemptMapper attemptMapper;
+
+    @Autowired
+    private MeterRegistry registry;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -168,8 +175,15 @@ class AiCallTaskRepositoryIntegrationTest {
         assertThat(rows).extracting(AiCallTask::getTaskId).contains("task-monitor-p4");
     }
 
+    @Test
+    void exposesJvmAndHikariPoolMetrics() {
+        assertThat(registry.find("jvm.memory.used").gauge()).isNotNull();
+        assertThat(registry.find("hikaricp.connections").gauge()).isNotNull();
+    }
+
     private AiQueueRecoveryService recovery() {
-        return new AiQueueRecoveryService(mapper, attemptMapper, new AiTaskWaitRegistry());
+        return new AiQueueRecoveryService(mapper, attemptMapper, new AiTaskWaitRegistry(),
+                org.mockito.Mockito.mock(AiGatewayMetrics.class));
     }
 
     private AiCallAttempt attempt(AiCallTask task, String attemptId, String state) {

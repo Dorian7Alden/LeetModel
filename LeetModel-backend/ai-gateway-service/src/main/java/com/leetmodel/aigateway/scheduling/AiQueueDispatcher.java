@@ -5,6 +5,7 @@ import com.leetmodel.aigateway.entity.AiCallAttempt;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import jakarta.annotation.PreDestroy;
@@ -22,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +40,7 @@ public class AiQueueDispatcher {
     private final AiSchedulingProperties properties;
     private final AiRateLimitBackoff rateLimitBackoff;
     private final AiTaskWaitRegistry waitRegistry;
+    private final AiGatewayMetrics metrics;
     private final String owner = "ai-gateway-" + UUID.randomUUID();
     private final AtomicInteger cursor = new AtomicInteger();
     private final Semaphore totalPermits;
@@ -48,7 +51,7 @@ public class AiQueueDispatcher {
     public AiQueueDispatcher(AiCallTaskMapper taskMapper, AiCallAttemptMapper attemptMapper,
                              AiFairSchedulingPolicy policy, AiQueuedTaskExecutor taskExecutor,
                              AiSchedulingProperties properties, AiRateLimitBackoff rateLimitBackoff,
-                             AiTaskWaitRegistry waitRegistry) {
+                             AiTaskWaitRegistry waitRegistry, AiGatewayMetrics metrics) {
         this.taskMapper = taskMapper;
         this.attemptMapper = attemptMapper;
         this.policy = policy;
@@ -56,10 +59,12 @@ public class AiQueueDispatcher {
         this.properties = properties;
         this.rateLimitBackoff = rateLimitBackoff;
         this.waitRegistry = waitRegistry;
+        this.metrics = metrics;
         this.totalPermits = new Semaphore(properties.getConcurrency());
         this.nonP0Permits = new Semaphore(Math.max(0,
                 properties.getConcurrency() - properties.getReservedP0Concurrency()));
-        this.workers = Executors.newFixedThreadPool(properties.getConcurrency());
+        this.workers = metrics.monitor(
+                Executors.newFixedThreadPool(properties.getConcurrency()), "aiQueueWorkers");
     }
 
     @Scheduled(fixedDelayString = "${ai.scheduling.poll-delay-ms:50}")
@@ -83,11 +88,19 @@ public class AiQueueDispatcher {
         if (!acquire(p0)) return false;
         LocalDateTime leaseExpiry = localNow.plus(properties.getLeaseDuration());
         if (taskMapper.claimQueued(selected.getTaskId(), selected.getVersion(), owner, leaseExpiry, localNow) != 1) {
+            metrics.dispatched(selected.getEffectivePriority(), "state_conflict");
             release(p0);
             return false;
         }
         cursor.set(decision.nextCursor());
-        workers.submit(() -> executeClaimed(selected.getTaskId(), p0));
+        metrics.dispatched(selected.getEffectivePriority(), "claimed");
+        try {
+            workers.submit(() -> executeClaimed(selected.getTaskId(), p0));
+        } catch (RejectedExecutionException exception) {
+            metrics.dispatched(selected.getEffectivePriority(), "executor_rejected");
+            release(p0);
+            throw exception;
+        }
         return true;
     }
 
@@ -129,7 +142,9 @@ public class AiQueueDispatcher {
             if (attemptMapper.transition(attempt.getAttemptId(), "ACKNOWLEDGED", "SUCCEEDED", null,
                     utcNow()) != 1) throw new IllegalStateException("AI attempt 终态持久化冲突");
             attemptState = "SUCCEEDED";
-            waitRegistry.complete(selectTask(taskId));
+            AiCallTask terminalTask = selectTask(taskId);
+            metrics.terminal(terminalTask, terminal.toLowerCase());
+            waitRegistry.complete(terminalTask);
         } catch (RuntimeException exception) {
             if (exception instanceof AiUpstreamRateLimitException rateLimited) {
                 rateLimitBackoff.onRateLimited(rateLimited.getRetryAfter());
@@ -143,6 +158,8 @@ public class AiQueueDispatcher {
                         resultUncertain ? "UNKNOWN" : "FAILED", error, utcNow());
             }
             waitRegistry.fail(taskId, exception);
+            metrics.terminal(safelySelectTask(taskId), resultUncertain
+                    ? "upstream_result_unknown" : "failed");
         } finally {
             if (heartbeatTask != null) heartbeatTask.cancel(false);
             release(p0);
@@ -169,7 +186,10 @@ public class AiQueueDispatcher {
     }
 
     private void expireIfNeeded(AiCallTask task, Instant now, LocalDateTime localNow) {
-        if (expired(task, now)) taskMapper.expireBeforeDispatch(task.getTaskId(), task.getVersion(), localNow);
+        if (expired(task, now)
+                && taskMapper.expireBeforeDispatch(task.getTaskId(), task.getVersion(), localNow) == 1) {
+            metrics.terminal(task, "expired");
+        }
     }
 
     private boolean expired(AiCallTask task, Instant now) {
@@ -190,6 +210,14 @@ public class AiQueueDispatcher {
 
     private AiCallTask selectTask(String taskId) {
         return taskMapper.selectByTaskId(taskId);
+    }
+
+    private AiCallTask safelySelectTask(String taskId) {
+        try {
+            return selectTask(taskId);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private AiCallAttempt attempt(AiCallTask task) {

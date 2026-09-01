@@ -4,6 +4,7 @@ import com.leetmodel.aigateway.entity.AiCallAttempt;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,12 +22,14 @@ public class AiQueueRecoveryService {
     private final AiCallTaskMapper taskMapper;
     private final AiCallAttemptMapper attemptMapper;
     private final AiTaskWaitRegistry waitRegistry;
+    private final AiGatewayMetrics metrics;
 
     public AiQueueRecoveryService(AiCallTaskMapper taskMapper, AiCallAttemptMapper attemptMapper,
-                                  AiTaskWaitRegistry waitRegistry) {
+                                  AiTaskWaitRegistry waitRegistry, AiGatewayMetrics metrics) {
         this.taskMapper = taskMapper;
         this.attemptMapper = attemptMapper;
         this.waitRegistry = waitRegistry;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${ai.scheduling.recovery-delay-ms:5000}")
@@ -42,14 +45,17 @@ public class AiQueueRecoveryService {
     private int recover(AiCallTask task, LocalDateTime now) {
         AiCallAttempt attempt = attemptMapper.selectLatest(task.getTaskId());
         if (attempt == null) {
-            return "LEASED".equals(task.getState())
+            int updated = "LEASED".equals(task.getState())
                     ? taskMapper.releaseExpiredLeaseWithoutAttempt(task.getTaskId(), now) : 0;
+            if (updated == 1) metrics.recovered("released_without_attempt");
+            return updated;
         }
         if ("PREPARED".equals(attempt.getState())) {
             if (attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "FAILED",
                     "AI_LEASE_EXPIRED_BEFORE_DISPATCH", now) != 1) return 0;
             int updated = taskMapper.requeueExpiredBeforeDispatch(task.getTaskId(), task.getVersion(), now);
             if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
+            metrics.recovered("requeued_before_dispatch");
             return updated;
         }
         if ("RUNNING".equals(task.getState())
@@ -58,7 +64,12 @@ public class AiQueueRecoveryService {
                     UNKNOWN_RESULT, now) != 1) return 0;
             int updated = taskMapper.failExpiredRunningUnknown(task.getTaskId(), task.getVersion(), now);
             if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
-            if (updated == 1) waitRegistry.complete(taskMapper.selectByTaskId(task.getTaskId()));
+            if (updated == 1) {
+                metrics.recovered("upstream_result_unknown");
+                AiCallTask terminal = taskMapper.selectByTaskId(task.getTaskId());
+                metrics.terminal(terminal, "upstream_result_unknown");
+                waitRegistry.complete(terminal);
+            }
             return updated;
         }
         return 0;

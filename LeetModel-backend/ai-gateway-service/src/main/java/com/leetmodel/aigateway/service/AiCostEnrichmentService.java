@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.service;
 import com.leetmodel.aigateway.config.CostEnrichmentProperties;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,16 +24,20 @@ public class AiCostEnrichmentService {
     private final AiCallLogMapper mapper;
     private final CostEnrichmentProperties properties;
     private final Clock clock;
+    private final AiGatewayMetrics metrics;
 
     @Autowired
-    public AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties) {
-        this(mapper, properties, Clock.systemUTC());
+    public AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
+                                   AiGatewayMetrics metrics) {
+        this(mapper, properties, Clock.systemUTC(), metrics);
     }
 
-    AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties, Clock clock) {
+    AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
+                            Clock clock, AiGatewayMetrics metrics) {
         this.mapper = mapper;
         this.properties = properties;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${ai.cost-enrichment.poll-delay-ms:60000}")
@@ -50,15 +55,20 @@ public class AiCostEnrichmentService {
     void enrichOne(AiCallLog record, LocalDateTime now) {
         Estimate estimate = estimate(record);
         if (estimate != null) {
-            mapper.completeEstimatedCost(record.getId(), estimate.amount(), estimate.currency(),
-                    estimate.snapshotVersion(), now);
+            if (mapper.completeEstimatedCost(record.getId(), estimate.amount(), estimate.currency(),
+                    estimate.snapshotVersion(), now) == 1) {
+                metrics.costEnriched(record.getCallType(), estimate.amount(), estimate.currency(),
+                        "PRICE_SNAPSHOT_ESTIMATED");
+            }
             return;
         }
         int attempts = record.getCostEnrichmentAttempts() == null
                 ? 0 : record.getCostEnrichmentAttempts();
         boolean exhausted = attempts + 1 >= properties.getMaxAttempts();
-        mapper.recordCostEnrichmentMiss(record.getId(), exhausted ? "FINAL_UNKNOWN" : "RETRY_WAIT",
+        int updated = mapper.recordCostEnrichmentMiss(record.getId(),
+                exhausted ? "FINAL_UNKNOWN" : "RETRY_WAIT",
                 now, exhausted ? null : now.plus(properties.getRetryDelay()));
+        if (updated == 1) metrics.costEnrichmentMiss(exhausted);
     }
 
     private Estimate estimate(AiCallLog record) {
