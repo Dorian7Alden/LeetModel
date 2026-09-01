@@ -138,9 +138,13 @@ cd LeetModel-backend
 # 快速配置门禁，以及包含临时服务与 Prometheus 中断的完整运行验收
 ./scripts/verify-observability-stack.sh --static
 ./scripts/verify-observability-stack.sh
+
+# 生产告警规则/路由静态门禁，以及隔离 webhook 的 firing/resolved 闭环演练
+./scripts/verify-alerting-contract.sh
+./scripts/drill-alerting.sh
 ```
 
-Prometheus、Alertmanager、Grafana、OAP 和 Horizon 分别只在本机 `19090`、`19093`、`13000`、`11234/11800/12800/17128` 与 `18080` 提供端口。Grafana 自动加载系统总览、MVP 主链、AI 资源与稳定性、异步任务、可靠消息和遥测管道六类看板。完整验收使用临时端口 `18094`，不停止现有标准端口业务服务。
+Prometheus、Alertmanager、Grafana、OAP 和 Horizon 分别只在本机 `19090`、`19093`、`13000`、`11234/11800/12800/17128` 与 `18080` 提供端口。Grafana 自动加载系统总览、MVP 主链、AI 资源与稳定性、异步任务、可靠消息和遥测管道六类看板。22 条规则覆盖服务/遥测空洞、Outbox/MQ/DLQ、AI 队列/UNKNOWN 和领域租约；版本化 Runbook 位于 `docs/runbooks/observability/`。告警闭环演练只使用临时端口 `19094`，指标栈验收只使用临时端口 `18094`，均不停止现有标准端口业务服务。
 
 #### 启动 RocketMQ
 
@@ -205,6 +209,8 @@ mvn test
 # Metrics/Grafana/Alertmanager 静态与真实运行验收
 ./scripts/verify-observability-stack.sh --static
 ./scripts/verify-observability-stack.sh
+./scripts/verify-alerting-contract.sh
+./scripts/drill-alerting.sh
 
 # 前端生产构建
 cd ../LeetModel-frontend

@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] MET-04 告警规则与 Runbook 闭环
+### [~] LOG-01 全服务统一 JSON 日志
 
-目标：在已验证的 Prometheus/Grafana/Alertmanager 基础上，把不可用、消息不收敛、AI 实时等待和未知结果、遥测空洞转化为可执行且可恢复的主动告警。
+目标：为 13 个 Java 服务建立一份可版本化、机器可解析且不替代领域事实或操作审计的 JSON 日志基线，同时保留 stdout 与本地轮转兜底。
 
-入口：MET-02 核心指标、MET-03 记录规则与六类看板、Alertmanager `critical/warning` 路由、消息重试/DLQ 语义、AI P0 最大排队时间与 `AI_UPSTREAM_RESULT_UNKNOWN` 禁止自动重试边界。
+入口：OBS-02 关联标识/MDC 契约、现有 gateway/user/problem 的 `logback-spring.xml`、启动脚本日志重定向，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的字段、级别与异步阶段规范。
 
-主流程：从已有业务容量与恢复语义确认阈值 → 为服务不可用、抓取空洞、Outbox/BLOCKED、Broker 指标不可用与积压、DLQ、AI P0 等待和 UNKNOWN 编写记录/告警规则 → 为每条规则补齐影响、当前值、看板、调查入口、Runbook 与恢复条件 → 验证分组、抑制、静默、恢复通知和规则自身可用性 → 用隔离测试目标执行 firing/resolved 演练。
+主流程：盘点全部 Logback 配置与直接日志调用 → 在公共模块提供统一 JSON encoder/schema 与资源字段 → 为 HTTP、应用、Outbox/MQ/Inbox、领域 Worker attempt 和 AI 调用定义稳定 `eventCode` 与结构化字段 → 让 13 个服务显式导入同一基线 → 约束环境级别、SQL/框架日志和 heartbeat 噪声 → 验证 stdout JSON 与本地轮转文件在故障时仍可读。
 
-完成标准：`promtool` 与 `amtool` 校验全部规则和路由；每条严重告警都有稳定标签与完整注解并链接版本化 Runbook；真实演练覆盖告警触发、分组/抑制/静默、恢复通知和 Grafana 调查入口；不可用事实不会被零值掩盖；未取得真实基线前不新增 HTTP 延迟或错误率 SLO。
+完成标准：全部服务输出同一 schema，至少包含 UTC 时间、级别、eventCode、服务/环境/版本/实例、logger/thread、业务 `traceId` 与可用的 SkyWalking/HTTP/领域 attempt/异常字段；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO；启动、轮转与 schema 负面门禁通过。
 
-修改范围：Prometheus 记录与告警规则、Alertmanager 本地可验证通知接收器和路由、Grafana 告警入口、故障注入/验收脚本、Runbook 与正式可观测文档。
+修改范围：公共日志配置与依赖、13 个服务配置、必要的稳定事件字段/过滤器、启动脚本、日志 schema 测试和正式日志文档。
 
-非目标：不接入生产 Pager/IM 凭据，不伪造 HTTP SLO，不实现 SkyWalking Trace、JSON 日志、中央审计或业务恢复写接口。
+非目标：本卡不实现统一脱敏/CRLF 防护与故障限频（LOG-02），不接入 OAP Reporter/LAL/中央查询（LOG-03），不以运行日志替代审计，不记录敏感正文或凭据。
 
 ## 系统保障实施路线图
 
@@ -44,13 +44,6 @@
 ### 阶段 0：实施基线与公共约束
 
 ### 阶段 1：Metrics、健康检查与主动告警
-
-#### [ ] MET-04 告警规则与 Runbook 闭环
-
-- 依赖：`MET-02`、`MET-03`。
-- 范围：落地 MQ/Outbox 最老年龄、DLQ、AI P0 等待、AI UNKNOWN、服务不可用和遥测空洞告警；HTTP SLO 在取得基线后设定。
-- 验收：每条严重告警包含影响、当前值、看板、调查入口、Runbook 和恢复条件；完成分组、抑制、静默及恢复通知验证。
-
 
 ### 阶段 2：结构化日志系统
 
