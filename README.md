@@ -13,16 +13,16 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 
 ### 发布状态
 
-当前稳定版本为 `v2.0.0`，已完成微服务架构下的 MVP 主链验收。普通用户可完成“选题 → 组队 → 提交 PDF → AI 评审 → 论文建议 → 排行榜”闭环，管理员可使用完整管理看板和 AI 质量评价能力。
+当前已发布稳定版本为 `v2.0.0`。`dev` 分支在该发布基线上继续开发，已经完成微服务架构下的 MVP 主链验收。普通用户可完成“选题 → 组队 → 提交 PDF → AI 评审 → 论文建议 → 排行榜”闭环，管理员可使用完整管理看板和 AI 质量评价能力。
 
-本版本已通过前端生产构建、后端 20 项 Maven Reactor 全量构建与 605 项自动化测试、12 个业务服务真实启动，以及桌面端和 `390x844` 移动端浏览器复验。RocketMQ 五条业务消息协议、六个相关服务的全新 MySQL 迁移和统一消息运维接口也已完成真实环境验收。
+当前 `dev` 基线已通过前端生产构建、后端 20 项 Maven Reactor 全量构建与 605 项自动化测试、13 个业务服务真实启动，以及桌面端和 `390x844` 移动端浏览器复验。RocketMQ 五条业务消息协议、六个相关服务的全新 MySQL 迁移和统一消息运维接口也已完成真实环境验收。这些标签之后的开发成果不追溯计入 `v2.0.0` 发布内容。
 
 #### 版本沿革
 
 | 版本 | 架构 | 说明 |
 |------|------|------|
 | `v1.0.0` | Spring Boot 单体架构 | 2026-05-04 停更前的单体项目版本 |
-| `v2.0.0` | Spring Cloud 微服务架构 | 当前版本，完成选题、组队、提交、AI 评审、建议、排行和管理闭环 |
+| `v2.0.0` | Spring Cloud 微服务架构 | 当前已发布版本，完成选题、组队、提交、AI 评审、建议、排行和管理闭环 |
 
 ### 主要功能
 
@@ -47,7 +47,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `rag_kb/` | 当前 RAG 知识源。V1 只索引 `数学建模/` 下排除 README 后的整理内容 |
 | `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与历史知识库 |
 | `CONTEXT.md` | 给 AI 看的行为说明与协作规则 |
-| `TODO.md` | 开发计划与进度追踪 |
+| `TODO.md` | 当前任务、候选任务和条件任务 |
 | `README.md` | 本文件，项目正常说明 |
 
 ### 后端模块
@@ -60,10 +60,11 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `problem-service` | 题目服务，题目与标签 CRUD、分页筛选 |
 | `admin-service` | 管理后台服务，Feign 聚合统计 |
 | `submission-service` | PDF 上传、版本记录、最终提交与评审触发 |
-| `ai-gateway-service` | AI 供应商适配、调用路由和审计 |
+| `ai-gateway-service` | AI 业务调度、new-api 协议适配、调用审计和计量 |
 | `ai-review-service` | AI 论文评审工作流与结构化结果 |
 | `ai-suggestion-service` | 论文改进建议生成与查询 |
 | `ai-assistant-service` | AI 客服会话、消息历史和受控工具 |
+| `knowledge-retrieval-service` | 版本化知识检索、来源适用性校验和检索快照 |
 | `ranking-service` | 最终提交排名计算与查询 |
 | `ai-evaluation-service` | AI 评审版本的固定测试集与质量评价 |
 | `common` | 公共模块，含 common-core、common-api、common-security、common-cache、common-messaging、common-ai |

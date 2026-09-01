@@ -36,7 +36,7 @@ flowchart LR
         teamService["team-service"]
         problemService["problem-service"]
         reviewService["ai-review-service"]
-        suggestionService["ai-suggestion-service，目标设计"]
+        suggestionService["ai-suggestion-service"]
         evaluationService["ai-evaluation-service"]
     end
 

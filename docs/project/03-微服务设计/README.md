@@ -21,4 +21,4 @@
 | [ai-review-service/](ai-review-service/) | 版本化 AI 论文评审；V2 强制使用版本化 PDF 解析并输出证据说明 |
 | [ranking-service/](ranking-service/) | 论文评分口径、题目排行和队伍排名查询 |
 | [admin-service/](admin-service/) | 管理端聚合、AI 调用监控和 AI 测试控制 |
-| [common/](common/) | 公共 Maven 模块，包含基础能力、服务调用、认证鉴权和 AI 调用客户端 |
+| [common/](common/) | 公共 Maven 模块，包含基础能力、服务调用、认证鉴权、三级缓存、可靠消息和 AI 调用客户端 |

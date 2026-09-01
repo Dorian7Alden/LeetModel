@@ -61,7 +61,7 @@ RAG V1 归 `ai-assistant-service`。`ai-review-service` 不是第一版知识检
 
 #### 文档位置
 
-- `docs/project/02-架构设计/new-api第三方网关集成.md` 明确说明 new-api 只完成本地 Docker 部署，尚未接入 LeetModel AI 调用链。
+- D-01 核验时的 `docs/project/02-架构设计/new-api第三方网关集成.md` 版本说明 new-api 只完成本地 Docker 部署，尚未接入 LeetModel AI 调用链；该状态随后已由 S1 改变。
 - 根 `README.md` 在 D-01 核验时标明 `ai-gateway-service` 尚未切换调用链。
 
 #### 代码与配置证据
