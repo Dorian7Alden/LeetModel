@@ -6,6 +6,7 @@ spring:
   config:
     import:
       - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
 
 server:
   shutdown: graceful

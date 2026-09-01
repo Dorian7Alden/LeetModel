@@ -93,6 +93,8 @@ for index in "${!services[@]}"; do
   jar="${BACKEND_DIR}/${service}/target/${service}-0.0.1-SNAPSHOT.jar"
   pid_file="${RUNTIME_DIR}/${service}.pid"
   log_file="${RUNTIME_DIR}/logs/${service}.log"
+  structured_log_dir="${RUNTIME_DIR}/logs"
+  service_instance="${LEETMODEL_SERVICE_INSTANCE_PREFIX:-local}-${service}"
 
   java_command=(java)
   if [[ "${SKYWALKING_ENABLED}" == "true" ]]; then
@@ -104,7 +106,11 @@ for index in "${!services[@]}"; do
     )
   fi
 
-  nohup "${java_command[@]}" -jar "${jar}" </dev/null >"${log_file}" 2>&1 &
+  nohup env \
+    "LEETMODEL_LOG_DIR=${structured_log_dir}" \
+    "SERVICE_INSTANCE=${service_instance}" \
+    "SERVICE_VERSION=${SERVICE_VERSION:-0.0.1-SNAPSHOT}" \
+    "${java_command[@]}" -jar "${jar}" </dev/null >"${log_file}" 2>&1 &
   pid=$!
   printf '%s\n' "${pid}" >"${pid_file}"
 

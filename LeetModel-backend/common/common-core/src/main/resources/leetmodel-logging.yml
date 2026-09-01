@@ -1,0 +1,27 @@
+# LeetModel 全服务结构化日志基线。
+# 业务服务通过 spring.config.import 显式导入；LOG-02 在同一 schema 上补充脱敏与限频。
+logging:
+  config: classpath:leetmodel-logback-spring.xml
+  register-shutdown-hook: true
+  level:
+    root: INFO
+    com.leetmodel: INFO
+    org.apache.ibatis: INFO
+    com.baomidou.mybatisplus: INFO
+    org.springframework.jdbc.core: INFO
+
+spring:
+  main:
+    banner-mode: off
+  output:
+    ansi:
+      enabled: never
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+
+sa-token:
+  is-print: false
