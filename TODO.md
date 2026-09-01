@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] LOG-01 全服务统一 JSON 日志
+### [~] LOG-02 脱敏、注入防护与日志限频
 
-目标：为 13 个 Java 服务建立一份可版本化、机器可解析且不替代领域事实或操作审计的 JSON 日志基线，同时保留 stdout 与本地轮转兜底。
+目标：在 `leetmodel.log.v1` 白名单 schema 上建立一条集中、可测试的日志安全边界，使 Token/凭据/业务正文和 CR/LF 注入不能进入任何服务输出，并让持续依赖故障或积压只产生有界日志。
 
-入口：OBS-02 关联标识/MDC 契约、现有 gateway/user/problem 的 `logback-spring.xml`、启动脚本日志重定向，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的字段、级别与异步阶段规范。
+入口：LOG-01 公共 `LeetModelJsonLayout`、`LogFieldNames/LogEventCodes`、现有直接日志调用，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的脱敏、级别和故障语义。
 
-主流程：盘点全部 Logback 配置与直接日志调用 → 在公共模块提供统一 JSON encoder/schema 与资源字段 → 为 HTTP、应用、Outbox/MQ/Inbox、领域 Worker attempt 和 AI 调用定义稳定 `eventCode` 与结构化字段 → 让 13 个服务显式导入同一基线 → 约束环境级别、SQL/框架日志和 heartbeat 噪声 → 验证 stdout JSON 与本地轮转文件在故障时仍可读。
+主流程：盘点自由文本和异常入口 → 定义字段级敏感分类、遮蔽/哈希/拒绝与长度上限 → 在布局边界清理 CR/LF、控制字符和超长字段 → 收敛 GlobalExceptionHandler、Gateway、存储、缓存、消息、领域 Worker、AI/new-api 日志，不记录完整请求响应、论文、Prompt、回答、知识片段、Payload、第三方 URL 查询或异常原文 → 为重复故障建立按稳定事件维度的令牌桶/窗口聚合，并以计数表达被抑制数量 → 建立跨 13 服务的恶意输入与日志风暴负面门禁。
 
-完成标准：全部服务输出同一 schema，至少包含 UTC 时间、级别、eventCode、服务/环境/版本/实例、logger/thread、业务 `traceId` 与可用的 SkyWalking/HTTP/领域 attempt/异常字段；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO；启动、轮转与 schema 负面门禁通过。
+完成标准：密码、验证码、Authorization/Cookie/JWT、数据库/对象存储/模型渠道凭据、Relay Token、论文/Prompt/回答/RAG 片段/Embedding、消息 Payload 和第三方 URL 敏感部分均不能出现在 stdout 或轮转文件；CR/LF 和控制字符不能伪造第二条记录；字段长度有界；持续失败不会按请求/消息无限刷屏，首条、周期汇总和恢复事件仍可观察。
 
-修改范围：公共日志配置与依赖、13 个服务配置、必要的稳定事件字段/过滤器、启动脚本、日志 schema 测试和正式日志文档。
+修改范围：公共日志安全策略/布局、必要的调用点结构化改造、异常处理与 URL/对象存储日志、限频状态与指标、负面测试和正式日志文档。
 
-非目标：本卡不实现统一脱敏/CRLF 防护与故障限频（LOG-02），不接入 OAP Reporter/LAL/中央查询（LOG-03），不以运行日志替代审计，不记录敏感正文或凭据。
+非目标：本卡不连接 SkyWalking Reporter/OAP/LAL（LOG-03），不修改业务 API 返回正文，不把运行日志升级为操作审计，不在脱敏后保留可逆秘密。
 
 ## 系统保障实施路线图
 
@@ -46,12 +46,6 @@
 ### 阶段 1：Metrics、健康检查与主动告警
 
 ### 阶段 2：结构化日志系统
-
-#### [ ] LOG-01 全服务统一 JSON 日志
-
-- 依赖：`OBS-02`。
-- 范围：提供可版本化 Logback JSON 规范，统一时间、服务资源、Trace、HTTP、业务关联、异步 attempt 和异常字段；保留 stdout 与本地轮转兜底。
-- 验收：全部服务输出同 schema；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO。
 
 #### [ ] LOG-02 脱敏、注入防护与日志限频
 
