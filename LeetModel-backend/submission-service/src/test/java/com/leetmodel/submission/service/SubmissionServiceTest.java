@@ -3,7 +3,6 @@ package com.leetmodel.submission.service;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.result.Result;
@@ -13,7 +12,6 @@ import com.leetmodel.submission.entity.SubmissionLock;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.vo.SubmissionVO;
-import com.leetmodel.submission.config.ReviewDispatchProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,10 +25,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class SubmissionServiceTest {
     @Mock SubmissionMapper submissionMapper; @Mock SubmissionLockMapper lockMapper;
-    @Mock TeamFeignClient teamFeignClient; @Mock ReviewFeignClient reviewFeignClient;
+    @Mock TeamFeignClient teamFeignClient;
     @Mock ProblemFeignClient problemFeignClient;
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
-    @Mock ReviewDispatchProperties reviewDispatchProperties;
     @Mock ReviewDispatchQueryService reviewDispatchQueryService;
     @Mock SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
@@ -114,29 +111,11 @@ class SubmissionServiceTest {
     @Test
     void mqPrimaryReturnsWaitingDispatchWithoutRequestThreadFeignCall() {
         Submission submission = submission(101L, 1);
-        when(reviewDispatchProperties.getTransport())
-                .thenReturn(ReviewDispatchProperties.Transport.MQ_PRIMARY);
         when(reviewDispatchQueryService.status(101L)).thenReturn("WAITING_DISPATCH");
 
         SubmissionVO response = service.triggerReview(submission);
 
         assertEquals("WAITING_DISPATCH", response.getReviewDispatchStatus());
-        verify(reviewFeignClient, never()).createVersionedTask(any(), any(), any(), any());
-    }
-
-    @Test
-    void legacyModeUsesOnlyIdempotentRequestThreadFeignCall() {
-        Submission submission = submission(101L, 1);
-        when(reviewDispatchProperties.getTransport())
-                .thenReturn(ReviewDispatchProperties.Transport.LEGACY_FEIGN);
-        when(reviewFeignClient.createVersionedTask(101L, 1L, 100L, "EVIDENCE_REVIEW_V2"))
-                .thenReturn(Result.ok(901L));
-
-        SubmissionVO response = service.triggerReview(submission);
-
-        assertEquals("DISPATCHED", response.getReviewDispatchStatus());
-        verify(reviewFeignClient).createVersionedTask(101L, 1L, 100L, "EVIDENCE_REVIEW_V2");
-        verify(reviewDispatchQueryService).markLegacyDispatched(101L, 901L);
     }
 
     private TeamDTO team() {

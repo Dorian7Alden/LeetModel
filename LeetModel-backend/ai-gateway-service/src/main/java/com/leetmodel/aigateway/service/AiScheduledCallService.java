@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.aigateway.entity.AiCallTask;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
@@ -92,6 +93,7 @@ public class AiScheduledCallService {
         AiCallTask task = new AiCallTask();
         task.setTaskId(UUID.randomUUID().toString());
         task.setCallId(UUID.randomUUID().toString());
+        task.setTraceId(currentTraceId());
         task.setCallerService(context == null ? "LEGACY" : context.callerService());
         task.setIdempotencyKey(context == null ? "legacy:" + task.getTaskId() : context.idempotencyKey());
         task.setCallType(callType);
@@ -116,6 +118,12 @@ public class AiScheduledCallService {
         task.setUpdateTime(localNow);
         task.setDeleted(0);
         return task;
+    }
+
+    private String currentTraceId() {
+        String value = TraceIdUtil.getTraceId();
+        return value == null || value.isBlank() || value.length() > 100
+                ? UUID.randomUUID().toString() : value;
     }
 
     private Duration maxQueueWait(AiCallPriority priority) {

@@ -7,6 +7,7 @@ import com.leetmodel.common.messaging.MessageInbox;
 import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.common.messaging.MessagePublisher;
 import com.leetmodel.common.messaging.MessagingNamespace;
+import com.leetmodel.common.messaging.MessagingDomainBacklogContributor;
 import com.leetmodel.common.messaging.internal.JdbcMessageInbox;
 import com.leetmodel.common.messaging.internal.JdbcMessageOutbox;
 import com.leetmodel.common.messaging.internal.MessagingHealthIndicator;
@@ -15,6 +16,10 @@ import com.leetmodel.common.messaging.internal.ObservedMessageInbox;
 import com.leetmodel.common.messaging.internal.OutboxRelay;
 import com.leetmodel.common.messaging.internal.OutboxRetryPolicy;
 import com.leetmodel.common.messaging.internal.RocketMqMessagePublisher;
+import com.leetmodel.common.messaging.internal.RocketMqConsumerControl;
+import com.leetmodel.common.messaging.internal.RocketMqDeadLetterOperations;
+import com.leetmodel.common.messaging.internal.MessagingOperationsController;
+import com.leetmodel.common.messaging.internal.MessagingOperationsService;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -34,6 +39,7 @@ import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfigu
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,6 +48,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * `common-messaging` Spring Boot 自动配置。
@@ -276,6 +283,47 @@ public class MessagingAutoConfiguration {
         @Bean(name = "messagingHealthIndicator")
         public HealthIndicator messagingHealthIndicator(JdbcMessageOutbox outbox) {
             return new MessagingHealthIndicator(outbox);
+        }
+
+        /** 创建当前服务的真实 RocketMQ consumer 控制器。 */
+        @Bean
+        public RocketMqConsumerControl rocketMqConsumerControl(ApplicationContext applicationContext) {
+            return new RocketMqConsumerControl(applicationContext);
+        }
+
+        /** 创建只读 Broker DLQ 查询器；恢复仍必须经过源 Outbox。 */
+        @Bean
+        public RocketMqDeadLetterOperations rocketMqDeadLetterOperations(
+                @Value("${spring.application.name}") String applicationName,
+                ObjectProvider<RocketMQTemplate> rocketMQTemplate,
+                MessageCodec codec,
+                RocketMqConsumerControl consumerControl
+        ) {
+            return new RocketMqDeadLetterOperations(
+                    applicationName, rocketMQTemplate.getIfAvailable(), codec, consumerControl);
+        }
+
+        /** 汇总 Outbox、Inbox、consumer 与可选领域积压。 */
+        @Bean
+        public MessagingOperationsService messagingOperationsService(
+                @Value("${spring.application.name}") String applicationName,
+                JdbcMessageOutbox outbox,
+                JdbcMessageInbox inbox,
+                RocketMqConsumerControl consumerControl,
+                MessagingMetrics metrics,
+                RocketMqDeadLetterOperations deadLetters,
+                ObjectProvider<MessagingDomainBacklogContributor> backlogContributors
+        ) {
+            List<MessagingDomainBacklogContributor> contributors = backlogContributors.orderedStream().toList();
+            return new MessagingOperationsService(
+                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors);
+        }
+
+        /** 暴露统一内网运维端点。 */
+        @Bean
+        public MessagingOperationsController messagingOperationsController(
+                MessagingOperationsService operationsService) {
+            return new MessagingOperationsController(operationsService);
         }
     }
 }

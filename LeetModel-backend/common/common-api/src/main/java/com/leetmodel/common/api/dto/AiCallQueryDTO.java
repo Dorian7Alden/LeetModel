@@ -20,6 +20,7 @@ public class AiCallQueryDTO {
     @Size(max = 64) private String featureCode;
     @Size(max = 64) private String operationCode;
     @Size(max = 64) private String callId;
+    @Size(max = 100) private String traceId;
     @Size(max = 128) private String businessTaskId;
     @Size(max = 128) private String evaluationTaskId;
     @Size(max = 128) private String ragIndexVersion;

@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
+import org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -73,6 +74,23 @@ class MessagingAutoConfigurationTest {
                     assertThat(context).hasSingleBean(MessageOutbox.class);
                     assertThat(context).hasSingleBean(MessageInbox.class);
                 });
+    }
+
+    @Test
+    void shouldCreateValidatedOperationsController() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        ValidationAutoConfiguration.class,
+                        MessagingAutoConfiguration.class
+                ))
+                .withUserConfiguration(TestBeans.class)
+                .withPropertyValues(
+                        "spring.application.name=test-service",
+                        "leetmodel.messaging.enabled=true",
+                        "leetmodel.messaging.relay.enabled=false"
+                )
+                .run(context -> assertThat(context)
+                        .hasSingleBean(com.leetmodel.common.messaging.internal.MessagingOperationsController.class));
     }
 
     @Test

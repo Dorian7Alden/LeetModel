@@ -14,6 +14,9 @@ public final class MessagingMetrics {
     private final Counter publishBlocked;
     private final Counter inboxConsumed;
     private final Counter inboxDuplicate;
+    private final Counter replayAccepted;
+    private final Counter consumerPaused;
+    private final Counter consumerResumed;
 
     /**
      * 创建指标并绑定 Outbox 状态仪表。
@@ -28,6 +31,9 @@ public final class MessagingMetrics {
             publishBlocked = null;
             inboxConsumed = null;
             inboxDuplicate = null;
+            replayAccepted = null;
+            consumerPaused = null;
+            consumerResumed = null;
             return;
         }
         publishSuccess = counter(registry, "publish", "success");
@@ -35,6 +41,9 @@ public final class MessagingMetrics {
         publishBlocked = counter(registry, "publish", "blocked");
         inboxConsumed = counter(registry, "consume", "consumed");
         inboxDuplicate = counter(registry, "consume", "duplicate");
+        replayAccepted = counter(registry, "replay", "accepted");
+        consumerPaused = counter(registry, "consumer_control", "paused");
+        consumerResumed = counter(registry, "consumer_control", "resumed");
         Gauge.builder("leetmodel.messaging.outbox.records", outbox, value -> value.count(OutboxStatus.PENDING))
                 .tag("status", "pending")
                 .register(registry);
@@ -69,6 +78,21 @@ public final class MessagingMetrics {
     /** 记录重复消费。 */
     public void duplicate() {
         increment(inboxDuplicate);
+    }
+
+    /** 记录人工接受的重放事件数量。 */
+    public void replayed(int count) {
+        if (replayAccepted != null && count > 0) replayAccepted.increment(count);
+    }
+
+    /** 记录一次真实 consumer 暂停。 */
+    public void consumerPaused() {
+        increment(consumerPaused);
+    }
+
+    /** 记录一次真实 consumer 恢复。 */
+    public void consumerResumed() {
+        increment(consumerResumed);
     }
 
     private Counter counter(MeterRegistry registry, String operation, String outcome) {

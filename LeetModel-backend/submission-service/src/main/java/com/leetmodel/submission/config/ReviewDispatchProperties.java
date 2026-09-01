@@ -24,8 +24,6 @@ public class ReviewDispatchProperties {
      * 评审任务传输方式，任一时刻只允许一种方式推进 Outbox。
      */
     public enum Transport {
-        /** 迁移前请求线程同步触发，仅用于短期回退。 */
-        LEGACY_FEIGN,
         /** Outbox Relay 发布 RocketMQ。 */
         MQ_PRIMARY,
         /** Outbox Relay 通过幂等 Feign 接口投递。 */

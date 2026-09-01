@@ -48,11 +48,9 @@ public class ReviewDispatchConfiguration {
     ) {
         return () -> {
             boolean relayEnabled = messagingProperties.getRelay().isEnabled();
-            boolean legacy = dispatchProperties.getTransport()
-                    == ReviewDispatchProperties.Transport.LEGACY_FEIGN;
-            if (legacy == relayEnabled) {
+            if (!relayEnabled) {
                 throw new IllegalStateException(
-                        "LEGACY_FEIGN 必须关闭 Outbox Relay；MQ_PRIMARY/FEIGN_RELAY 必须启用 Relay");
+                        dispatchProperties.getTransport() + " 必须启用 Outbox Relay");
             }
         };
     }

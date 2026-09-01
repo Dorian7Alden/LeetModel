@@ -230,8 +230,8 @@ Outbox 已发布记录至少保留 30 天，RocketMQ 消息保留期首期目标
 
 1. 根据 eventId、原消息、Inbox、领域任务和服务日志确定根因。
 2. 修复代码、配置或依赖，并验证相同消息可处理。
-3. 由管理员填写原因并执行单条或受控批量重放。
-4. 重放保留原 `eventId` 和 `idempotencyKey`，追加 `replayId`、原 messageId、操作者与重放时间。
+3. 由管理员填写原因并执行单条或最多 20 条的受控批量重放。
+4. 当前实现从源服务原始 Outbox 恢复事件，保留原 `eventId`、`idempotencyKey` 与正文，只清除旧 Broker 回执并重新进入 `PENDING`；操作者、原因和结果进入管理调用链及服务审计日志。
 5. 观察 Inbox 结果和领域任务，不以“消息已重新发送”代替业务完成证明。
 
 永久无效消息可以在记录原因后归档，不伪造消费成功。任何 DLQ 新增立即告警，不能把 DLQ 当作普通积压区。
@@ -388,6 +388,8 @@ MQ5 实施结果：任务创建、失败项显式重试和管理员恢复都在�
 | 排行重建中重复事件 | requested revision 高于 completed revision | 当前完成后最多补跑一次 | problemId 活跃任务唯一约束 |
 | 消息超过 Broker 保留期 | Outbox、源业务事实和对账差异仍可查 | 受控重放或对账补建 | 原 eventId 与领域幂等键 |
 
+MQ6 已为故障矩阵建立两层证据：事务回滚、数据库短故障、重复消费、租约过期、fencing、乱序合并和 UNKNOWN 由自动化测试覆盖；`scripts/drill-messaging-failures.sh` 提供 Broker 重启、Broker 网络暂停/恢复、MySQL 暂停/恢复、指定消息服务 SIGKILL 和真实重复投递探针。脚本每次只执行一个明确动作，网络或数据库暂停不会自动串行执行，避免演练失败时把本地环境永久留在故障态。
+
 
 ### 可观测性与管理
 
@@ -403,6 +405,14 @@ MQ5 实施结果：任务创建、失败项显式重试和管理员恢复都在�
 管理端只通过各所有者服务的只读或受控操作接口查询、暂停、恢复和重放，不直接修改 Broker offset、Outbox、Inbox 或领域任务表。Dashboard 用于观察 Broker，不成为业务事实源。
 
 日志只记录标识、状态、耗时、次数和脱敏错误，不记录消息正文中的业务敏感内容。
+
+MQ6 的实际运维入口位于管理端“AI 中心 / 消息运维”：
+
+- 五个服务分别从本地库返回脱敏 Outbox、Inbox、领域任务积压和真实 consumer 状态；admin-service 只做聚合，部分服务不可用时显式列出，不伪造零值。
+- Outbox 查询不返回 payload、幂等键、Broker 地址或连接凭据；Inbox 从 MQ6 起持久化 traceId。
+- consumer 暂停/恢复调用 RocketMQ Push Consumer 的 `suspend`/`resume`，不会通过抛出消费异常制造重试风暴。
+- 重放只接受 `PUBLISHED` 或 `BLOCKED` 的原始 Outbox 事件，单批最多 20 条；DLQ 永不自动回灌。
+- ai-gateway-service 在调度任务和调用事实中持久化 traceId，异步执行前恢复 MDC，因此管理端可以通过 `traceId → eventId/Inbox → aiCallId` 查询同一链路。
 
 
 ### 部署与安全
@@ -430,13 +440,12 @@ MQ5 实施结果：任务创建、失败项显式重试和管理员恢复都在�
 4. 再迁移建议唤醒和后台评价，验证在线与批任务隔离。
 5. 完成故障注入、DLQ 重放、积压降级和真实端到端验收后，删除请求线程中的旧直接触发代码。
 
-每条链路使用 `LEGACY_FEIGN`、`MQ_PRIMARY` 和 `FEIGN_RELAY` 三态传输开关：
+评审派发完成迁移后只保留 `MQ_PRIMARY` 和 `FEIGN_RELAY` 两态传输开关：
 
-- `LEGACY_FEIGN` 只用于迁移前基线。
 - `MQ_PRIMARY` 由 Outbox Relay 发送 RocketMQ，是目标生产模式。
 - `FEIGN_RELAY` 仍读取和推进同一 Outbox，但通过幂等 Feign 接口投递，用于 Broker 长故障时受控回退。
 
-任何时刻只能有一个 Relay 模式领取同一 Outbox。禁止在用户请求线程同时发送 MQ 和调用 Feign，避免无法解释的双主链。
+两种模式都必须启用 Relay，且任何时刻只能有一个发布器领取同一 Outbox。用户请求线程中的旧 Feign 触发已删除，禁止绕过 Outbox 建立双主链。
 
 #### 验收门槛
 

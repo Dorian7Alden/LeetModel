@@ -104,7 +104,7 @@ submission-service 独占 `lm_submission` 数据库，并拥有原始 PDF 对象
 
 ## 评审派发配置
 
-`SUBMISSION_REVIEW_TRANSPORT` 默认是 `MQ_PRIMARY`。`FEIGN_RELAY` 在 Broker 长故障时继续读取和推进同一 Outbox，只把发布端替换为幂等 Feign；两者都要求 `leetmodel.messaging.relay.enabled=true`。`LEGACY_FEIGN` 仅保留迁移期兼容，必须同时关闭 Relay。启动校验会拒绝双主或没有 Relay 的危险组合。
+`SUBMISSION_REVIEW_TRANSPORT` 默认是 `MQ_PRIMARY`。`FEIGN_RELAY` 在 Broker 长故障时继续读取和推进同一 Outbox，只把发布端替换为幂等 Feign；两者都要求 `leetmodel.messaging.relay.enabled=true`。用户请求线程旧 Feign 触发已删除，启动校验会拒绝没有 Relay 的危险组合。
 
 ## 文档索引
 

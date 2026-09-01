@@ -11,11 +11,11 @@ class ReviewDispatchConfigurationTest {
     private final ReviewDispatchConfiguration configuration = new ReviewDispatchConfiguration();
 
     @Test
-    void rejectLegacyFeignWhileRelayIsStillEnabled() {
+    void rejectMqPrimaryWhenRelayIsDisabled() {
         ReviewDispatchProperties dispatch = new ReviewDispatchProperties();
-        dispatch.setTransport(ReviewDispatchProperties.Transport.LEGACY_FEIGN);
+        dispatch.setTransport(ReviewDispatchProperties.Transport.MQ_PRIMARY);
         MessagingProperties messaging = new MessagingProperties();
-        messaging.getRelay().setEnabled(true);
+        messaging.getRelay().setEnabled(false);
 
         assertThatThrownBy(() -> configuration.reviewTransportGuard(dispatch, messaging)
                 .afterPropertiesSet()).isInstanceOf(IllegalStateException.class);
