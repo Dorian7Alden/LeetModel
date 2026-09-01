@@ -126,6 +126,22 @@ cd LeetModel-backend
 
 `verify-metric-contract.sh` 校验 HTTP 直方图、关键业务指标和禁止 ID 标签策略。`/actuator/health/liveness` 与 `/readiness` 是编排探针；`info/prometheus` 只允许本机或携带 `X-LeetModel-Management-Token` 且匹配 `MANAGEMENT_TOKEN` 的请求。
 
+#### 启动与验证观测栈
+
+本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 13 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
+
+```bash
+cd LeetModel-backend
+./scripts/start-observability.sh
+./scripts/start-mvp.sh
+
+# 快速配置门禁，以及包含临时服务与 Prometheus 中断的完整运行验收
+./scripts/verify-observability-stack.sh --static
+./scripts/verify-observability-stack.sh
+```
+
+Prometheus、Alertmanager、Grafana、OAP 和 Horizon 分别只在本机 `19090`、`19093`、`13000`、`11234/11800/12800/17128` 与 `18080` 提供端口。Grafana 自动加载系统总览、MVP 主链、AI 资源与稳定性、异步任务、可靠消息和遥测管道六类看板。完整验收使用临时端口 `18094`，不停止现有标准端口业务服务。
+
 #### 启动 RocketMQ
 
 本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个 NORMAL Topic 和五个消费组：
@@ -185,6 +201,10 @@ mvn test
 
 # 可观测基线真实运行验收
 ./scripts/verify-observability-baseline.sh
+
+# Metrics/Grafana/Alertmanager 静态与真实运行验收
+./scripts/verify-observability-stack.sh --static
+./scripts/verify-observability-stack.sh
 
 # 前端生产构建
 cd ../LeetModel-frontend

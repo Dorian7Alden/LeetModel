@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] MET-03 Prometheus、Grafana 与 Alertmanager
+### [~] MET-04 告警规则与 Runbook 闭环
 
-目标：把已落地的 Actuator 与低基数业务指标接入可重复部署的 Prometheus/Grafana/Alertmanager 环境，形成可查询、可展示、可路由且自身可监测的主动观测基础设施。
+目标：在已验证的 Prometheus/Grafana/Alertmanager 基础上，把不可用、消息不收敛、AI 实时等待和未知结果、遥测空洞转化为可执行且可恢复的主动告警。
 
-入口：`docker-compose.observability.yml`、Prometheus 抓取与规则加载配置、Grafana provisioning、Alertmanager 路由、13 个服务的受保护 `/actuator/prometheus`、现有可观测基线脚本。
+入口：MET-02 核心指标、MET-03 记录规则与六类看板、Alertmanager `critical/warning` 路由、消息重试/DLQ 语义、AI P0 最大排队时间与 `AI_UPSTREAM_RESULT_UNKNOWN` 禁止自动重试边界。
 
-主流程：接入 13 个服务和基础设施抓取 → 保护管理 Token 且不经公网 Gateway → 配置规则加载与 Alertmanager 路由 → 预置系统总览、MVP 主链、AI 资源、异步任务、可靠消息和遥测管道六类看板 → 建立静态与真实运行验收 → 验证 Prometheus 中断不影响业务。
+主流程：从已有业务容量与恢复语义确认阈值 → 为服务不可用、抓取空洞、Outbox/BLOCKED、Broker 指标不可用与积压、DLQ、AI P0 等待和 UNKNOWN 编写记录/告警规则 → 为每条规则补齐影响、当前值、看板、调查入口、Runbook 与恢复条件 → 验证分组、抑制、静默、恢复通知和规则自身可用性 → 用隔离测试目标执行 firing/resolved 演练。
 
-完成标准：Prometheus 能发现 13 个服务和自身/OAP/Alertmanager/Grafana；六类 Grafana 看板由版本化 provisioning 加载；规则文件与通知路由通过工具校验；管理端点未被公网路由暴露；真实运行脚本证明抓取、查询、看板加载和 Prometheus 中断 fail-open。
+完成标准：`promtool` 与 `amtool` 校验全部规则和路由；每条严重告警都有稳定标签与完整注解并链接版本化 Runbook；真实演练覆盖告警触发、分组/抑制/静默、恢复通知和 Grafana 调查入口；不可用事实不会被零值掩盖；未取得真实基线前不新增 HTTP 延迟或错误率 SLO。
 
-修改范围：可观测环境 Compose、Prometheus/Grafana/Alertmanager 配置、密钥注入和验证脚本、启动集成以及正式文档。
+修改范围：Prometheus 记录与告警规则、Alertmanager 本地可验证通知接收器和路由、Grafana 告警入口、故障注入/验收脚本、Runbook 与正式可观测文档。
 
-非目标：不在本任务设定尚无真实基线的 HTTP SLO，不提前实现 MET-04 的生产告警阈值与 Runbook，不接入 SkyWalking Agent、JSON 日志或中央审计。
+非目标：不接入生产 Pager/IM 凭据，不伪造 HTTP SLO，不实现 SkyWalking Trace、JSON 日志、中央审计或业务恢复写接口。
 
 ## 系统保障实施路线图
 
@@ -44,12 +44,6 @@
 ### 阶段 0：实施基线与公共约束
 
 ### 阶段 1：Metrics、健康检查与主动告警
-
-#### [ ] MET-03 Prometheus、Grafana 与 Alertmanager
-
-- 依赖：`MET-01`。
-- 范围：加入环境编排、抓取配置、规则加载、通知路由和基础设施自身监测；管理端点不经公网 Gateway 暴露。
-- 验收：建立系统总览、MVP 主链、AI 资源、异步任务、可靠消息和遥测管道看板；Prometheus 中断不影响业务。
 
 #### [ ] MET-04 告警规则与 Runbook 闭环
 
