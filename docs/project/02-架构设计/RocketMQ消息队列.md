@@ -1,8 +1,8 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建，后续按 MQ4 至 MQ6 继续迁移。
+> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建；MQ4 已实现建议任务可靠唤醒与租约恢复，后续按 MQ5 至 MQ6 继续迁移。
 >
-> 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0，RocketMQ Spring 2.3.3（历史 Remoting 客户端 5.1.4）。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复已在 MQ1 验证。
+> 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0、RocketMQ Spring 2.3.3 与 RocketMQ Client 5.3.1。Spring Boot BOM 默认的历史 Client 5.1.4 缺少 Starter 所需的 `setNamespaceV2` API，MQ4 已统一覆盖相关客户端组件并通过真实服务启动。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复均有验证证据。
 
 
 ### 设计目标与当前边界
@@ -263,13 +263,13 @@ Outbox 已发布记录至少保留 30 天，RocketMQ 消息保留期首期目标
 - 工作线程在进入外部 AI 调用前生成稳定 AI 幂等键。进程重启后必须使用相同键查询或复用 AI 网关任务，不能盲目产生第二次调用。
 - AI 网关 attempt 已进入 `DISPATCHING` 或 `ACKNOWLEDGED` 后结果不明时，业务任务进入人工可见的未知或失败状态，不自动重新计费。
 
-ai-review-service 已在 MQ2 补齐运行任务的租约、逐任务 fencing token heartbeat、过期恢复和 AI UNKNOWN 保护；ai-suggestion-service 现有十分钟扫描恢复仍应在 MQ4 迁移为租约和心跳，避免合法长任务被误重置。
+ai-review-service 已在 MQ2 补齐运行任务的租约、逐任务 fencing token heartbeat、过期恢复和 AI UNKNOWN 保护；ai-suggestion-service 已在 MQ4 删除两秒执行扫描和十分钟强制重置，改为同样的租约、heartbeat、fencing 与低频漏唤醒修复，合法长任务不会仅因运行时间超过十分钟被重置。
 
 #### 业务重试矩阵
 
 | 任务与失败阶段 | 首期策略 | 原因 |
 |----------------|----------|------|
-| 评审或建议尚未派发 AI 前的数据库、快照读取和短暂依赖错误 | 最多自动重试 3 次，间隔 10 秒、1 分钟、5 分钟 | 尚未产生模型计费，失败可安全重做 |
+| 评审或建议尚未派发 AI 前的数据库、快照读取和短暂依赖错误 | 首期最多 3 个业务 attempt；进入第 2、3 次前等待 10 秒、1 分钟，更高上限时后续退避封顶 5 分钟 | 尚未产生模型计费，失败可安全重做 |
 | 建议等待补建评审完成 | 保持等待态并设置 `next_run_at`，不增加失败次数 | 依赖尚未就绪是流程状态，不是异常 |
 | AI 网关明确返回失败 | 首期结束本次业务 attempt，由用户或管理员显式重试 | 新 attempt 可能产生新计费，不能静默循环 |
 | AI 网关结果 UNKNOWN | 禁止自动重试，进入人工可见状态 | 上游可能已经执行，自动重做会重复计费 |
@@ -315,6 +315,8 @@ MQ2 实施结果：默认 `MQ_PRIMARY` 已启用，submission、上传关联与 
 ai-suggestion-service 在创建建议任务的事务内同时记录 `SUGGESTION_TASK_READY`。消息是可恢复的唤醒信号，`suggestion_task` 才是任务事实。即使消息丢失或 Broker 长时间不可用，低频本地 reconciliation 也会重新发布到期但未完成的任务；不得退回当前每两秒无界扫描全部等待任务的模式。
 
 同一个用户 `clientRequestId` 继续承担业务幂等，eventId 只承担传递幂等。用户手动重试会增加业务 attempt 并生成新的 ready 事件，但不会覆盖历史报告。
+
+MQ4 实施结果：建议任务与 Outbox 同事务提交，真实消费者用 Inbox 只推进一次领域唤醒时间，同时对重复投递再次发出有界 JVM 信号，覆盖 Inbox 已提交后进程退出窗口。Worker 初始并发 1，使用 120 秒租约、20 秒 heartbeat、逐任务 fencing token 和稳定 AI 幂等键；依赖不可用在最多 3 个 attempt 内按 10 秒、1 分钟退避，证据评审等待保持同 attempt，AI `UNKNOWN` 不自动重试。30 秒 reconciliation 仅查询到期等待与过期租约，跳过仍在发送或已永久阻塞的 Outbox；严重积压按任务数与最老等待时间返回 `40807`。
 
 #### 排行重建
 
