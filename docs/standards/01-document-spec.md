@@ -447,7 +447,7 @@ line2: content content content content content
 
     - 正例：![image-20260117021324172](https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260117021324172.png)
 
-    - 反例：![系统整体架构图](images/system-architecture-full.png)
+    - 反例：`![系统整体架构图](images/system-architecture-full.png)`
 
 2. 【强制】markdown 文档中的图片资源大小超过 1MB 时必须压缩后再使用。
 
