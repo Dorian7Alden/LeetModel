@@ -10,6 +10,13 @@ logging:
     com.baomidou.mybatisplus: INFO
     org.springframework.jdbc.core: INFO
 
+leetmodel:
+  logging:
+    rate-limit:
+      enabled: true
+      summary-interval: ${LEETMODEL_LOG_FAILURE_SUMMARY_INTERVAL:1m}
+      max-keys: ${LEETMODEL_LOG_FAILURE_MAX_KEYS:256}
+
 spring:
   main:
     banner-mode: off

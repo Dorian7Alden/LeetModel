@@ -39,6 +39,7 @@ class LeetModelJsonLayoutTest {
                 new KeyValuePair("businessType", "problem"),
                 new KeyValuePair("messageTopic", "problem-events-v1"),
                 new KeyValuePair("retryCount", 2),
+                new KeyValuePair("suppressedCount", 5L),
                 new KeyValuePair("taskState", "SUCCEEDED"),
                 new KeyValuePair("outcome", "success")
         ));
@@ -63,6 +64,7 @@ class LeetModelJsonLayoutTest {
         assertThat(value.path("durationMs").isIntegralNumber()).isTrue();
         assertThat(value.path("messageTopic").asText()).isEqualTo("problem-events-v1");
         assertThat(value.path("retryCount").asInt()).isEqualTo(2);
+        assertThat(value.path("suppressedCount").asLong()).isEqualTo(5L);
         assertThat(value.path("taskState").asText()).isEqualTo("SUCCEEDED");
         assertThat(value.path("outcome").asText()).isEqualTo("success");
         assertThat(value.has("untrustedField")).isFalse();
@@ -99,6 +101,60 @@ class LeetModelJsonLayoutTest {
                 .isEqualTo("UNCLASSIFIED");
     }
 
+    @Test
+    void shouldRedactCredentialsContentAndThirdPartyQueriesAtFinalBoundary() throws Exception {
+        LeetModelJsonLayout layout = layout();
+        LoggingEvent event = event("Authorization: Bearer relay-secret-123 Cookie=session-secret "
+                + "password=db-secret verificationCode=otp-secret JWT=jwt-secret "
+                + "accessKey=minio-access secretKey=minio-secret apiKey=model-secret "
+                + "relayToken=relay-token-secret prompt=paper-private-content "
+                + "answer=answer-private ragContext=rag-private embedding=vector-private "
+                + "payload=message-private "
+                + "url=https://provider.example/v1/chat?api_key=query-secret&user=42 "
+                + "jdbc:mysql://db.example/lm?user=app&password=db-query-secret "
+                + "Using generated security password: generated-secret");
+        event.setMDCPropertyMap(Map.of(
+                "traceId", "trace-ok\r\nforged-line",
+                "operationId", "operation-password=mdc-secret"
+        ));
+
+        JsonNode value = JSON.readTree(layout.doLayout(event));
+        String encoded = value.toString();
+
+        assertThat(encoded).doesNotContain(
+                "relay-secret-123", "session-secret", "db-secret", "otp-secret", "jwt-secret",
+                "minio-access", "minio-secret", "model-secret", "relay-token-secret",
+                "paper-private-content", "answer-private", "rag-private", "vector-private",
+                "message-private", "query-secret", "db-query-secret", "generated-secret",
+                "forged-line\n");
+        assertThat(value.path("message").asText()).contains(LogSanitizer.REDACTED);
+        assertThat(value.path("traceId").asText()).isEqualTo("trace-ok forged-line");
+        assertThat(value.path("operationId").asText()).doesNotContain("mdc-secret");
+    }
+
+    @Test
+    void shouldRemoveRecordSeparatorsAndBoundEveryString() throws Exception {
+        LeetModelJsonLayout layout = layout();
+        LoggingEvent event = event("start\r\n\u0000\u001bend " + "x".repeat(2_000));
+        event.setLoggerName("l".repeat(500));
+        event.setThreadName("t".repeat(500));
+        event.setMDCPropertyMap(Map.of("traceId", "i".repeat(500)));
+        event.setKeyValuePairs(List.of(new KeyValuePair("routeTemplate", "r".repeat(500))));
+
+        String line = layout.doLayout(event);
+        JsonNode value = JSON.readTree(line);
+
+        assertThat(line.lines()).hasSize(1);
+        assertThat(value.path("message").asText())
+                .doesNotContain("\r", "\n", "\u0000", "\u001b")
+                .hasSizeLessThanOrEqualTo(LogSanitizer.MAX_MESSAGE_LENGTH)
+                .endsWith(LogSanitizer.TRUNCATED);
+        assertThat(value.path("logger").asText()).hasSizeLessThanOrEqualTo(LogSanitizer.MAX_FIELD_LENGTH);
+        assertThat(value.path("thread").asText()).hasSizeLessThanOrEqualTo(LogSanitizer.MAX_FIELD_LENGTH);
+        assertThat(value.path("routeTemplate").asText()).hasSizeLessThanOrEqualTo(LogSanitizer.MAX_FIELD_LENGTH);
+        assertThat(value.path("traceId").asText()).hasSizeLessThanOrEqualTo(LogSanitizer.MAX_IDENTIFIER_LENGTH);
+    }
+
     private LeetModelJsonLayout layout() {
         LeetModelJsonLayout layout = new LeetModelJsonLayout();
         layout.setContext(new LoggerContext());
@@ -111,13 +167,15 @@ class LeetModelJsonLayoutTest {
     }
 
     private LoggingEvent event() {
+        return event("line one\nline two");
+    }
+
+    private LoggingEvent event(String message) {
         LoggingEvent event = new LoggingEvent();
         event.setLoggerContext(new LoggerContext());
         event.setTimeStamp(1_700_000_000_123L);
         event.setLevel(Level.WARN);
-        event.setLoggerName("com.leetmodel.TestLogger");
-        event.setThreadName("test-thread");
-        event.setMessage("line one\nline two");
+        event.setMessage(message);
         return event;
     }
 }

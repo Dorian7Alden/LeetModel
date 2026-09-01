@@ -27,6 +27,7 @@ public final class LogFieldNames {
     public static final String MESSAGE_TOPIC = "messageTopic";
     public static final String CONSUMER_GROUP = "consumerGroup";
     public static final String RETRY_COUNT = "retryCount";
+    public static final String SUPPRESSED_COUNT = "suppressedCount";
     public static final String TASK_STATE = "taskState";
     public static final String CLAIM_TYPE = "claimType";
     public static final String AI_PRIORITY = "aiPriority";

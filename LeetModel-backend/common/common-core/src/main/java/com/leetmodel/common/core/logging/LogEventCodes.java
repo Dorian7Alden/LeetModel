@@ -20,6 +20,13 @@ public final class LogEventCodes {
     public static final String AI_CALL_FAILED = "AI_CALL_FAILED";
     public static final String AI_CALL_RESULT_UNKNOWN = "AI_CALL_RESULT_UNKNOWN";
     public static final String AI_CALL_AUDIT_WRITE_FAILED = "AI_CALL_AUDIT_WRITE_FAILED";
+    public static final String DEPENDENCY_CALL_FAILED = "DEPENDENCY_CALL_FAILED";
+    public static final String DEPENDENCY_CALL_RECOVERED = "DEPENDENCY_CALL_RECOVERED";
+    public static final String REQUEST_REJECTED = "REQUEST_REJECTED";
+    public static final String SYSTEM_FAILURE = "SYSTEM_FAILURE";
+    public static final String STORAGE_OPERATION_COMPLETED = "STORAGE_OPERATION_COMPLETED";
+    public static final String STORAGE_OPERATION_FAILED = "STORAGE_OPERATION_FAILED";
+    public static final String CAPACITY_PROTECTION_ACTIVATED = "CAPACITY_PROTECTION_ACTIVATED";
 
     private LogEventCodes() {
     }
