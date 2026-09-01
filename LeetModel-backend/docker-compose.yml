@@ -1,4 +1,4 @@
-  # ==================== LeetModel 本地开发基础设施 ====================
+# ==================== LeetModel 本地开发基础设施 ====================
 # 使用方式：docker compose up -d --wait mysql redis cache-redis minio nacos new-api elasticsearch
 
 services:
