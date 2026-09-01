@@ -44,7 +44,7 @@ leetmodel:
       lease-seconds: 30
 ```
 
-配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 DOWN；Micrometer 暴露发布结果、消费结果、Outbox 状态数和最老待发送年龄，标签不包含 eventId 等高基数字段。
+配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness；Micrometer 暴露发布结果、消费结果、Outbox 状态数和最老待发送年龄，标签不包含 eventId 等高基数字段。
 
 ### MQ6 运维边界
 

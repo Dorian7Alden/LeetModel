@@ -12,6 +12,7 @@
 - 缓存值由调用方显式提供 Jackson `JavaType`，不使用任意子类反序列化。
 - Outbox 表位于各数据所有者的数据库，业务写入和失效事件使用同一本地事务。
 - 模块禁用时返回无缓存实现，服务测试与不配置业务 Redis 的环境仍可正常回源。
+- `businessCacheHealthIndicator` 在业务 Redis 不可用时返回 `DEGRADED`，不把可回源的缓存故障误报为进程 `DOWN`。
 
 ### 读取与失效协议
 

@@ -113,6 +113,18 @@ curl -fsS http://127.0.0.1:9200/_cluster/health
 
 本地端口仅绑定 `127.0.0.1:9200`，JVM 堆限制为 512 MiB，容器内存限制为 1 GiB。常规停止使用 `docker compose stop elasticsearch`；`docker compose down` 默认保留命名卷。不要使用 `down -v` 或删除 `elasticsearch-data`，除非明确要清空本地索引。
 
+#### 验证 Actuator 与 Prometheus
+
+后端 13 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
+
+```bash
+cd LeetModel-backend
+./scripts/verify-actuator-contract.sh
+./scripts/verify-actuator-contract.sh --runtime
+```
+
+`/actuator/health/liveness` 与 `/readiness` 是编排探针；`info/prometheus` 只允许本机或携带 `X-LeetModel-Management-Token` 且匹配 `MANAGEMENT_TOKEN` 的请求。
+
 #### 启动 RocketMQ
 
 本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个 NORMAL Topic 和五个消费组：

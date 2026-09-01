@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [ ] MET-01 统一 Actuator 与健康语义
+### [ ] MET-02 核心业务与异步指标
 
-目标：为 13 个当前可启动服务建立一致的 Actuator、Prometheus 抓取与 Kubernetes 存活/就绪语义，区分服务已死亡、暂时未就绪和可降级运行。
+目标：在统一 Actuator 基线上补齐低基数、可聚合的业务与异步指标，使 HTTP、可靠消息、领域任务和 AI 调度链路能够被持续量化。
 
-入口：后端根 Maven 依赖管理、各服务 `pom.xml` 与健康配置、已有 `HealthIndicator/ReactiveHealthIndicator`、本地与 Kubernetes 编排配置。
+入口：公共 Web/Messaging/Micrometer 能力、Outbox/Inbox 与 MQ 实现、领域任务租约、`ai-gateway-service` P0-P4 队列与计量审计、各服务线程池和 HikariCP 配置。
 
-主流程：统一接入 Actuator 与 Prometheus Registry → 建立 `/actuator/health/liveness`、`/readiness` 和受保护的管理端点 → 盘点 Redis、数据库、MQ、Outbox 和 AI 依赖的健康影响 → 将可降级故障与进程存活分离 → 验证全部服务可抓取且管理端点不暴露到公网 Gateway。
+主流程：统一 HTTP RED 与路由模板标签 → 接入 JVM、线程池和 HikariCP 指标 → 补齐 Outbox/Inbox/MQ 吞吐、积压、最老年龄、重试、重复与 DLQ 指标 → 补齐领域任务租约、接管与结果指标 → 补齐 AI P0-P4 排队、执行、端到端耗时、Token、费用和 UNKNOWN 指标 → 验证全部标签基数与失败分类。
 
-完成标准：13 个当前服务均可输出 Prometheus 指标并提供独立存活/就绪探针；Redis 降级、单条 Outbox `BLOCKED` 或单次 AI 失败不会误触发 liveness 重启；管理端点的暴露范围与访问边界有自动化验证。
+完成标准：公共 HTTP、JVM、线程池和 HikariCP 指标可用；可靠消息能区分重复消费、失败、积压与 DLQ；领域任务能区分租约接管；AI 指标覆盖 P0-P4、排队/执行/端到端耗时、Token、费用和 UNKNOWN；自动化测试证明指标标签不包含用户、队伍、提交、trace、operation、event、task 或 AI Call ID，HTTP 路由只使用模板。
 
-修改范围：后端 Maven 依赖与 13 个服务的 Actuator/健康配置、必要的公共健康契约与测试、本地及 Kubernetes 编排配置、相关正式文档。
+修改范围：后端公共指标契约与埋点、直接生产者和消费者、AI 网关计量与调度指标、必要的测试与正式文档。
 
-非目标：不在本任务增加业务专项指标、Grafana 看板、Alertmanager 规则、SkyWalking Agent、JSON 日志、中央审计或业务表迁移。
+非目标：不在本任务引入 Prometheus/Grafana/Alertmanager 编排和告警规则，不接入 SkyWalking Agent，不改造 JSON 日志或中央审计，不以高基数业务标识作为指标标签。
 
 ## 系统保障实施路线图
 
@@ -44,12 +44,6 @@
 ### 阶段 0：实施基线与公共约束
 
 ### 阶段 1：Metrics、健康检查与主动告警
-
-#### [ ] MET-01 统一 Actuator 与健康语义
-
-- 依赖：`OBS-01`。
-- 范围：所有可启动服务统一 Actuator、Prometheus Registry、liveness、readiness、degraded 和受保护的管理端点；补齐当前缺失 Actuator 的服务。
-- 验收：13 个当前服务均可被抓取；Redis 降级、单条 Outbox BLOCKED 或单次 AI 失败不会错误触发 liveness 重启。
 
 #### [ ] MET-02 核心业务与异步指标
 
