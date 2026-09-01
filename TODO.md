@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [ ] MET-02 核心业务与异步指标
+### [~] MET-03 Prometheus、Grafana 与 Alertmanager
 
-目标：在统一 Actuator 基线上补齐低基数、可聚合的业务与异步指标，使 HTTP、可靠消息、领域任务和 AI 调度链路能够被持续量化。
+目标：把已落地的 Actuator 与低基数业务指标接入可重复部署的 Prometheus/Grafana/Alertmanager 环境，形成可查询、可展示、可路由且自身可监测的主动观测基础设施。
 
-入口：公共 Web/Messaging/Micrometer 能力、Outbox/Inbox 与 MQ 实现、领域任务租约、`ai-gateway-service` P0-P4 队列与计量审计、各服务线程池和 HikariCP 配置。
+入口：`docker-compose.observability.yml`、Prometheus 抓取与规则加载配置、Grafana provisioning、Alertmanager 路由、13 个服务的受保护 `/actuator/prometheus`、现有可观测基线脚本。
 
-主流程：统一 HTTP RED 与路由模板标签 → 接入 JVM、线程池和 HikariCP 指标 → 补齐 Outbox/Inbox/MQ 吞吐、积压、最老年龄、重试、重复与 DLQ 指标 → 补齐领域任务租约、接管与结果指标 → 补齐 AI P0-P4 排队、执行、端到端耗时、Token、费用和 UNKNOWN 指标 → 验证全部标签基数与失败分类。
+主流程：接入 13 个服务和基础设施抓取 → 保护管理 Token 且不经公网 Gateway → 配置规则加载与 Alertmanager 路由 → 预置系统总览、MVP 主链、AI 资源、异步任务、可靠消息和遥测管道六类看板 → 建立静态与真实运行验收 → 验证 Prometheus 中断不影响业务。
 
-完成标准：公共 HTTP、JVM、线程池和 HikariCP 指标可用；可靠消息能区分重复消费、失败、积压与 DLQ；领域任务能区分租约接管；AI 指标覆盖 P0-P4、排队/执行/端到端耗时、Token、费用和 UNKNOWN；自动化测试证明指标标签不包含用户、队伍、提交、trace、operation、event、task 或 AI Call ID，HTTP 路由只使用模板。
+完成标准：Prometheus 能发现 13 个服务和自身/OAP/Alertmanager/Grafana；六类 Grafana 看板由版本化 provisioning 加载；规则文件与通知路由通过工具校验；管理端点未被公网路由暴露；真实运行脚本证明抓取、查询、看板加载和 Prometheus 中断 fail-open。
 
-修改范围：后端公共指标契约与埋点、直接生产者和消费者、AI 网关计量与调度指标、必要的测试与正式文档。
+修改范围：可观测环境 Compose、Prometheus/Grafana/Alertmanager 配置、密钥注入和验证脚本、启动集成以及正式文档。
 
-非目标：不在本任务引入 Prometheus/Grafana/Alertmanager 编排和告警规则，不接入 SkyWalking Agent，不改造 JSON 日志或中央审计，不以高基数业务标识作为指标标签。
+非目标：不在本任务设定尚无真实基线的 HTTP SLO，不提前实现 MET-04 的生产告警阈值与 Runbook，不接入 SkyWalking Agent、JSON 日志或中央审计。
 
 ## 系统保障实施路线图
 
@@ -44,12 +44,6 @@
 ### 阶段 0：实施基线与公共约束
 
 ### 阶段 1：Metrics、健康检查与主动告警
-
-#### [ ] MET-02 核心业务与异步指标
-
-- 依赖：`MET-01`、`OBS-02`。
-- 范围：统一 HTTP RED、JVM、线程池、HikariCP、Outbox/Inbox/MQ、领域任务租约、AI P0-P4 队列、排队/执行/端到端耗时、Token/费用和 UNKNOWN 指标。
-- 验收：标签不包含用户、队伍、提交、trace、operation、event、task 或 AI Call ID；路由使用模板；重复消费、租约接管和 UNKNOWN 均能在指标中区分。
 
 #### [ ] MET-03 Prometheus、Grafana 与 Alertmanager
 

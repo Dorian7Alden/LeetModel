@@ -120,10 +120,11 @@ curl -fsS http://127.0.0.1:9200/_cluster/health
 ```bash
 cd LeetModel-backend
 ./scripts/verify-actuator-contract.sh
+./scripts/verify-metric-contract.sh
 ./scripts/verify-actuator-contract.sh --runtime
 ```
 
-`/actuator/health/liveness` 与 `/readiness` 是编排探针；`info/prometheus` 只允许本机或携带 `X-LeetModel-Management-Token` 且匹配 `MANAGEMENT_TOKEN` 的请求。
+`verify-metric-contract.sh` 校验 HTTP 直方图、关键业务指标和禁止 ID 标签策略。`/actuator/health/liveness` 与 `/readiness` 是编排探针；`info/prometheus` 只允许本机或携带 `X-LeetModel-Management-Token` 且匹配 `MANAGEMENT_TOKEN` 的请求。
 
 #### 启动 RocketMQ
 
