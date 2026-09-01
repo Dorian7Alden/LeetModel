@@ -3,7 +3,6 @@ package com.leetmodel.submission.service;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.result.Result;
@@ -26,9 +25,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class SubmissionServiceTest {
     @Mock SubmissionMapper submissionMapper; @Mock SubmissionLockMapper lockMapper;
-    @Mock TeamFeignClient teamFeignClient; @Mock ReviewFeignClient reviewFeignClient;
+    @Mock TeamFeignClient teamFeignClient;
     @Mock ProblemFeignClient problemFeignClient;
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
+    @Mock ReviewDispatchQueryService reviewDispatchQueryService;
+    @Mock SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
     @Test
     void markLockedSubmissionAsFinalVersionInHistory() {
@@ -105,6 +106,16 @@ class SubmissionServiceTest {
         assertEquals(101L, preview.getSubmissionId());
         assertEquals("paper.pdf", preview.getOriginalFilename());
         assertEquals("http://minio.test/presigned-paper.pdf", preview.getPreviewUrl());
+    }
+
+    @Test
+    void mqPrimaryReturnsWaitingDispatchWithoutRequestThreadFeignCall() {
+        Submission submission = submission(101L, 1);
+        when(reviewDispatchQueryService.status(101L)).thenReturn("WAITING_DISPATCH");
+
+        SubmissionVO response = service.triggerReview(submission);
+
+        assertEquals("WAITING_DISPATCH", response.getReviewDispatchStatus());
     }
 
     private TeamDTO team() {

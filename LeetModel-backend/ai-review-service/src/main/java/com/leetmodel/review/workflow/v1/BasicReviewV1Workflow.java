@@ -119,7 +119,7 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
                     experiment ? AiCallPriority.P3 : AiCallPriority.P1,
                     experiment && task.getExperimentIdempotencyKey() != null
                             ? task.getExperimentIdempotencyKey()
-                            : "review:" + taskId + ":attempt:" + attempt,
+                            : stableFormalIdempotencyKey(task, taskId, attempt),
                     Instant.now().plusSeconds(540));
             AiChatRequest request = new AiChatRequest(AiModality.MULTIMODAL, context,
                     List.of(new AiMessage(AiRole.USER, parts)), 4096, 0.1,
@@ -137,6 +137,13 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
             logService.fail(step, error);
             throw error;
         }
+    }
+
+    private String stableFormalIdempotencyKey(ReviewTask task, String taskId, String attempt) {
+        if (task.getAiIdempotencyKey() != null && !task.getAiIdempotencyKey().isBlank()) {
+            return task.getAiIdempotencyKey();
+        }
+        return "review:" + taskId + ":attempt:" + attempt;
     }
 
     private BasicReviewV1Output validate(ReviewTask task, String json) throws Exception {

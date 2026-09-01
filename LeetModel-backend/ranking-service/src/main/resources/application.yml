@@ -4,10 +4,15 @@ spring:
   profiles:
     active: dev
 
-server:
-  shutdown: graceful
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
 
 leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: false
   cache:
     enabled: ${CACHE_ENABLED:true}
     environment: ${CACHE_ENVIRONMENT:${spring.profiles.active:dev}}
@@ -25,3 +30,18 @@ leetmodel:
       ssl: ${CACHE_REDIS_SSL:false}
       connect-timeout: 200ms
       command-timeout: 100ms
+
+ranking:
+  messaging:
+    consumer-enabled: true
+  rebuild:
+    enabled: true
+    poll-delay-ms: 1000
+    lease-seconds: 300
+    heartbeat-ms: 20000
+  reconciliation:
+    enabled: true
+    interval-ms: 3600000
+
+server:
+  shutdown: graceful

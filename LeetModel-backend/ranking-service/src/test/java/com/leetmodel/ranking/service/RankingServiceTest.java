@@ -16,7 +16,9 @@ import com.leetmodel.common.cache.internal.NoOpCacheSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leetmodel.ranking.entity.RankingSnapshot;
+import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
+import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +47,8 @@ class RankingServiceTest {
 
     @Mock
     private RankingSnapshotMapper snapshotMapper;
+    @Mock
+    private RankingRebuildTaskMapper rebuildTaskMapper;
     @Mock
     private SubmissionFeignClient submissionFeignClient;
     @Mock
@@ -60,6 +65,7 @@ class RankingServiceTest {
         NoOpCacheSupport cacheSupport = new NoOpCacheSupport();
         rankingService = new RankingService(
                 snapshotMapper,
+                rebuildTaskMapper,
                 submissionFeignClient,
                 reviewFeignClient,
                 teamFeignClient,
@@ -117,6 +123,35 @@ class RankingServiceTest {
         verify(reviewFeignClient, never()).listCompleted(any());
         verify(snapshotMapper, never()).deactivateCurrent(any());
         verify(snapshotMapper, never()).insert(any(RankingSnapshot.class));
+    }
+
+    @Test
+    void claimedRebuildChecksFencingTokenAndCompletesRevisionInSameWritePhase() {
+        LocalDateTime base = LocalDateTime.now();
+        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(reviewFeignClient.listCompleted(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        RankingRebuildTask task = claimedTask("token", base.plusMinutes(2));
+        when(rebuildTaskMapper.selectForCompletion(9L)).thenReturn(task);
+        when(rebuildTaskMapper.complete(eq(9L), eq("token"), eq(3L), any())).thenReturn(1);
+
+        rankingService.rebuildClaimed(PROBLEM_ID, 9L, "token", 3L);
+
+        verify(snapshotMapper).deactivateCurrent(PROBLEM_ID);
+        verify(rebuildTaskMapper).complete(eq(9L), eq("token"), eq(3L), any());
+    }
+
+    @Test
+    void expiredOrStolenLeaseCannotReplaceCurrentRanking() {
+        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(reviewFeignClient.listCompleted(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(rebuildTaskMapper.selectForCompletion(9L))
+                .thenReturn(claimedTask("new-token", LocalDateTime.now().plusMinutes(2)));
+
+        assertThatThrownBy(() -> rankingService.rebuildClaimed(PROBLEM_ID, 9L, "stale-token", 3L))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(snapshotMapper, never()).deactivateCurrent(any());
+        verify(rebuildTaskMapper, never()).complete(any(), any(), any(), any());
     }
 
     @Test
@@ -244,5 +279,16 @@ class RankingServiceTest {
         snapshot.setComputedAt(LocalDateTime.of(2026, 8, 26, 12, 0));
         snapshot.setCurrentMarker(1);
         return snapshot;
+    }
+
+    private RankingRebuildTask claimedTask(String token, LocalDateTime expiry) {
+        RankingRebuildTask task = new RankingRebuildTask();
+        task.setId(9L);
+        task.setProblemId(PROBLEM_ID);
+        task.setStatus("RUNNING");
+        task.setLeaseToken(token);
+        task.setLeaseExpiresAt(expiry);
+        task.setRunningRevision(3L);
+        return task;
     }
 }

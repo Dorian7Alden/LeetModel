@@ -23,6 +23,7 @@ import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
 import com.leetmodel.evaluation.entity.EvaluationRunAttempt;
 import com.leetmodel.evaluation.entity.EvaluationSample;
@@ -32,6 +33,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.messaging.EvaluationSlotReadyMessageService;
 import com.leetmodel.evaluation.model.ValidatedSamplePayload;
 import com.leetmodel.evaluation.runner.EvaluationExperimentCommand;
 import com.leetmodel.evaluation.runner.EvaluationExperimentOutcome;
@@ -41,10 +43,11 @@ import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
@@ -61,7 +64,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class EvaluationService {
 
     private static final Set<String> RETRYABLE_FAILURES = Set.of("ENVIRONMENT", "CONFIGURATION");
@@ -80,10 +83,30 @@ public class EvaluationService {
     private final EvaluationWeightSchemeService weightSchemeService;
     private final EvaluationScoreResultService scoreResultService;
     private final EvaluationCompletionPersistenceService completionPersistenceService;
+    private final EvaluationSlotReadyMessageService readyMessageService;
     private final ObjectMapper objectMapper;
 
-    @Value("${evaluation.recovery.stale-minutes:15}")
-    private long staleMinutes;
+    /** 保留服务单元测试的构造契约。 */
+    public EvaluationService(EvaluationDatasetMapper datasetMapper,
+                             EvaluationSampleMapper sampleMapper,
+                             EvaluationTaskMapper taskMapper,
+                             EvaluationRunAttemptMapper runMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             AiGatewayFeignClient aiGatewayFeignClient,
+                             EvaluationRunnerRegistry runnerRegistry,
+                             EvaluationEstimateService estimateService,
+                             EvaluationPersistenceService persistenceService,
+                             EvaluationMetricsCalculator metricsCalculator,
+                             EvaluationMetricRegistry metricRegistry,
+                             EvaluationWeightSchemeService weightSchemeService,
+                             EvaluationScoreResultService scoreResultService,
+                             EvaluationCompletionPersistenceService completionPersistenceService,
+                             ObjectMapper objectMapper) {
+        this(datasetMapper, sampleMapper, taskMapper, runMapper, submissionFeignClient,
+                aiGatewayFeignClient, runnerRegistry, estimateService, persistenceService,
+                metricsCalculator, metricRegistry, weightSchemeService, scoreResultService,
+                completionPersistenceService, null, objectMapper);
+    }
 
     /** 创建后即锁定样本引用，MVP 不提供原地编辑。 */
     public EvaluationDatasetDTO createDataset(EvaluationDatasetCreateDTO request) {
@@ -160,6 +183,7 @@ public class EvaluationService {
     }
 
     /** 创建同一客户端请求幂等的评价任务，并为每个样本与重复轮次建立槽位。 */
+    @Transactional
     public EvaluationTaskDTO createTask(EvaluationTaskCreateDTO request) {
         EvaluationTask existing = findByClientRequest(request.getClientRequestId());
         if (existing != null) {
@@ -205,6 +229,7 @@ public class EvaluationService {
         }
         task.setRepeatCount(request.getRepeatCount());
         task.setClientRequestId(request.getClientRequestId());
+        task.setTraceId(currentTraceId());
         task.setStatus("WAITING");
         task.setTotalSlots(samples.size() * request.getRepeatCount());
         task.setTerminalSlots(0);
@@ -216,6 +241,7 @@ public class EvaluationService {
         List<EvaluationRunAttempt> runs = initialRuns(samples, request.getRepeatCount(), now);
         try {
             persistenceService.createTask(task, runs);
+            runs.forEach(run -> enqueueReady(task, run, 0L));
         } catch (DuplicateKeyException exception) {
             EvaluationTask concurrent = findByClientRequest(request.getClientRequestId());
             if (concurrent == null) throw exception;
@@ -311,39 +337,43 @@ public class EvaluationService {
         return value == null ? "" : value;
     }
 
-    /** 每次只执行一个样本槽位，避免长事务和一个任务独占工作线程。 */
-    @Scheduled(fixedDelayString = "${evaluation.worker.delay-ms:2000}")
-    public void processNext() {
-        EvaluationRunAttempt run = runMapper.selectNextWaiting();
-        if (run == null || runMapper.claim(run.getId(), LocalDateTime.now()) == 0) return;
+    /** 由消息唤醒协调器调用；所有槽位结果写入都受当前 fencing token 保护。 */
+    public void executeClaimed(Long runId, String leaseToken) {
+        EvaluationRunAttempt run = runMapper.selectById(runId);
+        if (run == null || !"RUNNING".equals(run.getStatus())
+                || !java.util.Objects.equals(leaseToken, run.getLeaseToken())) return;
         EvaluationTask task = taskMapper.selectById(run.getTaskId());
         EvaluationSample sample = sampleMapper.selectById(run.getSampleId());
         if (task == null || sample == null) {
-            runMapper.fail(run.getId(), "CONFIGURATION", null, 0L,
+            runMapper.fail(run.getId(), leaseToken, "CONFIGURATION", null, 0L,
                     "评价任务或样本不存在", LocalDateTime.now());
             if (task != null) refreshTask(task);
             return;
         }
         taskMapper.markRunning(task.getId(), LocalDateTime.now());
+        TraceIdUtil.setTraceId(task.getTraceId());
         try {
             EvaluationExperimentRunner runner = runnerRegistry.require(taskFeature(task));
             EvaluationExperimentCommand command = command(run, sample, task, runner);
             EvaluationExperimentOutcome outcome = runner.parseResult(command, runner.execute(command));
-            persistExperimentOutcome(run, runner, outcome);
+            persistExperimentOutcome(run, leaseToken, runner, outcome);
         } catch (EvaluationRunnerException exception) {
             log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, message={}",
                     task.getId(), sample.getId(), exception.getFailureType(), exception.getMessage());
-            runMapper.fail(run.getId(), exception.getFailureType(), null, 0L,
+            runMapper.fail(run.getId(), leaseToken, exception.getFailureType(), null, 0L,
                     exception.getMessage(), LocalDateTime.now());
         } catch (Exception exception) {
             log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
                     task.getId(), sample.getId(), exception.getMessage());
-            runMapper.fail(run.getId(), "ENVIRONMENT", null, 0L,
+            runMapper.fail(run.getId(), leaseToken, "ENVIRONMENT", null, 0L,
                     "实验评审依赖暂不可用", LocalDateTime.now());
+        } finally {
+            TraceIdUtil.removeTraceId();
         }
         refreshTask(task);
     }
 
+    @Transactional
     public EvaluationTaskDTO retry(Long taskId) {
         EvaluationTask task = requiredTask(taskId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), EvaluationErrorCode.TASK_NOT_FAILED);
@@ -354,6 +384,7 @@ public class EvaluationService {
                 .map(this::newRetryAttempt).toList();
         BusinessException.throwIf(retries.isEmpty(), EvaluationErrorCode.TASK_NOT_FAILED);
         BusinessException.throwIf(!persistenceService.retry(task, retries), EvaluationErrorCode.TASK_NOT_FAILED);
+        retries.forEach(run -> enqueueReady(task, run, 0L));
         int retainedTerminal = latest.size() - retries.size();
         int retainedFailed = (int) latest.stream().filter(run -> "FAILED".equals(run.getStatus())).count()
                 - retries.size();
@@ -369,12 +400,15 @@ public class EvaluationService {
         return toTask(requiredTask(taskId));
     }
 
+    @Transactional
     public EvaluationTaskDTO resume(Long taskId, Long operatorId) {
         requiredTask(taskId);
         BusinessException.throwIf(taskMapper.resume(taskId, operatorId, LocalDateTime.now()) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
         EvaluationTask resumed = requiredTask(taskId);
         refreshTask(resumed);
+        latestRuns(taskId).stream().filter(run -> "WAITING".equals(run.getStatus()))
+                .forEach(run -> enqueueReady(resumed, run, wakeupBucket()));
         return toTask(requiredTask(taskId));
     }
 
@@ -388,18 +422,19 @@ public class EvaluationService {
         return toTask(requiredTask(taskId));
     }
 
-    @Scheduled(fixedDelayString = "${evaluation.recovery.delay-ms:60000}")
+    @Scheduled(fixedDelayString = "${evaluation.recovery.delay-ms:30000}")
     public void recoverStaleRuns() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleMinutes);
-        for (EvaluationRunAttempt stale : runMapper.selectStale(cutoff)) {
-            if (persistenceService.recoverStale(stale, cutoff)) {
+        LocalDateTime now = LocalDateTime.now();
+        for (EvaluationRunAttempt stale : runMapper.selectExpired(now)) {
+            if (persistenceService.recoverExpired(stale, now)) {
                 EvaluationTask task = taskMapper.selectById(stale.getTaskId());
                 if (task != null) refreshTask(task);
             }
         }
     }
 
-    private void persistExperimentOutcome(EvaluationRunAttempt run, EvaluationExperimentRunner runner,
+    private void persistExperimentOutcome(EvaluationRunAttempt run, String leaseToken,
+                                          EvaluationExperimentRunner runner,
                                           EvaluationExperimentOutcome outcome) {
         LocalDateTime now = LocalDateTime.now();
         Map<String, BigDecimal> metrics = runner.extractMetrics(outcome);
@@ -411,21 +446,22 @@ public class EvaluationService {
             } catch (Exception exception) {
                 throw new EvaluationRunnerException("OUTPUT", "评价指标无法序列化", exception);
             }
-            runMapper.succeed(run.getId(), score, outcome.outputSummaryJson(), metricsJson,
+            runMapper.succeed(run.getId(), leaseToken, score, outcome.outputSummaryJson(), metricsJson,
                     outcome.modelName(), outcome.modelExecutionConfigVersion(),
                     outcome.ragIndexVersion(), outcome.aiCallId(), outcome.durationMs(), now);
             return;
         }
         if ("PENDING".equals(outcome.status())) {
-            runMapper.deferPending(run.getId(), outcome.durationMs(), outcome.errorMessage(), now);
+            runMapper.deferPending(run.getId(), leaseToken, outcome.durationMs(), outcome.errorMessage(),
+                    now.plusSeconds(10), now);
             return;
         }
         if ("UNKNOWN".equals(outcome.status())) {
-            runMapper.markUnknown(run.getId(), outcome.aiCallId(), outcome.durationMs(),
+            runMapper.markUnknown(run.getId(), leaseToken, outcome.aiCallId(), outcome.durationMs(),
                     outcome.errorMessage(), now);
             return;
         }
-        runMapper.fail(run.getId(), outcome.failureType(),
+        runMapper.fail(run.getId(), leaseToken, outcome.failureType(),
                 outcome.aiCallId(),
                 outcome.durationMs() == null ? 0L : outcome.durationMs(),
                 outcome.errorMessage(), now);
@@ -545,6 +581,8 @@ public class EvaluationService {
                 run.setRepetitionNo(repetition);
                 run.setAttemptNo(1);
                 run.setStatus("WAITING");
+                run.setNextRunAt(now);
+                run.setRecoveryCount(0);
                 run.setCreateTime(now);
                 run.setUpdateTime(now);
                 runs.add(run);
@@ -624,6 +662,8 @@ public class EvaluationService {
         retry.setRepetitionNo(failed.getRepetitionNo());
         retry.setAttemptNo(failed.getAttemptNo() + 1);
         retry.setStatus("WAITING");
+        retry.setNextRunAt(now);
+        retry.setRecoveryCount(0);
         retry.setCreateTime(now);
         retry.setUpdateTime(now);
         return retry;
@@ -737,6 +777,22 @@ public class EvaluationService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void enqueueReady(EvaluationTask task, EvaluationRunAttempt run, long bucket) {
+        if (readyMessageService != null && task.getId() != null && run.getId() != null) {
+            readyMessageService.enqueue(task, run, bucket);
+        }
+    }
+
+    private String currentTraceId() {
+        String traceId = TraceIdUtil.getTraceId();
+        return traceId == null || traceId.isBlank() || traceId.length() > 100
+                ? UUID.randomUUID().toString() : traceId;
+    }
+
+    private long wakeupBucket() {
+        return System.currentTimeMillis() / 30_000L;
     }
 
     private EvaluationSamplePayloadDTO requestPayload(String featureCode,

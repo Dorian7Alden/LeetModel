@@ -15,6 +15,7 @@ import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
 import com.leetmodel.review.entity.ReviewV1Result;
@@ -32,15 +33,16 @@ import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import com.leetmodel.review.workflow.v1.BasicReviewV1Workflow;
 import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j @Service
 public class ReviewService {
@@ -56,6 +58,9 @@ public class ReviewService {
     private final ReviewTaskLogService logService;
     private final ReviewResultPersistenceService persistenceService;
     private final ObjectMapper objectMapper;
+
+    @Value("${review.worker.max-attempts:3}")
+    private int configuredMaxAttempts = 3;
 
     @Autowired
     public ReviewService(ReviewTaskMapper taskMapper, ReviewV1ResultMapper resultMapper,
@@ -89,6 +94,22 @@ public class ReviewService {
 
     @Transactional
     public Long createTask(Long submissionId, Long teamId, Long problemId, String workflowVersion) {
+        return createTask(submissionId, teamId, problemId, workflowVersion, currentTraceId());
+    }
+
+    /**
+     * 按领域唯一键幂等创建正式评审任务，并保存消息链路 TraceId。
+     *
+     * @param submissionId 提交标识
+     * @param teamId 队伍标识
+     * @param problemId 题目标识
+     * @param workflowVersion 工作流版本
+     * @param traceId 消息链路标识
+     * @return 新建或既有任务标识
+     */
+    @Transactional
+    public Long createTask(Long submissionId, Long teamId, Long problemId,
+                           String workflowVersion, String traceId) {
         ReviewTask existing = taskMapper.selectOne(new LambdaQueryWrapper<ReviewTask>()
                 .eq(ReviewTask::getSubmissionId, submissionId)
                 .eq(ReviewTask::getWorkflowVersion, workflowVersion));
@@ -96,9 +117,13 @@ public class ReviewService {
         ReviewWorkflow workflow = workflowRegistry.required(workflowVersion);
         ReviewTask task = new ReviewTask();
         task.setSubmissionId(submissionId); task.setVersionId(workflow.versionId());
-        task.setTeamId(teamId); task.setProblemId(problemId); task.setStatus("WAITING");
+        task.setTeamId(teamId); task.setProblemId(problemId); task.setStatus("WAITING"); task.setPriority(100);
+        task.setTraceId(traceId);
         task.setWorkflowVersion(workflow.versionCode()); task.setPromptSnapshot(workflow.currentPrompt());
-        task.setRetryCount(0); task.setAttemptNo(1); task.setNextRunAt(LocalDateTime.now());
+        task.setRetryCount(0); task.setAttemptNo(1); task.setMaxAttempts(configuredMaxAttempts);
+        task.setRecoveryCount(0);
+        task.setAiIdempotencyKey(aiIdempotencyKey(submissionId, workflow.versionCode(), 1));
+        task.setNextRunAt(LocalDateTime.now());
         try {
             taskMapper.insert(task);
             return task.getId();
@@ -108,32 +133,6 @@ public class ReviewService {
                     .eq(ReviewTask::getWorkflowVersion, workflowVersion));
             if (concurrent != null) return concurrent.getId();
             throw exception;
-        }
-    }
-
-    @Scheduled(fixedDelayString = "${review.worker.delay-ms:2000}")
-    public void processNext() {
-        ReviewTask task = taskMapper.selectNextWaiting();
-        if (task == null || taskMapper.claim(task.getId(), LocalDateTime.now()) == 0) return;
-        task.setStatus("RUNNING"); task.setStartedAt(LocalDateTime.now());
-        ReviewTaskLog runLog = logService.start(task, "TASK_RUN", "执行评审任务", "submissionId=" + task.getSubmissionId());
-        try {
-            SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
-            ReviewWorkflowResult workflowResult = workflowRegistry.required(task.getWorkflowVersion()).execute(task, submission);
-            ReviewTaskLog saveLog = logService.start(task, "SAVE_RESULT", "保存版本化评审结果", "score=" + workflowResult.score());
-            try {
-                persistenceService.complete(task, submission, workflowResult);
-                logService.succeed(saveLog, "taskStatus=COMPLETED", workflowResult.aiCallId());
-            } catch (RuntimeException error) {
-                logService.fail(saveLog, error);
-                throw error;
-            }
-            logService.succeed(runLog, "score=" + workflowResult.score(), workflowResult.aiCallId());
-        } catch (Exception exception) {
-            log.error("AI 评审失败 taskId={}", task.getId(), exception);
-            logService.fail(runLog, exception);
-            task.setStatus("FAILED"); task.setFinishedAt(LocalDateTime.now());
-            task.setErrorMessage(truncate(exception.getMessage())); taskMapper.updateById(task);
         }
     }
 
@@ -373,6 +372,9 @@ public class ReviewService {
         task.setStatus("WAITING"); task.setRetryCount(task.getRetryCount() + 1);
         task.setAttemptNo(task.getAttemptNo() + 1); task.setNextRunAt(LocalDateTime.now());
         task.setStartedAt(null); task.setFinishedAt(null); task.setErrorMessage(null);
+        task.setFailureType(null);
+        task.setAiIdempotencyKey(aiIdempotencyKey(
+                task.getSubmissionId(), task.getWorkflowVersion(), task.getAttemptNo()));
         taskMapper.resetForRetry(task);
         return toVO(task, null);
     }
@@ -449,6 +451,24 @@ public class ReviewService {
     private String truncate(String message) {
         if (message == null || message.isBlank()) return "未知错误";
         return message.substring(0, Math.min(message.length(), 500));
+    }
+
+    /**
+     * 创建正式评审 attempt 的稳定 AI 幂等键。
+     *
+     * @param submissionId 提交标识
+     * @param workflowVersion 工作流版本
+     * @param attemptNo 业务 attempt
+     * @return 稳定幂等键
+     */
+    public static String aiIdempotencyKey(Long submissionId, String workflowVersion, int attemptNo) {
+        return "review:" + submissionId + ":" + workflowVersion + ":attempt:" + attemptNo;
+    }
+
+    private String currentTraceId() {
+        String traceId = TraceIdUtil.getTraceId();
+        return traceId == null || traceId.isBlank() || traceId.length() > 100
+                ? UUID.randomUUID().toString() : traceId;
     }
 
     private String classifyExperimentFailure(Exception exception) {

@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS ai_call_log;
 CREATE TABLE ai_call_log (
   id BIGINT PRIMARY KEY,
   call_id VARCHAR(64) NOT NULL UNIQUE,
+  trace_id VARCHAR(100) NOT NULL,
   call_type VARCHAR(20),
   scene VARCHAR(30), modality VARCHAR(20), caller_service VARCHAR(64),
   feature_code VARCHAR(64), operation_code VARCHAR(64), business_task_id VARCHAR(128),
@@ -30,6 +31,7 @@ DROP TABLE IF EXISTS ai_call_attempt;
 DROP TABLE IF EXISTS ai_call_task;
 CREATE TABLE ai_call_task (
   id BIGINT PRIMARY KEY, task_id VARCHAR(64) NOT NULL UNIQUE, call_id VARCHAR(64) NOT NULL UNIQUE,
+  trace_id VARCHAR(100),
   caller_service VARCHAR(64) NOT NULL, idempotency_key VARCHAR(128) NOT NULL,
   call_type VARCHAR(20) NOT NULL, feature_code VARCHAR(64) NOT NULL, operation_code VARCHAR(64) NOT NULL,
   declared_priority VARCHAR(10) NOT NULL, effective_priority VARCHAR(10) NOT NULL,

@@ -86,12 +86,14 @@ public class SuggestionV1Workflow {
         PdfTextExtractor.ExtractedPaper paper = textExtractor.extract(pdf);
         String userPrompt = buildUserPrompt(problem, review, paper);
         String taskId = task.getId() == null ? "transient:" + UUID.randomUUID() : "task:" + task.getId();
-        String attempt = task.getRetryCount() == null ? "0" : task.getRetryCount().toString();
+        String attempt = task.getAttemptNo() == null ? "1" : task.getAttemptNo().toString();
+        String idempotencyKey = task.getAiIdempotencyKey() == null
+                ? "suggestion:" + taskId + ":attempt:" + attempt : task.getAiIdempotencyKey();
         AiCallContext context = new AiCallContext(
                 "ai-suggestion-service", AiFeatureCode.PAPER_SUGGESTION,
                 AiOperationCode.GENERATE_SUGGESTION, taskId, task.getWorkflowVersion(),
                 "PROMPT_PAPER_SUGGESTION_0001", "MODEL_CFG_SUGGESTION_TEXT_0001", null,
-                AiCallPriority.P1, "suggestion:" + taskId + ":attempt:" + attempt,
+                AiCallPriority.P1, idempotencyKey,
                 Instant.now().plusSeconds(270));
         AiChatRequest request = new AiChatRequest(
                 AiModality.TEXT,

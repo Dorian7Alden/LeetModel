@@ -2,6 +2,7 @@ package com.leetmodel.suggestion.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalResultDTO;
 import com.leetmodel.common.api.dto.PaperParseDTO;
@@ -16,10 +17,13 @@ import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
 import com.leetmodel.suggestion.dto.SuggestionCreateRequest;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.enums.SuggestionErrorCode;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
+import com.leetmodel.suggestion.messaging.SuggestionReadyMessageService;
 import com.leetmodel.suggestion.service.evidence.ReviewEvidenceProjector;
 import com.leetmodel.suggestion.service.evidence.ReviewEvidenceSnapshot;
 import com.leetmodel.suggestion.vo.SuggestionVO;
@@ -31,14 +35,15 @@ import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Output;
 import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Workflow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /** 论文建议任务：显式评审选择、动作级幂等、多次生成和三段依据链。 */
@@ -57,6 +62,8 @@ public class SuggestionService {
     private final SuggestionV1Workflow v1Workflow;
     private final GroundedSuggestionV2Workflow v2Workflow;
     private final ReviewEvidenceProjector evidenceProjector;
+    private final SuggestionReadyMessageService readyMessageService;
+    private final SuggestionWorkerProperties workerProperties;
     private final ObjectMapper objectMapper;
 
     @Autowired
@@ -69,6 +76,8 @@ public class SuggestionService {
                              SuggestionV1Workflow v1Workflow,
                              GroundedSuggestionV2Workflow v2Workflow,
                              ReviewEvidenceProjector evidenceProjector,
+                             SuggestionReadyMessageService readyMessageService,
+                             SuggestionWorkerProperties workerProperties,
                              ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
         this.submissionFeignClient = submissionFeignClient;
@@ -79,7 +88,25 @@ public class SuggestionService {
         this.v1Workflow = v1Workflow;
         this.v2Workflow = v2Workflow;
         this.evidenceProjector = evidenceProjector;
+        this.readyMessageService = readyMessageService;
+        this.workerProperties = workerProperties;
         this.objectMapper = objectMapper;
+    }
+
+    /** 保留面向服务单元测试的构造契约。 */
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             GroundedSuggestionV2Workflow v2Workflow,
+                             ReviewEvidenceProjector evidenceProjector,
+                             ObjectMapper objectMapper) {
+        this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
+                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, evidenceProjector,
+                null, defaultWorkerProperties(), objectMapper);
     }
 
     /** 保留给 V1 单元测试和历史嵌入调用的构造契约。 */
@@ -91,7 +118,7 @@ public class SuggestionService {
                              SuggestionV1Workflow v1Workflow,
                              ObjectMapper objectMapper) {
         this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
-                null, v1Workflow, null, null, objectMapper);
+                null, v1Workflow, null, null, null, defaultWorkerProperties(), objectMapper);
     }
 
     /** 新建一次独立生成意图；clientRequestId 只对本次用户动作幂等。 */
@@ -109,6 +136,7 @@ public class SuggestionService {
 
         SuggestionTask existing = findByClientRequest(userId, request.getClientRequestId());
         if (existing != null) return toVO(validateIdempotentPayload(existing, submission, review));
+        assertAdmissionAvailable();
 
         SuggestionTask task = new SuggestionTask();
         task.setSubmissionId(submission.getId());
@@ -131,9 +159,14 @@ public class SuggestionService {
         task.setPromptSnapshot(v2Workflow.currentPrompt());
         task.setRetryCount(0);
         task.setAttemptNo(1);
+        task.setMaxAttempts(workerProperties.getMaxAttempts());
+        task.setTraceId(currentTraceId());
+        task.setRecoveryCount(0);
         task.setNextRunAt(LocalDateTime.now());
         try {
             taskMapper.insert(task);
+            task.setAiIdempotencyKey(aiIdempotencyKey(task.getId(), task.getAttemptNo()));
+            enqueueReady(task, 0L);
             return toVO(task);
         } catch (DuplicateKeyException exception) {
             SuggestionTask concurrent = findByClientRequest(userId, request.getClientRequestId());
@@ -163,9 +196,12 @@ public class SuggestionService {
         task.setWorkflowVersion(SuggestionV1Workflow.VERSION);
         task.setReviewWorkflowVersion(review.getWorkflowVersion()); task.setStatus("WAITING");
         task.setCurrentStage("PREPARING"); task.setPromptSnapshot(v1Workflow.currentPrompt());
-        task.setRetryCount(0); task.setAttemptNo(1); task.setNextRunAt(LocalDateTime.now());
+        task.setRetryCount(0); task.setAttemptNo(1); task.setMaxAttempts(workerProperties.getMaxAttempts());
+        task.setTraceId(currentTraceId()); task.setRecoveryCount(0); task.setNextRunAt(LocalDateTime.now());
         try {
             taskMapper.insert(task);
+            task.setAiIdempotencyKey(aiIdempotencyKey(task.getId(), task.getAttemptNo()));
+            enqueueReady(task, 0L);
             return toVO(task);
         } catch (DuplicateKeyException exception) {
             SuggestionTask concurrent = taskMapper.selectOne(new LambdaQueryWrapper<SuggestionTask>()
@@ -212,102 +248,110 @@ public class SuggestionService {
         SuggestionTask task = requiredTask(taskId);
         checkMember(task.getTeamId(), userId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), SuggestionErrorCode.TASK_NOT_FAILED);
-        int updated = taskMapper.resetForRetry(taskId, LocalDateTime.now());
+        int nextAttempt = (task.getAttemptNo() == null ? 1 : task.getAttemptNo()) + 1;
+        LocalDateTime now = LocalDateTime.now();
+        String nextIdempotencyKey = aiIdempotencyKey(taskId, nextAttempt);
+        int updated = taskMapper.resetForRetry(taskId, now, nextIdempotencyKey);
         BusinessException.throwIf(updated == 0, SuggestionErrorCode.TASK_NOT_FAILED);
         task.setStatus("WAITING");
         task.setCurrentStage("PREPARING");
         task.setRetryCount(task.getRetryCount() + 1);
-        task.setAttemptNo((task.getAttemptNo() == null ? 1 : task.getAttemptNo()) + 1);
+        task.setAttemptNo(nextAttempt);
+        task.setAiIdempotencyKey(nextIdempotencyKey);
         task.setStartedAt(null);
         task.setFinishedAt(null);
         task.setErrorMessage(null);
         task.setResultJson(null);
         task.setModelName(null);
         task.setAiCallId(null);
+        enqueueReady(task, 0L);
         return toVO(task);
     }
 
-    @Scheduled(fixedDelayString = "${suggestion.worker.delay-ms:2000}")
-    public void processNext() {
+    /** 由消息唤醒协调器调用；只有当前 fencing token 能推进任务。 */
+    public void executeClaimed(Long taskId, String owner, String leaseToken) {
+        SuggestionTask task = taskMapper.selectById(taskId);
+        if (task == null) return;
         LocalDateTime now = LocalDateTime.now();
-        SuggestionTask task = taskMapper.selectNextWaiting(now);
-        if (task == null || taskMapper.claim(task.getId(), now) == 0) return;
+        String idempotencyKey = aiIdempotencyKey(taskId,
+                task.getAttemptNo() == null ? 1 : task.getAttemptNo());
+        if (taskMapper.markRunning(taskId, owner, leaseToken, idempotencyKey, now,
+                now.plusSeconds(workerProperties.getLeaseSeconds())) == 0) return;
         task.setStatus("RUNNING");
         task.setStartedAt(now);
+        task.setLeaseOwner(owner);
+        task.setLeaseToken(leaseToken);
+        task.setAiIdempotencyKey(idempotencyKey);
+        TraceIdUtil.setTraceId(task.getTraceId());
         try {
             if (SuggestionV1Workflow.VERSION.equals(task.getWorkflowVersion())) {
-                processV1(task);
+                processV1(task, leaseToken);
             } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
-                processV2(task);
+                processV2(task, leaseToken);
             } else {
                 throw new IllegalArgumentException("未知建议工作流版本: " + task.getWorkflowVersion());
             }
         } catch (PendingEvidenceReview pending) {
-            task.setStatus("WAITING");
-            task.setCurrentStage("PREPARING_REVIEW");
-            task.setNextRunAt(LocalDateTime.now().plusSeconds(5));
-            task.setStartedAt(null);
-            task.setErrorMessage(null);
-            taskMapper.updateById(task);
+            taskMapper.waitForEvidence(task.getId(), leaseToken, LocalDateTime.now().plusSeconds(10));
         } catch (Exception exception) {
-            log.error("论文建议任务失败 taskId={}", task.getId(), exception);
-            task.setStatus("FAILED");
-            task.setFinishedAt(LocalDateTime.now());
-            task.setErrorMessage(truncate(exception.getMessage()));
-            taskMapper.updateById(task);
+            handleFailure(task, leaseToken, exception);
+        } finally {
+            TraceIdUtil.removeTraceId();
         }
     }
 
-    private void processV1(SuggestionTask task) throws Exception {
+    private void processV1(SuggestionTask task, String leaseToken) throws Exception {
         SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
         ReviewSummaryDTO review = requiredCompletedReviewBySubmission(task.getSubmissionId());
         ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(task.getProblemId()));
         validateTaskSource(task, submission, review, problem);
         SuggestionWorkflowResult result = v1Workflow.execute(task, submission, problem, review);
-        complete(task, result);
+        complete(task, result, leaseToken);
     }
 
-    private void processV2(SuggestionTask task) throws Exception {
+    private void processV2(SuggestionTask task, String leaseToken) throws Exception {
         SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
         ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
         ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(task.getProblemId()));
         validateTaskSource(task, submission, eligibility, problem);
 
-        task.setCurrentStage("PARSING");
-        taskMapper.updateById(task);
+        updateStage(task, leaseToken, "PARSING");
         PaperParseDTO parse = requiredData(() -> reviewFeignClient.ensureParse(
                 task.getSubmissionId(), task.getPaperParsingWorkflowVersion()));
         if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
             throw new IllegalStateException("PDF 解析未产生可用产物");
         }
         task.setParseArtifactId(parse.getArtifactId());
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
 
         task.setCurrentStage("PREPARING_REVIEW");
-        taskMapper.updateById(task);
-        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility);
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
         task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
         task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
         task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
 
         task.setCurrentStage("RETRIEVING");
-        taskMapper.updateById(task);
+        requireLease(taskMapper.saveReviewEvidence(task.getId(), leaseToken,
+                reviewEvidence.evidenceReviewTaskId(), reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()));
         KnowledgeRetrievalResultDTO knowledge = loadOrRetrieveKnowledge(task, problem, reviewEvidence);
         if (knowledge.getCitations() == null || knowledge.getCitations().isEmpty()) {
             throw new IllegalStateException("知识检索未返回可用于正式建议的参考资料");
         }
         task.setRetrievalRunId(knowledge.getRetrievalRunId());
         task.setKnowledgeSnapshotJson(objectMapper.writeValueAsString(knowledge));
+        requireLease(taskMapper.saveKnowledge(task.getId(), leaseToken, task.getRetrievalRunId(),
+                task.getKnowledgeSnapshotJson()));
 
         task.setCurrentStage("GENERATING");
-        taskMapper.updateById(task);
         SuggestionWorkflowResult result = v2Workflow.execute(task, problem, parse, reviewEvidence, knowledge);
-        task.setCurrentStage("VALIDATING");
-        taskMapper.updateById(task);
-        complete(task, result);
+        updateStage(task, leaseToken, "VALIDATING");
+        complete(task, result, leaseToken);
     }
 
     private ReviewEvidenceSnapshot resolveReviewEvidence(SuggestionTask task,
-                                                         ReviewSummaryDTO eligibility) {
+                                                         ReviewSummaryDTO eligibility,
+                                                         String leaseToken) {
         if (evidenceProjector.isNativeV2(eligibility)) {
             return evidenceProjector.nativeV2(eligibility, eligibility);
         }
@@ -323,7 +367,7 @@ public class SuggestionService {
             }
             evidenceTaskId = created.getData();
             task.setEvidenceReviewTaskId(evidenceTaskId);
-            taskMapper.updateById(task);
+            requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
         }
         ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
         if ("FAILED".equals(evidenceReview.getStatus())) {
@@ -365,21 +409,72 @@ public class SuggestionService {
         return query.substring(0, Math.min(query.length(), 3800));
     }
 
-    private void complete(SuggestionTask task, SuggestionWorkflowResult result) {
+    private void complete(SuggestionTask task, SuggestionWorkflowResult result, String leaseToken) {
+        LocalDateTime finishedAt = LocalDateTime.now();
+        requireLease(taskMapper.complete(task.getId(), leaseToken, result.resultJson(),
+                result.modelName(), result.aiCallId(), finishedAt));
         task.setStatus("COMPLETED");
         task.setCurrentStage("COMPLETED");
         task.setResultJson(result.resultJson());
         task.setModelName(result.modelName());
         task.setAiCallId(result.aiCallId());
-        task.setFinishedAt(LocalDateTime.now());
+        task.setFinishedAt(finishedAt);
         task.setErrorMessage(null);
-        taskMapper.updateById(task);
     }
 
-    @Scheduled(fixedDelayString = "${suggestion.worker.recovery-delay-ms:60000}")
-    public void recoverStaleTasks() {
-        LocalDateTime now = LocalDateTime.now();
-        taskMapper.recoverStale(now.minusMinutes(10), now);
+    private void handleFailure(SuggestionTask task, String leaseToken, Exception exception) {
+        if (exception instanceof LeaseLostException) return;
+        String error = truncate(exception.getMessage());
+        if (exception instanceof AiClientException aiError) {
+            if (aiError.getCode() == 51212) {
+                taskMapper.scheduleSameAttempt(task.getId(), leaseToken,
+                        LocalDateTime.now().plusSeconds(10), "AI_PENDING", error);
+                return;
+            }
+            if (aiError.getCode() == 51213 || aiError.getCode() == 50002) {
+                taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                        "UNKNOWN", "AI_UNKNOWN", "AI 上游结果未知，禁止自动重试");
+                return;
+            }
+            taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                    "FAILED", "AI_FAILED", error);
+            return;
+        }
+        int maxAttempts = task.getMaxAttempts() == null
+                ? workerProperties.getMaxAttempts() : task.getMaxAttempts();
+        int attempt = task.getAttemptNo() == null ? 1 : task.getAttemptNo();
+        if (isTransientDependency(exception) && attempt < maxAttempts) {
+            int nextAttempt = attempt + 1;
+            taskMapper.scheduleRetry(task.getId(), leaseToken,
+                    LocalDateTime.now().plusSeconds(retryDelaySeconds(attempt)),
+                    "DEPENDENCY_TRANSIENT", error, aiIdempotencyKey(task.getId(), nextAttempt));
+            return;
+        }
+        taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                "FAILED", "WORKFLOW_FAILED", error);
+        log.error("论文建议任务失败 taskId={}, attempt={}", task.getId(), attempt, exception);
+    }
+
+    private long retryDelaySeconds(int failedAttempt) {
+        return switch (failedAttempt) {
+            case 1 -> 10L;
+            case 2 -> 60L;
+            default -> 300L;
+        };
+    }
+
+    private boolean isTransientDependency(Exception exception) {
+        return exception instanceof BusinessException businessException
+                && businessException.getCode() == SuggestionErrorCode.DEPENDENCY_UNAVAILABLE.getCode();
+    }
+
+    private void updateStage(SuggestionTask task, String leaseToken, String stage) {
+        requireLease(taskMapper.updateStage(task.getId(), leaseToken, stage));
+        task.setCurrentStage(stage);
+    }
+
+    private void requireLease(int updated) {
+        if (updated == 0) throw new LeaseLostException();
     }
 
     public long count() { return taskMapper.selectCount(null); }
@@ -471,6 +566,33 @@ public class SuggestionService {
         if (value == null || !value.matches("[A-Za-z0-9_-]{8,64}")) {
             throw new IllegalArgumentException("clientRequestId 必须是 8 到 64 位安全标识");
         }
+    }
+
+    private void assertAdmissionAvailable() {
+        long count = taskMapper.countActiveBacklog();
+        LocalDateTime oldest = taskMapper.selectOldestDue(LocalDateTime.now());
+        boolean oldestSevere = oldest != null && Duration.between(oldest, LocalDateTime.now()).getSeconds()
+                >= workerProperties.getSevereOldestWaitingSeconds();
+        BusinessException.throwIf(count >= workerProperties.getSevereBacklogCount() || oldestSevere,
+                SuggestionErrorCode.SERVICE_BUSY);
+    }
+
+    private void enqueueReady(SuggestionTask task, long bucket) {
+        if (readyMessageService != null) readyMessageService.enqueue(task, bucket);
+    }
+
+    public static String aiIdempotencyKey(Long taskId, int attemptNo) {
+        return "suggestion:task:" + taskId + ":attempt:" + attemptNo;
+    }
+
+    private String currentTraceId() {
+        String traceId = TraceIdUtil.getTraceId();
+        return traceId == null || traceId.isBlank() || traceId.length() > 100
+                ? UUID.randomUUID().toString() : traceId;
+    }
+
+    private static SuggestionWorkerProperties defaultWorkerProperties() {
+        return new SuggestionWorkerProperties();
     }
 
     private SuggestionTask findByClientRequest(Long userId, String clientRequestId) {
@@ -582,5 +704,8 @@ public class SuggestionService {
     }
 
     private static final class PendingEvidenceReview extends RuntimeException {
+    }
+
+    private static final class LeaseLostException extends RuntimeException {
     }
 }

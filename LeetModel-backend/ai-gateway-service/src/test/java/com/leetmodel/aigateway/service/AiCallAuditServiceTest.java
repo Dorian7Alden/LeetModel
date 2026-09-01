@@ -17,6 +17,7 @@ import com.leetmodel.common.ai.model.AiMetricCompleteness;
 import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,6 +82,21 @@ class AiCallAuditServiceTest {
         assertThat(AiCallLog.class.getDeclaredFields())
                 .extracting(java.lang.reflect.Field::getName)
                 .doesNotContain("prompt", "content", "response", "apiKey");
+    }
+
+    @Test
+    void shouldPersistTraceIdForAssociationQuery() {
+        TraceIdUtil.setTraceId("trace-mq-ai-1");
+        try {
+            service.recordFailure("call-trace", request(), "NEW_API", "model",
+                    new IllegalStateException("failed"), 10L);
+        } finally {
+            TraceIdUtil.removeTraceId();
+        }
+
+        ArgumentCaptor<AiCallLog> captor = ArgumentCaptor.forClass(AiCallLog.class);
+        verify(mapper).insert(captor.capture());
+        assertThat(captor.getValue().getTraceId()).isEqualTo("trace-mq-ai-1");
     }
 
     @Test

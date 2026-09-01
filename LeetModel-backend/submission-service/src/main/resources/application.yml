@@ -10,6 +10,8 @@ spring:
 minio:
   max-file-size: 20971520
 submission:
+  review:
+    transport: ${SUBMISSION_REVIEW_TRANSPORT:MQ_PRIMARY}
   upload:
     max-file-size: 20971520
     chunk-size: 5242880
@@ -18,3 +20,17 @@ submission:
     cleanup-delay-ms: 3600000
 server:
   shutdown: graceful
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-submission-v1
+    send-message-timeout: 3000
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: true
+      batch-size: 50
+      interval-ms: 1000
+      lease-seconds: 30

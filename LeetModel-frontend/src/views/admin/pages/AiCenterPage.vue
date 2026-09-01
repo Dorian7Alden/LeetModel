@@ -42,6 +42,7 @@ import AiCallListPage from "./AiCallListPage.vue";
 import EvaluationPage from "./EvaluationPage.vue";
 import ProductionWorkflowPage from "./ProductionWorkflowPage.vue";
 import AiVersionCatalogPage from "./AiVersionCatalogPage.vue";
+import MessagingOperationsPage from "./MessagingOperationsPage.vue";
 import { getAdminAiCallStats, getAssistantProductionCurrent, listEvaluationTasks } from "@/api/admin-ai";
 
 const route = useRoute();
@@ -53,6 +54,7 @@ const views = [
   { key: "versions", label: "版本目录", hint: "查询", icon: "Tickets", component: AiVersionCatalogPage },
   { key: "evaluations", label: "质量评价", hint: "实验", icon: "Histogram", component: EvaluationPage },
   { key: "production", label: "生产版本", hint: "治理", icon: "SetUp", component: ProductionWorkflowPage },
+  { key: "messaging", label: "消息运维", hint: "可靠性", icon: "Connection", component: MessagingOperationsPage },
 ];
 const validViews = new Set(views.map((item) => item.key));
 const activeView = ref(validViews.has(route.query.view) ? route.query.view : "calls");

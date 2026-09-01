@@ -26,6 +26,7 @@
         <module>common/common-api</module>
         <module>common/common-security</module>
         <module>common/common-cache</module>
+        <module>common/common-messaging</module>
         <module>common/common-ai</module>
         <module>user-service</module>
         <module>problem-service</module>
@@ -78,7 +79,8 @@
         <minio.version>8.5.10</minio.version>
 
         <!-- === 消息队列 === -->
-        <rocketmq-spring-boot.version>2.3.0</rocketmq-spring-boot.version>
+        <rocketmq-spring-boot.version>2.3.3</rocketmq-spring-boot.version>
+        <rocketmq-client.version>5.3.1</rocketmq-client.version>
 
         <!-- === 插件版本 === -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -205,6 +207,32 @@
                 <artifactId>rocketmq-spring-boot-starter</artifactId>
                 <version>${rocketmq-spring-boot.version}</version>
             </dependency>
+            <!-- Spring Starter 2.3.3 按 RocketMQ Client 5.3.1 API 编译；覆盖 Spring Boot BOM 的旧版本。 -->
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-client</artifactId>
+                <version>${rocketmq-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-acl</artifactId>
+                <version>${rocketmq-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-common</artifactId>
+                <version>${rocketmq-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-remoting</artifactId>
+                <version>${rocketmq-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-srvutil</artifactId>
+                <version>${rocketmq-client.version}</version>
+            </dependency>
 
             <!-- ========== 内部模块（跨模块依赖使用统一版本） ========== -->
             <dependency>
@@ -225,6 +253,11 @@
             <dependency>
                 <groupId>com.leetmodel</groupId>
                 <artifactId>common-cache</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.leetmodel</groupId>
+                <artifactId>common-messaging</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
