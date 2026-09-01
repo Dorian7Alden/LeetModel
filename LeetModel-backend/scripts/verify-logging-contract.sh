@@ -23,8 +23,11 @@ shared_config="${BACKEND_DIR}/common/common-core/src/main/resources/leetmodel-lo
 layout_source="${BACKEND_DIR}/common/common-core/src/main/java/com/leetmodel/common/core/logging/LeetModelJsonLayout.java"
 field_names="${BACKEND_DIR}/common/common-core/src/main/java/com/leetmodel/common/core/logging/LogFieldNames.java"
 event_codes="${BACKEND_DIR}/common/common-core/src/main/java/com/leetmodel/common/core/logging/LogEventCodes.java"
+sanitizer="${BACKEND_DIR}/common/common-core/src/main/java/com/leetmodel/common/core/logging/LogSanitizer.java"
+failure_limiter="${BACKEND_DIR}/common/common-core/src/main/java/com/leetmodel/common/core/logging/FailureLogLimiter.java"
 
-for required in "${shared_layout}" "${shared_config}" "${layout_source}" "${field_names}" "${event_codes}"; do
+for required in "${shared_layout}" "${shared_config}" "${layout_source}" "${field_names}" \
+    "${event_codes}" "${sanitizer}" "${failure_limiter}"; do
   if [[ ! -f "${required}" ]]; then
     echo "缺少统一日志契约文件：${required}" >&2
     exit 1
@@ -46,7 +49,7 @@ done
 
 required_layout_markers=(
   'leetmodel.log.v1' 'schemaVersion' 'eventCode' 'serviceVersion'
-  'routeTemplate' 'domainTaskId' 'attemptNo' 'aiCallId' 'stackTrace'
+  'routeTemplate' 'domainTaskId' 'attemptNo' 'aiCallId' 'suppressedCount' 'stackTrace'
 )
 for marker in "${required_layout_markers[@]}"; do
   if ! rg -q "${marker}" "${layout_source}" "${field_names}"; then
@@ -61,6 +64,7 @@ required_event_codes=(
   INBOX_MESSAGE_CONSUMED INBOX_MESSAGE_DUPLICATE INBOX_MESSAGE_FAILED
   DOMAIN_TASK_CLAIMED DOMAIN_TASK_COMPLETED DOMAIN_TASK_FAILED
   AI_CALL_COMPLETED AI_CALL_FAILED AI_CALL_RESULT_UNKNOWN
+  DEPENDENCY_CALL_FAILED DEPENDENCY_CALL_RECOVERED REQUEST_REJECTED SYSTEM_FAILURE
 )
 for event_code in "${required_event_codes[@]}"; do
   if ! rg -q "${event_code}" "${event_codes}"; then
@@ -94,7 +98,52 @@ if rg -n '(^|[[:space:]])(root|com\.leetmodel|org\.apache\.ibatis|com\.baomidou\
   exit 1
 fi
 
-echo "[通过] ${#services[@]} 个服务统一导入版本化 JSON 日志、stdout/轮转和生产级别基线"
+python3 - "${BACKEND_DIR}" <<'PY'
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+forbidden = re.compile(
+    r"getMessage\s*\(|getUploadToken\s*\(|\bsafeReason\s*\(|"
+    r"\b(?:objectName|objectKey|targetObjectName|avatarPath|originalFilename|"
+    r"prompt|answer|payload|ragContext|knowledgeChunk|embedding)\b"
+)
+start = re.compile(r"\blog\.(?:trace|debug|info|warn|error)\s*\(|\blog\.at(?:Trace|Debug|Info|Warn|Error)\s*\(")
+violations = []
+
+for path in root.rglob("src/main/java/**/*.java"):
+    text = path.read_text(encoding="utf-8")
+    for match in start.finditer(text):
+        index = match.start()
+        end = text.find(";", match.end())
+        if end < 0:
+            end = min(len(text), match.end() + 1000)
+        statement = text[index:end + 1]
+        found = forbidden.search(statement)
+        if found:
+            line = text.count("\n", 0, index) + 1
+            violations.append(f"{path.relative_to(root)}:{line}: {found.group(0)}")
+
+if violations:
+    raise SystemExit("日志调用仍携带自由异常文本或敏感正文/路径：\n" + "\n".join(violations))
+PY
+
+for marker in 'LogSanitizer.message' 'LogSanitizer.field' 'LogSanitizer.identifier' \
+    'MAX_MESSAGE_LENGTH' 'MAX_FIELD_LENGTH'; do
+  if ! rg -q "${marker}" "${layout_source}" "${sanitizer}"; then
+    echo "日志最终边界缺少安全策略：${marker}" >&2
+    exit 1
+  fi
+done
+
+if ! rg -q 'leetmodel\.logging\.suppressed' "${failure_limiter}" \
+    || ! rg -q 'summary-interval:' "${shared_config}"; then
+  echo "缺少重复故障限频窗口或抑制计数指标。" >&2
+  exit 1
+fi
+
+echo "[通过] ${#services[@]} 个服务统一导入 JSON、安全清洗、调用点负面门禁与限频基线"
 
 if [[ "${RUNTIME}" != "true" ]]; then
   exit 0
@@ -175,6 +224,13 @@ curl --silent --show-error \
   --data '{}' \
   "http://127.0.0.1:${runtime_port}/internal/knowledge-retrieval/runs" >/dev/null
 
+runtime_secret="runtime-log-secret-9f4a2"
+curl --silent --show-error \
+  --header 'Content-Type: application/json' \
+  --header "X-Trace-Id: password=${runtime_secret}" \
+  --data '{"query":"prompt=runtime-log-secret-9f4a2\\r\\nFORGED_RECORD","topK":1,"tokenBudget":128}' \
+  "http://127.0.0.1:${runtime_port}/internal/knowledge-retrieval/runs" >/dev/null || true
+
 access_event=false
 for _ in {1..20}; do
   if rg -q '"eventCode":"HTTP_REQUEST_COMPLETED".*"routeTemplate":"/internal/knowledge-retrieval/runs"' \
@@ -202,7 +258,7 @@ required = {
     "swTraceId", "swSpanId", "requestId", "operationId", "httpMethod",
     "routeTemplate", "statusCode", "durationMs", "errorCode", "businessType",
     "businessId", "domainTaskId", "attemptNo", "eventId", "aiCallId",
-    "messageTopic", "consumerGroup", "retryCount", "taskState", "claimType",
+    "messageTopic", "consumerGroup", "retryCount", "suppressedCount", "taskState", "claimType",
     "aiPriority", "aiCallType", "outcome", "exceptionType", "failureCategory",
     "stackTrace",
 }
@@ -224,16 +280,37 @@ for filename in sys.argv[1:]:
         if value["environment"] != "test" or value["instance"] != "logging-contract":
             raise SystemExit(f"{path}:{number} has wrong resource identity")
         datetime.datetime.fromisoformat(value["timestamp"].replace("Z", "+00:00"))
+        def walk(item, key=""):
+            if isinstance(item, dict):
+                for child_key, child in item.items():
+                    yield from walk(child, child_key)
+            elif isinstance(item, list):
+                for child in item:
+                    yield from walk(child, key)
+            elif isinstance(item, str):
+                yield key, item
+        for key, text in walk(value):
+            if any(ord(char) < 32 or ord(char) in (0x2028, 0x2029) for char in text):
+                raise SystemExit(f"{path}:{number} contains a control character in {key}")
+            limit = 1024 if key == "message" else 512 if key == "stackTrace" else 256
+            if key in {"traceId", "swTraceId", "swSpanId", "requestId", "operationId",
+                       "businessId", "domainTaskId", "eventId", "aiCallId"}:
+                limit = 128
+            if len(text) > limit:
+                raise SystemExit(f"{path}:{number} exceeds {key} length limit")
+            if "runtime-log-secret-9f4a2" in text or "FORGED_RECORD" in text:
+                raise SystemExit(f"{path}:{number} leaked malicious input in {key}")
 
 events = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines() if line]
 access = [value for value in events if value["eventCode"] == "HTTP_REQUEST_COMPLETED"
           and value["routeTemplate"] == "/internal/knowledge-retrieval/runs"]
-if len(access) != 1:
-    raise SystemExit(f"expected one application access event, found {len(access)}")
-if access[0]["traceId"] != "logging-contract-trace":
+if len(access) < 2:
+    raise SystemExit(f"expected at least two application access events, found {len(access)}")
+trusted = [value for value in access if value["traceId"] == "logging-contract-trace"]
+if len(trusted) != 1:
     raise SystemExit("access event did not preserve trusted traceId")
-if access[0]["httpMethod"] != "POST" or not isinstance(access[0]["durationMs"], int):
+if trusted[0]["httpMethod"] != "POST" or not isinstance(trusted[0]["durationMs"], int):
     raise SystemExit("access event fields have wrong types")
 PY
 
-echo "[通过] 真实 Servlet 启动、stdout JSON、本地轮转、路由模板与 traceId 契约"
+echo "[通过] 真实 Servlet stdout/轮转无敏感输入、控制字符和超长字段，路由与 traceId 契约成立"
