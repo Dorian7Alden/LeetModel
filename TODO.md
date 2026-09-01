@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] LOG-02 脱敏、注入防护与日志限频
+### [~] LOG-03 SkyWalking 日志接收与降级
 
-目标：在 `leetmodel.log.v1` 白名单 schema 上建立一条集中、可测试的日志安全边界，使 Token/凭据/业务正文和 CR/LF 注入不能进入任何服务输出，并让持续依赖故障或积压只产生有界日志。
+目标：让 13 个服务的安全 `leetmodel.log.v1` 日志通过异步有界链路进入 SkyWalking OAP，并在遥测后端断开、变慢或拒绝数据时保持业务 fail-open、本地日志完整且丢失可度量。
 
-入口：LOG-01 公共 `LeetModelJsonLayout`、`LogFieldNames/LogEventCodes`、现有直接日志调用，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的脱敏、级别和故障语义。
+入口：OBS-01 已锁定的 SkyWalking/OAP/BanyanDB 基线、LOG-01/02 的统一安全 JSON 与 stdout/轮转兜底，以及 [日志系统](docs/project/02-架构设计/日志系统.md)、[可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md) 的单一日志主存储和故障边界。
 
-主流程：盘点自由文本和异常入口 → 定义字段级敏感分类、遮蔽/哈希/拒绝与长度上限 → 在布局边界清理 CR/LF、控制字符和超长字段 → 收敛 GlobalExceptionHandler、Gateway、存储、缓存、消息、领域 Worker、AI/new-api 日志，不记录完整请求响应、论文、Prompt、回答、知识片段、Payload、第三方 URL 查询或异常原文 → 为重复故障建立按稳定事件维度的令牌桶/窗口聚合，并以计数表达被抑制数量 → 建立跨 13 服务的恶意输入与日志风暴负面门禁。
+主流程：核对当前 OAP Log Receiver、LAL 和 Java Reporter 的版本兼容协议 → 选择与 SkyWalking 10.3.0 兼容且不重复采集 stdout 的日志上报方式 → 保持本地 CONSOLE/LOCAL_ROLLING 并新增异步有界 Reporter → 在 OAP 配置 LAL 校验 `leetmodel.log.v1`、提取资源与关联字段并拒绝非法 schema → 使用独立 BanyanDB 遥测命名空间存储并通过 UI/GraphQL 查询 → 暴露上报成功、失败、队列深度、丢弃和 OAP 解析错误指标 → 演练 OAP 断开、慢消费、非法 JSON 与队列溢出。
 
-完成标准：密码、验证码、Authorization/Cookie/JWT、数据库/对象存储/模型渠道凭据、Relay Token、论文/Prompt/回答/RAG 片段/Embedding、消息 Payload 和第三方 URL 敏感部分均不能出现在 stdout 或轮转文件；CR/LF 和控制字符不能伪造第二条记录；字段长度有界；持续失败不会按请求/消息无限刷屏，首条、周期汇总和恢复事件仍可观察。
+完成标准：可以在 SkyWalking 查询 `traceId/swTraceId/domainTaskId/aiCallId` 对应的脱敏日志并保留字段类型；非法 schema 不污染正常索引且有解析错误信号；OAP/BanyanDB 不可用时请求、Consumer 和 Worker 继续运行，Reporter 内存/线程/重试有界，本地 stdout/轮转仍可读，并能从 Prometheus 看见失败、丢弃、队列和恢复。
 
-修改范围：公共日志安全策略/布局、必要的调用点结构化改造、异常处理与 URL/对象存储日志、限频状态与指标、负面测试和正式日志文档。
+修改范围：公共 Logback Reporter 与指标绑定、13 服务共享配置、OAP/LAL/BanyanDB/Compose 配置、SkyWalking 查询与故障演练脚本、Runbook 和正式可观测文档。
 
-非目标：本卡不连接 SkyWalking Reporter/OAP/LAL（LOG-03），不修改业务 API 返回正文，不把运行日志升级为操作审计，不在脱敏后保留可逆秘密。
+非目标：本卡不建设 TRACE-01 的完整 Java Agent 自动埋点，不引入 Loki/ELK 第二套日志主存储，不把运行日志当操作审计，不允许遥测链路反压业务线程，也不改动 `cli-proxy-api` 或现有标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -46,12 +46,6 @@
 ### 阶段 1：Metrics、健康检查与主动告警
 
 ### 阶段 2：结构化日志系统
-
-#### [ ] LOG-02 脱敏、注入防护与日志限频
-
-- 依赖：`LOG-01`。
-- 范围：集中处理 Token/Cookie/凭据、论文、Prompt、回答、知识片段、消息 Payload、第三方 URL 和异常摘要；清理 CR/LF 并限制字段长度；重复故障日志限频聚合。
-- 验收：负面测试证明敏感内容和日志注入无法进入输出；积压和依赖故障不会形成日志风暴。
 
 #### [ ] LOG-03 SkyWalking 日志接收与降级
 
