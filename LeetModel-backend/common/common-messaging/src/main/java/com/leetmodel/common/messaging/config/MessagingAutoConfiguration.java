@@ -12,6 +12,7 @@ import com.leetmodel.common.messaging.internal.JdbcMessageInbox;
 import com.leetmodel.common.messaging.internal.JdbcMessageOutbox;
 import com.leetmodel.common.messaging.internal.MessagingHealthIndicator;
 import com.leetmodel.common.messaging.internal.MessagingMetrics;
+import com.leetmodel.common.messaging.internal.MessagingBrokerMetricsRefresher;
 import com.leetmodel.common.messaging.internal.ObservedMessageInbox;
 import com.leetmodel.common.messaging.internal.OutboxRelay;
 import com.leetmodel.common.messaging.internal.OutboxRetryPolicy;
@@ -183,9 +184,10 @@ public class MessagingAutoConfiguration {
         @Bean
         public MessagingMetrics messagingMetrics(
                 ObjectProvider<MeterRegistry> registryProvider,
-                JdbcMessageOutbox outbox
+                JdbcMessageOutbox outbox,
+                JdbcMessageInbox inbox
         ) {
-            return new MessagingMetrics(registryProvider.getIfAvailable(), outbox);
+            return new MessagingMetrics(registryProvider.getIfAvailable(), outbox, inbox);
         }
 
         /**
@@ -301,6 +303,16 @@ public class MessagingAutoConfiguration {
         ) {
             return new RocketMqDeadLetterOperations(
                     applicationName, rocketMQTemplate.getIfAvailable(), codec, consumerControl);
+        }
+
+        /** 周期刷新 Broker 消费位点与 DLQ 指标。 */
+        @Bean
+        public MessagingBrokerMetricsRefresher messagingBrokerMetricsRefresher(
+                RocketMqConsumerControl consumerControl,
+                RocketMqDeadLetterOperations deadLetters,
+                MessagingMetrics metrics
+        ) {
+            return new MessagingBrokerMetricsRefresher(consumerControl, deadLetters, metrics);
         }
 
         /** 汇总 Outbox、Inbox、consumer 与可选领域积压。 */

@@ -89,35 +89,55 @@ public final class JdbcMessageOutbox implements MessageOutbox {
      * @return 当前实例实际领取的消息
      */
     public List<PendingMessage> claim(String owner, int limit, Duration lease) {
+        return claimObserved(owner, limit, lease).stream()
+                .map(ClaimedOutboxMessage::message)
+                .toList();
+    }
+
+    /**
+     * 领取消息并保留普通领取与过期租约接管的区别。
+     *
+     * @param owner Relay 实例标识
+     * @param limit 最大数量
+     * @param lease 租约时长
+     * @return 带租约来源的领取结果
+     */
+    List<ClaimedOutboxMessage> claimObserved(String owner, int limit, Duration lease) {
         Instant now = Instant.now(clock);
         Instant leaseExpiresAt = now.plus(lease);
-        List<String> candidates = jdbcTemplate.queryForList("""
-                SELECT event_id
+        List<ClaimCandidate> candidates = jdbcTemplate.query("""
+                SELECT event_id, status
                 FROM message_outbox
                 WHERE (status = 'PENDING' AND next_attempt_at <= ?)
                    OR (status = 'SENDING' AND lease_expires_at < ?)
                 ORDER BY create_time
                 LIMIT ?
-                """, String.class, Timestamp.from(now), Timestamp.from(now), limit * 2);
+                """, (resultSet, rowNumber) -> new ClaimCandidate(
+                        resultSet.getString("event_id"),
+                        "SENDING".equals(resultSet.getString("status"))),
+                Timestamp.from(now), Timestamp.from(now), limit * 2);
 
-        List<PendingMessage> claimed = new ArrayList<>();
-        for (String eventId : candidates) {
-            int changed = jdbcTemplate.update("""
+        List<ClaimedOutboxMessage> claimed = new ArrayList<>();
+        for (ClaimCandidate candidate : candidates) {
+            String claimCondition = candidate.takeover()
+                    ? "status = 'SENDING' AND lease_expires_at < ?"
+                    : "status = 'PENDING' AND next_attempt_at <= ?";
+            String claimSql = """
                     UPDATE message_outbox
                     SET status = 'SENDING', lease_owner = ?, lease_expires_at = ?, update_time = ?
                     WHERE event_id = ?
-                      AND ((status = 'PENDING' AND next_attempt_at <= ?)
-                        OR (status = 'SENDING' AND lease_expires_at < ?))
-                    """,
+                      AND (%s)
+                    """.formatted(claimCondition);
+            int changed = jdbcTemplate.update(claimSql,
                     owner,
                     Timestamp.from(leaseExpiresAt),
                     Timestamp.from(now),
-                    eventId,
-                    Timestamp.from(now),
+                    candidate.eventId(),
                     Timestamp.from(now)
             );
             if (changed == 1) {
-                claimed.add(findClaimed(eventId, owner));
+                claimed.add(new ClaimedOutboxMessage(
+                        findClaimed(candidate.eventId(), owner), candidate.takeover()));
             }
             if (claimed.size() >= limit) {
                 break;
@@ -239,9 +259,24 @@ public final class JdbcMessageOutbox implements MessageOutbox {
      * @return 秒数；没有待发送消息时为零
      */
     public long oldestPendingAgeSeconds() {
-        Timestamp timestamp = jdbcTemplate.queryForObject("""
-                SELECT MIN(create_time) FROM message_outbox WHERE status IN ('PENDING', 'SENDING')
-                """, Timestamp.class);
+        return oldestAgeSeconds(List.of(OutboxStatus.PENDING, OutboxStatus.SENDING));
+    }
+
+    /**
+     * 返回指定状态中最老记录的年龄。
+     *
+     * @param statuses 固定 Outbox 状态集合
+     * @return 秒数；没有记录时为零
+     */
+    public long oldestAgeSeconds(List<OutboxStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return 0L;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(statuses.size(), "?"));
+        Timestamp timestamp = jdbcTemplate.queryForObject(
+                "SELECT MIN(create_time) FROM message_outbox WHERE status IN (" + placeholders + ")",
+                Timestamp.class,
+                statuses.stream().map(Enum::name).toArray());
         if (timestamp == null) {
             return 0L;
         }
@@ -357,6 +392,9 @@ public final class JdbcMessageOutbox implements MessageOutbox {
             throw new IllegalArgumentException("tag contains unsupported characters");
         }
         return value;
+    }
+
+    private record ClaimCandidate(String eventId, boolean takeover) {
     }
 
     private String errorSummary(String error) {

@@ -65,8 +65,10 @@ public final class OutboxRelay {
      */
     @Scheduled(fixedDelayString = "${leetmodel.messaging.relay.interval-ms:1000}")
     public void relayPending() {
-        List<PendingMessage> messages = outbox.claim(owner, batchSize, lease);
-        for (PendingMessage message : messages) {
+        List<ClaimedOutboxMessage> messages = outbox.claimObserved(owner, batchSize, lease);
+        for (ClaimedOutboxMessage claimed : messages) {
+            PendingMessage message = claimed.message();
+            metrics.claimed(message.topic(), claimed.takeover());
             if (!outbox.renewLease(message.eventId(), owner, lease)) {
                 log.info("消息 Outbox 已由其他 Relay 接管，跳过本次发送: eventId={}", message.eventId());
                 continue;
@@ -76,13 +78,14 @@ public final class OutboxRelay {
     }
 
     private void relay(PendingMessage message) {
+        long started = System.nanoTime();
         try {
             PublishReceipt receipt = publisher.publish(message);
             outbox.markPublished(message.eventId(), owner, receipt.brokerMessageId());
-            metrics.published();
+            metrics.published(message.topic(), "success", System.nanoTime() - started);
         } catch (PermanentPublishException | MessageContractException exception) {
             outbox.markBlocked(message.eventId(), owner, exception.getClass().getSimpleName());
-            metrics.blocked();
+            metrics.published(message.topic(), "blocked", System.nanoTime() - started);
             log.error("消息 Outbox 因稳定错误被阻塞: eventId={}, topic={}",
                     message.eventId(), message.topic(), exception);
         } catch (RuntimeException exception) {
@@ -90,7 +93,7 @@ public final class OutboxRelay {
             Instant nextAttemptAt = Instant.now(clock).plus(delay);
             outbox.markRetry(message.eventId(), owner, nextAttemptAt,
                     exception.getClass().getSimpleName());
-            metrics.retried();
+            metrics.published(message.topic(), "retry", System.nanoTime() - started);
             log.warn("消息 Outbox 发布失败并进入退避: eventId={}, retry={}, delayMs={}",
                     message.eventId(), message.retryCount() + 1, delay.toMillis());
         }

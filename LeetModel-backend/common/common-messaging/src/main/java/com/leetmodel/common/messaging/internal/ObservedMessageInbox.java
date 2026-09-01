@@ -29,12 +29,16 @@ public final class ObservedMessageInbox implements MessageInbox {
             MessageEnvelopeV1<?> envelope,
             Runnable domainAction
     ) {
-        InboxResult result = delegate.executeOnce(logicalConsumerGroup, envelope, domainAction);
-        if (result == InboxResult.CONSUMED) {
-            metrics.consumed();
-        } else {
-            metrics.duplicate();
+        long started = System.nanoTime();
+        try {
+            InboxResult result = delegate.executeOnce(logicalConsumerGroup, envelope, domainAction);
+            metrics.consumed(logicalConsumerGroup,
+                    result == InboxResult.CONSUMED ? "consumed" : "duplicate",
+                    System.nanoTime() - started);
+            return result;
+        } catch (RuntimeException exception) {
+            metrics.consumed(logicalConsumerGroup, "failure", System.nanoTime() - started);
+            throw exception;
         }
-        return result;
     }
 }
