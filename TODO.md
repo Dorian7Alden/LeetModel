@@ -44,7 +44,7 @@
 
 ## 当前执行路线
 
-S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。RocketMQ 可靠异步链路继续按 MQ5 至 MQ6 串行实施；当前下一张任务卡是 MQ5。
+S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。RocketMQ 可靠异步链路继续按 MQ5 至 MQ6 串行实施；当前正在执行 MQ5。
 
 ### [x] MQ1 RocketMQ 基础设施与公共契约
 
@@ -90,7 +90,7 @@ S0 至 S12、M1、U1、I1、C1、C2、MQ0、MQ1、MQ2、MQ3 和 MQ4 已完成。
 - 完成摘要：建议任务创建和 `SUGGESTION_TASK_READY` Outbox 在同一事务提交，Inbox 只推进一次领域唤醒并对重复消息再次发出有界本地信号。Worker 固定单并发，使用 120 秒租约、20 秒 heartbeat、逐任务 fencing token 与稳定 AI 幂等键；只对明确的依赖不可用形成最多 3 个 attempt，证据等待不增加 attempt，AI 结果未知进入 `UNKNOWN`。30 秒 reconciliation 只修复到期等待和过期租约，严重积压返回 `40807`。
 - 验收：后端全量 585 项测试中 569 项通过、16 项外部门禁跳过、零失败；ai-suggestion-service 34 项中 33 项通过、1 项真实 Broker 门禁默认跳过。打开门禁后 RocketMQ 5.5.0 与 Client 5.3.1 下同一 eventId 重复投递只执行一次 Inbox 领域动作并发出两次可恢复唤醒；任务与 Outbox 提交/回滚、租约领取与丢失、heartbeat、稳定 AI 键、UNKNOWN、依赖重试和积压拒绝均有自动化证据。真实 MySQL 8 完成 Flyway V1→V3，服务以真实消息消费者完整启动；前端生产构建通过。
 
-### [ ] MQ5 后台评价隔离
+### [~] MQ5 后台评价隔离
 
 - 目标：用独立 Topic、消费组和低并发 Worker 承载评价槽位，证明批任务不会挤占正式评审、建议和客服。
 - 依赖：MQ1、MQ4。
