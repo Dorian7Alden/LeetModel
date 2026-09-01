@@ -5,7 +5,9 @@ import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.result.Result;
-import lombok.RequiredArgsConstructor;
+import com.leetmodel.common.core.logging.FailureLogLimiter;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,13 +28,31 @@ import java.util.UUID;
 /** 每小时比较权威事实指纹，补建可能遗漏的排行事件。 */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "ranking.reconciliation", name = "enabled",
         havingValue = "true", matchIfMissing = true)
 public class RankingReconciliationService {
+    private static final String FAILURE_KEY = "ranking.reconciliation";
     private final SubmissionFeignClient submissionFeignClient;
     private final ReviewFeignClient reviewFeignClient;
     private final RankingRebuildRequestService requestService;
+    private final FailureLogLimiter failureLogLimiter;
+
+    public RankingReconciliationService(SubmissionFeignClient submissionFeignClient,
+                                        ReviewFeignClient reviewFeignClient,
+                                        RankingRebuildRequestService requestService,
+                                        FailureLogLimiter failureLogLimiter) {
+        this.submissionFeignClient = submissionFeignClient;
+        this.reviewFeignClient = reviewFeignClient;
+        this.requestService = requestService;
+        this.failureLogLimiter = failureLogLimiter;
+    }
+
+    RankingReconciliationService(SubmissionFeignClient submissionFeignClient,
+                                 ReviewFeignClient reviewFeignClient,
+                                 RankingRebuildRequestService requestService) {
+        this(submissionFeignClient, reviewFeignClient, requestService,
+                FailureLogLimiter.disabled());
+    }
 
     @Scheduled(fixedDelayString = "${ranking.reconciliation.interval-ms:3600000}",
             initialDelayString = "${ranking.reconciliation.initial-delay-ms:60000}")
@@ -42,13 +62,40 @@ public class RankingReconciliationService {
                     submissionFeignClient.listFinalSubmissions(null);
             Result<List<ReviewSummaryDTO>> reviewsResult = reviewFeignClient.listCompleted(null);
             if (!valid(submissionsResult) || !valid(reviewsResult)) {
-                log.warn("排行事件对账依赖暂不可用，本轮不推进指纹");
+                logFailure("INVALID_RESPONSE", null);
                 return;
             }
             reconcile(submissionsResult.getData(), reviewsResult.getData());
+            logRecovery();
         } catch (RuntimeException exception) {
-            log.warn("排行事件对账失败，本轮不推进指纹: {}", exception.getMessage());
+            logFailure("CALL_FAILED", exception);
         }
+    }
+
+    private void logFailure(String category, RuntimeException exception) {
+        FailureLogLimiter.Decision decision = failureLogLimiter.onFailure(
+                FAILURE_KEY, LogEventCodes.DEPENDENCY_CALL_FAILED);
+        if (!decision.shouldLog()) return;
+        var event = log.atWarn()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_FAILED)
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, category)
+                .addKeyValue(LogFieldNames.SUPPRESSED_COUNT, decision.suppressedCount());
+        if (exception != null) {
+            event.addKeyValue(LogFieldNames.EXCEPTION_TYPE, exception.getClass().getName());
+        }
+        event.log(decision.kind() == FailureLogLimiter.Kind.SUMMARY
+                ? "Ranking reconciliation dependency remains unavailable"
+                : "Ranking reconciliation dependency unavailable");
+    }
+
+    private void logRecovery() {
+        FailureLogLimiter.Decision decision = failureLogLimiter.onRecovery(FAILURE_KEY);
+        if (!decision.shouldLog()) return;
+        log.atInfo()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_RECOVERED)
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "RANKING_RECONCILIATION")
+                .addKeyValue(LogFieldNames.SUPPRESSED_COUNT, decision.suppressedCount())
+                .log("Ranking reconciliation dependency recovered");
     }
 
     void reconcile(List<SubmissionSnapshotDTO> submissions, List<ReviewSummaryDTO> reviews) {

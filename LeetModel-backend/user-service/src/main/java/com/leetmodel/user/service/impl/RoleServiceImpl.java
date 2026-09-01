@@ -129,7 +129,7 @@ public class RoleServiceImpl implements RoleService {
         role.setDescription(request.getDescription());
         roleMapper.insert(role);
 
-        log.info("创建角色: {} ({})", role.getCode(), role.getId());
+        log.info("创建角色完成: id={}", role.getId());
         return toVO(role);
     }
 
@@ -160,7 +160,7 @@ public class RoleServiceImpl implements RoleService {
         role.setDescription(request.getDescription());
         roleMapper.updateById(role);
 
-        log.info("更新角色: {} ({})", role.getCode(), roleId);
+        log.info("更新角色完成: id={}", roleId);
         return toVO(role);
     }
 
@@ -190,7 +190,7 @@ public class RoleServiceImpl implements RoleService {
 
         // 删除角色
         roleMapper.deleteById(roleId);
-        log.info("删除角色: {} ({})", role.getCode(), roleId);
+        log.info("删除角色完成: id={}", roleId);
     }
 
     // ==================== 角色权限绑定 ====================
@@ -255,7 +255,8 @@ public class RoleServiceImpl implements RoleService {
             rolePermissionMapper.insert(rolePermission);
         }
 
-        log.info("更新角色 {} 的权限: {}", roleId, distinctPermissionIds);
+        log.info("更新角色权限完成: roleId={}, permissionCount={}",
+                roleId, distinctPermissionIds.size());
     }
 
     // ==================== 私有方法 ====================

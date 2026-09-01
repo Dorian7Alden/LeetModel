@@ -292,8 +292,8 @@ public class ReviewService {
                     result.score(), result.resultJson(), result.modelName(), result.aiCallId(),
                     Duration.between(startedAt, LocalDateTime.now()).toMillis(), null);
         } catch (Exception exception) {
-            log.warn("隔离评审实验失败 submissionId={}, workflowVersion={}, message={}",
-                    submissionId, workflowVersion, exception.getMessage());
+            log.warn("隔离评审实验失败 submissionId={}, workflowVersion={}, type={}",
+                    submissionId, workflowVersion, exception.getClass().getSimpleName());
             String failureType = classifyExperimentFailure(exception);
             String status = "PENDING".equals(failureType) ? "PENDING"
                     : "UNKNOWN".equals(failureType) ? "UNKNOWN" : "FAILED";

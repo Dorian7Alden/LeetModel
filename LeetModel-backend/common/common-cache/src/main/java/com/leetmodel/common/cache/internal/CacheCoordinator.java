@@ -282,8 +282,8 @@ public final class CacheCoordinator implements CacheVersionProvider {
         if (!redisAvailable) return;
         redisAvailable = false;
         for (CacheStateListener listener : listeners) listener.onRedisUnavailable();
-        log.warn("业务 Redis 不可用，已切换五秒本地降级缓存: {}",
-                exception.getMessage());
+        log.warn("业务 Redis 不可用，已切换五秒本地降级缓存: type={}",
+                exception.getClass().getSimpleName());
     }
 
     /**

@@ -48,7 +48,7 @@ public class MinioSubmissionChunkStorage implements SubmissionChunkStorage {
                             .build()
             );
         } catch (Exception exception) {
-            log.error("上传论文分片失败: {}", objectName, exception);
+            log.error("上传论文分片失败", exception);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR);
         }
     }
@@ -82,7 +82,7 @@ public class MinioSubmissionChunkStorage implements SubmissionChunkStorage {
                             .build()
             );
         } catch (Exception exception) {
-            log.error("合并论文分片失败: {}", targetObjectName, exception);
+            log.error("合并论文分片失败", exception);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR);
         }
     }
@@ -102,7 +102,7 @@ public class MinioSubmissionChunkStorage implements SubmissionChunkStorage {
                                 .build()
                 );
             } catch (Exception exception) {
-                log.error("删除论文临时分片失败: {}", objectName, exception);
+                log.error("删除论文临时分片失败", exception);
             }
         }
     }

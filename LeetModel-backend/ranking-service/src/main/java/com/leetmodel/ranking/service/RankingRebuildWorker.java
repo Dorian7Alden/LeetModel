@@ -39,9 +39,10 @@ public class RankingRebuildWorker {
             LocalDateTime now = LocalDateTime.now();
             String message = exception.getMessage() == null
                     ? exception.getClass().getSimpleName() : exception.getMessage();
+            String failureType = exception.getClass().getSimpleName();
             taskMapper.scheduleRetry(taskId, token, now.plusSeconds(delay), truncate(message), now);
-            log.warn("排行重建失败并进入退避: problemId={}, revision={}, delaySeconds={}, error={}",
-                    task.getProblemId(), task.getRunningRevision(), delay, message);
+            log.warn("排行重建失败并进入退避: problemId={}, revision={}, delaySeconds={}, type={}",
+                    task.getProblemId(), task.getRunningRevision(), delay, failureType);
         }
     }
 

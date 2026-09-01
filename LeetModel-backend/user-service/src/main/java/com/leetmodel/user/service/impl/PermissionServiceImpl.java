@@ -70,7 +70,7 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setUpdateTime(now);
         permissionMapper.insert(permission);
 
-        log.info("创建权限: {} ({})", permission.getCode(), permission.getId());
+        log.info("创建权限完成: id={}", permission.getId());
         return toVO(permission);
     }
 
@@ -96,7 +96,7 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setUpdateTime(LocalDateTime.now());
         permissionMapper.updateById(permission);
 
-        log.info("更新权限: {} ({})", permission.getCode(), permissionId);
+        log.info("更新权限完成: id={}", permissionId);
         return toVO(permission);
     }
 
@@ -120,7 +120,7 @@ public class PermissionServiceImpl implements PermissionService {
 
         // 删除权限
         permissionMapper.deleteById(permissionId);
-        log.info("删除权限: {} ({})", permission.getCode(), permissionId);
+        log.info("删除权限完成: id={}", permissionId);
     }
 
     // ==================== 私有方法 ====================

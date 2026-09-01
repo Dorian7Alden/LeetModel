@@ -4,6 +4,9 @@ import com.leetmodel.aigateway.config.CostEnrichmentProperties;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
+import com.leetmodel.common.core.logging.FailureLogLimiter;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,24 +23,34 @@ import java.time.ZoneOffset;
 @Service
 public class AiCostEnrichmentService {
     private static final BigDecimal ONE_MILLION = BigDecimal.valueOf(1_000_000L);
+    private static final String FAILURE_KEY = "ai.cost-enrichment";
 
     private final AiCallLogMapper mapper;
     private final CostEnrichmentProperties properties;
     private final Clock clock;
     private final AiGatewayMetrics metrics;
+    private final FailureLogLimiter failureLogLimiter;
 
     @Autowired
     public AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
-                                   AiGatewayMetrics metrics) {
-        this(mapper, properties, Clock.systemUTC(), metrics);
+                                   AiGatewayMetrics metrics,
+                                   FailureLogLimiter failureLogLimiter) {
+        this(mapper, properties, Clock.systemUTC(), metrics, failureLogLimiter);
     }
 
     AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
                             Clock clock, AiGatewayMetrics metrics) {
+        this(mapper, properties, clock, metrics, FailureLogLimiter.disabled());
+    }
+
+    AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
+                            Clock clock, AiGatewayMetrics metrics,
+                            FailureLogLimiter failureLogLimiter) {
         this.mapper = mapper;
         this.properties = properties;
         this.clock = clock;
         this.metrics = metrics;
+        this.failureLogLimiter = failureLogLimiter;
     }
 
     @Scheduled(fixedDelayString = "${ai.cost-enrichment.poll-delay-ms:60000}")
@@ -47,9 +60,34 @@ public class AiCostEnrichmentService {
         try {
             mapper.selectCostEnrichmentDue(now, properties.getBatchSize())
                     .forEach(record -> enrichOne(record, now));
+            logRecovery();
         } catch (RuntimeException exception) {
-            log.warn("AI 费用补全批次失败 type={}", exception.getClass().getSimpleName());
+            logFailure(exception);
         }
+    }
+
+    private void logFailure(RuntimeException exception) {
+        FailureLogLimiter.Decision decision = failureLogLimiter.onFailure(
+                FAILURE_KEY, LogEventCodes.DEPENDENCY_CALL_FAILED);
+        if (!decision.shouldLog()) return;
+        log.atWarn()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_FAILED)
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "AI_COST_ENRICHMENT")
+                .addKeyValue(LogFieldNames.EXCEPTION_TYPE, exception.getClass().getName())
+                .addKeyValue(LogFieldNames.SUPPRESSED_COUNT, decision.suppressedCount())
+                .log(decision.kind() == FailureLogLimiter.Kind.SUMMARY
+                        ? "AI cost enrichment dependency remains unavailable"
+                        : "AI cost enrichment dependency unavailable");
+    }
+
+    private void logRecovery() {
+        FailureLogLimiter.Decision decision = failureLogLimiter.onRecovery(FAILURE_KEY);
+        if (!decision.shouldLog()) return;
+        log.atInfo()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_RECOVERED)
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "AI_COST_ENRICHMENT")
+                .addKeyValue(LogFieldNames.SUPPRESSED_COUNT, decision.suppressedCount())
+                .log("AI cost enrichment dependency recovered");
     }
 
     void enrichOne(AiCallLog record, LocalDateTime now) {
