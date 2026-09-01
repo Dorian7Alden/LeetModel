@@ -1,1 +1,2 @@
 com.leetmodel.common.core.management.ObservabilityHealthAutoConfiguration
+com.leetmodel.common.core.metrics.MetricPolicyAutoConfiguration

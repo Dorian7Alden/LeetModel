@@ -29,6 +29,9 @@ management:
   metrics:
     tags:
       service: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 leetmodel:
   management:
