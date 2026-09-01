@@ -3,6 +3,7 @@ package com.leetmodel.aigateway.scheduling;
 import com.leetmodel.aigateway.config.AiSchedulingProperties;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,8 +16,9 @@ class AiQueueAdmissionServiceTest {
     @Test
     void rejectsFullQueueButKeepsReservedP0Capacity() {
         AiCallTaskMapper mapper = mock(AiCallTaskMapper.class);
+        AiGatewayMetrics metrics = mock(AiGatewayMetrics.class);
         AiSchedulingProperties properties = new AiSchedulingProperties();
-        AiQueueAdmissionService service = new AiQueueAdmissionService(mapper, properties);
+        AiQueueAdmissionService service = new AiQueueAdmissionService(mapper, properties, metrics);
         AiCallTask p4 = task("P4");
         when(mapper.countActive()).thenReturn(450L);
         when(mapper.countActiveNonP0()).thenReturn(450L);
@@ -29,11 +31,12 @@ class AiQueueAdmissionServiceTest {
     @Test
     void returnsExistingTaskForSameCallerIdempotencyKey() {
         AiCallTaskMapper mapper = mock(AiCallTaskMapper.class);
+        AiGatewayMetrics metrics = mock(AiGatewayMetrics.class);
         AiCallTask existing = task("P0");
         when(mapper.selectByIdempotency(existing.getCallerService(), existing.getIdempotencyKey()))
                 .thenReturn(existing);
         AiQueueAdmissionService.AdmissionResult result = new AiQueueAdmissionService(
-                mapper, new AiSchedulingProperties()).enqueue(existing);
+                mapper, new AiSchedulingProperties(), metrics).enqueue(existing);
         assertThat(result.task()).isSameAs(existing);
         assertThat(result.created()).isFalse();
     }

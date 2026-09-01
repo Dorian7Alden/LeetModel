@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.aigateway.entity.AiCallLog;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.mapper.AiCallLogMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiCallContext;
@@ -40,11 +41,13 @@ class AiCallAuditServiceTest {
 
     @Mock
     private AiCallLogMapper mapper;
+    @Mock
+    private AiGatewayMetrics metrics;
     private AiCallAuditService service;
 
     @BeforeEach
     void setUp() {
-        service = new AiCallAuditService(mapper);
+        service = new AiCallAuditService(mapper, metrics);
     }
 
     @Test

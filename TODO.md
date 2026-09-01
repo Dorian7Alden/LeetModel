@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [ ] MET-01 统一 Actuator 与健康语义
+### [~] LOG-01 全服务统一 JSON 日志
 
-目标：为 13 个当前可启动服务建立一致的 Actuator、Prometheus 抓取与 Kubernetes 存活/就绪语义，区分服务已死亡、暂时未就绪和可降级运行。
+目标：为 13 个 Java 服务建立一份可版本化、机器可解析且不替代领域事实或操作审计的 JSON 日志基线，同时保留 stdout 与本地轮转兜底。
 
-入口：后端根 Maven 依赖管理、各服务 `pom.xml` 与健康配置、已有 `HealthIndicator/ReactiveHealthIndicator`、本地与 Kubernetes 编排配置。
+入口：OBS-02 关联标识/MDC 契约、现有 gateway/user/problem 的 `logback-spring.xml`、启动脚本日志重定向，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的字段、级别与异步阶段规范。
 
-主流程：统一接入 Actuator 与 Prometheus Registry → 建立 `/actuator/health/liveness`、`/readiness` 和受保护的管理端点 → 盘点 Redis、数据库、MQ、Outbox 和 AI 依赖的健康影响 → 将可降级故障与进程存活分离 → 验证全部服务可抓取且管理端点不暴露到公网 Gateway。
+主流程：盘点全部 Logback 配置与直接日志调用 → 在公共模块提供统一 JSON encoder/schema 与资源字段 → 为 HTTP、应用、Outbox/MQ/Inbox、领域 Worker attempt 和 AI 调用定义稳定 `eventCode` 与结构化字段 → 让 13 个服务显式导入同一基线 → 约束环境级别、SQL/框架日志和 heartbeat 噪声 → 验证 stdout JSON 与本地轮转文件在故障时仍可读。
 
-完成标准：13 个当前服务均可输出 Prometheus 指标并提供独立存活/就绪探针；Redis 降级、单条 Outbox `BLOCKED` 或单次 AI 失败不会误触发 liveness 重启；管理端点的暴露范围与访问边界有自动化验证。
+完成标准：全部服务输出同一 schema，至少包含 UTC 时间、级别、eventCode、服务/环境/版本/实例、logger/thread、业务 `traceId` 与可用的 SkyWalking/HTTP/领域 attempt/异常字段；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO；启动、轮转与 schema 负面门禁通过。
 
-修改范围：后端 Maven 依赖与 13 个服务的 Actuator/健康配置、必要的公共健康契约与测试、本地及 Kubernetes 编排配置、相关正式文档。
+修改范围：公共日志配置与依赖、13 个服务配置、必要的稳定事件字段/过滤器、启动脚本、日志 schema 测试和正式日志文档。
 
-非目标：不在本任务增加业务专项指标、Grafana 看板、Alertmanager 规则、SkyWalking Agent、JSON 日志、中央审计或业务表迁移。
+非目标：本卡不实现统一脱敏/CRLF 防护与故障限频（LOG-02），不接入 OAP Reporter/LAL/中央查询（LOG-03），不以运行日志替代审计，不记录敏感正文或凭据。
 
 ## 系统保障实施路线图
 
@@ -44,31 +44,6 @@
 ### 阶段 0：实施基线与公共约束
 
 ### 阶段 1：Metrics、健康检查与主动告警
-
-#### [ ] MET-01 统一 Actuator 与健康语义
-
-- 依赖：`OBS-01`。
-- 范围：所有可启动服务统一 Actuator、Prometheus Registry、liveness、readiness、degraded 和受保护的管理端点；补齐当前缺失 Actuator 的服务。
-- 验收：13 个当前服务均可被抓取；Redis 降级、单条 Outbox BLOCKED 或单次 AI 失败不会错误触发 liveness 重启。
-
-#### [ ] MET-02 核心业务与异步指标
-
-- 依赖：`MET-01`、`OBS-02`。
-- 范围：统一 HTTP RED、JVM、线程池、HikariCP、Outbox/Inbox/MQ、领域任务租约、AI P0-P4 队列、排队/执行/端到端耗时、Token/费用和 UNKNOWN 指标。
-- 验收：标签不包含用户、队伍、提交、trace、operation、event、task 或 AI Call ID；路由使用模板；重复消费、租约接管和 UNKNOWN 均能在指标中区分。
-
-#### [ ] MET-03 Prometheus、Grafana 与 Alertmanager
-
-- 依赖：`MET-01`。
-- 范围：加入环境编排、抓取配置、规则加载、通知路由和基础设施自身监测；管理端点不经公网 Gateway 暴露。
-- 验收：建立系统总览、MVP 主链、AI 资源、异步任务、可靠消息和遥测管道看板；Prometheus 中断不影响业务。
-
-#### [ ] MET-04 告警规则与 Runbook 闭环
-
-- 依赖：`MET-02`、`MET-03`。
-- 范围：落地 MQ/Outbox 最老年龄、DLQ、AI P0 等待、AI UNKNOWN、服务不可用和遥测空洞告警；HTTP SLO 在取得基线后设定。
-- 验收：每条严重告警包含影响、当前值、看板、调查入口、Runbook 和恢复条件；完成分组、抑制、静默及恢复通知验证。
-
 
 ### 阶段 2：结构化日志系统
 

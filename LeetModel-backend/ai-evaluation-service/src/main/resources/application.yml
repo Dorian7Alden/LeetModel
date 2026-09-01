@@ -3,6 +3,9 @@ spring:
     name: ai-evaluation-service
   profiles:
     active: dev
+  config:
+    import:
+      - classpath:leetmodel-observability.yml
 
 server:
   shutdown: graceful

@@ -6,6 +6,7 @@ import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.config.AiSchedulingProperties;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.scheduling.AiPriorityPolicy;
 import com.leetmodel.aigateway.scheduling.AiQueueAdmissionService;
 import com.leetmodel.aigateway.scheduling.AiTaskWaitRegistry;
@@ -104,7 +105,8 @@ class AiScheduledCallServiceTest {
         }).when(taskMapper).insert(any(AiCallTask.class));
         when(taskMapper.selectByTaskId(any())).thenAnswer(ignored -> stored.get());
         AiScheduledCallService scheduled = new AiScheduledCallService(objectMapper,
-                new AiPriorityPolicy(), new AiQueueAdmissionService(taskMapper, new AiSchedulingProperties()),
+                new AiPriorityPolicy(), new AiQueueAdmissionService(taskMapper,
+                new AiSchedulingProperties(), mock(AiGatewayMetrics.class)),
                 taskMapper, new AiTaskWaitRegistry(), executionConfigs);
         AiCallContext context = new AiCallContext("ai-assistant-service", AiFeatureCode.RAG,
                 AiOperationCode.RETRIEVE_CONTEXT, "task", null, null, "MODEL_CFG_RAG_V1",

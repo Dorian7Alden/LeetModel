@@ -91,7 +91,7 @@ java \
   >"${SMOKE_LOG}" 2>&1 &
 SMOKE_PID=$!
 
-assert_http_ready "http://127.0.0.1:${SMOKE_PORT}/actuator/health" "Spring Boot 3.3/JDK 17 Agent 附加启动"
+assert_http_ready "http://127.0.0.1:${SMOKE_PORT}/actuator/health/readiness" "Spring Boot 3.3/JDK 17 Agent 附加启动"
 curl --fail --silent --show-error "http://127.0.0.1:${SMOKE_PORT}/internal/users/count" >/dev/null
 echo "[通过] Spring MVC 请求与 MySQL JDBC 查询"
 
@@ -143,7 +143,7 @@ java \
   >"${GATEWAY_LOG}" 2>&1 &
 GATEWAY_PID=$!
 
-assert_http_ready "http://127.0.0.1:${GATEWAY_PORT}/actuator/health" "Spring Cloud Gateway 4/WebFlux 6 Agent 附加启动"
+assert_http_ready "http://127.0.0.1:${GATEWAY_PORT}/actuator/health/readiness" "Spring Cloud Gateway 4/WebFlux 6 Agent 附加启动"
 
 gateway_trace_verified=false
 for _ in {1..30}; do

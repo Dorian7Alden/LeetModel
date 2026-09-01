@@ -34,12 +34,6 @@ jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
 # Knife4j
 springdoc:
   swagger-ui:

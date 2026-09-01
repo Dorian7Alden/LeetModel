@@ -1,0 +1,54 @@
+[
+  {
+    "targets": ["127.0.0.1:8081"],
+    "labels": {"service": "user-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8083"],
+    "labels": {"service": "problem-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8082"],
+    "labels": {"service": "team-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8090"],
+    "labels": {"service": "ai-gateway-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8092"],
+    "labels": {"service": "submission-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8086"],
+    "labels": {"service": "ai-review-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8087"],
+    "labels": {"service": "ranking-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8093"],
+    "labels": {"service": "knowledge-retrieval-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8088"],
+    "labels": {"service": "ai-suggestion-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8089"],
+    "labels": {"service": "ai-assistant-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8091"],
+    "labels": {"service": "ai-evaluation-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8084"],
+    "labels": {"service": "admin-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8080"],
+    "labels": {"service": "gateway-service"}
+  }
+]

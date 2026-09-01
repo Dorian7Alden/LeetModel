@@ -3,6 +3,7 @@ package com.leetmodel.review.service;
 import com.leetmodel.review.config.ReviewWorkerProperties;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
+import com.leetmodel.review.observability.ReviewTaskMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,7 @@ class ReviewTaskWorkerCoordinatorTest {
     @Mock ReviewTaskMapper taskMapper;
     @Mock ReviewTaskWorker worker;
     @Mock ThreadPoolTaskExecutor executor;
+    @Mock ReviewTaskMetrics metrics;
     private ReviewTaskWorkerCoordinator coordinator;
 
     @BeforeEach
@@ -30,7 +32,7 @@ class ReviewTaskWorkerCoordinatorTest {
         ReviewWorkerProperties properties = new ReviewWorkerProperties();
         properties.setConcurrency(2);
         properties.setLeaseSeconds(120);
-        coordinator = new ReviewTaskWorkerCoordinator(taskMapper, worker, properties, executor);
+        coordinator = new ReviewTaskWorkerCoordinator(taskMapper, worker, properties, executor, metrics);
     }
 
     @Test
@@ -61,5 +63,19 @@ class ReviewTaskWorkerCoordinatorTest {
         coordinator.heartbeat();
 
         verify(taskMapper).heartbeat(eq(9L), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void expiredRunningLeaseIsCountedAsTakeover() {
+        ReviewTask candidate = new ReviewTask();
+        candidate.setId(9L);
+        candidate.setStatus("RUNNING");
+        when(taskMapper.selectNextClaimable(any())).thenReturn(candidate, (ReviewTask) null);
+        when(taskMapper.claim(eq(9L), anyString(), anyString(), any(), any())).thenReturn(1);
+        doAnswer(invocation -> null).when(executor).execute(any(Runnable.class));
+
+        coordinator.poll();
+
+        verify(metrics).claimed(true);
     }
 }

@@ -77,6 +77,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
         <!-- 只用于 Reactor 线程切换时恢复 MDC；不包含 Micrometer Tracing 或 Trace Exporter。 -->
         <dependency>

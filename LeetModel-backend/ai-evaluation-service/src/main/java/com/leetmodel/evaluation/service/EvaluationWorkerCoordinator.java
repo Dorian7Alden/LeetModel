@@ -1,7 +1,9 @@
 package com.leetmodel.evaluation.service;
 
 import com.leetmodel.evaluation.config.EvaluationWorkerProperties;
+import com.leetmodel.evaluation.entity.EvaluationRunAttempt;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
+import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,6 +28,7 @@ public class EvaluationWorkerCoordinator {
     private final EvaluationWorkerProperties properties;
     private final OnlineCorePressureGuard pressureGuard;
     private final ThreadPoolTaskExecutor executor;
+    private final EvaluationDispatchMetrics metrics;
     private final Semaphore permits;
     private final ArrayBlockingQueue<Long> signals;
     private final ConcurrentHashMap<Long, String> activeLeases = new ConcurrentHashMap<>();
@@ -35,12 +38,14 @@ public class EvaluationWorkerCoordinator {
                                        EvaluationService evaluationService,
                                        EvaluationWorkerProperties properties,
                                        OnlineCorePressureGuard pressureGuard,
-                                       @Qualifier("evaluationTaskExecutor") ThreadPoolTaskExecutor executor) {
+                                       @Qualifier("evaluationTaskExecutor") ThreadPoolTaskExecutor executor,
+                                       EvaluationDispatchMetrics metrics) {
         this.runMapper = runMapper;
         this.evaluationService = evaluationService;
         this.properties = properties;
         this.pressureGuard = pressureGuard;
         this.executor = executor;
+        this.metrics = metrics;
         this.permits = new Semaphore(properties.getConcurrency());
         this.signals = new ArrayBlockingQueue<>(properties.getSignalCapacity());
     }
@@ -66,6 +71,7 @@ public class EvaluationWorkerCoordinator {
                 permits.release();
                 continue;
             }
+            metrics.claimed();
             activeLeases.put(runId, token);
             submit(runId, token);
         }
@@ -81,12 +87,22 @@ public class EvaluationWorkerCoordinator {
     private void submit(Long runId, String token) {
         try {
             executor.execute(() -> {
+                long started = System.nanoTime();
                 try {
                     evaluationService.executeClaimed(runId, token);
                 } finally {
-                    activeLeases.remove(runId, token);
-                    permits.release();
-                    drain();
+                    try {
+                        EvaluationRunAttempt completed = runMapper.selectById(runId);
+                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
+                    } catch (RuntimeException exception) {
+                        log.debug("评价 attempt 指标不可用: type={}",
+                                exception.getClass().getSimpleName());
+                    } finally {
+                        activeLeases.remove(runId, token);
+                        permits.release();
+                        drain();
+                    }
                 }
             });
         } catch (RejectedExecutionException exception) {

@@ -63,6 +63,32 @@ public interface AiCallTaskMapper extends BaseMapper<AiCallTask> {
     long countActiveNonP0();
 
     @Select("""
+            SELECT COUNT(*) FROM ai_call_task
+             WHERE deleted = 0 AND effective_priority = #{priority} AND state = #{state}
+            """)
+    long countByPriorityAndState(@Param("priority") String priority, @Param("state") String state);
+
+    @Select("""
+            SELECT COALESCE(TIMESTAMPDIFF(SECOND, MIN(queued_at), UTC_TIMESTAMP()), 0)
+              FROM ai_call_task
+             WHERE deleted = 0 AND effective_priority = #{priority} AND state = 'QUEUED'
+            """)
+    long oldestQueuedAgeSeconds(@Param("priority") String priority);
+
+    @Select("""
+            SELECT COUNT(*) FROM ai_call_task
+             WHERE deleted = 0 AND state IN ('LEASED','RUNNING')
+               AND lease_expiry IS NOT NULL AND lease_expiry < UTC_TIMESTAMP()
+            """)
+    long countExpiredLeases();
+
+    @Select("""
+            SELECT COUNT(*) FROM ai_call_task
+             WHERE deleted = 0 AND state = 'FAILED' AND error_code = 'AI_UPSTREAM_RESULT_UNKNOWN'
+            """)
+    long countUnknownResults();
+
+    @Select("""
             SELECT * FROM ai_call_task
              WHERE deleted = 0 AND caller_service = #{callerService} AND idempotency_key = #{idempotencyKey}
              LIMIT 1

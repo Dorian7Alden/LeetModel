@@ -1,0 +1,83 @@
+groups:
+  - name: leetmodel-service-alerts
+    interval: 15s
+    rules:
+      - alert: LeetModelServiceMetricsUnavailable
+        expr: up{job="leetmodel-services"} == 0
+        for: 2m
+        keep_firing_for: 1m
+        labels:
+          severity: critical
+          component: service-scrape
+        annotations:
+          summary: "{{ $labels.service }} 指标端点不可用"
+          impact: "Prometheus 无法确认该服务状态；可能是服务不可用、网络故障或管理 Token 不一致。"
+          current_value: "up={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-system-overview"
+          investigation: "http://127.0.0.1:19090/targets?search={{ $labels.service }}"
+          runbook: "docs/runbooks/observability/service-and-telemetry.md#leetmodelservicemetricsunavailable"
+          recovery: "目标连续可抓取且 up=1；再确认 Readiness 与用户主链，不以单次抓取成功代替恢复。"
+
+      - alert: LeetModelServiceDiscoveryIncomplete
+        expr: leetmodel:service_targets:count < 13
+        for: 2m
+        labels:
+          severity: critical
+          service: observability-platform
+          component: service-discovery
+        annotations:
+          summary: "Prometheus 发现的 LeetModel 服务少于 13 个"
+          impact: "至少一个业务服务完全退出发现集合，其缺失不会显示为普通 up=0。"
+          current_value: "discovered={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-telemetry-pipeline"
+          investigation: "http://127.0.0.1:19090/service-discovery"
+          runbook: "docs/runbooks/observability/service-and-telemetry.md#leetmodelservicediscoveryincomplete"
+          recovery: "版本化 file-SD 中 13 个固定服务全部重新出现并持续完成规则评估。"
+
+      - alert: LeetModelTelemetryComponentUnavailable
+        expr: up{job=~"skywalking-oap|alertmanager|grafana"} == 0
+        for: 2m
+        keep_firing_for: 1m
+        labels:
+          severity: warning
+          service: observability-platform
+          component: "{{ $labels.job }}"
+        annotations:
+          summary: "遥测组件 {{ $labels.job }} 不可抓取"
+          impact: "对应的 Trace 查询、通知路由或看板能力降级；业务请求必须继续。"
+          current_value: "up={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-telemetry-pipeline"
+          investigation: "http://127.0.0.1:19090/targets?search={{ $labels.job }}"
+          runbook: "docs/runbooks/observability/service-and-telemetry.md#leetmodeltelemetrycomponentunavailable"
+          recovery: "组件 up=1 且抓取样本恢复增长；业务侧不需要补偿或重放。"
+
+      - alert: LeetModelAlertmanagerDisconnected
+        expr: prometheus_notifications_alertmanagers_discovered < 1
+        for: 1m
+        labels:
+          severity: critical
+          service: observability-platform
+          component: alertmanager
+        annotations:
+          summary: "Prometheus 未发现可用 Alertmanager"
+          impact: "告警仍可在 Prometheus 计算，但无法完成分组、静默与通知。"
+          current_value: "discovered={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-telemetry-pipeline"
+          investigation: "http://127.0.0.1:19090/status"
+          runbook: "docs/runbooks/observability/service-and-telemetry.md#leetmodelalertmanagerdisconnected"
+          recovery: "discovered>=1，Alertmanager ready 且隔离通知演练成功。"
+
+      - alert: LeetModelRuleEvaluationFailure
+        expr: increase(prometheus_rule_evaluation_failures_total[5m]) > 0
+        labels:
+          severity: warning
+          service: observability-platform
+          component: prometheus-rules
+        annotations:
+          summary: "Prometheus 规则评估发生失败"
+          impact: "部分记录或告警规则可能形成遥测空洞，不应把缺失结果解释为正常。"
+          current_value: "failures_5m={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-telemetry-pipeline"
+          investigation: "http://127.0.0.1:19090/rules"
+          runbook: "docs/runbooks/observability/service-and-telemetry.md#leetmodelruleevaluationfailure"
+          recovery: "修正规则或输入后，连续两个评估周期无新增失败。"

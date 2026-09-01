@@ -78,6 +78,8 @@ public class SaTokenConfig {
                         "/actuator/health",
                         "/actuator/health/**",
                         "/actuator/info",
+                        // 访问边界由 ManagementEndpointWebFilter 统一执行
+                        "/actuator/prometheus",
                         // 公开题目浏览无需认证
                         "/api/public/problems/**",
                         // Knife4j 聚合文档页面与 API 规范端点

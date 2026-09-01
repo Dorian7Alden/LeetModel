@@ -44,7 +44,21 @@ leetmodel:
       lease-seconds: 30
 ```
 
-配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 DOWN；Micrometer 暴露发布结果、消费结果、Outbox 状态数和最老待发送年龄，标签不包含 eventId 等高基数字段。
+配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness。
+
+Micrometer 指标覆盖以下稳定事实：
+
+| 指标 | 维度与语义 |
+|------|------------|
+| `leetmodel.messaging.outbox.records` / `oldest.seconds` | 固定 `PENDING/SENDING/PUBLISHED/BLOCKED` 状态的数量与最老年龄 |
+| `leetmodel.messaging.outbox.claims` | 固定 Topic 下的 `normal/takeover` 领取；过期 `SENDING` 重新领取单独计数 |
+| `leetmodel.messaging.publish` / `publish.duration` | 固定 Topic 下的 `success/retry/blocked` 吞吐与 Relay 耗时 |
+| `leetmodel.messaging.inbox.records` / `oldest.processing.seconds` | `PROCESSING/CONSUMED` 状态与未完成短事务年龄 |
+| `leetmodel.messaging.consume` / `consume.duration` | 本地消费组的 `consumed/duplicate/failure` 吞吐与短事务耗时 |
+| `leetmodel.messaging.consumer.backlog` / `consumer.oldest.seconds` | 本地消费组与固定 Topic 的 Broker 最大位点减消费位点，以及消费位点下一条消息的最老等待时间 |
+| `leetmodel.messaging.dlq.records` / `dlq.oldest.seconds` | 本地消费组对应 `%DLQ%ConsumerGroup` 的存量与最老消息年龄 |
+
+Broker 位点与 DLQ 查询各有 `*.metrics.available` 仪表。读取失败时数值为不可解释的占位值，必须与 `available=0` 联合判断，不能把不可用解释为零积压。指标标签不包含 `eventId`、`traceId`、`operationId`、消息 Key 或 Payload。
 
 ### MQ6 运维边界
 

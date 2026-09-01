@@ -3,6 +3,7 @@ package com.leetmodel.review.service;
 import com.leetmodel.review.config.ReviewWorkerProperties;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
+import com.leetmodel.review.observability.ReviewTaskMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,6 +29,7 @@ public class ReviewTaskWorkerCoordinator {
     private final ReviewTaskWorker worker;
     private final ReviewWorkerProperties properties;
     private final ThreadPoolTaskExecutor executor;
+    private final ReviewTaskMetrics metrics;
     private final Semaphore permits;
     private final ConcurrentHashMap<Long, String> activeLeases = new ConcurrentHashMap<>();
     private final String owner = "ai-review-service:" + UUID.randomUUID();
@@ -44,12 +46,14 @@ public class ReviewTaskWorkerCoordinator {
             ReviewTaskMapper taskMapper,
             ReviewTaskWorker worker,
             ReviewWorkerProperties properties,
-            @Qualifier("reviewTaskExecutor") ThreadPoolTaskExecutor executor
+            @Qualifier("reviewTaskExecutor") ThreadPoolTaskExecutor executor,
+            ReviewTaskMetrics metrics
     ) {
         this.taskMapper = taskMapper;
         this.worker = worker;
         this.properties = properties;
         this.executor = executor;
+        this.metrics = metrics;
         this.permits = new Semaphore(properties.getConcurrency());
     }
 
@@ -72,6 +76,8 @@ public class ReviewTaskWorkerCoordinator {
                 permits.release();
                 continue;
             }
+            metrics.claimed("LEASED".equals(candidate.getStatus())
+                    || "RUNNING".equals(candidate.getStatus()));
             activeLeases.put(candidate.getId(), token);
             submit(candidate.getId(), token);
         }
@@ -90,11 +96,21 @@ public class ReviewTaskWorkerCoordinator {
     private void submit(Long taskId, String token) {
         try {
             executor.execute(() -> {
+                long started = System.nanoTime();
                 try {
                     worker.execute(taskId, owner, token);
                 } finally {
-                    activeLeases.remove(taskId, token);
-                    permits.release();
+                    try {
+                        ReviewTask completed = taskMapper.selectById(taskId);
+                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
+                    } catch (RuntimeException exception) {
+                        log.debug("评审 attempt 指标不可用: type={}",
+                                exception.getClass().getSimpleName());
+                    } finally {
+                        activeLeases.remove(taskId, token);
+                        permits.release();
+                    }
                 }
             });
         } catch (RejectedExecutionException exception) {

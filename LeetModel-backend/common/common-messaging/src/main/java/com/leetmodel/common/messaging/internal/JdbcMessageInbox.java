@@ -118,9 +118,29 @@ public final class JdbcMessageInbox implements MessageInbox {
 
     /** 返回已消费 Inbox 数量。 */
     public long consumedCount() {
+        return count("CONSUMED");
+    }
+
+    /** 返回指定固定状态的 Inbox 数量。 */
+    public long count(String status) {
+        if (!List.of("PROCESSING", "CONSUMED").contains(status)) {
+            throw new IllegalArgumentException("unsupported inbox status");
+        }
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM message_inbox WHERE status = 'CONSUMED'", Long.class);
+                "SELECT COUNT(*) FROM message_inbox WHERE status = ?", Long.class, status);
         return count == null ? 0L : count;
+    }
+
+    /** 返回最老处理中 Inbox 的年龄；正常短事务下应接近零。 */
+    public long oldestProcessingAgeSeconds() {
+        Timestamp timestamp = jdbcTemplate.queryForObject(
+                "SELECT MIN(create_time) FROM message_inbox WHERE status = 'PROCESSING'",
+                Timestamp.class);
+        if (timestamp == null) {
+            return 0L;
+        }
+        return Math.max(0L, java.time.Duration.between(
+                timestamp.toInstant(), Instant.now(clock)).toSeconds());
     }
 
     private void appendExact(StringBuilder sql, List<Object> arguments,

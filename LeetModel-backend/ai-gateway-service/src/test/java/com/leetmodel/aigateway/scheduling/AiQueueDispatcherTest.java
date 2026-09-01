@@ -4,6 +4,7 @@ import com.leetmodel.aigateway.config.AiSchedulingProperties;
 import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
+import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +13,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -130,7 +132,14 @@ class AiQueueDispatcherTest {
     private AiQueueDispatcher dispatcher(AiCallTaskMapper tasks, AiCallAttemptMapper attempts,
                                          AiQueuedTaskExecutor executor, AiSchedulingProperties properties) {
         return new AiQueueDispatcher(tasks, attempts, new AiFairSchedulingPolicy(), executor, properties,
-                new AiRateLimitBackoff(), waitRegistry);
+                new AiRateLimitBackoff(), waitRegistry, metrics());
+    }
+
+    private AiGatewayMetrics metrics() {
+        AiGatewayMetrics metrics = mock(AiGatewayMetrics.class);
+        when(metrics.monitor(any(ExecutorService.class), anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        return metrics;
     }
 
     private AiCallTask task(String id, String priority) {

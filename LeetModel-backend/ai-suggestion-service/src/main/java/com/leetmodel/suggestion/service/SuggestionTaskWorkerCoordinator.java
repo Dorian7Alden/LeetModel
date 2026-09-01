@@ -1,7 +1,9 @@
 package com.leetmodel.suggestion.service;
 
 import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
+import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
+import com.leetmodel.suggestion.observability.SuggestionTaskMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,6 +27,7 @@ public class SuggestionTaskWorkerCoordinator {
     private final SuggestionService suggestionService;
     private final SuggestionWorkerProperties properties;
     private final ThreadPoolTaskExecutor executor;
+    private final SuggestionTaskMetrics metrics;
     private final Semaphore permits;
     private final ArrayBlockingQueue<Long> signals;
     private final ConcurrentHashMap<Long, String> activeLeases = new ConcurrentHashMap<>();
@@ -34,12 +37,14 @@ public class SuggestionTaskWorkerCoordinator {
             SuggestionTaskMapper taskMapper,
             SuggestionService suggestionService,
             SuggestionWorkerProperties properties,
-            @Qualifier("suggestionTaskExecutor") ThreadPoolTaskExecutor executor
+            @Qualifier("suggestionTaskExecutor") ThreadPoolTaskExecutor executor,
+            SuggestionTaskMetrics metrics
     ) {
         this.taskMapper = taskMapper;
         this.suggestionService = suggestionService;
         this.properties = properties;
         this.executor = executor;
+        this.metrics = metrics;
         this.permits = new Semaphore(properties.getConcurrency());
         this.signals = new ArrayBlockingQueue<>(properties.getSignalCapacity());
     }
@@ -59,11 +64,14 @@ public class SuggestionTaskWorkerCoordinator {
             }
             LocalDateTime now = LocalDateTime.now();
             String token = UUID.randomUUID().toString();
+            SuggestionTask candidate = taskMapper.selectById(taskId);
             if (taskMapper.claim(taskId, owner, token, now,
                     now.plusSeconds(properties.getLeaseSeconds())) == 0) {
                 permits.release();
                 continue;
             }
+            metrics.claimed(candidate != null
+                    && ("LEASED".equals(candidate.getStatus()) || "RUNNING".equals(candidate.getStatus())));
             activeLeases.put(taskId, token);
             submit(taskId, token);
         }
@@ -79,12 +87,22 @@ public class SuggestionTaskWorkerCoordinator {
     private void submit(Long taskId, String token) {
         try {
             executor.execute(() -> {
+                long started = System.nanoTime();
                 try {
                     suggestionService.executeClaimed(taskId, owner, token);
                 } finally {
-                    activeLeases.remove(taskId, token);
-                    permits.release();
-                    drain();
+                    try {
+                        SuggestionTask completed = taskMapper.selectById(taskId);
+                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
+                    } catch (RuntimeException exception) {
+                        log.debug("建议 attempt 指标不可用: type={}",
+                                exception.getClass().getSimpleName());
+                    } finally {
+                        activeLeases.remove(taskId, token);
+                        permits.release();
+                        drain();
+                    }
                 }
             });
         } catch (RejectedExecutionException exception) {
