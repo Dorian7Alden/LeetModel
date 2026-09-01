@@ -1,0 +1,97 @@
+{
+  "annotations": {"list": []},
+  "description": "AI P0-P4 调度队列、延迟、Token、费用完整性与 UNKNOWN 结果。",
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(leetmodel_ai_queue_tasks{state=\"queued\"})", "legendFormat": "queued", "refId": "A"}],
+      "title": "排队任务",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "leetmodel_ai_queue_oldest_seconds{priority=\"p0\"}", "legendFormat": "P0", "refId": "A"}],
+      "title": "P0 最老等待",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "leetmodel_ai_results_unknown", "legendFormat": "UNKNOWN", "refId": "A"}],
+      "title": "上游结果未知",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "leetmodel_ai_queue_expired_leases", "legendFormat": "expired", "refId": "A"}],
+      "title": "过期租约",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (priority, state) (leetmodel_ai_queue_tasks)", "legendFormat": "{{priority}} / {{state}}", "refId": "A"}],
+      "title": "P0-P4 队列状态",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (priority, le) (rate(leetmodel_ai_queue_duration_seconds_bucket[5m])))", "legendFormat": "queue {{priority}}", "refId": "A"}, {"expr": "histogram_quantile(0.95, sum by (priority, le) (rate(leetmodel_ai_execution_duration_seconds_bucket[5m])))", "legendFormat": "execution {{priority}}", "refId": "B"}, {"expr": "histogram_quantile(0.95, sum by (priority, le) (rate(leetmodel_ai_end_to_end_duration_seconds_bucket[5m])))", "legendFormat": "e2e {{priority}}", "refId": "C"}],
+      "title": "AI 延迟 P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "id": 7,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (call_type, token_type) (rate(leetmodel_ai_tokens_total[5m]))", "legendFormat": "{{call_type}} / {{token_type}}", "refId": "A"}],
+      "title": "Token 速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "id": 8,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (completeness) (rate(leetmodel_ai_usage_completeness_total[5m]))", "legendFormat": "usage {{completeness}}", "refId": "A"}, {"expr": "sum by (completeness) (rate(leetmodel_ai_cost_completeness_total[5m]))", "legendFormat": "cost {{completeness}}", "refId": "B"}],
+      "title": "用量与费用完整性",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["leetmodel", "ai"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LeetModel / AI 资源与稳定性",
+  "uid": "leetmodel-ai-resources",
+  "version": 1
+}

@@ -1,0 +1,77 @@
+{
+  "annotations": {"list": []},
+  "description": "Outbox、Inbox、RocketMQ 消费积压和 DLQ 的收敛视图。",
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (service, status) (leetmodel_messaging_outbox_records)", "legendFormat": "{{service}} / {{status}}", "refId": "A"}],
+      "title": "Outbox 状态",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "max by (service, status) (leetmodel_messaging_outbox_oldest_seconds)", "legendFormat": "{{service}} / {{status}}", "refId": "A"}],
+      "title": "Outbox 最老年龄",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (consumer_group, topic) (leetmodel_messaging_consumer_backlog)", "legendFormat": "{{consumer_group}} / {{topic}}", "refId": "A"}],
+      "title": "Consumer 积压",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (consumer_group) (leetmodel_messaging_dlq_records)", "legendFormat": "records / {{consumer_group}}", "refId": "A"}, {"expr": "max by (consumer_group) (leetmodel_messaging_dlq_oldest_seconds)", "legendFormat": "oldest seconds / {{consumer_group}}", "refId": "B"}],
+      "title": "DLQ 数量与年龄",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (topic, outcome) (rate(leetmodel_messaging_publish_total[5m]))", "legendFormat": "publish / {{topic}} / {{outcome}}", "refId": "A"}, {"expr": "sum by (consumer_group, outcome) (rate(leetmodel_messaging_consume_total[5m]))", "legendFormat": "consume / {{consumer_group}} / {{outcome}}", "refId": "B"}],
+      "title": "发布与消费吞吐",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_messaging_publish_duration_seconds_bucket[5m])))", "legendFormat": "publish / {{outcome}}", "refId": "A"}, {"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_messaging_consume_duration_seconds_bucket[5m])))", "legendFormat": "consume / {{outcome}}", "refId": "B"}],
+      "title": "消息处理 P95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["leetmodel", "messaging"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LeetModel / 可靠消息",
+  "uid": "leetmodel-reliable-messaging",
+  "version": 1
+}

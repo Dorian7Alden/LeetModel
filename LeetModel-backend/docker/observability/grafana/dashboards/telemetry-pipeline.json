@@ -1,0 +1,87 @@
+{
+  "annotations": {"list": []},
+  "description": "Prometheus、Alertmanager、Grafana 与 SkyWalking OAP 自身可用性和采集质量。",
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "leetmodel:infrastructure_up:count", "legendFormat": "UP", "refId": "A"}],
+      "title": "可用观测组件",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "count(up{job=\"leetmodel-services\"})", "legendFormat": "discovered", "refId": "A"}],
+      "title": "已发现服务目标",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(prometheus_rule_group_last_evaluation_samples)", "legendFormat": "samples", "refId": "A"}],
+      "title": "规则最近评估样本",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 4,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "min by (job) (up{job=~\"prometheus|skywalking-oap|alertmanager|grafana\"})", "legendFormat": "{{job}}", "refId": "A"}],
+      "title": "观测组件可用性",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "max by (job) (scrape_duration_seconds)", "legendFormat": "{{job}}", "refId": "A"}],
+      "title": "抓取耗时",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (job) (scrape_samples_scraped)", "legendFormat": "scraped / {{job}}", "refId": "A"}, {"expr": "sum by (job) (scrape_samples_post_metric_relabeling)", "legendFormat": "kept / {{job}}", "refId": "B"}],
+      "title": "抓取样本",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "id": 7,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "prometheus_rule_group_last_duration_seconds", "legendFormat": "{{rule_group}}", "refId": "A"}, {"expr": "prometheus_engine_query_duration_seconds{slice=\"inner_eval\"}", "legendFormat": "query", "refId": "B"}],
+      "title": "Prometheus 规则与查询耗时",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["leetmodel", "telemetry"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LeetModel / 遥测管道",
+  "uid": "leetmodel-telemetry-pipeline",
+  "version": 1
+}
