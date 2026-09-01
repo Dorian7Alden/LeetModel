@@ -51,6 +51,7 @@ public final class RocketMqConsumerControl {
         List<ConsumerBacklogSnapshot> snapshots = new ArrayList<>();
         for (DefaultRocketMQListenerContainer container : containers()) {
             long backlog = 0L;
+            long oldestSeconds = 0L;
             boolean available = container.getConsumer() != null && container.isRunning();
             if (available) {
                 try {
@@ -61,13 +62,20 @@ public final class RocketMqConsumerControl {
                                 queue, ReadOffsetType.MEMORY_FIRST_THEN_STORE);
                         backlog += Math.max(0L, maximum - Math.max(0L, consumed));
                     }
+                    if (backlog > 0L) {
+                        oldestSeconds = container.getConsumer().getDefaultMQPushConsumerImpl()
+                                .queryConsumeTimeSpan(container.getTopic()).stream()
+                                .mapToLong(value -> Math.max(0L, value.getDelayTime() / 1000L))
+                                .max().orElse(0L);
+                    }
                 } catch (Exception exception) {
                     available = false;
                     backlog = 0L;
+                    oldestSeconds = 0L;
                 }
             }
             snapshots.add(new ConsumerBacklogSnapshot(container.getConsumerGroup(),
-                    container.getTopic(), backlog, available));
+                    container.getTopic(), backlog, oldestSeconds, available));
         }
         return snapshots.stream()
                 .sorted(Comparator.comparing(ConsumerBacklogSnapshot::consumerGroup))
@@ -94,6 +102,7 @@ public final class RocketMqConsumerControl {
             String consumerGroup,
             String topic,
             long backlog,
+            long oldestUnconsumedSeconds,
             boolean available
     ) {
     }

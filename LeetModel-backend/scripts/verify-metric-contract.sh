@@ -26,6 +26,7 @@ fi
 required_markers=(
   'leetmodel.messaging.outbox.records'
   'leetmodel.messaging.consumer.backlog'
+  'leetmodel.messaging.consumer.oldest.seconds'
   'leetmodel.messaging.dlq.records'
   'claim_type'
   'leetmodel.ai.queue.tasks'

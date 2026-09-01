@@ -24,7 +24,7 @@ class MessagingMetricsTest {
         metrics.published("lm-dev%review-task-v1", "retry", 1_000_000L);
         metrics.consumed("lm-dev%cg-review-task-v1", "duplicate", 2_000_000L);
         metrics.updateBroker(List.of(new RocketMqConsumerControl.ConsumerBacklogSnapshot(
-                        "lm-dev%cg-review-task-v1", "lm-dev%review-task-v1", 7L, true)),
+                        "lm-dev%cg-review-task-v1", "lm-dev%review-task-v1", 7L, 125L, true)),
                 List.of(new MessagingDeadLetterQueueDTO("ai-review-service",
                         "lm-dev%cg-review-task-v1", "%DLQ%lm-dev%cg-review-task-v1", 2L,
                         LocalDateTime.now(ZoneOffset.UTC).minusSeconds(30), true)));
@@ -36,6 +36,8 @@ class MessagingMetricsTest {
         assertThat(registry.get("leetmodel.messaging.consume")
                 .tag("outcome", "duplicate").counter().count()).isEqualTo(1D);
         assertThat(registry.get("leetmodel.messaging.consumer.backlog").gauge().value()).isEqualTo(7D);
+        assertThat(registry.get("leetmodel.messaging.consumer.oldest.seconds").gauge().value())
+                .isEqualTo(125D);
         assertThat(registry.get("leetmodel.messaging.dlq.records").gauge().value()).isEqualTo(2D);
         assertThat(registry.getMeters()).allSatisfy(meter ->
                 assertThat(meter.getId().getTags()).noneMatch(tag ->

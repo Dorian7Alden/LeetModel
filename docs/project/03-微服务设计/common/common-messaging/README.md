@@ -55,7 +55,7 @@ Micrometer 指标覆盖以下稳定事实：
 | `leetmodel.messaging.publish` / `publish.duration` | 固定 Topic 下的 `success/retry/blocked` 吞吐与 Relay 耗时 |
 | `leetmodel.messaging.inbox.records` / `oldest.processing.seconds` | `PROCESSING/CONSUMED` 状态与未完成短事务年龄 |
 | `leetmodel.messaging.consume` / `consume.duration` | 本地消费组的 `consumed/duplicate/failure` 吞吐与短事务耗时 |
-| `leetmodel.messaging.consumer.backlog` | 本地消费组与固定 Topic 的 Broker 最大位点减消费位点 |
+| `leetmodel.messaging.consumer.backlog` / `consumer.oldest.seconds` | 本地消费组与固定 Topic 的 Broker 最大位点减消费位点，以及消费位点下一条消息的最老等待时间 |
 | `leetmodel.messaging.dlq.records` / `dlq.oldest.seconds` | 本地消费组对应 `%DLQ%ConsumerGroup` 的存量与最老消息年龄 |
 
 Broker 位点与 DLQ 查询各有 `*.metrics.available` 仪表。读取失败时数值为不可解释的占位值，必须与 `available=0` 联合判断，不能把不可用解释为零积压。指标标签不包含 `eventId`、`traceId`、`operationId`、消息 Key 或 Payload。

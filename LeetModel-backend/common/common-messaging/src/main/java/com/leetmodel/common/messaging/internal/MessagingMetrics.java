@@ -21,6 +21,7 @@ public final class MessagingMetrics {
 
     private final MeterRegistry registry;
     private final MultiGauge consumerBacklog;
+    private final MultiGauge consumerOldest;
     private final MultiGauge consumerAvailable;
     private final MultiGauge deadLetterRecords;
     private final MultiGauge deadLetterOldest;
@@ -48,6 +49,7 @@ public final class MessagingMetrics {
         this.registry = registry;
         if (registry == null) {
             consumerBacklog = null;
+            consumerOldest = null;
             consumerAvailable = null;
             deadLetterRecords = null;
             deadLetterOldest = null;
@@ -56,6 +58,9 @@ public final class MessagingMetrics {
         }
         consumerBacklog = MultiGauge.builder("leetmodel.messaging.consumer.backlog")
                 .description("Broker messages waiting behind local consumer offsets")
+                .register(registry);
+        consumerOldest = MultiGauge.builder("leetmodel.messaging.consumer.oldest.seconds")
+                .description("Age of the oldest unconsumed Broker message")
                 .register(registry);
         consumerAvailable = MultiGauge.builder("leetmodel.messaging.consumer.metrics.available")
                 .description("Whether consumer backlog facts are available")
@@ -114,13 +119,16 @@ public final class MessagingMetrics {
             List<MessagingDeadLetterQueueDTO> deadLetters
     ) {
         List<MultiGauge.Row<?>> backlogRows = new ArrayList<>();
+        List<MultiGauge.Row<?>> oldestRows = new ArrayList<>();
         List<MultiGauge.Row<?>> consumerAvailabilityRows = new ArrayList<>();
         for (RocketMqConsumerControl.ConsumerBacklogSnapshot value : consumers) {
             Tags tags = consumerTags(value.consumerGroup(), value.topic());
             backlogRows.add(MultiGauge.Row.of(tags, value.backlog()));
+            oldestRows.add(MultiGauge.Row.of(tags, value.oldestUnconsumedSeconds()));
             consumerAvailabilityRows.add(MultiGauge.Row.of(tags, value.available() ? 1D : 0D));
         }
         consumerBacklog.register(backlogRows, true);
+        consumerOldest.register(oldestRows, true);
         consumerAvailable.register(consumerAvailabilityRows, true);
 
         List<MultiGauge.Row<?>> deadLetterRows = new ArrayList<>();
