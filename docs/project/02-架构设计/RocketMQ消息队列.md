@@ -88,9 +88,11 @@ flowchart LR
 | ONLINE_CORE | 新提交触发正式评审、手动生成正式建议 | 用户可见、必须可靠、允许排队、不允许静默丢失 | MQ 快速落领域任务，业务工作线程有界执行 | Outbox 重投、Broker 重试、DLQ、任务租约恢复 |
 | DERIVED | 评审完成或最终提交变化后重建排行 | 最终一致、重复可合并、晚到比丢失更可接受 | 按 `problemId` 合并为单题重建任务 | 幂等合并、失败重试、周期对账 |
 | BATCH | 固定数据集质量评价、隔离实验、批量索引 | 吞吐优先、可暂停、不能挤占在线业务 | 独立 Topic、消费组和低并发工作池 | 暂停领取、延后执行、人工恢复 |
-| OBSERVABILITY | 未来的非权威操作审计投影和统计 | 不参与业务提交，允许消费者独立订阅 | 独立消费组异步投影 | 投影可重建，不阻塞核心链路 |
+| OBSERVABILITY | 未来的非权威遥测与统计投影 | 不参与业务提交，允许消费者独立订阅 | 独立消费组异步投影 | 投影可重建，不阻塞核心链路 |
 
 AI 原子调用优先级继续沿用已实现规则：客服实时 Chat 与查询 Embedding 为 P0，正式评审和建议为 P1，管理员单次模型测试为 P2，质量评价与隔离实验为 P3，批量索引为 P4。RocketMQ 消息中的声明值不具有提权作用。
+
+中央操作审计不是 `OBSERVABILITY` 投影。审计是需要长期解释和追责的权威事实，目标设计使用业务本地审计 Outbox、专用 Topic 和 audit-service 不可变归档，详见 [操作审计架构](操作审计架构.md)。
 
 
 ### Topic 与消费组
@@ -110,6 +112,16 @@ RocketMQ 5.x 要求不同消息类型使用对应类型 Topic。首期全部使�
 | `review-event-v1` | `REVIEW_COMPLETED` | ai-review-service | `cg-ranking-review-v1` | 合并单题排行重建请求 |
 
 一个消费组只承载一种稳定消费逻辑。同组全部实例必须使用相同 Topic、Tag、并发模式和重试策略。需要独立获得同一事件的下游使用独立消费组，不共享组名。
+
+#### 目标扩展：操作审计资源
+
+以下资源是已确认目标，尚未计入上述五条已实现业务链路：
+
+| Topic | Tag | 生产者 | 消费组 | 消费动作 |
+|-------|-----|--------|--------|----------|
+| `leetmodel-operation-audit-v1` | `OPERATION_AUDIT_RECORDED` | 产生语义审计的业务所有者服务 | `cg-audit-archive-v1` | audit-service 校验、幂等并只追加归档 |
+
+它使用 NORMAL Topic 和公共消息信封，`eventId` 作为 Key。审计生产者仍遵循事务 Outbox；中央消费者使用 Inbox/唯一约束承受至少一次投递。审计 DLQ 的重放恢复原 `auditEventId` 的归档，批准重放这一人工动作另产生新的操作审计。
 
 首期不建立以下资源：
 
@@ -413,6 +425,8 @@ MQ6 的实际运维入口位于管理端“AI 中心 / 消息运维”：
 - consumer 暂停/恢复调用 RocketMQ Push Consumer 的 `suspend`/`resume`，不会通过抛出消费异常制造重试风暴。
 - 重放只接受 `PUBLISHED` 或 `BLOCKED` 的原始 Outbox 事件，单批最多 20 条；DLQ 永不自动回灌。
 - ai-gateway-service 在调度任务和调用事实中持久化 traceId，异步执行前恢复 MDC，因此管理端可以通过 `traceId → eventId/Inbox → aiCallId` 查询同一链路。
+
+目标 audit-service 上线后，审计 Topic 还必须监测本地审计 Outbox 最老年龄、中央归档延迟、非法 schema、DLQ 和只有 `REQUESTED/PENDING` 无 `COMPLETED` 终态的操作；这些规则见 [可观测性与系统保障](可观测性与系统保障.md)。
 
 
 ### 部署与安全
