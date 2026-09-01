@@ -5,6 +5,7 @@ import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.common.messaging.MessagingNamespace;
 import com.leetmodel.common.messaging.PendingMessage;
+import com.leetmodel.common.api.dto.MessagingOutboxRecordDTO;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Locale;
 
 /**
  * 基于业务服务本地数据库的事务 Outbox。
@@ -246,6 +248,70 @@ public final class JdbcMessageOutbox implements MessageOutbox {
         return Math.max(0L, Duration.between(timestamp.toInstant(), Instant.now(clock)).toSeconds());
     }
 
+    /** 查询不含消息正文与幂等键的运维元数据。 */
+    public List<MessagingOutboxRecordDTO> findOperations(
+            String service, String status, String traceId, String eventId, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT event_id, topic, tag, event_type, aggregate_type, aggregate_id, trace_id,
+                       status, retry_count, last_error, occurred_at, published_at, update_time
+                FROM message_outbox WHERE 1 = 1
+                """);
+        List<Object> arguments = new ArrayList<>();
+        if (status != null && !status.isBlank()) {
+            String normalized = status.trim().toUpperCase(Locale.ROOT);
+            OutboxStatus.valueOf(normalized);
+            sql.append(" AND status = ?");
+            arguments.add(normalized);
+        }
+        appendExact(sql, arguments, "trace_id", traceId, 100);
+        appendExact(sql, arguments, "event_id", eventId, 36);
+        sql.append(" ORDER BY create_time DESC LIMIT ?");
+        arguments.add(Math.max(1, Math.min(limit, 100)));
+        return jdbcTemplate.query(sql.toString(), (resultSet, rowNumber) -> new MessagingOutboxRecordDTO(
+                service,
+                resultSet.getString("event_id"),
+                resultSet.getString("topic"),
+                resultSet.getString("tag"),
+                resultSet.getString("event_type"),
+                resultSet.getString("aggregate_type"),
+                resultSet.getString("aggregate_id"),
+                resultSet.getString("trace_id"),
+                resultSet.getString("status"),
+                resultSet.getInt("retry_count"),
+                resultSet.getString("last_error"),
+                localDateTime(resultSet.getTimestamp("occurred_at")),
+                localDateTime(resultSet.getTimestamp("published_at")),
+                localDateTime(resultSet.getTimestamp("update_time"))
+        ), arguments.toArray());
+    }
+
+    /**
+     * 将已发布（含进入 DLQ 的原事件）或已阻塞事件重新置为待发送。
+     * 事件 ID 和消息正文保持不变，消费端继续由 Inbox 保证幂等。
+     */
+    public List<String> replay(List<String> eventIds, String reason) {
+        Instant now = Instant.now(clock);
+        List<String> accepted = new ArrayList<>();
+        for (String eventId : eventIds.stream().distinct().limit(20).toList()) {
+            if (eventId == null || !eventId.matches("[0-9a-fA-F-]{36}")) {
+                continue;
+            }
+            int changed = jdbcTemplate.update("""
+                    UPDATE message_outbox
+                    SET status = 'PENDING', next_attempt_at = ?, lease_owner = NULL,
+                        lease_expires_at = NULL, broker_message_id = NULL, published_at = NULL,
+                        last_error = ?, update_time = ?
+                    WHERE event_id = ? AND status IN ('PUBLISHED', 'BLOCKED')
+                    """,
+                    Timestamp.from(now), errorSummary("operator replay: " + reason),
+                    Timestamp.from(now), eventId);
+            if (changed == 1) {
+                accepted.add(eventId);
+            }
+        }
+        return accepted;
+    }
+
     private PendingMessage findClaimed(String eventId, String owner) {
         return jdbcTemplate.queryForObject("""
                 SELECT event_id, topic, tag, message_key, event_type, payload_json,
@@ -266,6 +332,23 @@ public final class JdbcMessageOutbox implements MessageOutbox {
                 eventId,
                 owner
         );
+    }
+
+    private void appendExact(StringBuilder sql, List<Object> arguments,
+                             String column, String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() > maxLength || !trimmed.matches("[a-zA-Z0-9:._-]+")) {
+            throw new IllegalArgumentException(column + " contains unsupported characters");
+        }
+        sql.append(" AND ").append(column).append(" = ?");
+        arguments.add(trimmed);
+    }
+
+    private java.time.LocalDateTime localDateTime(Timestamp value) {
+        return value == null ? null : value.toLocalDateTime();
     }
 
     private String requiredTag(String tag) {

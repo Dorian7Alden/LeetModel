@@ -8,14 +8,12 @@ import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionLock;
-import com.leetmodel.submission.config.ReviewDispatchProperties;
 import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
@@ -39,10 +37,8 @@ public class SubmissionService {
     private final SubmissionMapper submissionMapper;
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
-    private final ReviewFeignClient reviewFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
-    private final ReviewDispatchProperties reviewDispatchProperties;
     private final ReviewDispatchQueryService reviewDispatchQueryService;
     private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
@@ -162,23 +158,12 @@ public class SubmissionService {
     }
 
     /**
-     * 按互斥迁移模式返回评审派发状态；仅 LEGACY_FEIGN 在请求线程触发评审。
+     * 返回事务 Outbox 的评审派发状态；请求线程不直接调用评审服务。
      * @param submission 提交记录
      * @return 提交响应
      */
     public SubmissionVO triggerReview(Submission submission) {
-        SubmissionVO response = toVO(submission);
-        if (reviewDispatchProperties.getTransport() != ReviewDispatchProperties.Transport.LEGACY_FEIGN) {
-            return response;
-        }
-        Result<Long> task = reviewFeignClient.createVersionedTask(
-                submission.getId(), submission.getTeamId(), submission.getProblemId(),
-                com.leetmodel.submission.messaging.ReviewTaskMessageContract.WORKFLOW_VERSION);
-        BusinessException.throwIf(task == null || !task.isSuccess(),
-                SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED);
-        reviewDispatchQueryService.markLegacyDispatched(submission.getId(), task.getData());
-        response.setReviewDispatchStatus("DISPATCHED");
-        return response;
+        return toVO(submission);
     }
 
     /**

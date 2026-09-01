@@ -88,4 +88,16 @@ class AiCallLogMigrationTest {
         assertThat(sql).contains("`evaluation_task_id`", "idx_queue_evaluation_task")
                 .doesNotContain("prompt", "response", "sample_payload");
     }
+
+    @Test
+    void v9ShouldAddTraceAssociationWithoutSensitivePayload() throws Exception {
+        String sql;
+        try (var input = getClass().getResourceAsStream(
+                "/db/migration/V9__add_ai_call_trace.sql")) {
+            assertThat(input).isNotNull();
+            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
+        }
+        assertThat(sql).contains("`trace_id`", "idx_task_trace", "idx_call_trace")
+                .doesNotContain("prompt", "response", "api_key");
+    }
 }

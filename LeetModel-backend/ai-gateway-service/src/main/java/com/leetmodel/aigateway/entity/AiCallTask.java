@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 public class AiCallTask extends BaseEntity {
     private String taskId;
     private String callId;
+    private String traceId;
     private String callerService;
     private String idempotencyKey;
     private String callType;

@@ -139,6 +139,34 @@ class JdbcMessagingIntegrationTest {
         })).isEqualTo(InboxResult.CONSUMED);
     }
 
+    @Test
+    void shouldExposeSanitizedTraceFactsAndReplayPublishedEventWithSameId() {
+        outbox.enqueue("review-task-v1", "REVIEW_TASK_READY", envelope(EVENT_ONE));
+        outbox.claim("relay-a", 10, Duration.ofSeconds(30));
+        outbox.markPublished(EVENT_ONE, "relay-a", "broker-secret-id");
+        inbox.executeOnce("cg-ai-review-task-v1", envelope(EVENT_INBOX), () -> { });
+
+        assertThat(outbox.findOperations("submission-service", "PUBLISHED", "trace-1", null, 10))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.eventId()).isEqualTo(EVENT_ONE);
+                    assertThat(record.traceId()).isEqualTo("trace-1");
+                    assertThat(record.toString()).doesNotContain("review:submission-1:v1")
+                            .doesNotContain("broker-secret-id")
+                            .doesNotContain("submissionId");
+                });
+        assertThat(inbox.findOperations("ai-review-service", "trace-1", null, 10))
+                .singleElement()
+                .satisfies(record -> assertThat(record.eventId()).isEqualTo(EVENT_INBOX));
+
+        assertThat(outbox.replay(java.util.List.of(EVENT_ONE), "人工故障恢复"))
+                .containsExactly(EVENT_ONE);
+        assertThat(outbox.count(OutboxStatus.PENDING)).isEqualTo(1L);
+        assertThat(outbox.claim("relay-b", 10, Duration.ofSeconds(30)))
+                .extracting(message -> message.eventId())
+                .containsExactly(EVENT_ONE);
+    }
+
     private MessageEnvelopeV1<Map<String, String>> envelope(String eventId) {
         return new MessageEnvelopeV1<>(
                 eventId,

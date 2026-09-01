@@ -13,6 +13,7 @@ public class AiCallLogDTO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
     private String callId;
+    private String traceId;
     private String callType;
     private String modality;
     private String callerService;

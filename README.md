@@ -33,7 +33,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 - 建议：基于题面、论文和评审结果生成结构化改进建议
 - 排行：按题目展示最终提交的评审排名
 - AI 客服：平台操作答疑、受控选题辅助和历史会话
-- 管理端：用户与权限、题目与标签、队伍、提交、评审、建议、排行、AI 调用和质量评价
+- 管理端：用户与权限、题目与标签、队伍、提交、评审、建议、排行、AI 调用、质量评价和可靠消息运维
 
 ### 项目结构
 
@@ -121,9 +121,10 @@ cd LeetModel-backend
 docker compose up -d --wait rocketmq-namesrv rocketmq-broker
 ./scripts/init-rocketmq.sh
 ./scripts/verify-rocketmq.sh
+./scripts/drill-messaging-failures.sh status
 ```
 
-需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
+需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。`scripts/drill-messaging-failures.sh` 还提供 Broker 网络中断、MySQL 短故障和指定消息服务进程终止等单步演练命令；暂停故障必须显式执行对应的 resume 命令。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
 
 NameServer、Broker 和 Dashboard 均只绑定本机端口。本地 Broker 数据保存在 `rocketmq-broker-store` 命名卷；常规停止使用 `docker compose stop rocketmq-broker rocketmq-namesrv`。`docker compose down` 默认保留消息，禁止使用 `down -v` 或删除 RocketMQ 命名卷，除非明确要清空本地消息与消费位点。当前单 Broker、无 ACL 配置只用于本地开发，生产环境必须另行部署多副本集群并通过 `rocketmq.producer.access-key`、`secret-key` 等外部密钥配置启用 ACL。
 

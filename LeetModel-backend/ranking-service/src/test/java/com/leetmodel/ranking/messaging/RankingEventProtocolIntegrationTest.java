@@ -58,15 +58,17 @@ class RankingEventProtocolIntegrationTest {
                 new FinalSubmissionChangedConsumer(codec, inbox, requestService);
         ReviewCompletedConsumer reviewConsumer = new ReviewCompletedConsumer(codec, inbox, requestService);
         CountDownLatch deliveries = new CountDownLatch(4);
+        PendingMessage review = pending(reviewEnvelope(), REVIEW_TOPIC, codec);
+        PendingMessage submission = pending(submissionEnvelope(), SUBMISSION_TOPIC, codec);
 
         DefaultMQPushConsumer submissionMq = consumer(
                 "lm-dev%cg-ranking-submission-v1", "mq3-submission-" + suffix,
                 SUBMISSION_TOPIC, FinalSubmissionChangedConsumer.EVENT_TYPE,
-                body -> finalConsumer.onMessage(body), deliveries);
+                submission.eventId(), codec, body -> finalConsumer.onMessage(body), deliveries);
         DefaultMQPushConsumer reviewMq = consumer(
                 "lm-dev%cg-ranking-review-v1", "mq3-review-" + suffix,
                 REVIEW_TOPIC, ReviewCompletedConsumer.EVENT_TYPE,
-                body -> reviewConsumer.onMessage(body), deliveries);
+                review.eventId(), codec, body -> reviewConsumer.onMessage(body), deliveries);
         RocketMQTemplate template = template(suffix);
         MessagePublisher publisher = new RocketMqMessagePublisher(template, 3000);
         try {
@@ -74,8 +76,6 @@ class RankingEventProtocolIntegrationTest {
             reviewMq.start();
             template.afterPropertiesSet();
             TimeUnit.SECONDS.sleep(2);
-            PendingMessage review = pending(reviewEnvelope(), REVIEW_TOPIC, codec);
-            PendingMessage submission = pending(submissionEnvelope(), SUBMISSION_TOPIC, codec);
             publisher.publish(review);
             publisher.publish(submission);
             publisher.publish(review);
@@ -95,6 +95,8 @@ class RankingEventProtocolIntegrationTest {
             String instance,
             String topic,
             String tag,
+            String expectedEventId,
+            MessageCodec codec,
             java.util.function.Consumer<byte[]> action,
             CountDownLatch deliveries
     ) throws Exception {
@@ -108,8 +110,11 @@ class RankingEventProtocolIntegrationTest {
         consumer.setMaxReconsumeTimes(5);
         consumer.subscribe(topic, tag);
         consumer.registerMessageListener((MessageListenerConcurrently) (messages, context) -> {
-            action.accept(messages.get(0).getBody());
-            deliveries.countDown();
+            byte[] body = messages.get(0).getBody();
+            if (expectedEventId.equals(codec.decode(body, Object.class).eventId())) {
+                action.accept(body);
+                deliveries.countDown();
+            }
             return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
         });
         return consumer;
@@ -134,7 +139,8 @@ class RankingEventProtocolIntegrationTest {
                 CREATE TABLE message_inbox (
                   id BIGINT AUTO_INCREMENT PRIMARY KEY, consumer_group VARCHAR(255) NOT NULL,
                   event_id VARCHAR(36) NOT NULL, event_type VARCHAR(100) NOT NULL,
-                  source_service VARCHAR(100) NOT NULL, status VARCHAR(20) NOT NULL,
+                  source_service VARCHAR(100) NOT NULL, trace_id VARCHAR(100) NOT NULL,
+                  status VARCHAR(20) NOT NULL,
                   occurred_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP,
                   create_time TIMESTAMP NOT NULL, update_time TIMESTAMP NOT NULL,
                   UNIQUE(consumer_group, event_id))

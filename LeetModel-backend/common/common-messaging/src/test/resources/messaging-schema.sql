@@ -33,6 +33,7 @@ CREATE TABLE message_inbox (
     event_id VARCHAR(36) NOT NULL,
     event_type VARCHAR(100) NOT NULL,
     source_service VARCHAR(100) NOT NULL,
+    trace_id VARCHAR(100) NOT NULL,
     status VARCHAR(20) NOT NULL,
     occurred_at TIMESTAMP NOT NULL,
     consumed_at TIMESTAMP,
