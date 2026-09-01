@@ -1,5 +1,6 @@
 package com.leetmodel.assistant.config;
 
+import com.leetmodel.common.core.telemetry.CorrelationTaskDecorator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -16,6 +17,7 @@ public class AssistantToolExecutorConfiguration {
         executor.setMaxPoolSize(4);
         executor.setQueueCapacity(20);
         executor.setThreadNamePrefix("assistant-tool-");
+        executor.setTaskDecorator(CorrelationTaskDecorator.INSTANCE);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(5);
         return executor;

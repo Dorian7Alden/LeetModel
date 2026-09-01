@@ -1,8 +1,9 @@
 package com.leetmodel.ranking.messaging;
 
 import com.leetmodel.common.api.dto.FinalSubmissionChangedPayload;
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.messaging.MessageCodec;
+import com.leetmodel.common.messaging.MessageCorrelationContext;
 import com.leetmodel.common.messaging.MessageContractException;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageInbox;
@@ -59,12 +60,9 @@ public class FinalSubmissionChangedConsumer implements RocketMQListener<byte[]> 
                 || payload.lockedAt() == null) {
             throw new MessageContractException("FINAL_SUBMISSION_CHANGED 消息字段不合法");
         }
-        TraceIdUtil.setTraceId(envelope.traceId());
-        try {
+        try (CorrelationContext.Scope ignored = MessageCorrelationContext.open(envelope)) {
             inbox.executeOnce(CONSUMER_GROUP, envelope,
                     () -> requestService.request(payload.problemId(), envelope.traceId()));
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 }

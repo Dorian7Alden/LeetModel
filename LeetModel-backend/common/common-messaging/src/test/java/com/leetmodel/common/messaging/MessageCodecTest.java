@@ -28,6 +28,30 @@ class MessageCodecTest {
 
         assertThat(decoded.eventId()).isEqualTo(EVENT_ID);
         assertThat(decoded.schemaVersion()).isEqualTo(MessageEnvelopeV1.VERSION);
+        assertThat(decoded.operationId()).isEqualTo("operation-1");
+        assertThat(decoded.payload()).isEqualTo(Map.of("submissionId", "s-1"));
+    }
+
+    @Test
+    void shouldDecodeVersionOneEnvelopeWithoutOptionalOperationId() {
+        String legacyJson = """
+                {
+                  "eventId": "00000000-0000-4000-8000-000000000001",
+                  "eventType": "REVIEW_TASK_READY",
+                  "schemaVersion": 1,
+                  "sourceService": "submission-service",
+                  "aggregateType": "submission",
+                  "aggregateId": "s-1",
+                  "idempotencyKey": "review:s-1:v1",
+                  "occurredAt": "2026-09-01T00:00:00Z",
+                  "traceId": "trace-1",
+                  "payload": {"submissionId": "s-1"}
+                }
+                """;
+
+        MessageEnvelopeV1<?> decoded = codec.decode(codec.bytes(legacyJson), Map.class);
+
+        assertThat(decoded.operationId()).isNull();
         assertThat(decoded.payload()).isEqualTo(Map.of("submissionId", "s-1"));
     }
 
@@ -72,7 +96,8 @@ class MessageCodecTest {
     private MessageEnvelopeV1<Map<String, String>> envelope(Map<String, String> payload) {
         return new MessageEnvelopeV1<>(
                 EVENT_ID, "REVIEW_TASK_READY", 1, "submission-service", "submission", "s-1",
-                "review:s-1:v1", Instant.parse("2026-09-01T00:00:00Z"), "trace-1", payload
+                "review:s-1:v1", Instant.parse("2026-09-01T00:00:00Z"), "trace-1",
+                "operation-1", payload
         );
     }
 }

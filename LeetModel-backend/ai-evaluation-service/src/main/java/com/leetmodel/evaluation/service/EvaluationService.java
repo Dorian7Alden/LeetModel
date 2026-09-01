@@ -24,6 +24,8 @@ import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
 import com.leetmodel.evaluation.entity.EvaluationRunAttempt;
 import com.leetmodel.evaluation.entity.EvaluationSample;
@@ -351,8 +353,10 @@ public class EvaluationService {
             return;
         }
         taskMapper.markRunning(task.getId(), LocalDateTime.now());
-        TraceIdUtil.setTraceId(task.getTraceId());
-        try {
+        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(run.getId().toString(), run.getAttemptNo());
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
             EvaluationExperimentRunner runner = runnerRegistry.require(taskFeature(task));
             EvaluationExperimentCommand command = command(run, sample, task, runner);
             EvaluationExperimentOutcome outcome = runner.parseResult(command, runner.execute(command));
@@ -367,8 +371,6 @@ public class EvaluationService {
                     task.getId(), sample.getId(), exception.getMessage());
             runMapper.fail(run.getId(), leaseToken, "ENVIRONMENT", null, 0L,
                     "实验评审依赖暂不可用", LocalDateTime.now());
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
         refreshTask(task);
     }

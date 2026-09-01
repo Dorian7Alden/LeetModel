@@ -8,7 +8,8 @@ import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -31,8 +32,13 @@ public class AiQueuedCallExecutor implements AiQueuedTaskExecutor {
 
     @Override
     public String execute(AiCallTask task) {
-        TraceIdUtil.setTraceId(task.getTraceId());
-        try {
+        Integer attemptNo = task.getAttemptCount() != null && task.getAttemptCount() > 0
+                ? task.getAttemptCount() : null;
+        CorrelationSnapshot correlationSnapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getTaskId(), attemptNo)
+                .withAiCallId(task.getCallId());
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(correlationSnapshot)) {
             long queueMs = Math.max(0, Duration.between(task.getQueuedAt(),
                     LocalDateTime.now(ZoneOffset.UTC)).toMillis());
             ModelExecutionSnapshot snapshot = objectMapper.readValue(
@@ -45,8 +51,6 @@ public class AiQueuedCallExecutor implements AiQueuedTaskExecutor {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("AI 调用载荷序列化失败", exception);
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 

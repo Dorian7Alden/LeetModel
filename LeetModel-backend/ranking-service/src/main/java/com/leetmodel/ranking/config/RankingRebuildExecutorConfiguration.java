@@ -1,5 +1,6 @@
 package com.leetmodel.ranking.config;
 
+import com.leetmodel.common.core.telemetry.CorrelationTaskDecorator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -14,6 +15,7 @@ public class RankingRebuildExecutorConfiguration {
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(0);
         executor.setThreadNamePrefix("ranking-rebuild-");
+        executor.setTaskDecorator(CorrelationTaskDecorator.INSTANCE);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
