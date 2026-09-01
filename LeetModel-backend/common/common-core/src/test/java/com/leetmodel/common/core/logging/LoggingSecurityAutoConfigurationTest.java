@@ -1,6 +1,7 @@
 package com.leetmodel.common.core.logging;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -15,9 +16,15 @@ class LoggingSecurityAutoConfigurationTest {
 
     @Test
     void shouldCreateLimiterOnlyWhenMetricsRegistryExists() {
-        contextRunner.run(context -> assertThat(context).doesNotHaveBean(FailureLogLimiter.class));
+        contextRunner.run(context -> {
+            assertThat(context).doesNotHaveBean(FailureLogLimiter.class);
+            assertThat(context).hasSingleBean(MeterBinder.class);
+        });
 
         contextRunner.withBean(MeterRegistry.class, SimpleMeterRegistry::new)
-                .run(context -> assertThat(context).hasSingleBean(FailureLogLimiter.class));
+                .run(context -> {
+                    assertThat(context).hasSingleBean(FailureLogLimiter.class);
+                    assertThat(context).hasSingleBean(MeterBinder.class);
+                });
     }
 }
