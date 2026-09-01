@@ -2,11 +2,14 @@ package com.leetmodel.review.observability;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 正式评审领域队列的低基数状态、等待和过期租约指标。
@@ -18,6 +21,7 @@ public class ReviewTaskMetrics {
             "WAITING", "LEASED", "RUNNING", "COMPLETED", "FAILED", "UNKNOWN");
 
     private final JdbcTemplate jdbcTemplate;
+    private final MeterRegistry registry;
 
     /**
      * 注册固定状态集合的评审任务指标。
@@ -31,6 +35,7 @@ public class ReviewTaskMetrics {
     ) {
         this.jdbcTemplate = jdbcTemplate;
         MeterRegistry registry = registryProvider.getIfAvailable();
+        this.registry = registry;
         if (registry == null) return;
         for (String status : STATUSES) {
             Gauge.builder("leetmodel.review.tasks", this,
@@ -47,6 +52,38 @@ public class ReviewTaskMetrics {
                         ReviewTaskMetrics::oldestWaitingSeconds)
                 .description("Age of the oldest due review task")
                 .register(registry);
+    }
+
+    /** 记录普通领取或过期租约接管。 */
+    public void claimed(boolean takeover) {
+        if (registry == null) return;
+        try {
+            registry.counter("leetmodel.review.task.claims",
+                    "claim_type", takeover ? "takeover" : "normal").increment();
+        } catch (RuntimeException ignored) {
+            // 指标故障不得改变任务领取结果。
+        }
+    }
+
+    /** 记录一次物理 attempt 的执行时间与结束状态。 */
+    public void attemptFinished(String status, long elapsedNanos) {
+        if (registry == null) return;
+        try {
+            Timer.builder("leetmodel.review.task.attempt.duration")
+                    .tag("outcome", outcome(status))
+                    .publishPercentileHistogram()
+                    .register(registry)
+                    .record(Math.max(0L, elapsedNanos), TimeUnit.NANOSECONDS);
+        } catch (RuntimeException ignored) {
+            // 指标故障不得改变任务终态。
+        }
+    }
+
+    private String outcome(String status) {
+        if (status == null) return "unknown";
+        String normalized = status.toLowerCase(Locale.ROOT);
+        return List.of("waiting", "leased", "running", "completed", "failed", "unknown")
+                .contains(normalized) ? normalized : "unknown";
     }
 
     private double countStatus(String status) {

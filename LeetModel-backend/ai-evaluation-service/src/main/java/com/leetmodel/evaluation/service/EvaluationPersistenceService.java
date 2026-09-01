@@ -8,6 +8,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class EvaluationPersistenceService {
     private final EvaluationSampleMapper sampleMapper;
     private final EvaluationTaskMapper taskMapper;
     private final EvaluationRunAttemptMapper runMapper;
+    private final EvaluationDispatchMetrics metrics;
 
     @Transactional
     public void createDataset(EvaluationDataset dataset, List<EvaluationSample> samples) {
@@ -57,7 +59,9 @@ public class EvaluationPersistenceService {
 
     @Transactional
     public boolean recoverExpired(EvaluationRunAttempt stale, LocalDateTime now) {
-        return runMapper.markExpiredUnknown(stale.getId(), now) == 1;
+        boolean recovered = runMapper.markExpiredUnknown(stale.getId(), now) == 1;
+        if (recovered) metrics.recoveredUnknown();
+        return recovered;
     }
 
     private void fillRunIdentity(EvaluationRunAttempt run, EvaluationTask task) {

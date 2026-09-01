@@ -1,7 +1,9 @@
 package com.leetmodel.suggestion.service;
 
 import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
+import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
+import com.leetmodel.suggestion.observability.SuggestionTaskMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ class SuggestionTaskWorkerCoordinatorTest {
     @Mock SuggestionTaskMapper taskMapper;
     @Mock SuggestionService suggestionService;
     @Mock ThreadPoolTaskExecutor executor;
+    @Mock SuggestionTaskMetrics metrics;
     private SuggestionTaskWorkerCoordinator coordinator;
 
     @BeforeEach
@@ -29,7 +32,7 @@ class SuggestionTaskWorkerCoordinatorTest {
         properties.setConcurrency(1);
         properties.setLeaseSeconds(120);
         coordinator = new SuggestionTaskWorkerCoordinator(
-                taskMapper, suggestionService, properties, executor);
+                taskMapper, suggestionService, properties, executor, metrics);
     }
 
     @Test
@@ -54,5 +57,19 @@ class SuggestionTaskWorkerCoordinatorTest {
         coordinator.heartbeat();
 
         verify(taskMapper).heartbeat(eq(9001L), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void expiredRunningLeaseIsCountedAsTakeover() {
+        SuggestionTask candidate = new SuggestionTask();
+        candidate.setId(9001L);
+        candidate.setStatus("RUNNING");
+        when(taskMapper.selectById(9001L)).thenReturn(candidate);
+        when(taskMapper.claim(eq(9001L), anyString(), anyString(), any(), any())).thenReturn(1);
+        doAnswer(invocation -> null).when(executor).execute(any(Runnable.class));
+
+        coordinator.wakeup(9001L);
+
+        verify(metrics).claimed(true);
     }
 }

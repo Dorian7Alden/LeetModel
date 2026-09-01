@@ -3,6 +3,7 @@ package com.leetmodel.ranking.service;
 import com.leetmodel.ranking.config.RankingRebuildProperties;
 import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
+import com.leetmodel.ranking.observability.RankingRebuildMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,6 +27,7 @@ public class RankingRebuildCoordinator {
     private final RankingRebuildWorker worker;
     private final RankingRebuildProperties properties;
     private final ThreadPoolTaskExecutor executor;
+    private final RankingRebuildMetrics metrics;
     private final Semaphore permit = new Semaphore(1);
     private final ConcurrentHashMap<Long, String> activeLeases = new ConcurrentHashMap<>();
     private final String owner = "ranking-service:" + UUID.randomUUID();
@@ -34,12 +36,14 @@ public class RankingRebuildCoordinator {
             RankingRebuildTaskMapper taskMapper,
             RankingRebuildWorker worker,
             RankingRebuildProperties properties,
-            @Qualifier("rankingRebuildExecutor") ThreadPoolTaskExecutor executor
+            @Qualifier("rankingRebuildExecutor") ThreadPoolTaskExecutor executor,
+            RankingRebuildMetrics metrics
     ) {
         this.taskMapper = taskMapper;
         this.worker = worker;
         this.properties = properties;
         this.executor = executor;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${ranking.rebuild.poll-delay-ms:1000}")
@@ -58,14 +62,25 @@ public class RankingRebuildCoordinator {
             permit.release();
             return;
         }
+        metrics.claimed("RUNNING".equals(candidate.getStatus()));
         activeLeases.put(candidate.getId(), token);
         try {
             executor.execute(() -> {
+                long started = System.nanoTime();
                 try {
                     worker.execute(candidate.getId(), token);
                 } finally {
-                    activeLeases.remove(candidate.getId(), token);
-                    permit.release();
+                    try {
+                        RankingRebuildTask completed = taskMapper.selectById(candidate.getId());
+                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
+                    } catch (RuntimeException exception) {
+                        log.debug("排行 attempt 指标不可用: type={}",
+                                exception.getClass().getSimpleName());
+                    } finally {
+                        activeLeases.remove(candidate.getId(), token);
+                        permit.release();
+                    }
                 }
             });
         } catch (RejectedExecutionException exception) {

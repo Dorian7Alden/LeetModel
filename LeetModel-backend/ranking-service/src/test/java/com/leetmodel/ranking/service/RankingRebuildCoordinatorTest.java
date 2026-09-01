@@ -3,6 +3,7 @@ package com.leetmodel.ranking.service;
 import com.leetmodel.ranking.config.RankingRebuildProperties;
 import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
+import com.leetmodel.ranking.observability.RankingRebuildMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,13 +23,14 @@ class RankingRebuildCoordinatorTest {
     @Mock RankingRebuildTaskMapper taskMapper;
     @Mock RankingRebuildWorker worker;
     @Mock ThreadPoolTaskExecutor executor;
+    @Mock RankingRebuildMetrics metrics;
     private RankingRebuildCoordinator coordinator;
 
     @BeforeEach
     void setUp() {
         RankingRebuildProperties properties = new RankingRebuildProperties();
         properties.setLeaseSeconds(300);
-        coordinator = new RankingRebuildCoordinator(taskMapper, worker, properties, executor);
+        coordinator = new RankingRebuildCoordinator(taskMapper, worker, properties, executor, metrics);
     }
 
     @Test
@@ -43,5 +45,19 @@ class RankingRebuildCoordinatorTest {
         coordinator.heartbeat();
 
         verify(taskMapper).heartbeat(eq(9L), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void expiredRunningLeaseIsCountedAsTakeover() {
+        RankingRebuildTask candidate = new RankingRebuildTask();
+        candidate.setId(9L);
+        candidate.setStatus("RUNNING");
+        when(taskMapper.selectNextClaimable(any())).thenReturn(candidate);
+        when(taskMapper.claim(eq(9L), anyString(), anyString(), any(), any())).thenReturn(1);
+        doAnswer(invocation -> null).when(executor).execute(any(Runnable.class));
+
+        coordinator.poll();
+
+        verify(metrics).claimed(true);
     }
 }

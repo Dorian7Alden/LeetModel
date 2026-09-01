@@ -6,6 +6,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -24,8 +25,9 @@ class EvaluationPersistenceServiceTest {
     private final EvaluationSampleMapper sampleMapper = mock(EvaluationSampleMapper.class);
     private final EvaluationTaskMapper taskMapper = mock(EvaluationTaskMapper.class);
     private final EvaluationRunAttemptMapper runMapper = mock(EvaluationRunAttemptMapper.class);
+    private final EvaluationDispatchMetrics metrics = mock(EvaluationDispatchMetrics.class);
     private final EvaluationPersistenceService service = new EvaluationPersistenceService(
-            datasetMapper, sampleMapper, taskMapper, runMapper);
+            datasetMapper, sampleMapper, taskMapper, runMapper, metrics);
 
     @Test
     void createsStableSlotContextAndAttemptScopedIdempotencyKey() {
@@ -58,5 +60,6 @@ class EvaluationPersistenceServiceTest {
         assertThat(service.recoverExpired(stale, now)).isTrue();
 
         verify(runMapper, never()).insert(any(EvaluationRunAttempt.class));
+        verify(metrics).recoveredUnknown();
     }
 }
