@@ -44,6 +44,12 @@ leetmodel:
 
 配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 DOWN；Micrometer 暴露发布结果、消费结果、Outbox 状态数和最老待发送年龄，标签不包含 eventId 等高基数字段。
 
+### MQ6 运维边界
+
+启用模块的服务会暴露 `/internal/messaging` 内网契约，返回脱敏 Outbox、Inbox、领域积压、真实 consumer 运行状态和 Broker DLQ 摘要。consumer 暂停/恢复直接调用 RocketMQ Push Consumer 的 `suspend`/`resume`；Outbox 补发只接受 `PUBLISHED` 或 `BLOCKED` 的原 eventId，最多 20 条，不生成新业务事件。
+
+DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%ConsumerGroup`，不会创建 DLQ 消费者或移动 offset。公共模块只负责精确定位死信并解码信封元数据；实际重放由 admin-service 校验完整 eventId 集合后，委托信封中的来源服务重置原 Outbox。DLQ 永不自动回灌，所有写操作都由管理员入口提供原因并形成操作结果。
+
 ### 本地验证
 
 ```bash
