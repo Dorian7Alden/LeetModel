@@ -2,11 +2,14 @@ package com.leetmodel.common.cache.internal;
 
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.actuate.health.Status;
 
 /**
  * 暴露业务 Redis 与 Outbox 降级状态。
  */
 public final class BusinessCacheHealthIndicator implements HealthIndicator {
+
+    private static final Status DEGRADED = new Status("DEGRADED");
 
     private final BusinessRedisClient redisClient;
     private final CacheOutboxRepository repository;
@@ -34,12 +37,13 @@ public final class BusinessCacheHealthIndicator implements HealthIndicator {
     public Health health() {
         try {
             boolean available = redisClient.ping();
-            return Health.up()
+            Health.Builder builder = available ? Health.up() : Health.status(DEGRADED);
+            return builder
                     .withDetail("redis", available ? "available" : "degraded")
                     .withDetail("pendingOutbox", repository.pendingCount())
                     .build();
         } catch (RuntimeException exception) {
-            return Health.unknown()
+            return Health.status(DEGRADED)
                     .withDetail("redis", "degraded")
                     .withDetail("reason", exception.getClass().getSimpleName())
                     .build();
