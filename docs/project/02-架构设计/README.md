@@ -19,6 +19,8 @@
 | [new-api第三方网关集成.md](new-api第三方网关集成.md) | 重复建设问题、两层网关边界、new-api 接口与本地部署 | 引入第三方 AI 网关 |
 | [技术栈选型.md](技术栈选型.md) | 技术选型、版本兼容性、决策依据 | 确认项目技术基础 |
 | [可观测性与系统保障.md](可观测性与系统保障.md) | SkyWalking 与 Prometheus 分工、长耗时 AI 异步链路追踪、指标告警和恢复闭环 | 建设或验收系统保障能力 |
+| [可观测性组件基线.md](可观测性组件基线.md) | SkyWalking/Prometheus 固定版本、本地部署、Agent 兼容矩阵与不支持项 | 启动可观测基线或评估 Agent 升级 |
+| [关联标识与遥测字段契约.md](关联标识与遥测字段契约.md) | Trace、Operation、Event、Task 与 AI Call 标识的信任、传播、MDC 和持久化边界 | 实施 HTTP/MQ/Worker 关联或审查高基数字段 |
 | [日志系统.md](日志系统.md) | 统一 JSON 日志、SkyWalking 日志采集、关联字段、脱敏和降级策略 | 实施运行日志平台 |
 | [操作审计架构.md](操作审计架构.md) | 分散产生、可靠传递、中央不可变归档的操作审计架构 | 实施高风险操作追责与审计查询 |
 | [RocketMQ消息队列.md](RocketMQ消息队列.md) | 多级任务队列、Topic 与消费组、Outbox/Inbox、崩溃恢复、配置和迁移路线 | 实现或讲解 RocketMQ 可靠异步链路 |

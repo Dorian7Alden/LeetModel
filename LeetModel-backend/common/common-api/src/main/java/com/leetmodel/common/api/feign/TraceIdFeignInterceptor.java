@@ -1,6 +1,6 @@
 package com.leetmodel.common.api.feign;
 
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import org.slf4j.Logger;
@@ -23,14 +23,22 @@ public class TraceIdFeignInterceptor implements RequestInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(TraceIdFeignInterceptor.class);
 
-    static final String TRACE_ID_HEADER = TraceIdUtil.TRACE_ID_HEADER;
+    static final String TRACE_ID_HEADER = CorrelationContext.TRACE_ID_HEADER;
 
     @Override
     public void apply(RequestTemplate template) {
-        String traceId = TraceIdUtil.getTraceId();
+        // 不信任 Feign 契约参数或手工预置的内部关联头。
+        template.removeHeader(TRACE_ID_HEADER);
+        template.removeHeader(CorrelationContext.OPERATION_ID_HEADER);
+
+        String traceId = CorrelationContext.traceId();
         if (traceId != null && !traceId.isBlank()) {
             template.header(TRACE_ID_HEADER, traceId);
             log.debug("TraceId 已注入 Feign 请求头: {}", traceId);
+        }
+        String operationId = CorrelationContext.operationId();
+        if (operationId != null) {
+            template.header(CorrelationContext.OPERATION_ID_HEADER, operationId);
         }
     }
 }

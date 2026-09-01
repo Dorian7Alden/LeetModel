@@ -2,7 +2,9 @@
 
 ### 模块定位
 
-`common-messaging` 是不含业务语义的可靠消息公共 Jar。它提供 `MessageEnvelopeV1<T>`、UUID/ULID 与 64 KiB 契约校验、环境 namespace、事务 Outbox、短租约 Relay、RocketMQ Spring 发布适配器、事务 Inbox、低基数指标、健康检查和 `RecordingMessagePublisher` 测试替身。
+`common-messaging` 是不含业务语义的可靠消息公共 Jar。它提供 `MessageEnvelopeV1<T>`、UUID/ULID 与 64 KiB 契约校验、环境 namespace、事务 Outbox、短租约 Relay、RocketMQ Spring 发布适配器、事务 Inbox、消息关联上下文、低基数指标、健康检查和 `RecordingMessagePublisher` 测试替身。
+
+`MessageEnvelopeV1` 固定保存 `eventId` 和 `traceId`，并以可选 `operationId` 连接人工治理命令。该可选字段向后兼容，旧信封解码为 null。`MessageCorrelationContext` 只在信封校验后恢复 Trace、Operation、Event 与明确的任务 attempt，作用域关闭时恢复消费线程 MDC。
 
 模块保证至少一次发布和消费端业务一次效果的基础条件，不承诺端到端恰好一次。MQ 消费线程必须只执行契约校验、Inbox 去重和领域任务落库；PDF 处理、AI 调用、知识检索和排行全量重建仍由带租约的领域 Worker 执行。
 

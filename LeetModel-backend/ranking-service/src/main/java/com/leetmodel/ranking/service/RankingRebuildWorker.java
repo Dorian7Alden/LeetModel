@@ -1,5 +1,7 @@
 package com.leetmodel.ranking.service;
 
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +26,11 @@ public class RankingRebuildWorker {
                 || !token.equals(task.getLeaseToken()) || task.getRunningRevision() == null) {
             return;
         }
-        try {
+        int attemptNo = (task.getRetryCount() == null ? 0 : task.getRetryCount()) + 1;
+        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getId().toString(), attemptNo);
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
             rankingService.rebuildClaimed(
                     task.getProblemId(), task.getId(), token, task.getRunningRevision());
         } catch (RuntimeException exception) {

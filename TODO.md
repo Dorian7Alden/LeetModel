@@ -15,8 +15,19 @@
 
 ## 当前任务
 
-当前没有进行中的任务。系统保障设计已经确认，实施从 `OBS-01` 开始；收到开始指令前不领取任务卡、不修改运行代码。
+### [ ] MET-01 统一 Actuator 与健康语义
 
+目标：为 13 个当前可启动服务建立一致的 Actuator、Prometheus 抓取与 Kubernetes 存活/就绪语义，区分服务已死亡、暂时未就绪和可降级运行。
+
+入口：后端根 Maven 依赖管理、各服务 `pom.xml` 与健康配置、已有 `HealthIndicator/ReactiveHealthIndicator`、本地与 Kubernetes 编排配置。
+
+主流程：统一接入 Actuator 与 Prometheus Registry → 建立 `/actuator/health/liveness`、`/readiness` 和受保护的管理端点 → 盘点 Redis、数据库、MQ、Outbox 和 AI 依赖的健康影响 → 将可降级故障与进程存活分离 → 验证全部服务可抓取且管理端点不暴露到公网 Gateway。
+
+完成标准：13 个当前服务均可输出 Prometheus 指标并提供独立存活/就绪探针；Redis 降级、单条 Outbox `BLOCKED` 或单次 AI 失败不会误触发 liveness 重启；管理端点的暴露范围与访问边界有自动化验证。
+
+修改范围：后端 Maven 依赖与 13 个服务的 Actuator/健康配置、必要的公共健康契约与测试、本地及 Kubernetes 编排配置、相关正式文档。
+
+非目标：不在本任务增加业务专项指标、Grafana 看板、Alertmanager 规则、SkyWalking Agent、JSON 日志、中央审计或业务表迁移。
 
 ## 系统保障实施路线图
 
@@ -31,19 +42,6 @@
 
 
 ### 阶段 0：实施基线与公共约束
-
-#### [ ] OBS-01 组件兼容矩阵与部署基线
-
-- 范围：验证 Spring Boot 3.3/JDK 17 下 SkyWalking Java Agent 对 Gateway、MVC/WebFlux、Feign、JDBC、RocketMQ 的兼容性；确定 OAP、Prometheus、Grafana、Alertmanager、遥测存储的版本、端口、资源和环境隔离。
-- 交付：版本锁定、配置样例、开发环境部署清单和不支持项记录；生产遥测存储与 RAG Elasticsearch 明确隔离。
-- 验收：最小示例真实启动并产生 HTTP Trace、指标和日志；不启用 Micrometer Tracing 或 OpenTelemetry Trace Exporter。
-
-#### [ ] OBS-02 公共标识与遥测字段契约
-
-- 依赖：`OBS-01`。
-- 范围：固化 `traceId`、`swTraceId/swSpanId`、`operationId`、`eventId`、`domainTaskId/attemptNo`、`aiCallId` 的产生、传播、MDC、消息和持久化边界；定义服务资源字段与稳定 `eventCode` 规则。
-- 验收：公共契约测试覆盖客户端伪造头清理、Feign 传播、MQ 恢复、线程池/MDC 清理和低基数约束。
-
 
 ### 阶段 1：Metrics、健康检查与主动告警
 

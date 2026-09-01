@@ -5,7 +5,8 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.review.config.ReviewWorkerProperties;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
@@ -79,11 +80,11 @@ public class ReviewTaskWorker {
         task.setLeaseToken(leaseToken);
         task.setAiIdempotencyKey(idempotencyKey);
         task.setStartedAt(now);
-        TraceIdUtil.setTraceId(task.getTraceId());
-        try {
+        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getId().toString(), task.getAttemptNo());
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
             executeWorkflow(task, leaseToken);
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 

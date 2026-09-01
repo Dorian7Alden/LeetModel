@@ -78,6 +78,12 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- 只用于 Reactor 线程切换时恢复 MDC；不包含 Micrometer Tracing 或 Trace Exporter。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- 公共模块：仅复用 Result 响应体，排除 MVC 和数据库依赖 -->
         <dependency>
             <groupId>com.leetmodel</groupId>

@@ -1,8 +1,9 @@
 package com.leetmodel.suggestion.messaging;
 
 import com.leetmodel.common.api.dto.SuggestionTaskReadyPayload;
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.messaging.MessageCodec;
+import com.leetmodel.common.messaging.MessageCorrelationContext;
 import com.leetmodel.common.messaging.MessageContractException;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageInbox;
@@ -50,16 +51,14 @@ public class SuggestionTaskReadyConsumer implements RocketMQListener<byte[]> {
         MessageEnvelopeV1<SuggestionTaskReadyPayload> envelope = codec.decode(
                 body, SuggestionTaskReadyPayload.class);
         validate(envelope);
-        TraceIdUtil.setTraceId(envelope.traceId());
-        try {
-            SuggestionTaskReadyPayload payload = envelope.payload();
+        SuggestionTaskReadyPayload payload = envelope.payload();
+        try (CorrelationContext.Scope ignored = MessageCorrelationContext.open(
+                envelope, payload.taskId().toString(), null, null)) {
             inbox.executeOnce(SuggestionTaskMessageContract.CONSUMER_GROUP, envelope,
                     () -> taskMapper.markWakeup(payload.taskId(), payload.submissionId(),
                             payload.workflowVersion(), LocalDateTime.now()));
             // 重复投递也再次发出本地信号，覆盖 Inbox 已提交后进程退出的窗口。
             coordinator.wakeup(payload.taskId());
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 

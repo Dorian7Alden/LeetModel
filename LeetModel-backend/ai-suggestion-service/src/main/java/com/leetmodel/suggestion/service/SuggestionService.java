@@ -18,6 +18,8 @@ import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
 import com.leetmodel.suggestion.dto.SuggestionCreateRequest;
 import com.leetmodel.suggestion.entity.SuggestionTask;
@@ -282,8 +284,10 @@ public class SuggestionService {
         task.setLeaseOwner(owner);
         task.setLeaseToken(leaseToken);
         task.setAiIdempotencyKey(idempotencyKey);
-        TraceIdUtil.setTraceId(task.getTraceId());
-        try {
+        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getId().toString(), task.getAttemptNo());
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
             if (SuggestionV1Workflow.VERSION.equals(task.getWorkflowVersion())) {
                 processV1(task, leaseToken);
             } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
@@ -295,8 +299,6 @@ public class SuggestionService {
             taskMapper.waitForEvidence(task.getId(), leaseToken, LocalDateTime.now().plusSeconds(10));
         } catch (Exception exception) {
             handleFailure(task, leaseToken, exception);
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 

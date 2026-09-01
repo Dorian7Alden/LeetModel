@@ -1,5 +1,6 @@
 package com.leetmodel.common.messaging;
 
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -54,6 +55,7 @@ public final class MessageEnvelopeFactory {
                 idempotencyKey,
                 Instant.now(clock),
                 traceId,
+                CorrelationContext.operationId(),
                 payload
         );
     }

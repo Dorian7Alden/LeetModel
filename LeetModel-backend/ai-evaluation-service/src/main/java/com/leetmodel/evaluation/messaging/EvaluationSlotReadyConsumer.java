@@ -1,8 +1,9 @@
 package com.leetmodel.evaluation.messaging;
 
 import com.leetmodel.common.api.dto.EvaluationSlotReadyPayload;
-import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.messaging.MessageCodec;
+import com.leetmodel.common.messaging.MessageCorrelationContext;
 import com.leetmodel.common.messaging.MessageContractException;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageInbox;
@@ -50,16 +51,14 @@ public class EvaluationSlotReadyConsumer implements RocketMQListener<byte[]> {
         MessageEnvelopeV1<EvaluationSlotReadyPayload> envelope = codec.decode(
                 body, EvaluationSlotReadyPayload.class);
         validate(envelope);
-        TraceIdUtil.setTraceId(envelope.traceId());
-        try {
-            EvaluationSlotReadyPayload payload = envelope.payload();
+        EvaluationSlotReadyPayload payload = envelope.payload();
+        try (CorrelationContext.Scope ignored = MessageCorrelationContext.open(
+                envelope, payload.runAttemptId().toString(), payload.attemptNo(), null)) {
             inbox.executeOnce(EvaluationSlotMessageContract.CONSUMER_GROUP, envelope,
                     () -> runMapper.markWakeup(payload.runAttemptId(), payload.evaluationTaskId(),
                             payload.attemptNo(), LocalDateTime.now()));
             // Inbox 已提交后进程退出时，Broker 重投仍可再次恢复本地信号。
             coordinator.wakeup(payload.runAttemptId());
-        } finally {
-            TraceIdUtil.removeTraceId();
         }
     }
 

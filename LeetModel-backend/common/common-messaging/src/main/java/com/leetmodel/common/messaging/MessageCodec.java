@@ -105,6 +105,7 @@ public final class MessageCodec {
         requireText(envelope.aggregateId(), "aggregateId", 100);
         requireText(envelope.idempotencyKey(), "idempotencyKey", 255);
         requireText(envelope.traceId(), "traceId", 100);
+        optionalText(envelope.operationId(), "operationId", 100);
         if (!EVENT_ID_PATTERN.matcher(envelope.eventId()).matches()) {
             throw new MessageContractException("eventId must be UUID or ULID");
         }
@@ -121,5 +122,12 @@ public final class MessageCodec {
     private void requireText(String value, String field, int maxLength) {
         if (value == null || value.isBlank()) throw new MessageContractException(field + " is required");
         if (value.length() > maxLength) throw new MessageContractException(field + " is too long");
+    }
+
+    private void optionalText(String value, String field, int maxLength) {
+        if (value != null && (value.isBlank() || value.length() > maxLength
+                || !value.matches("[A-Za-z0-9][A-Za-z0-9._:-]*"))) {
+            throw new MessageContractException(field + " contains unsupported characters or length");
+        }
     }
 }

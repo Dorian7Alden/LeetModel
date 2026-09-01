@@ -1,6 +1,6 @@
 package com.leetmodel.common.core.util;
 
-import org.slf4j.MDC;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 
 /**
  * TraceId 工具类 —— 封装 SLF4J MDC 的读写操作。
@@ -21,10 +21,8 @@ import org.slf4j.MDC;
  */
 public final class TraceIdUtil {
 
-    private static final String TRACE_ID_KEY = "traceId";
-
     /** HTTP Header 名称，用于跨服务透传 TraceId。 */
-    public static final String TRACE_ID_HEADER = "X-Trace-Id";
+    public static final String TRACE_ID_HEADER = CorrelationContext.TRACE_ID_HEADER;
 
     private TraceIdUtil() {
         // 工具类禁止实例化
@@ -36,7 +34,7 @@ public final class TraceIdUtil {
      * @param traceId 链路追踪 ID
      */
     public static void setTraceId(String traceId) {
-        MDC.put(TRACE_ID_KEY, traceId);
+        CorrelationContext.setTraceId(traceId);
     }
 
     /**
@@ -45,7 +43,7 @@ public final class TraceIdUtil {
      * @return traceId，未设置时返回 null
      */
     public static String getTraceId() {
-        return MDC.get(TRACE_ID_KEY);
+        return CorrelationContext.traceId();
     }
 
     /**
@@ -53,6 +51,6 @@ public final class TraceIdUtil {
      * 应在请求处理完成后（如 Filter / Interceptor 的 afterCompletion）调用，防止内存泄漏。
      */
     public static void removeTraceId() {
-        MDC.remove(TRACE_ID_KEY);
+        CorrelationContext.setTraceId(null);
     }
 }
