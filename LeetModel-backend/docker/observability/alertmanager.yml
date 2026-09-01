@@ -1,11 +1,29 @@
 route:
-  receiver: local-null
+  receiver: local-null-default
   group_by:
     - alertname
     - service
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
+  routes:
+    - receiver: local-null-critical
+      matchers:
+        - severity="critical"
+    - receiver: local-null-warning
+      matchers:
+        - severity="warning"
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal:
+      - alertname
+      - service
 
 receivers:
-  - name: local-null
+  - name: local-null-default
+  - name: local-null-warning
+  - name: local-null-critical

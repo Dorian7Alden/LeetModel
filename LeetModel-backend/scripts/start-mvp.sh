@@ -9,6 +9,12 @@ SKYWALKING_ENABLED="${LEETMODEL_SKYWALKING_ENABLED:-false}"
 SKYWALKING_BACKEND="${LEETMODEL_SKYWALKING_BACKEND:-127.0.0.1:11800}"
 SKYWALKING_AGENT_JAR=""
 management_curl_args=()
+OBSERVABILITY_TOKEN_FILE="${LEETMODEL_MANAGEMENT_TOKEN_FILE:-${BACKEND_DIR}/.observability-runtime/management-token}"
+
+if [[ -z "${MANAGEMENT_TOKEN:-}" && -s "${OBSERVABILITY_TOKEN_FILE}" ]]; then
+  MANAGEMENT_TOKEN="$(<"${OBSERVABILITY_TOKEN_FILE}")"
+  export MANAGEMENT_TOKEN
+fi
 
 if [[ -n "${MANAGEMENT_TOKEN:-}" ]]; then
   management_curl_args=(-H "X-LeetModel-Management-Token: ${MANAGEMENT_TOKEN}")
