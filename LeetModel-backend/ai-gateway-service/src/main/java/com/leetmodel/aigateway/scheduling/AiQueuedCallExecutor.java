@@ -8,6 +8,7 @@ import com.leetmodel.aigateway.service.AiEmbeddingService;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -30,6 +31,7 @@ public class AiQueuedCallExecutor implements AiQueuedTaskExecutor {
 
     @Override
     public String execute(AiCallTask task) {
+        TraceIdUtil.setTraceId(task.getTraceId());
         try {
             long queueMs = Math.max(0, Duration.between(task.getQueuedAt(),
                     LocalDateTime.now(ZoneOffset.UTC)).toMillis());
@@ -43,6 +45,8 @@ public class AiQueuedCallExecutor implements AiQueuedTaskExecutor {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("AI 调用载荷序列化失败", exception);
+        } finally {
+            TraceIdUtil.removeTraceId();
         }
     }
 

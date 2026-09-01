@@ -1,11 +1,15 @@
 package com.leetmodel.review.service;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
+import com.leetmodel.common.api.dto.ReviewCompletedPayload;
+import com.leetmodel.common.messaging.MessageEnvelopeFactory;
+import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewV1Result;
 import com.leetmodel.review.entity.ReviewV2Result;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.mapper.ReviewV1ResultMapper;
 import com.leetmodel.review.mapper.ReviewV2ResultMapper;
+import com.leetmodel.review.messaging.ReviewCompletedMessageContract;
 import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
 import org.springframework.stereotype.Service;
@@ -16,19 +20,49 @@ public class ReviewResultPersistenceService {
     private final ReviewTaskMapper taskMapper;
     private final ReviewV1ResultMapper resultMapper;
     private final ReviewV2ResultMapper v2ResultMapper;
+    private final MessageEnvelopeFactory envelopeFactory;
+    private final MessageOutbox messageOutbox;
     public ReviewResultPersistenceService(ReviewTaskMapper taskMapper, ReviewV1ResultMapper resultMapper,
-                                          ReviewV2ResultMapper v2ResultMapper) {
+                                          ReviewV2ResultMapper v2ResultMapper,
+                                          MessageEnvelopeFactory envelopeFactory,
+                                          MessageOutbox messageOutbox) {
         this.taskMapper = taskMapper; this.resultMapper = resultMapper; this.v2ResultMapper = v2ResultMapper;
+        this.envelopeFactory = envelopeFactory; this.messageOutbox = messageOutbox;
     }
+    /**
+     * 在同一事务中写版本化结果，并用 fencing token 推进任务终态。
+     *
+     * @param task 评审任务
+     * @param submission 提交快照
+     * @param workflowResult 工作流结果
+     * @param leaseToken 当前执行租约 token
+     */
     @Transactional
-    public void complete(ReviewTask task, SubmissionReviewDTO submission, ReviewWorkflowResult workflowResult) {
+    public void complete(ReviewTask task, SubmissionReviewDTO submission,
+                         ReviewWorkflowResult workflowResult, String leaseToken) {
         if (EvidenceReviewV2Workflow.VERSION_CODE.equals(task.getWorkflowVersion())) {
             completeV2(task, submission, workflowResult);
         } else {
             completeV1(task, submission, workflowResult);
         }
-        task.setStatus("COMPLETED"); task.setFinishedAt(LocalDateTime.now()); task.setErrorMessage(null);
-        taskMapper.updateById(task);
+        LocalDateTime finishedAt = LocalDateTime.now();
+        if (taskMapper.markCompleted(task.getId(), leaseToken, finishedAt) == 0) {
+            throw new IllegalStateException("评审任务租约已丢失，拒绝提交结果");
+        }
+        ReviewCompletedPayload payload = new ReviewCompletedPayload(
+                task.getId(), submission.getId(), submission.getTeamId(), submission.getProblemId(),
+                task.getWorkflowVersion(), finishedAt);
+        messageOutbox.enqueue(
+                ReviewCompletedMessageContract.TOPIC,
+                ReviewCompletedMessageContract.EVENT_TYPE,
+                envelopeFactory.create(
+                        ReviewCompletedMessageContract.EVENT_TYPE,
+                        "review-task",
+                        task.getId().toString(),
+                        ReviewCompletedMessageContract.idempotencyKey(task.getId()),
+                        task.getTraceId(),
+                        payload));
+        task.setStatus("COMPLETED"); task.setFinishedAt(finishedAt); task.setErrorMessage(null);
     }
 
     private void completeV1(ReviewTask task, SubmissionReviewDTO submission, ReviewWorkflowResult workflowResult) {

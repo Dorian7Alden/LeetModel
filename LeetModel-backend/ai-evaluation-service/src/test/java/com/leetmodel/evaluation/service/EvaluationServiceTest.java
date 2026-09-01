@@ -37,7 +37,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -87,7 +86,6 @@ class EvaluationServiceTest {
                 scoreResultService, completionPersistenceService, mapper);
         org.mockito.Mockito.lenient().when(weightSchemeService.requireActiveForTask(any(), any(), any()))
                 .thenReturn(weightScheme());
-        ReflectionTestUtils.setField(service, "staleMinutes", 15L);
     }
 
     @Test
@@ -246,11 +244,11 @@ class EvaluationServiceTest {
 
     @Test
     void workerCompletesSuccessfulSlotWithTraceAndMetrics() {
-        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "WAITING", null);
+        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "RUNNING", null);
+        waiting.setLeaseToken("token-301");
         EvaluationTask task = task(20L, "WAITING", 1);
         EvaluationSample sample = sample(101L, 31L);
-        when(runMapper.selectNextWaiting()).thenReturn(waiting);
-        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(runMapper.selectById(301L)).thenReturn(waiting);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample);
         when(reviewFeignClient.runExperimentV2(any())).thenReturn(Result.ok(genericResult(
@@ -262,9 +260,10 @@ class EvaluationServiceTest {
         when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
         when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
-        service.processNext();
+        service.executeClaimed(301L, "token-301");
 
         verify(runMapper).succeed(org.mockito.ArgumentMatchers.eq(301L),
+                org.mockito.ArgumentMatchers.eq("token-301"),
                 org.mockito.ArgumentMatchers.argThat(score ->
                         score.compareTo(new BigDecimal("88.00")) == 0),
                 org.mockito.ArgumentMatchers.eq("{\"score\":88}"),
@@ -281,10 +280,11 @@ class EvaluationServiceTest {
 
     @Test
     void workerThatLosesClaimDoesNotCallReviewService() {
-        when(runMapper.selectNextWaiting()).thenReturn(run(301L, 20L, 101L, "WAITING", null));
-        when(runMapper.claim(anyLong(), any())).thenReturn(0);
+        EvaluationRunAttempt claimed = run(301L, 20L, 101L, "RUNNING", null);
+        claimed.setLeaseToken("new-owner-token");
+        when(runMapper.selectById(301L)).thenReturn(claimed);
 
-        service.processNext();
+        service.executeClaimed(301L, "stale-token");
 
         verify(reviewFeignClient, never()).runExperimentV2(any());
         verify(taskMapper, never()).markRunning(anyLong(), any());
@@ -292,7 +292,8 @@ class EvaluationServiceTest {
 
     @Test
     void assistantWorkerPersistsDigestCallAndLockedRagVersion() {
-        EvaluationRunAttempt waiting = run(401L, 30L, 201L, "WAITING", null);
+        EvaluationRunAttempt waiting = run(401L, 30L, 201L, "RUNNING", null);
+        waiting.setLeaseToken("token-401");
         waiting.setExperimentRunId("assistant-eval:30:201:1");
         EvaluationTask task = task(30L, "WAITING", 1);
         task.setFeatureCode("ASSISTANT");
@@ -303,8 +304,7 @@ class EvaluationServiceTest {
         sample.setSampleType("QUESTION");
         sample.setPayloadSchemaVersion("ASSISTANT_QUESTION_V1");
         sample.setPayloadJson("{\"question\":\"如何提交论文？\"}");
-        when(runMapper.selectNextWaiting()).thenReturn(waiting);
-        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(runMapper.selectById(401L)).thenReturn(waiting);
         when(taskMapper.selectById(30L)).thenReturn(task);
         when(sampleMapper.selectById(201L)).thenReturn(sample);
         when(assistantFeignClient.runExperiment(any())).thenReturn(Result.ok(
@@ -317,10 +317,11 @@ class EvaluationServiceTest {
         when(runMapper.selectList(any())).thenReturn(List.of(succeeded));
         when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
-        service.processNext();
+        service.executeClaimed(401L, "token-401");
 
         ArgumentCaptor<String> summary = ArgumentCaptor.forClass(String.class);
         verify(runMapper).succeed(org.mockito.ArgumentMatchers.eq(401L),
+                org.mockito.ArgumentMatchers.eq("token-401"),
                 org.mockito.ArgumentMatchers.isNull(), summary.capture(),
                 org.mockito.ArgumentMatchers.eq("{\"STRUCTURE_VALID_RATE\":100}"),
                 org.mockito.ArgumentMatchers.eq("model"),
@@ -332,19 +333,20 @@ class EvaluationServiceTest {
 
     @Test
     void workerEnvironmentFailureBlocksMetricsAndKeepsRetryPath() {
-        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "WAITING", null);
+        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "RUNNING", null);
+        waiting.setLeaseToken("token-301");
         EvaluationTask task = task(20L, "WAITING", 1);
-        when(runMapper.selectNextWaiting()).thenReturn(waiting);
-        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(runMapper.selectById(301L)).thenReturn(waiting);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample(101L, 31L));
         when(reviewFeignClient.runExperimentV2(any())).thenReturn(null);
         EvaluationRunAttempt failed = run(301L, 20L, 101L, "FAILED", "ENVIRONMENT");
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
 
-        service.processNext();
+        service.executeClaimed(301L, "token-301");
 
         verify(runMapper).fail(org.mockito.ArgumentMatchers.eq(301L),
+                org.mockito.ArgumentMatchers.eq("token-301"),
                 org.mockito.ArgumentMatchers.eq("ENVIRONMENT"),
                 org.mockito.ArgumentMatchers.isNull(), anyLong(), any(), any());
         verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
@@ -355,21 +357,21 @@ class EvaluationServiceTest {
 
     @Test
     void restartedWorkerNeverDispatchesAlreadySuccessfulSlot() {
-        when(runMapper.selectNextWaiting()).thenReturn(null);
+        when(runMapper.selectById(301L)).thenReturn(run(301L, 20L, 101L, "SUCCEEDED", null));
 
-        service.processNext();
+        service.executeClaimed(301L, "old-token");
 
         verify(reviewFeignClient, never()).runExperimentV2(any());
         verify(assistantFeignClient, never()).runExperiment(any());
-        verify(runMapper, never()).claim(anyLong(), any());
+        verify(taskMapper, never()).markRunning(anyLong(), any());
     }
 
     @Test
     void outputFailureIsAComparableVersionResultInsteadOfEnvironmentFailure() {
-        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "WAITING", null);
+        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "RUNNING", null);
+        waiting.setLeaseToken("token-301");
         EvaluationTask task = task(20L, "WAITING", 1);
-        when(runMapper.selectNextWaiting()).thenReturn(waiting);
-        when(runMapper.claim(anyLong(), any())).thenReturn(1);
+        when(runMapper.selectById(301L)).thenReturn(waiting);
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(sampleMapper.selectById(101L)).thenReturn(sample(101L, 31L));
         when(reviewFeignClient.runExperimentV2(any())).thenReturn(Result.ok(genericResult(
@@ -380,7 +382,7 @@ class EvaluationServiceTest {
         when(runMapper.selectList(any())).thenReturn(List.of(failed));
         when(metricsCalculator.calculate(any(), any(), any())).thenReturn(metrics());
 
-        service.processNext();
+        service.executeClaimed(301L, "token-301");
 
         verify(completionPersistenceService).complete(any(),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
@@ -418,8 +420,8 @@ class EvaluationServiceTest {
     @Test
     void recoveryMarksInterruptedAttemptUnknownWithoutBlindRetry() {
         EvaluationRunAttempt stale = run(301L, 20L, 101L, "RUNNING", null);
-        when(runMapper.selectStale(any())).thenReturn(List.of(stale));
-        when(persistenceService.recoverStale(any(), any())).thenReturn(true);
+        when(runMapper.selectExpired(any())).thenReturn(List.of(stale));
+        when(persistenceService.recoverExpired(any(), any())).thenReturn(true);
         EvaluationTask task = task(20L, "RUNNING", 1);
         when(taskMapper.selectById(20L)).thenReturn(task);
         EvaluationRunAttempt unknown = run(301L, 20L, 101L, "UNKNOWN", "UNKNOWN");
@@ -427,7 +429,7 @@ class EvaluationServiceTest {
 
         service.recoverStaleRuns();
 
-        verify(persistenceService).recoverStale(org.mockito.ArgumentMatchers.eq(stale), any());
+        verify(persistenceService).recoverExpired(org.mockito.ArgumentMatchers.eq(stale), any());
         verify(taskMapper).fail(org.mockito.ArgumentMatchers.eq(20L),
                 org.mockito.ArgumentMatchers.eq(1), org.mockito.ArgumentMatchers.eq(1),
                 org.mockito.ArgumentMatchers.eq(0),
@@ -449,7 +451,7 @@ class EvaluationServiceTest {
 
         assertThat(result.getStatus()).isEqualTo("PAUSED");
         assertThat(result.getLastOperatedBy()).isEqualTo(7L);
-        verify(runMapper, never()).claim(anyLong(), any());
+        verify(runMapper, never()).claim(anyLong(), any(), any(), any(), any());
     }
 
     @Test

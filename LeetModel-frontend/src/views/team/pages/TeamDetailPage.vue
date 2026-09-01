@@ -90,13 +90,13 @@
           <div v-if="scoreSummary" class="score-summary" :class="{ final: scoreSummary.submission.finalVersion }">
             <div><span>{{ scoreSummaryLabel }}</span><strong>V{{ scoreSummary.submission.version }}</strong></div>
             <div class="score-value"><strong>{{ scoreSummary.review?.score ?? '--' }}</strong><span>/ 100</span></div>
-            <el-tag :type="reviewStatusType(scoreSummary.review?.status)" effect="light">{{ reviewStatusLabel(scoreSummary.review?.status) }}</el-tag>
+            <el-tag :type="reviewStatusType(reviewDisplayStatus(scoreSummary.submission))" effect="light">{{ reviewStatusLabel(reviewDisplayStatus(scoreSummary.submission)) }}</el-tag>
           </div>
           <el-table :data="submissionRows" size="small" class="submission-table" empty-text="暂无提交版本">
             <el-table-column label="版本" width="120"><template #default="scope"><div class="version-cell"><strong>V{{ scope.row.version }}</strong><el-tag v-if="scope.row.finalVersion" type="success" size="small" effect="light">最终版</el-tag></div></template></el-table-column>
             <el-table-column prop="originalFilename" label="文件名" min-width="180" />
             <el-table-column prop="fileSize" label="大小" width="110"><template #default="scope">{{ formatFileSize(scope.row.fileSize) }}</template></el-table-column>
-            <el-table-column label="评审状态" width="110"><template #default="scope"><el-tag :type="reviewStatusType(scope.row.review?.status)" size="small" effect="light">{{ reviewStatusLabel(scope.row.review?.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="评审状态" width="130"><template #default="scope"><el-tag :type="reviewStatusType(reviewDisplayStatus(scope.row))" size="small" effect="light">{{ reviewStatusLabel(reviewDisplayStatus(scope.row)) }}</el-tag></template></el-table-column>
             <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.score != null" class="table-score">{{ scope.row.review.score }}</strong><span v-else>--</span></template></el-table-column>
             <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
             <el-table-column label="操作" width="300"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button><el-button v-if="scope.row.review?.status === 'COMPLETED'" type="success" link @click="showSuggestion(scope.row)">改进建议</el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试</el-button></template></el-table-column>
@@ -208,7 +208,8 @@
       <div v-if="selectedReview" class="review-detail">
         <div class="review-version"><div><strong>{{ selectedReview.versionName || selectedReview.workflowVersion }}</strong><p>{{ selectedReview.versionDescription }}</p></div><el-tag :type="reviewStatusType(selectedReview.status)">{{ reviewStatusLabel(selectedReview.status) }}</el-tag></div>
         <p class="review-process">{{ selectedReview.processSummary }}</p>
-        <el-alert v-if="selectedReview.status === 'FAILED'" type="error" :title="selectedReview.errorMessage || '评审执行失败'" :closable="false" show-icon />
+        <el-alert v-if="selectedReview.status === 'UNKNOWN'" type="warning" title="AI 上游结果暂时无法确认，系统不会自动重复计费；请联系管理员核查" :closable="false" show-icon />
+        <el-alert v-else-if="selectedReview.status === 'FAILED'" type="error" :title="selectedReview.errorMessage || '评审执行失败'" :closable="false" show-icon />
         <el-empty v-else-if="selectedReview.status !== 'COMPLETED'" :description="selectedReview.status === 'RUNNING' ? 'AI 正在阅读论文，请稍后刷新' : '评审任务正在等待执行'" :image-size="72" />
         <template v-else-if="selectedReviewResult">
           <div class="review-score"><span>论文总分</span><strong>{{ selectedReviewResult.score }}</strong><small>/ 100</small></div>
@@ -401,8 +402,9 @@ function handleBack() {
 function difficultyLabel(value) { return ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知' }
 function formatDuration(minutes) { return minutes % 60 === 0 ? `${minutes / 60} 小时` : `${minutes} 分钟` }
 function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
-function reviewStatusLabel(value) { return ({ WAITING: '等待评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败' })[value] || '等待评审' }
-function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', RUNNING: 'warning' })[value] || 'info' }
+function reviewDisplayStatus(row) { return row?.review?.status || row?.reviewDispatchStatus || 'NOT_REQUESTED' }
+function reviewStatusLabel(value) { return ({ WAITING_DISPATCH: '等待派发', DISPATCHED: '已派发', DISPATCH_BLOCKED: '派发受阻', NOT_REQUESTED: '尚未派发', WAITING: '等待评审', LEASED: '准备评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败', UNKNOWN: '结果待确认' })[value] || '等待评审' }
+function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', DISPATCH_BLOCKED: 'danger', UNKNOWN: 'warning', RUNNING: 'warning', LEASED: 'warning' })[value] || 'info' }
 function coverageLabel(value) { return ({ COMPLETED: '已完成', PARTIAL: '部分完成', MISSING: '缺失', UNVERIFIABLE: '无法判断' })[value] || value }
 function coverageType(value) { return ({ COMPLETED: 'success', PARTIAL: 'warning', MISSING: 'danger', UNVERIFIABLE: 'info' })[value] || 'info' }
 function memberRoles(member) { return [member.modeler && '建模', member.programmer && '编程', member.writer && '论文'].filter(Boolean) }
@@ -486,7 +488,7 @@ async function handleSubmitPdf() {
     uploadStage.value = '提交完成'
     selectedPdf.value = null
     await refreshSubmissionReviews()
-    ElMessage.success('PDF 提交成功')
+    ElMessage.success('PDF 提交成功，AI 评审已进入可靠派发队列')
     uploadProgress.value = 0
     uploadStage.value = ''
   }

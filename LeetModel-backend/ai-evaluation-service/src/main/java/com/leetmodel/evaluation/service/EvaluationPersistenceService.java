@@ -56,9 +56,8 @@ public class EvaluationPersistenceService {
     }
 
     @Transactional
-    public boolean recoverStale(EvaluationRunAttempt stale, LocalDateTime cutoff) {
-        LocalDateTime now = LocalDateTime.now();
-        return runMapper.markStaleUnknown(stale.getId(), cutoff, now) == 1;
+    public boolean recoverExpired(EvaluationRunAttempt stale, LocalDateTime now) {
+        return runMapper.markExpiredUnknown(stale.getId(), now) == 1;
     }
 
     private void fillRunIdentity(EvaluationRunAttempt run, EvaluationTask task) {

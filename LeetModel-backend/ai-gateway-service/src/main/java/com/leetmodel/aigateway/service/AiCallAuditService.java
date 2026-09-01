@@ -20,6 +20,7 @@ import com.leetmodel.common.api.dto.AiModelCallStatsDTO;
 import com.leetmodel.common.api.dto.AiCallFilterOptionsDTO;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.util.TraceIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -172,6 +173,7 @@ public class AiCallAuditService {
                 .eq(StringUtils.hasText(query.getOperationCode()), AiCallLog::getOperationCode,
                         normalized(query.getOperationCode()))
                 .eq(StringUtils.hasText(query.getCallId()), AiCallLog::getCallId, trimmed(query.getCallId()))
+                .eq(StringUtils.hasText(query.getTraceId()), AiCallLog::getTraceId, trimmed(query.getTraceId()))
                 .eq(StringUtils.hasText(query.getBusinessTaskId()), AiCallLog::getBusinessTaskId,
                         trimmed(query.getBusinessTaskId()))
                 .eq(StringUtils.hasText(query.getEvaluationTaskId()), AiCallLog::getEvaluationTaskId,
@@ -214,6 +216,7 @@ public class AiCallAuditService {
                                  String routeModel, long durationMs, long queueMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
+        record.setTraceId(currentTraceId());
         String modality = request.effectiveModality() == null ? UNKNOWN : request.effectiveModality().name();
         record.setScene(modality);
         record.setModality(modality);
@@ -239,6 +242,7 @@ public class AiCallAuditService {
                                  String routeModel, long durationMs, long queueMs) {
         AiCallLog record = new AiCallLog();
         record.setCallId(callId);
+        record.setTraceId(currentTraceId());
         applyContext(record, context, callId);
         record.setProvider(StringUtils.hasText(routeProvider) ? routeProvider : UNKNOWN);
         record.setModel(StringUtils.hasText(routeModel) ? routeModel : UNKNOWN);
@@ -260,6 +264,12 @@ public class AiCallAuditService {
             record.setErrorCode(50001);
             record.setErrorMessage("AI 服务调用失败");
         }
+    }
+
+    private String currentTraceId() {
+        String value = TraceIdUtil.getTraceId();
+        return value == null || value.isBlank() || value.length() > 100
+                ? "unresolved:" + java.util.UUID.randomUUID() : value;
     }
 
     private void applyContext(AiCallLog record, AiCallContext context, String callId) {

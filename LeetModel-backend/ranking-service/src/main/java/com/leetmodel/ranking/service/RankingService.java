@@ -18,8 +18,10 @@ import com.leetmodel.common.cache.MultiLevelCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.ranking.cache.RankingCachePolicy;
 import com.leetmodel.ranking.entity.RankingSnapshot;
+import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.enums.RankingErrorCode;
 import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
+import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.vo.RankingEntryVO;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
@@ -57,6 +59,7 @@ public class RankingService {
     private static final int CURRENT = 1;
 
     private final RankingSnapshotMapper snapshotMapper;
+    private final RankingRebuildTaskMapper rebuildTaskMapper;
     private final SubmissionFeignClient submissionFeignClient;
     private final ReviewFeignClient reviewFeignClient;
     private final TeamFeignClient teamFeignClient;
@@ -73,6 +76,28 @@ public class RankingService {
      */
     @Transactional
     public RankingOverviewVO rebuild(Long problemId) {
+        return rebuildInternal(problemId, null, null, null);
+    }
+
+    /**
+     * 使用领域任务 fencing token 重建排行，并在同一事务推进完成 revision。
+     */
+    @Transactional
+    public RankingOverviewVO rebuildClaimed(
+            Long problemId,
+            Long taskId,
+            String leaseToken,
+            Long runningRevision
+    ) {
+        return rebuildInternal(problemId, taskId, leaseToken, runningRevision);
+    }
+
+    private RankingOverviewVO rebuildInternal(
+            Long problemId,
+            Long taskId,
+            String leaseToken,
+            Long runningRevision
+    ) {
         List<SubmissionSnapshotDTO> submissions = requiredData(
                 () -> submissionFeignClient.listFinalSubmissions(problemId));
         List<ReviewSummaryDTO> reviews = requiredData(
@@ -84,6 +109,21 @@ public class RankingService {
         drafts.sort(Comparator.comparing(RankingDraft::score).reversed()
                 .thenComparing(RankingDraft::submittedAt)
                 .thenComparing(RankingDraft::teamId));
+
+        if (taskId == null) {
+            rebuildTaskMapper.ensureProblemRow(problemId, LocalDateTime.now());
+            rebuildTaskMapper.selectProblemForUpdate(problemId);
+        } else {
+            RankingRebuildTask task = rebuildTaskMapper.selectForCompletion(taskId);
+            LocalDateTime now = LocalDateTime.now();
+            if (task == null || !"RUNNING".equals(task.getStatus())
+                    || !Objects.equals(problemId, task.getProblemId())
+                    || !Objects.equals(leaseToken, task.getLeaseToken())
+                    || !Objects.equals(runningRevision, task.getRunningRevision())
+                    || task.getLeaseExpiresAt() == null || !task.getLeaseExpiresAt().isAfter(now)) {
+                throw new IllegalStateException("排行重建任务租约已丢失，拒绝替换当前批次");
+            }
+        }
 
         String batchId = UUID.randomUUID().toString();
         LocalDateTime computedAt = LocalDateTime.now();
@@ -107,6 +147,10 @@ public class RankingService {
                 RankingCachePolicy.scope(problemId),
                 RankingCachePolicy.SCHEMA_VERSION
         );
+        if (taskId != null && rebuildTaskMapper.complete(
+                taskId, leaseToken, runningRevision, LocalDateTime.now()) == 0) {
+            throw new IllegalStateException("排行重建任务 fencing 校验失败");
+        }
         return toOverview(problemId, saved);
     }
 

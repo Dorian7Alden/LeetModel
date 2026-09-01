@@ -41,10 +41,10 @@ function formatTime(value) {
   return value ? String(value).replace("T", " ").slice(0, 16) : "-";
 }
 function statusLabel(status) {
-  return ({ WAITING: "等待", RUNNING: "进行中", COMPLETED: "已完成", FAILED: "失败" })[status] || status;
+  return ({ WAITING: "等待", LEASED: "已领取", RUNNING: "进行中", COMPLETED: "已完成", FAILED: "失败", UNKNOWN: "结果待确认" })[status] || status;
 }
 function statusType(status) {
-  return ({ COMPLETED: "success", FAILED: "danger", RUNNING: "warning" })[status] || "info";
+  return ({ COMPLETED: "success", FAILED: "danger", UNKNOWN: "warning", RUNNING: "warning", LEASED: "warning" })[status] || "info";
 }
 async function load() {
   loading.value = true;

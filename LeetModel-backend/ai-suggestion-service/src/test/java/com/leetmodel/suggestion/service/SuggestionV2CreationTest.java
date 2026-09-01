@@ -10,6 +10,7 @@ import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.suggestion.dto.SuggestionCreateRequest;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
@@ -155,6 +156,18 @@ class SuggestionV2CreationTest {
         assertThatThrownBy(() -> service.create(request, USER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("只允许 VECTOR_RAG_V1");
+        verify(taskMapper, never()).insert(any(SuggestionTask.class));
+    }
+
+    @Test
+    void severeOnlineBacklogRejectsOnlyNewCreationWithStableError() {
+        prepareFacts();
+        when(taskMapper.selectOne(any(Wrapper.class))).thenReturn(null);
+        when(taskMapper.countActiveBacklog()).thenReturn(1000L);
+
+        assertThatThrownBy(() -> service.create(request("manual_action_0001"), USER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(40807);
         verify(taskMapper, never()).insert(any(SuggestionTask.class));
     }
 

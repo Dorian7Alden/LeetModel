@@ -27,6 +27,7 @@ public class EvaluationTask extends BaseEntity {
     private String rawMetricsJson;
     private Integer repeatCount;
     private String clientRequestId;
+    private String traceId;
     private String status;
     private Integer totalSlots;
     private Integer terminalSlots;

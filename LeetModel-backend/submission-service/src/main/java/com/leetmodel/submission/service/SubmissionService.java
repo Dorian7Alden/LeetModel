@@ -8,7 +8,6 @@ import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
-import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -38,9 +37,10 @@ public class SubmissionService {
     private final SubmissionMapper submissionMapper;
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
-    private final ReviewFeignClient reviewFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final StorageService storageService;
+    private final ReviewDispatchQueryService reviewDispatchQueryService;
+    private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
@@ -76,7 +76,8 @@ public class SubmissionService {
         BusinessException.throwIf(!"ENDED".equals(team.getPracticeStatus())
                         && (team.getDeadlineAt() == null || LocalDateTime.now().isBefore(team.getDeadlineAt())),
                 SubmissionErrorCode.DEADLINE_NOT_REACHED);
-        return lockFinal(team);
+        Submission finalSubmission = finalizationPersistenceService.lockFinal(team);
+        return toVO(finalSubmission, finalSubmission.getId());
     }
 
     @Scheduled(fixedDelayString = "${submission.finalizer.delay-ms:60000}")
@@ -85,27 +86,11 @@ public class SubmissionService {
         if (response == null || !response.isSuccess() || response.getData() == null) return;
         for (TeamDTO team : response.getData()) {
             try {
-                lockFinal(team);
+                finalizationPersistenceService.lockFinal(team);
             } catch (BusinessException ignored) {
                 // 没有成功提交的队伍保持原状态，等待人工处理。
             }
         }
-    }
-
-    private SubmissionVO lockFinal(TeamDTO team) {
-        Long teamId = team.getId();
-        SubmissionLock existing = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
-                .eq(SubmissionLock::getTeamId, teamId));
-        if (existing != null) return toVO(requiredSubmission(existing.getSubmissionId()), existing.getSubmissionId());
-        LocalDateTime effectiveEnd = team.getEndedAt() != null ? team.getEndedAt() : team.getDeadlineAt();
-        Submission latest = submissionMapper.selectOne(new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTeamId, teamId).eq(Submission::getStatus, "SUCCESS")
-                .le(Submission::getCreateTime, effectiveEnd).orderByDesc(Submission::getVersion).last("LIMIT 1"));
-        BusinessException.throwIf(latest == null, SubmissionErrorCode.FINAL_SUBMISSION_NOT_FOUND);
-        SubmissionLock lock = new SubmissionLock();
-        lock.setTeamId(teamId); lock.setSubmissionId(latest.getId()); lock.setLockedAt(LocalDateTime.now());
-        lockMapper.insert(lock);
-        return toVO(latest, latest.getId());
     }
 
     public SubmissionReviewDTO getForReview(Long id) {
@@ -173,21 +158,11 @@ public class SubmissionService {
     }
 
     /**
-     * 幂等触发提交的 AI 评审任务并转换响应。
+     * 返回事务 Outbox 的评审派发状态；请求线程不直接调用评审服务。
      * @param submission 提交记录
      * @return 提交响应
      */
     public SubmissionVO triggerReview(Submission submission) {
-        Result<Long> task = reviewFeignClient.createVersionedTask(
-                submission.getId(),
-                submission.getTeamId(),
-                submission.getProblemId(),
-                "EVIDENCE_REVIEW_V2"
-        );
-        BusinessException.throwIf(
-                task == null || !task.isSuccess(),
-                SubmissionErrorCode.REVIEW_TASK_CREATE_FAILED
-        );
         return toVO(submission);
     }
 
@@ -225,6 +200,7 @@ public class SubmissionService {
         return SubmissionVO.builder().id(value.getId()).teamId(value.getTeamId()).problemId(value.getProblemId())
                 .submitterId(value.getSubmitterId()).version(value.getVersion())
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
+                .reviewDispatchStatus(reviewDispatchQueryService.status(value.getId()))
                 .finalVersion(value.getId().equals(finalSubmissionId))
                 .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
     }
