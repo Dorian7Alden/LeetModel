@@ -1,6 +1,6 @@
 {
   "annotations": {"list": []},
-  "description": "Prometheus、Alertmanager、Grafana 与 SkyWalking OAP 自身可用性和采集质量。",
+  "description": "Prometheus、Alertmanager、Grafana、SkyWalking OAP、日志解析指标出口与 Reporter 的可用性和采集质量。",
   "editable": false,
   "graphTooltip": 1,
   "panels": [
@@ -40,8 +40,48 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
       "id": 4,
       "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "targets": [{"expr": "min by (job) (up{job=~\"prometheus|skywalking-oap|alertmanager|grafana\"})", "legendFormat": "{{job}}", "refId": "A"}],
+      "targets": [{"expr": "min by (job) (up{job=~\"prometheus|skywalking-oap|skywalking-log-metrics|alertmanager|grafana\"})", "legendFormat": "{{job}}", "refId": "A"}],
       "title": "观测组件可用性",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+      "id": 8,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (service, outcome, cause) (rate(leetmodel_logging_reporter_events_total[5m]))", "legendFormat": "{{service}} / {{outcome}} / {{cause}}", "refId": "A"}],
+      "title": "应用日志 Reporter 结果速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
+      "id": 9,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "max by (service) (leetmodel_logging_reporter_queue_depth / clamp_min(leetmodel_logging_reporter_queue_capacity, 1))", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "Reporter 有界队列利用率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 29},
+      "id": 10,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (outcome, cause) (increase(leetmodel_oap_lal_events_total[5m]))", "legendFormat": "{{outcome}} / {{cause}}", "refId": "A"}],
+      "title": "OAP LAL 拒绝与解析失败",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 29},
+      "id": 11,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, protocol, data_format) (rate(log_in_latency_bucket[5m])))", "legendFormat": "p95 / {{protocol}} / {{data_format}}", "refId": "A"}],
+      "title": "OAP 日志接收 p95",
       "type": "timeseries"
     },
     {

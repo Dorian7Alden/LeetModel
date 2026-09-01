@@ -7,6 +7,6 @@ groups:
       - record: leetmodel:service_up:count
         expr: sum(up{job="leetmodel-services"})
       - record: leetmodel:infrastructure_targets:count
-        expr: count(up{job=~"prometheus|skywalking-oap|alertmanager|grafana"})
+        expr: count(up{job=~"prometheus|skywalking-oap|skywalking-log-metrics|alertmanager|grafana"})
       - record: leetmodel:infrastructure_up:count
-        expr: sum(up{job=~"prometheus|skywalking-oap|alertmanager|grafana"})
+        expr: sum(up{job=~"prometheus|skywalking-oap|skywalking-log-metrics|alertmanager|grafana"})

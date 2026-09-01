@@ -35,7 +35,7 @@ groups:
           recovery: "版本化 file-SD 中 13 个固定服务全部重新出现并持续完成规则评估。"
 
       - alert: LeetModelTelemetryComponentUnavailable
-        expr: up{job=~"skywalking-oap|alertmanager|grafana"} == 0
+        expr: up{job=~"skywalking-oap|skywalking-log-metrics|alertmanager|grafana"} == 0
         for: 2m
         keep_firing_for: 1m
         labels:
