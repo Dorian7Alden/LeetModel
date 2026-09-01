@@ -4,6 +4,7 @@ import com.leetmodel.ranking.config.RankingRebuildProperties;
 import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.observability.RankingRebuildMetrics;
+import com.leetmodel.common.core.logging.DomainTaskLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -62,7 +63,10 @@ public class RankingRebuildCoordinator {
             permit.release();
             return;
         }
-        metrics.claimed("RUNNING".equals(candidate.getStatus()));
+        boolean takeover = "RUNNING".equals(candidate.getStatus());
+        metrics.claimed(takeover);
+        DomainTaskLogEvents.claimed(log, "ranking_rebuild", candidate.getId(),
+                candidate.getRetryCount() == null ? null : candidate.getRetryCount() + 1, takeover);
         activeLeases.put(candidate.getId(), token);
         try {
             executor.execute(() -> {
@@ -73,6 +77,11 @@ public class RankingRebuildCoordinator {
                     try {
                         RankingRebuildTask completed = taskMapper.selectById(candidate.getId());
                         metrics.attemptFinished(completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
+                        DomainTaskLogEvents.finished(log, "ranking_rebuild", candidate.getId(),
+                                completed == null || completed.getRetryCount() == null
+                                        ? null : completed.getRetryCount() + 1,
+                                completed == null ? null : completed.getStatus(),
                                 System.nanoTime() - started);
                     } catch (RuntimeException exception) {
                         log.debug("排行 attempt 指标不可用: type={}",
@@ -88,7 +97,7 @@ public class RankingRebuildCoordinator {
             taskMapper.scheduleRetry(candidate.getId(), token, now.plusSeconds(10),
                     "排行执行器拒绝任务", now);
             permit.release();
-            log.warn("排行执行器拒绝任务: taskId={}", candidate.getId());
+            DomainTaskLogEvents.executorRejected(log, "ranking_rebuild", candidate.getId());
         }
     }
 

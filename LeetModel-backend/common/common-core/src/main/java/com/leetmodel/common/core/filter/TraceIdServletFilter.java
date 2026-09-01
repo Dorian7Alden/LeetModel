@@ -2,18 +2,23 @@ package com.leetmodel.common.core.filter;
 
 import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerMapping;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Servlet TraceId 过滤器 —— 从请求头提取 X-Trace-Id 并写入 MDC。
@@ -54,11 +59,45 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
                 .withTraceId(traceId)
                 .withOperationId(operationId);
+        long started = System.nanoTime();
+        Throwable failure = null;
 
         try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
-            log.debug("HTTP 关联上下文已建立: traceId={}", traceId);
             response.setHeader(TRACE_ID_HEADER, traceId);
-            filterChain.doFilter(request, response);
+            try {
+                filterChain.doFilter(request, response);
+            } catch (IOException | ServletException | RuntimeException exception) {
+                failure = exception;
+                throw exception;
+            } finally {
+                if (!isActuatorRequest(request)) {
+                    writeAccessEvent(request, response, traceId, started, failure);
+                }
+            }
         }
+    }
+
+    private void writeAccessEvent(HttpServletRequest request, HttpServletResponse response,
+                                  String traceId, long started, Throwable failure) {
+        int status = failure == null ? response.getStatus() : Math.max(500, response.getStatus());
+        boolean failed = failure != null || status >= 500;
+        Object matched = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        String routeTemplate = matched == null ? "UNMATCHED" : matched.toString();
+        LoggingEventBuilder event = failed ? log.atWarn() : log.atInfo();
+        event.addKeyValue(LogFieldNames.EVENT_CODE, failed
+                        ? LogEventCodes.HTTP_REQUEST_FAILED : LogEventCodes.HTTP_REQUEST_COMPLETED)
+                .addKeyValue(LogFieldNames.TRACE_ID, traceId)
+                .addKeyValue(LogFieldNames.HTTP_METHOD, request.getMethod())
+                .addKeyValue(LogFieldNames.ROUTE_TEMPLATE, routeTemplate)
+                .addKeyValue(LogFieldNames.STATUS_CODE, status)
+                .addKeyValue(LogFieldNames.DURATION_MS,
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+        if (failure != null) event.setCause(failure);
+        event.log(failed ? "HTTP request failed" : "HTTP request completed");
+    }
+
+    private boolean isActuatorRequest(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return uri != null && (uri.equals("/actuator") || uri.startsWith("/actuator/"));
     }
 }

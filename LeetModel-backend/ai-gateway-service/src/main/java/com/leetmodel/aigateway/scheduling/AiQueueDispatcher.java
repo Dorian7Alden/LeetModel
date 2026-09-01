@@ -8,6 +8,8 @@ import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
+import com.leetmodel.common.core.logging.AiCallLogEvents;
+import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** 单实例派发器；数据库条件领取保证同一任务只有一个 owner。 */
+@Slf4j
 @Component
 @ConditionalOnProperty(prefix = "ai.scheduling", name = "enabled", havingValue = "true")
 public class AiQueueDispatcher {
@@ -160,6 +163,20 @@ public class AiQueueDispatcher {
             waitRegistry.fail(taskId, exception);
             metrics.terminal(safelySelectTask(taskId), resultUncertain
                     ? "upstream_result_unknown" : "failed");
+            AiCallTask failed = safelySelectTask(taskId);
+            if (resultUncertain) {
+                AiCallLogEvents.resultUnknown(log,
+                        failed == null ? null : failed.getCallId(),
+                        failed == null ? null : failed.getCallType(),
+                        failed == null ? null : failed.getEffectivePriority(),
+                        taskId, attempt == null ? null : attempt.getAttemptNo());
+            } else {
+                AiCallLogEvents.failed(log,
+                        failed == null ? null : failed.getCallId(),
+                        failed == null ? null : failed.getCallType(),
+                        failed == null ? null : failed.getEffectivePriority(),
+                        error, 0, exception);
+            }
         } finally {
             if (heartbeatTask != null) heartbeatTask.cancel(false);
             release(p0);

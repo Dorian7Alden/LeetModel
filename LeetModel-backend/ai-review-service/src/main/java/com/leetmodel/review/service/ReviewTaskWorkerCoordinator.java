@@ -4,6 +4,7 @@ import com.leetmodel.review.config.ReviewWorkerProperties;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.observability.ReviewTaskMetrics;
+import com.leetmodel.common.core.logging.DomainTaskLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -76,8 +77,11 @@ public class ReviewTaskWorkerCoordinator {
                 permits.release();
                 continue;
             }
-            metrics.claimed("LEASED".equals(candidate.getStatus())
-                    || "RUNNING".equals(candidate.getStatus()));
+            boolean takeover = "LEASED".equals(candidate.getStatus())
+                    || "RUNNING".equals(candidate.getStatus());
+            metrics.claimed(takeover);
+            DomainTaskLogEvents.claimed(log, "review", candidate.getId(),
+                    candidate.getAttemptNo() == null ? null : candidate.getAttemptNo() + 1, takeover);
             activeLeases.put(candidate.getId(), token);
             submit(candidate.getId(), token);
         }
@@ -104,6 +108,10 @@ public class ReviewTaskWorkerCoordinator {
                         ReviewTask completed = taskMapper.selectById(taskId);
                         metrics.attemptFinished(completed == null ? null : completed.getStatus(),
                                 System.nanoTime() - started);
+                        DomainTaskLogEvents.finished(log, "review", taskId,
+                                completed == null ? null : completed.getAttemptNo(),
+                                completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
                     } catch (RuntimeException exception) {
                         log.debug("评审 attempt 指标不可用: type={}",
                                 exception.getClass().getSimpleName());
@@ -117,7 +125,7 @@ public class ReviewTaskWorkerCoordinator {
             activeLeases.remove(taskId, token);
             taskMapper.releaseClaim(taskId, token);
             permits.release();
-            log.warn("评审执行器拒绝任务，已释放租约: taskId={}", taskId);
+            DomainTaskLogEvents.executorRejected(log, "review", taskId);
         }
     }
 }

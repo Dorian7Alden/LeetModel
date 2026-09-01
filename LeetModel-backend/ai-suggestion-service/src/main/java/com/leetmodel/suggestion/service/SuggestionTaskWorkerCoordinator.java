@@ -4,6 +4,7 @@ import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
 import com.leetmodel.suggestion.observability.SuggestionTaskMetrics;
+import com.leetmodel.common.core.logging.DomainTaskLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -70,8 +71,12 @@ public class SuggestionTaskWorkerCoordinator {
                 permits.release();
                 continue;
             }
-            metrics.claimed(candidate != null
-                    && ("LEASED".equals(candidate.getStatus()) || "RUNNING".equals(candidate.getStatus())));
+            boolean takeover = candidate != null
+                    && ("LEASED".equals(candidate.getStatus()) || "RUNNING".equals(candidate.getStatus()));
+            metrics.claimed(takeover);
+            DomainTaskLogEvents.claimed(log, "suggestion", taskId,
+                    candidate == null || candidate.getAttemptNo() == null
+                            ? null : candidate.getAttemptNo() + 1, takeover);
             activeLeases.put(taskId, token);
             submit(taskId, token);
         }
@@ -95,6 +100,10 @@ public class SuggestionTaskWorkerCoordinator {
                         SuggestionTask completed = taskMapper.selectById(taskId);
                         metrics.attemptFinished(completed == null ? null : completed.getStatus(),
                                 System.nanoTime() - started);
+                        DomainTaskLogEvents.finished(log, "suggestion", taskId,
+                                completed == null ? null : completed.getAttemptNo(),
+                                completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
                     } catch (RuntimeException exception) {
                         log.debug("建议 attempt 指标不可用: type={}",
                                 exception.getClass().getSimpleName());
@@ -109,7 +118,7 @@ public class SuggestionTaskWorkerCoordinator {
             activeLeases.remove(taskId, token);
             taskMapper.releaseClaim(taskId, token);
             permits.release();
-            log.warn("建议执行器拒绝任务，已释放租约: taskId={}", taskId);
+            DomainTaskLogEvents.executorRejected(log, "suggestion", taskId);
         }
     }
 }

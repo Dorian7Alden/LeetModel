@@ -5,6 +5,8 @@ import com.leetmodel.common.messaging.MessagePublisher;
 import com.leetmodel.common.messaging.PendingMessage;
 import com.leetmodel.common.messaging.PermanentPublishException;
 import com.leetmodel.common.messaging.PublishReceipt;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -70,7 +72,12 @@ public final class OutboxRelay {
             PendingMessage message = claimed.message();
             metrics.claimed(message.topic(), claimed.takeover());
             if (!outbox.renewLease(message.eventId(), owner, lease)) {
-                log.info("消息 Outbox 已由其他 Relay 接管，跳过本次发送: eventId={}", message.eventId());
+                log.atInfo()
+                        .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.OUTBOX_LEASE_LOST)
+                        .addKeyValue(LogFieldNames.EVENT_ID, message.eventId())
+                        .addKeyValue(LogFieldNames.MESSAGE_TOPIC, message.topic())
+                        .addKeyValue(LogFieldNames.OUTCOME, "lease_lost")
+                        .log("Outbox lease lost before publish");
                 continue;
             }
             relay(message);
@@ -86,16 +93,29 @@ public final class OutboxRelay {
         } catch (PermanentPublishException | MessageContractException exception) {
             outbox.markBlocked(message.eventId(), owner, exception.getClass().getSimpleName());
             metrics.published(message.topic(), "blocked", System.nanoTime() - started);
-            log.error("消息 Outbox 因稳定错误被阻塞: eventId={}, topic={}",
-                    message.eventId(), message.topic(), exception);
+            log.atError()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.OUTBOX_PUBLISH_BLOCKED)
+                    .addKeyValue(LogFieldNames.EVENT_ID, message.eventId())
+                    .addKeyValue(LogFieldNames.MESSAGE_TOPIC, message.topic())
+                    .addKeyValue(LogFieldNames.RETRY_COUNT, message.retryCount())
+                    .addKeyValue(LogFieldNames.OUTCOME, "blocked")
+                    .setCause(exception)
+                    .log("Outbox publish permanently blocked");
         } catch (RuntimeException exception) {
             Duration delay = retryPolicy.delay(message.retryCount(), message.eventId());
             Instant nextAttemptAt = Instant.now(clock).plus(delay);
             outbox.markRetry(message.eventId(), owner, nextAttemptAt,
                     exception.getClass().getSimpleName());
             metrics.published(message.topic(), "retry", System.nanoTime() - started);
-            log.warn("消息 Outbox 发布失败并进入退避: eventId={}, retry={}, delayMs={}",
-                    message.eventId(), message.retryCount() + 1, delay.toMillis());
+            log.atWarn()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.OUTBOX_PUBLISH_RETRY)
+                    .addKeyValue(LogFieldNames.EVENT_ID, message.eventId())
+                    .addKeyValue(LogFieldNames.MESSAGE_TOPIC, message.topic())
+                    .addKeyValue(LogFieldNames.RETRY_COUNT, message.retryCount() + 1)
+                    .addKeyValue(LogFieldNames.DURATION_MS, delay.toMillis())
+                    .addKeyValue(LogFieldNames.OUTCOME, "retry")
+                    .addKeyValue(LogFieldNames.EXCEPTION_TYPE, exception.getClass().getName())
+                    .log("Outbox publish scheduled for retry");
         }
     }
 }

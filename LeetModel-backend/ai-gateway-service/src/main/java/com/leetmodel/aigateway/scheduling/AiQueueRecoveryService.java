@@ -5,6 +5,8 @@ import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
+import com.leetmodel.common.core.logging.AiCallLogEvents;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /** 恢复过期租约；只有能证明尚未发送的任务才允许重新排队。 */
+@Slf4j
 @Component
 @ConditionalOnProperty(prefix = "ai.scheduling", name = "enabled", havingValue = "true")
 public class AiQueueRecoveryService {
@@ -68,6 +71,8 @@ public class AiQueueRecoveryService {
                 metrics.recovered("upstream_result_unknown");
                 AiCallTask terminal = taskMapper.selectByTaskId(task.getTaskId());
                 metrics.terminal(terminal, "upstream_result_unknown");
+                AiCallLogEvents.resultUnknown(log, terminal.getCallId(), terminal.getCallType(),
+                        terminal.getEffectivePriority(), terminal.getTaskId(), attempt.getAttemptNo());
                 waitRegistry.complete(terminal);
             }
             return updated;

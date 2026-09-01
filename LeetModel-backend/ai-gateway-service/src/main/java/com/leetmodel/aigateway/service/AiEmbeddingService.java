@@ -10,6 +10,8 @@ import com.leetmodel.common.ai.model.AiEmbeddingVector;
 import com.leetmodel.common.ai.model.AiFeatureCode;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.logging.AiCallLogEvents;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 /** 统一 Embedding 调用与逻辑模型能力校验。 */
+@Slf4j
 @Service
 public class AiEmbeddingService {
     private final AiEmbeddingProperties properties;
@@ -66,12 +69,23 @@ public class AiEmbeddingService {
             validateResponse(request.inputs().size(), binding.getDimension(), providerResponse);
             callAuditService.recordEmbeddingSuccess(callId, request, provider, model, providerResponse,
                     binding.getDimension(), System.currentTimeMillis() - startedAt, queueMs);
+            AiCallLogEvents.completed(log, callId, "EMBEDDING",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(),
+                    System.currentTimeMillis() - startedAt);
             return new AiEmbeddingResponse(callId, request.logicalModel(), providerResponse.model(),
                     binding.getDimension(), providerResponse.vectors(), providerResponse.usage(),
                     providerResponse.cost());
         } catch (RuntimeException exception) {
+            long durationMs = System.currentTimeMillis() - startedAt;
             callAuditService.recordEmbeddingFailure(callId, request, provider, model, exception,
-                    System.currentTimeMillis() - startedAt, queueMs);
+                    durationMs, queueMs);
+            AiCallLogEvents.failed(log, callId, "EMBEDDING",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(),
+                    exception instanceof BusinessException businessException
+                            ? String.valueOf(businessException.getCode()) : "AI_CALL_FAILED",
+                    durationMs, exception);
             throw exception;
         }
     }
