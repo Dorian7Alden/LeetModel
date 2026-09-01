@@ -3,5 +3,6 @@
 **/node_modules/
 **/.vscode/
 LeetModel-backend/.mvp-runtime/
+LeetModel-backend/.observability-runtime/
 
 **/**superpowers**/**

@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_DIR="${BACKEND_DIR}/.mvp-runtime"
 SKIP_BUILD=false
+SKYWALKING_ENABLED="${LEETMODEL_SKYWALKING_ENABLED:-false}"
+SKYWALKING_BACKEND="${LEETMODEL_SKYWALKING_BACKEND:-127.0.0.1:11800}"
+SKYWALKING_AGENT_JAR=""
 
 if [[ "${1:-}" == "--skip-build" ]]; then
   SKIP_BUILD=true
@@ -21,6 +24,14 @@ services=(
 ports=(8081 8083 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080)
 
 mkdir -p "${RUNTIME_DIR}/logs"
+
+if [[ "${SKYWALKING_ENABLED}" == "true" ]]; then
+  SKYWALKING_AGENT_JAR="$("${SCRIPT_DIR}/prepare-skywalking-agent.sh")"
+  if [[ ! -f "${SKYWALKING_AGENT_JAR}" ]]; then
+    echo "SkyWalking Agent 准备失败。" >&2
+    exit 1
+  fi
+fi
 
 cd "${BACKEND_DIR}"
 docker compose up -d --wait \
@@ -72,7 +83,17 @@ for index in "${!services[@]}"; do
   pid_file="${RUNTIME_DIR}/${service}.pid"
   log_file="${RUNTIME_DIR}/logs/${service}.log"
 
-  nohup java -jar "${jar}" </dev/null >"${log_file}" 2>&1 &
+  java_command=(java)
+  if [[ "${SKYWALKING_ENABLED}" == "true" ]]; then
+    java_command+=(
+      "-javaagent:${SKYWALKING_AGENT_JAR}"
+      "-Dskywalking.agent.service_name=${service}"
+      "-Dskywalking.agent.instance_name=local-${service}"
+      "-Dskywalking.collector.backend_service=${SKYWALKING_BACKEND}"
+    )
+  fi
+
+  nohup "${java_command[@]}" -jar "${jar}" </dev/null >"${log_file}" 2>&1 &
   pid=$!
   printf '%s\n' "${pid}" >"${pid_file}"
 
