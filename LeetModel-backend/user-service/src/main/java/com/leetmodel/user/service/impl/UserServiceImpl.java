@@ -146,7 +146,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String avatarPath = storageService.upload(file, "avatars");
         user.setAvatarPath(avatarPath);
         updateById(user);
-        log.info("用户 {} 更新头像: {}", userId, avatarPath);
+        log.info("用户 {} 更新头像", userId);
 
         return storageService.getUrl(avatarPath);
     }
@@ -261,7 +261,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             userRoleMapper.insert(userRole);
         }
 
-        log.info("管理员更新用户 {} 的角色: {}", userId, distinctRoleIds);
+        log.info("管理员更新用户角色完成: userId={}, roleCount={}",
+                userId, distinctRoleIds.size());
     }
 
     // ==================== 私有方法 ====================

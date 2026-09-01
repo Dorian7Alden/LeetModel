@@ -1,6 +1,8 @@
 package com.leetmodel.gateway.handler;
 
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -81,18 +83,18 @@ public class JsonExceptionHandler implements ErrorWebExceptionHandler {
             // 超时（连接超时 / 响应超时）
             httpStatus = HttpStatus.GATEWAY_TIMEOUT;
             result = Result.fail(50400, "请求超时，请稍后再试");
-            log.warn("[Gateway 超时] {}", ex.getMessage());
+            logFailure(ex, "TIMEOUT", 50400, false);
         } else if (ex instanceof java.net.ConnectException
                    || (ex.getMessage() != null && ex.getMessage().contains("Connection refused"))) {
             // 下游服务不可达
             httpStatus = HttpStatus.SERVICE_UNAVAILABLE;
             result = Result.fail(50300, "服务暂时不可用，请稍后再试");
-            log.warn("[Gateway 下游服务不可达] {}", ex.getMessage());
+            logFailure(ex, "UNAVAILABLE", 50300, false);
         } else {
             // 兜底：未预期的异常
             httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
             result = Result.fail(50000, "网关内部错误");
-            log.error("[Gateway 未预期异常]", ex);
+            logFailure(ex, "UNEXPECTED", 50000, true);
         }
 
         response.setStatusCode(httpStatus);
@@ -107,5 +109,14 @@ public class JsonExceptionHandler implements ErrorWebExceptionHandler {
 
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         return response.writeWith(Mono.just(buffer));
+    }
+
+    private void logFailure(Throwable exception, String category, int errorCode, boolean error) {
+        var event = error ? log.atError() : log.atWarn();
+        event.setCause(exception)
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.SYSTEM_FAILURE)
+                .addKeyValue(LogFieldNames.ERROR_CODE, errorCode)
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, category)
+                .log("Gateway request failed");
     }
 }

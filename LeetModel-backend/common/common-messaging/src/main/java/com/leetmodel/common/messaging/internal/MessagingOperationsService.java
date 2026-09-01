@@ -84,8 +84,8 @@ public final class MessagingOperationsService {
         }
         List<String> accepted = outbox.replay(request.eventIds(), request.reason().trim());
         metrics.replayed(accepted.size());
-        log.warn("消息人工补发 service={}, requested={}, accepted={}, reason={}",
-                service, request.eventIds().size(), accepted, safeReason(request.reason()));
+        log.warn("消息人工补发 service={}, requested={}, accepted={}",
+                service, request.eventIds().size(), accepted.size());
         return new MessagingOperationResultDTO(service, "OUTBOX_REPLAY", accepted.size(), accepted);
     }
 
@@ -105,8 +105,4 @@ public final class MessagingOperationsService {
                 changed ? List.of(consumerGroup) : List.of());
     }
 
-    private String safeReason(String reason) {
-        String sanitized = reason.replaceAll("[\\r\\n]+", " ");
-        return sanitized.substring(0, Math.min(sanitized.length(), 200));
-    }
 }

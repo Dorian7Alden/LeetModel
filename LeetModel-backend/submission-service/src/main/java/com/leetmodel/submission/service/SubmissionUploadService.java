@@ -401,7 +401,7 @@ public class SubmissionUploadService {
                     SubmissionErrorCode.FILE_CHECKSUM_MISMATCH
             );
         } catch (IOException | NoSuchAlgorithmException exception) {
-            log.error("校验合并 PDF 失败: {}", upload.getUploadToken(), exception);
+            log.error("校验合并 PDF 失败", exception);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR);
         }
     }
@@ -630,7 +630,7 @@ public class SubmissionUploadService {
         try {
             storageService.delete(objectName);
         } catch (RuntimeException cleanupException) {
-            log.error("删除无效合并 PDF 失败: {}", objectName, cleanupException);
+            log.error("删除无效合并 PDF 失败", cleanupException);
         }
     }
 }

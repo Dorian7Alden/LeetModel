@@ -2,6 +2,8 @@ package com.leetmodel.common.core.handler;
 
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import com.leetmodel.common.core.result.Result;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +33,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public Result<?> handleBusinessException(BusinessException e) {
-        log.warn("[业务异常] code={}, message={}", e.getCode(), e.getMessage());
+        log.atWarn()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.REQUEST_REJECTED)
+                .addKeyValue(LogFieldNames.ERROR_CODE, e.getCode())
+                .addKeyValue(LogFieldNames.EXCEPTION_TYPE, e.getClass().getName())
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "BUSINESS")
+                .log("Business request rejected");
         return Result.fail(e.getCode(), e.getMessage());
     }
 
@@ -44,7 +51,7 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(f -> f.getField() + ": " + f.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        log.warn("[参数校验失败] {}", msg);
+        logRequestRejected(e, "VALIDATION");
         return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
     }
 
@@ -57,7 +64,7 @@ public class GlobalExceptionHandler {
                 .map(violation -> violation.getMessage())
                 .distinct()
                 .collect(Collectors.joining("; "));
-        log.warn("[方法参数校验失败] {}", msg);
+        logRequestRejected(e, "VALIDATION");
         return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
     }
 
@@ -69,7 +76,7 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(f -> f.getField() + ": " + f.getDefaultMessage())
                 .collect(Collectors.joining("; "));
-        log.warn("[参数绑定失败] {}", msg);
+        logRequestRejected(e, "BINDING");
         return Result.fail(ErrorCodeEnum.PARAM_INVALID.getCode(), msg);
     }
 
@@ -82,7 +89,7 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException.class
     })
     public Result<?> handleRequestFormatException(Exception e) {
-        log.warn("[请求格式错误] type={}, message={}", e.getClass().getSimpleName(), e.getMessage());
+        logRequestRejected(e, "FORMAT");
         return Result.fail(ErrorCodeEnum.PARAM_INVALID);
     }
 
@@ -92,7 +99,21 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception e) {
-        log.error("[系统异常] type={}, message={}", e.getClass().getSimpleName(), e.getMessage(), e);
+        log.atError()
+                .setCause(e)
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.SYSTEM_FAILURE)
+                .addKeyValue(LogFieldNames.ERROR_CODE, ErrorCodeEnum.SYSTEM_ERROR.getCode())
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "UNEXPECTED")
+                .log("Unhandled application failure");
         return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+    }
+
+    private void logRequestRejected(Exception exception, String category) {
+        log.atWarn()
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.REQUEST_REJECTED)
+                .addKeyValue(LogFieldNames.ERROR_CODE, ErrorCodeEnum.PARAM_INVALID.getCode())
+                .addKeyValue(LogFieldNames.EXCEPTION_TYPE, exception.getClass().getName())
+                .addKeyValue(LogFieldNames.FAILURE_CATEGORY, category)
+                .log("Request rejected");
     }
 }

@@ -472,7 +472,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         problem.setCode(nextProblemCode());
 
         save(problem);
-        log.info("创建题目: {} [ID: {}]", problem.getTitle(), problem.getId());
+        log.info("创建题目完成: id={}", problem.getId());
 
         // 保存标签
         List<String> tagNames = saveTags(problem.getId(), request.getTagIds());
@@ -889,7 +889,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         try {
             storageService.delete(objectKey);
         } catch (RuntimeException cleanupException) {
-            log.error("附件元数据保存失败且对象清理失败: {}", objectKey, cleanupException);
+            log.error("附件元数据保存失败且对象清理失败", cleanupException);
         }
     }
 
@@ -919,14 +919,14 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private void deleteObjects(List<String> objectKeys) {
         StorageService storageService = storageServiceProvider.getIfAvailable();
         if (storageService == null) {
-            log.error("附件存储服务未启用，无法删除对象: {}", objectKeys);
+            log.error("附件存储服务未启用，无法删除对象: count={}", objectKeys.size());
             return;
         }
         for (String objectKey : objectKeys) {
             try {
                 storageService.delete(objectKey);
             } catch (RuntimeException exception) {
-                log.error("删除附件对象失败: {}", objectKey, exception);
+                log.error("删除附件对象失败", exception);
             }
         }
     }

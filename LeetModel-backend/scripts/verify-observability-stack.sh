@@ -207,8 +207,8 @@ echo "[通过] 13 服务发现、受保护抓取与 PromQL 查询"
 
 infra_ready=false
 for _ in {1..20}; do
-  infra_up="$(prometheus_query 'max by (job) (up{job=~"prometheus|skywalking-oap|alertmanager|grafana"})')"
-  if jq -e '.data.result | length == 4 and all(.value[1] == "1")' \
+  infra_up="$(prometheus_query 'max by (job) (up{job=~"prometheus|skywalking-oap|skywalking-log-metrics|alertmanager|grafana"})')"
+  if jq -e '.data.result | length == 5 and all(.value[1] == "1")' \
       <<<"${infra_up}" >/dev/null; then
     infra_ready=true
     break
@@ -216,7 +216,7 @@ for _ in {1..20}; do
   sleep 2
 done
 if [[ "${infra_ready}" != "true" ]]; then
-  echo "Prometheus 未成功抓取全部四个观测组件。" >&2
+  echo "Prometheus 未成功抓取全部五个观测组件。" >&2
   echo "${infra_up}" >&2
   exit 1
 fi

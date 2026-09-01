@@ -37,7 +37,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         tag.setType(type.name());
         save(tag);
         recordPublicInvalidation();
-        log.info("创建标签: {} [ID: {}]", name, tag.getId());
+        log.info("创建标签完成: id={}", tag.getId());
         return tag;
     }
 
@@ -59,7 +59,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         tag.setType(type.name());
         updateById(tag);
         recordPublicInvalidation();
-        log.info("更新标签: {} [ID: {}]", name, id);
+        log.info("更新标签完成: id={}", id);
         return tag;
     }
 
@@ -82,7 +82,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         // 删除标签
         removeById(id);
         recordPublicInvalidation();
-        log.info("删除标签: {} [ID: {}]", tag.getName(), id);
+        log.info("删除标签完成: id={}", id);
     }
 
     /**

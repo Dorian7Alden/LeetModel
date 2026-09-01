@@ -27,6 +27,11 @@ services:
     environment:
       SW_STORAGE: banyandb
       SW_STORAGE_BANYANDB_TARGETS: skywalking-banyandb:17912
+      SW_NAMESPACE: leetmodel-observability
+      SW_CORE_RECORD_DATA_TTL: 7
+      SW_CORE_METRICS_DATA_TTL: 7
+      SW_SEARCHABLE_LOGS_TAG_KEYS: level,schema_version,event_code,business_trace_id,sw_trace_id,domain_task_id,ai_call_id
+      SW_LOG_LAL_FILES: envoy-als,mesh-dp,mysql-slowsql,pgsql-slowsql,redis-slowsql,k8s-service,nginx,envoy-ai-gateway,miniprogram,leetmodel
       SW_HEALTH_CHECKER: default
       SW_TELEMETRY: prometheus
       SW_TELEMETRY_PROMETHEUS_HOST: 0.0.0.0
@@ -37,6 +42,10 @@ services:
       - "127.0.0.1:12800:12800"
       - "127.0.0.1:17128:17128"
       - "127.0.0.1:11234:1234"
+    volumes:
+      - ./docker/observability/skywalking/lal/leetmodel.yaml:/skywalking/config/lal/leetmodel.yaml:ro
+      - ./docker/observability/skywalking/log4j2.xml:/skywalking/config/log4j2.xml:ro
+      - skywalking-oap-logs:/skywalking/logs
     expose:
       - "1234"
     mem_limit: 1400m
@@ -46,6 +55,26 @@ services:
       timeout: 5s
       retries: 18
       start_period: 90s
+
+  skywalking-log-metrics:
+    image: ghcr.io/google/mtail:3.0.8
+    container_name: leetmodel-skywalking-log-metrics
+    restart: unless-stopped
+    depends_on:
+      skywalking-oap:
+        condition: service_healthy
+    command:
+      - --address=127.0.0.1
+      - --port=13903
+      - --progs=/etc/mtail
+      - --logs=/var/log/skywalking/skywalking-oap.log
+      - --emit_prog_label=false
+      - --logtostderr
+    network_mode: host
+    volumes:
+      - ./docker/observability/skywalking/mtail:/etc/mtail:ro
+      - skywalking-oap-logs:/var/log/skywalking:ro
+    mem_limit: 64m
 
   skywalking-ui:
     image: apache/skywalking-ui:horizon-1.0.0
@@ -150,6 +179,7 @@ volumes:
   skywalking-banyandb-stream:
   skywalking-banyandb-measure:
   skywalking-ui-data:
+  skywalking-oap-logs:
   prometheus-data:
   alertmanager-data:
   grafana-data:

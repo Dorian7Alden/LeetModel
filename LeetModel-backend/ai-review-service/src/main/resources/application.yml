@@ -6,6 +6,7 @@ spring:
   config:
     import:
       - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
 rocketmq:
   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
   producer:

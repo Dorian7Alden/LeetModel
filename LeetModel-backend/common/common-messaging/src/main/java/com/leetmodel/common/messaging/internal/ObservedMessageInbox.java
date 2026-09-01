@@ -3,10 +3,16 @@ package com.leetmodel.common.messaging.internal;
 import com.leetmodel.common.messaging.InboxResult;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageInbox;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 为事务 Inbox 增加低基数结果指标。
  */
+@Slf4j
 public final class ObservedMessageInbox implements MessageInbox {
 
     private final JdbcMessageInbox delegate;
@@ -35,9 +41,31 @@ public final class ObservedMessageInbox implements MessageInbox {
             metrics.consumed(logicalConsumerGroup,
                     result == InboxResult.CONSUMED ? "consumed" : "duplicate",
                     System.nanoTime() - started);
+            boolean consumed = result == InboxResult.CONSUMED;
+            log.atInfo()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, consumed
+                            ? LogEventCodes.INBOX_MESSAGE_CONSUMED
+                            : LogEventCodes.INBOX_MESSAGE_DUPLICATE)
+                    .addKeyValue(LogFieldNames.EVENT_ID, envelope.eventId())
+                    .addKeyValue(LogFieldNames.CONSUMER_GROUP, logicalConsumerGroup)
+                    .addKeyValue(LogFieldNames.BUSINESS_TYPE, envelope.aggregateType())
+                    .addKeyValue(LogFieldNames.DURATION_MS,
+                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+                    .addKeyValue(LogFieldNames.OUTCOME, consumed ? "consumed" : "duplicate")
+                    .log(consumed ? "Inbox message consumed" : "Inbox duplicate suppressed");
             return result;
         } catch (RuntimeException exception) {
             metrics.consumed(logicalConsumerGroup, "failure", System.nanoTime() - started);
+            log.atWarn()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.INBOX_MESSAGE_FAILED)
+                    .addKeyValue(LogFieldNames.EVENT_ID, envelope.eventId())
+                    .addKeyValue(LogFieldNames.CONSUMER_GROUP, logicalConsumerGroup)
+                    .addKeyValue(LogFieldNames.BUSINESS_TYPE, envelope.aggregateType())
+                    .addKeyValue(LogFieldNames.DURATION_MS,
+                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+                    .addKeyValue(LogFieldNames.OUTCOME, "failed")
+                    .setCause(exception)
+                    .log("Inbox message handling failed");
             throw exception;
         }
     }

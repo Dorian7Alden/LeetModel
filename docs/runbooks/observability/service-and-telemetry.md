@@ -23,12 +23,13 @@
 
 ## LeetModelTelemetryComponentUnavailable
 
-影响：OAP、Grafana 或 Alertmanager 的某项观察能力不可用；业务必须保持 fail-open。
+影响：OAP、OAP LAL 指标出口、Grafana 或 Alertmanager 的某项观察能力不可用；业务必须保持 fail-open。
 
 1. 查看遥测管道看板和对应容器 health/log，不从业务日志推断遥测组件状态。
-2. OAP 故障时保留业务 stdout，本阶段不承诺中央日志；Grafana 故障时直接使用 Prometheus 查询；Alertmanager 故障转到下一节。
-3. 只恢复故障组件，不停止业务服务或清空命名卷。
-4. 恢复标准：组件 `up=1`、抓取样本重新增长，相关 UI/API 可查询。
+2. OAP 故障时先确认业务 stdout/本地轮转仍增长，再查询 `leetmodel_logging_reporter_events_total` 的 `failed/dropped`、队列深度和 `connected`；Grafana 故障时直接使用 Prometheus 查询；Alertmanager 故障转到下一节。
+3. `skywalking-log-metrics` 故障时，LAL 拒绝计数形成遥测空洞，但 OAP 日志接收与业务链不应中断；检查只读日志卷、13903 loopback 监听和 mtail 程序编译，不授予容器 Docker socket。
+4. 只恢复故障组件，不停止业务服务或清空命名卷。禁止通过扩大 Reporter 队列或无限重试掩盖后端故障。
+5. 恢复标准：组件 `up=1`、抓取样本重新增长；Reporter `connected=1` 且 `recovered` 增长；使用脱敏测试标记在 GraphQL 查询一条新日志。
 
 ## LeetModelAlertmanagerDisconnected
 

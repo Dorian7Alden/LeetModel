@@ -47,7 +47,7 @@ public class ContestServiceImpl extends ServiceImpl<ContestMapper, Contest> impl
                 ProblemPublicCacheService.SCOPE,
                 ProblemPublicCacheService.SCHEMA_VERSION
         );
-        log.info("更新赛事基础数据: {} [ID: {}]", normalizedCode, id);
+        log.info("更新赛事基础数据完成: id={}", id);
         return contest;
     }
 }

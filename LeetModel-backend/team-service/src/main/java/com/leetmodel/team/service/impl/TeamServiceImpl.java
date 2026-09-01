@@ -878,7 +878,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         if (!missingIds.isEmpty()) {
             // 用户属于其他服务的数据。历史队伍可能在用户清理后暂时保留，
             // 列表展示应降级为空摘要，而不是让一条孤儿引用拖垮整页。
-            log.warn("用户公开摘要缺失，按空摘要降级展示: userIds={}", missingIds);
+            log.warn("用户公开摘要缺失，按空摘要降级展示: count={}", missingIds.size());
         }
         return summaries;
     }

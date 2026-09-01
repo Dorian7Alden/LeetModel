@@ -9,6 +9,7 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.logging.AiCallLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -90,25 +91,21 @@ public class AiChatService {
             callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
                     providerResponse, durationMs, queueMs);
 
-            AiUsageLog usageLog = AiUsageLog.from(providerResponse);
-            log.info(
-                    "AI 调用完成 callId={}, provider={}, model={}, totalTokens={}",
-                    callId,
-                    providerResponse.provider(),
-                    providerResponse.model(),
-                    usageLog.totalTokens()
-            );
+            AiCallLogEvents.completed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(), durationMs);
             return withCallId(callId, providerResponse);
         } catch (RuntimeException exception) {
+            long durationMs = System.currentTimeMillis() - startedAt;
             callAuditService.recordFailure(callId, request, routeProvider, routeModel,
-                    exception, System.currentTimeMillis() - startedAt, queueMs);
+                    exception, durationMs, queueMs);
+            AiCallLogEvents.failed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(),
+                    exception instanceof BusinessException businessException
+                            ? String.valueOf(businessException.getCode()) : "AI_CALL_FAILED",
+                    durationMs, exception);
             throw exception;
-        }
-    }
-
-    private record AiUsageLog(Long totalTokens) {
-        private static AiUsageLog from(AiChatResponse response) {
-            return new AiUsageLog(response.usage() == null ? null : response.usage().totalTokens());
         }
     }
 

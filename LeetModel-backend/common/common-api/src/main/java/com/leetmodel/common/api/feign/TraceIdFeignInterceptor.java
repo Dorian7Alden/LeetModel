@@ -34,7 +34,7 @@ public class TraceIdFeignInterceptor implements RequestInterceptor {
         String traceId = CorrelationContext.traceId();
         if (traceId != null && !traceId.isBlank()) {
             template.header(TRACE_ID_HEADER, traceId);
-            log.debug("TraceId 已注入 Feign 请求头: {}", traceId);
+            log.debug("TraceId 已注入 Feign 请求头");
         }
         String operationId = CorrelationContext.operationId();
         if (operationId != null) {

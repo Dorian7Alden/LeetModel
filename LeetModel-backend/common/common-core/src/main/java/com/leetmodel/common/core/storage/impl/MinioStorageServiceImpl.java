@@ -2,6 +2,8 @@ package com.leetmodel.common.core.storage.impl;
 
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import com.leetmodel.common.core.storage.MinioProperties;
 import com.leetmodel.common.core.storage.StorageService;
 import io.minio.BucketExistsArgs;
@@ -73,9 +75,12 @@ public class MinioStorageServiceImpl implements StorageService {
                             .contentType(file.getContentType())
                             .build()
             );
-            log.info("文件上传成功: {} (size={}bytes)", objectName, file.getSize());
+            log.atInfo()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.STORAGE_OPERATION_COMPLETED)
+                    .addKeyValue(LogFieldNames.OUTCOME, "upload")
+                    .log("Object storage operation completed");
         } catch (Exception e) {
-            log.error("文件上传失败: {}", objectName, e);
+            logStorageFailure("upload", e);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件上传失败");
         }
 
@@ -92,7 +97,7 @@ public class MinioStorageServiceImpl implements StorageService {
                             .build()
             );
         } catch (Exception e) {
-            log.error("文件下载失败: {}", objectName, e);
+            logStorageFailure("download", e);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件下载失败");
         }
     }
@@ -109,7 +114,7 @@ public class MinioStorageServiceImpl implements StorageService {
                             .build()
             );
         } catch (Exception e) {
-            log.error("获取预签名 URL 失败: {}", objectName, e);
+            logStorageFailure("presign", e);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "获取文件访问链接失败");
         }
     }
@@ -123,9 +128,12 @@ public class MinioStorageServiceImpl implements StorageService {
                             .object(objectName)
                             .build()
             );
-            log.info("文件删除成功: {}", objectName);
+            log.atInfo()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.STORAGE_OPERATION_COMPLETED)
+                    .addKeyValue(LogFieldNames.OUTCOME, "delete")
+                    .log("Object storage operation completed");
         } catch (Exception e) {
-            log.error("文件删除失败: {}", objectName, e);
+            logStorageFailure("delete", e);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件删除失败");
         }
     }
@@ -149,11 +157,22 @@ public class MinioStorageServiceImpl implements StorageService {
                             .bucket(properties.getBucket())
                             .build()
             );
-            log.info("创建 MinIO Bucket: {}", properties.getBucket());
+            log.atInfo()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.STORAGE_OPERATION_COMPLETED)
+                    .addKeyValue(LogFieldNames.OUTCOME, "bucket_create")
+                    .log("Object storage operation completed");
         } catch (Exception e) {
-            log.error("初始化 MinIO Bucket 失败: {}", properties.getBucket(), e);
+            logStorageFailure("bucket_initialize", e);
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "对象存储暂不可用");
         }
+    }
+
+    private void logStorageFailure(String operation, Exception exception) {
+        log.atError()
+                .setCause(exception)
+                .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.STORAGE_OPERATION_FAILED)
+                .addKeyValue(LogFieldNames.OUTCOME, operation)
+                .log("Object storage operation failed");
     }
 
     /**

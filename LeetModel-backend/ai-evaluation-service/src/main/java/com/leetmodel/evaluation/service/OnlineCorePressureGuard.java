@@ -4,6 +4,8 @@ import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import com.leetmodel.evaluation.config.EvaluationWorkerProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,7 @@ public class OnlineCorePressureGuard {
     private final AiGatewayFeignClient aiGatewayFeignClient;
     private final EvaluationWorkerProperties properties;
     private volatile Snapshot snapshot = new Snapshot(true, "尚未取得在线队列水位", 0L);
+    private volatile LogState logState = LogState.UNKNOWN;
 
     public OnlineCorePressureGuard(AiGatewayFeignClient aiGatewayFeignClient,
                                    EvaluationWorkerProperties properties) {
@@ -55,11 +58,31 @@ public class OnlineCorePressureGuard {
             boolean paused = count >= properties.getOnlineWarningCount()
                     || oldest >= properties.getOnlineWarningWaitMs();
             String reason = paused ? "在线 P0/P1 排队达到保护水位 count=" + count + ", waitMs=" + oldest : null;
-            if (paused) log.info("后台评价暂停新领取: {}", reason);
+            if (paused && logState != LogState.PAUSED) {
+                log.atInfo()
+                        .addKeyValue(LogFieldNames.EVENT_CODE,
+                                LogEventCodes.CAPACITY_PROTECTION_ACTIVATED)
+                        .addKeyValue(LogFieldNames.OUTCOME, "paused")
+                        .log("Background evaluation paused by online queue pressure");
+            } else if (!paused && (logState == LogState.PAUSED
+                    || logState == LogState.DEPENDENCY_FAILURE)) {
+                log.atInfo()
+                        .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_RECOVERED)
+                        .addKeyValue(LogFieldNames.OUTCOME, "ready")
+                        .log("Online queue pressure check recovered");
+            }
+            logState = paused ? LogState.PAUSED : LogState.READY;
             return new Snapshot(paused, reason, now);
         } catch (RuntimeException exception) {
             String reason = "在线队列水位不可用，按保护策略暂停";
-            log.warn("{}: type={}", reason, exception.getClass().getSimpleName());
+            if (logState != LogState.DEPENDENCY_FAILURE) {
+                log.atWarn()
+                        .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.DEPENDENCY_CALL_FAILED)
+                        .addKeyValue(LogFieldNames.FAILURE_CATEGORY, "ONLINE_QUEUE_PRESSURE")
+                        .addKeyValue(LogFieldNames.EXCEPTION_TYPE, exception.getClass().getName())
+                        .log("Online queue pressure check unavailable; batch claims paused");
+            }
+            logState = LogState.DEPENDENCY_FAILURE;
             return new Snapshot(true, reason, now);
         }
     }
@@ -77,5 +100,12 @@ public class OnlineCorePressureGuard {
     }
 
     private record Snapshot(boolean paused, String reason, long checkedAtMs) {
+    }
+
+    private enum LogState {
+        UNKNOWN,
+        READY,
+        PAUSED,
+        DEPENDENCY_FAILURE
     }
 }

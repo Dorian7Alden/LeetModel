@@ -8,6 +8,7 @@ spring:
   config:
     import:
       - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
       - optional:nacos:admin-service-${spring.profiles.active}.yml
   cloud:
     nacos:

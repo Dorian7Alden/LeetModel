@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] LOG-01 全服务统一 JSON 日志
+### [~] TRACE-01 Java Agent 自动埋点接入
 
-目标：为 13 个 Java 服务建立一份可版本化、机器可解析且不替代领域事实或操作审计的 JSON 日志基线，同时保留 stdout 与本地轮转兜底。
+目标：让 13 个服务统一接入固定版本的 SkyWalking Java Agent，并形成可复现的 Gateway → Feign → 下游 MVC → JDBC 同步 Trace 与服务拓扑；保留业务 `traceId`，使其与 `swTraceId` 可双向定位。
 
-入口：OBS-02 关联标识/MDC 契约、现有 gateway/user/problem 的 `logback-spring.xml`、启动脚本日志重定向，以及 [日志系统](docs/project/02-架构设计/日志系统.md) 的字段、级别与异步阶段规范。
+入口：OBS-01 锁定的 Agent 9.7.0、OAP 11.0.0 与 BanyanDB 0.11.0 基线，OBS-02 的业务关联上下文，以及 [可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md)、[可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md) 和 [关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
 
-主流程：盘点全部 Logback 配置与直接日志调用 → 在公共模块提供统一 JSON encoder/schema 与资源字段 → 为 HTTP、应用、Outbox/MQ/Inbox、领域 Worker attempt 和 AI 调用定义稳定 `eventCode` 与结构化字段 → 让 13 个服务显式导入同一基线 → 约束环境级别、SQL/框架日志和 heartbeat 噪声 → 验证 stdout JSON 与本地轮转文件在故障时仍可读。
+主流程：统一 Agent 下载校验、可选插件与 13 服务启动参数 → 配置稳定的 service、environment、serviceVersion、instance 资源字段和分环境采样 → 真实验证 Gateway/WebFlux、MVC、JDBC 与 RocketMQ 自动埋点边界 → 为已确认不受支持的 OpenFeign 4.1.3/Feign 13.3 客户端补充与 Agent 兼容的有界增强和 SW8 传播 → 将 Agent 当前 Trace/Span 安全映射到公共 MDC，使结构化日志同时保存业务 `traceId` 与 `swTraceId/swSpanId` → 验证同步调用拓扑、采样行为、日志反查和 OAP 中断 fail-open。
 
-完成标准：全部服务输出同一 schema，至少包含 UTC 时间、级别、eventCode、服务/环境/版本/实例、logger/thread、业务 `traceId` 与可用的 SkyWalking/HTTP/领域 attempt/异常字段；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO；启动、轮转与 schema 负面门禁通过。
+完成标准：13 个服务可由同一开关附加 Agent 且不开启时保持旧启动语义；一条典型请求可从 Gateway 追踪到 Feign 下游和 MySQL Span，服务、版本、环境与实例资源可筛选；结构化日志中的业务 `traceId` 可定位 SkyWalking Trace，SkyWalking Trace 也可回查同一业务日志；采样关闭或 Trace 丢失不破坏业务 `traceId`，OAP 不可用不阻塞请求。
 
-修改范围：公共日志配置与依赖、13 个服务配置、必要的稳定事件字段/过滤器、启动脚本、日志 schema 测试和正式日志文档。
+修改范围：Agent 准备与启动脚本、必要的可选插件或兼容增强、公共 SkyWalking/MDC 桥接、13 服务资源与采样配置、同步链与协议验收脚本、Runbook 和正式可观测文档。
 
-非目标：本卡不实现统一脱敏/CRLF 防护与故障限频（LOG-02），不接入 OAP Reporter/LAL/中央查询（LOG-03），不以运行日志替代审计，不记录敏感正文或凭据。
+非目标：本卡不为 Outbox/Inbox、消费 ACK 后 Worker、租约接管或两阶段 AI 调度建立自定义 attempt Span（留给 TRACE-02），不引入 Micrometer Tracing/OpenTelemetry 第二套 Trace，不把 Prompt、论文、回答、知识片段、消息 Payload 或凭据写入 Span，也不改动 `cli-proxy-api` 或现有标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -46,25 +46,6 @@
 ### 阶段 1：Metrics、健康检查与主动告警
 
 ### 阶段 2：结构化日志系统
-
-#### [ ] LOG-01 全服务统一 JSON 日志
-
-- 依赖：`OBS-02`。
-- 范围：提供可版本化 Logback JSON 规范，统一时间、服务资源、Trace、HTTP、业务关联、异步 attempt 和异常字段；保留 stdout 与本地轮转兜底。
-- 验收：全部服务输出同 schema；生产默认不输出 DEBUG、SQL 参数、完整请求响应或高频 heartbeat INFO。
-
-#### [ ] LOG-02 脱敏、注入防护与日志限频
-
-- 依赖：`LOG-01`。
-- 范围：集中处理 Token/Cookie/凭据、论文、Prompt、回答、知识片段、消息 Payload、第三方 URL 和异常摘要；清理 CR/LF 并限制字段长度；重复故障日志限频聚合。
-- 验收：负面测试证明敏感内容和日志注入无法进入输出；积压和依赖故障不会形成日志风暴。
-
-#### [ ] LOG-03 SkyWalking 日志接收与降级
-
-- 依赖：`OBS-01`、`LOG-01`、`LOG-02`。
-- 范围：接入兼容 Reporter、OAP Log Receiver、LAL、独立遥测存储和 UI 查询；建立上报失败、丢弃和解析错误指标。
-- 验收：日志可按 `traceId/swTraceId/domainTaskId/aiCallId` 查询；OAP 断开时业务继续、队列有界、本地日志可读且产生失败/丢弃指标。
-
 
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 

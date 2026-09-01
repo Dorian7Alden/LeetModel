@@ -1,0 +1,15 @@
+# OAP 11 exposes receiver latency/errors but not LAL parser/drop outcomes.
+# Read its bounded infrastructure log and export two low-cardinality counters.
+counter leetmodel_oap_lal_events_total by outcome, cause
+
+/LAL json parser failed to parse the log body/ {
+  leetmodel_oap_lal_events_total["rejected", "invalid_json"]++
+}
+
+/Log is dropped:/ {
+  leetmodel_oap_lal_events_total["rejected", "schema_or_policy"]++
+}
+
+/Failed to evaluate dsl:/ {
+  leetmodel_oap_lal_events_total["failed", "evaluation"]++
+}

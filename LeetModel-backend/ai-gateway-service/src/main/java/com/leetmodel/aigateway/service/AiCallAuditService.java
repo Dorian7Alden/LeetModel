@@ -21,6 +21,8 @@ import com.leetmodel.common.api.dto.AiModelCallStatsDTO;
 import com.leetmodel.common.api.dto.AiCallFilterOptionsDTO;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import com.leetmodel.common.core.util.TraceIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -330,8 +332,14 @@ public class AiCallAuditService {
             callLogMapper.insert(record);
         } catch (RuntimeException exception) {
             // 供应商调用成功后不能因审计写入失败诱发上游重试和重复模型费用。
-            log.error("AI 调用审计写入失败 callId={}, status={}",
-                    record.getCallId(), record.getStatus(), exception);
+            log.atError()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.AI_CALL_AUDIT_WRITE_FAILED)
+                    .addKeyValue(LogFieldNames.AI_CALL_ID, record.getCallId())
+                    .addKeyValue(LogFieldNames.AI_CALL_TYPE, record.getCallType())
+                    .addKeyValue(LogFieldNames.TASK_STATE, record.getStatus())
+                    .addKeyValue(LogFieldNames.OUTCOME, "audit_write_failed")
+                    .setCause(exception)
+                    .log("AI call fact write failed");
         } finally {
             metrics.call(record);
         }

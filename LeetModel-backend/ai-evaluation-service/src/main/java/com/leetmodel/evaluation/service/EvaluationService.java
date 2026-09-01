@@ -362,13 +362,14 @@ public class EvaluationService {
             EvaluationExperimentOutcome outcome = runner.parseResult(command, runner.execute(command));
             persistExperimentOutcome(run, leaseToken, runner, outcome);
         } catch (EvaluationRunnerException exception) {
-            log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, message={}",
-                    task.getId(), sample.getId(), exception.getFailureType(), exception.getMessage());
+            log.warn("质量评价运行失败 taskId={}, sampleId={}, failureType={}, type={}",
+                    task.getId(), sample.getId(), exception.getFailureType(),
+                    exception.getClass().getSimpleName());
             runMapper.fail(run.getId(), leaseToken, exception.getFailureType(), null, 0L,
                     exception.getMessage(), LocalDateTime.now());
         } catch (Exception exception) {
-            log.warn("质量评价调用失败 taskId={}, sampleId={}, message={}",
-                    task.getId(), sample.getId(), exception.getMessage());
+            log.warn("质量评价调用失败 taskId={}, sampleId={}, type={}",
+                    task.getId(), sample.getId(), exception.getClass().getSimpleName());
             runMapper.fail(run.getId(), leaseToken, "ENVIRONMENT", null, 0L,
                     "实验评审依赖暂不可用", LocalDateTime.now());
         }
@@ -516,7 +517,8 @@ public class EvaluationService {
         try {
             feature = runner.discoverFeature();
         } catch (EvaluationRunnerException exception) {
-            log.warn("查询功能版本失败 featureCode={}, message={}", runner.featureCode(), exception.getMessage());
+            log.warn("查询功能版本失败 featureCode={}, type={}",
+                    runner.featureCode(), exception.getClass().getSimpleName());
             throw new BusinessException(EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
         }
         boolean enabled = feature.getWorkflowVersions() != null && feature.getWorkflowVersions().stream()
@@ -531,7 +533,8 @@ public class EvaluationService {
         try {
             response = submissionFeignClient.getForReview(submissionId);
         } catch (RuntimeException exception) {
-            log.warn("查询评价样本失败 submissionId={}, message={}", submissionId, exception.getMessage());
+            log.warn("查询评价样本失败 submissionId={}, type={}",
+                    submissionId, exception.getClass().getSimpleName());
             throw new BusinessException(EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);
         }
         BusinessException.throwIf(response == null, EvaluationErrorCode.DEPENDENCY_UNAVAILABLE);

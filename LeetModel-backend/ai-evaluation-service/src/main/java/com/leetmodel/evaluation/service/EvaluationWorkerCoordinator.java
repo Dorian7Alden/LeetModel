@@ -4,6 +4,7 @@ import com.leetmodel.evaluation.config.EvaluationWorkerProperties;
 import com.leetmodel.evaluation.entity.EvaluationRunAttempt;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
+import com.leetmodel.common.core.logging.DomainTaskLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -72,6 +73,9 @@ public class EvaluationWorkerCoordinator {
                 continue;
             }
             metrics.claimed();
+            EvaluationRunAttempt claimed = runMapper.selectById(runId);
+            DomainTaskLogEvents.claimed(log, "evaluation", runId,
+                    claimed == null ? null : claimed.getAttemptNo(), false);
             activeLeases.put(runId, token);
             submit(runId, token);
         }
@@ -95,6 +99,10 @@ public class EvaluationWorkerCoordinator {
                         EvaluationRunAttempt completed = runMapper.selectById(runId);
                         metrics.attemptFinished(completed == null ? null : completed.getStatus(),
                                 System.nanoTime() - started);
+                        DomainTaskLogEvents.finished(log, "evaluation", runId,
+                                completed == null ? null : completed.getAttemptNo(),
+                                completed == null ? null : completed.getStatus(),
+                                System.nanoTime() - started);
                     } catch (RuntimeException exception) {
                         log.debug("评价 attempt 指标不可用: type={}",
                                 exception.getClass().getSimpleName());
@@ -109,7 +117,7 @@ public class EvaluationWorkerCoordinator {
             activeLeases.remove(runId, token);
             runMapper.releaseClaim(runId, token, LocalDateTime.now());
             permits.release();
-            log.warn("评价执行器拒绝槽位，已释放租约: runId={}", runId);
+            DomainTaskLogEvents.executorRejected(log, "evaluation", runId);
         }
     }
 }
