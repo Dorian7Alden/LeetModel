@@ -1,0 +1,151 @@
+groups:
+  - name: leetmodel-messaging-alerts
+    interval: 15s
+    rules:
+      - alert: LeetModelOutboxPublishDelayed
+        expr: max by (service) (leetmodel_messaging_outbox_oldest_seconds{status=~"pending|sending"}) >= 30
+        for: 1m
+        labels:
+          severity: warning
+          component: outbox
+        annotations:
+          summary: "{{ $labels.service }} Outbox 发布延迟"
+          impact: "业务事实已提交，但下游尚未及时收到事件。"
+          current_value: "oldest_nonterminal_seconds={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxpublishdelayed"
+          recovery: "最老 PENDING/SENDING 降到 30 秒以内，并核验对应 Inbox 与领域任务继续推进。"
+
+      - alert: LeetModelOutboxPublishDelayed
+        expr: max by (service) (leetmodel_messaging_outbox_oldest_seconds{status=~"pending|sending"}) >= 300
+        for: 1m
+        labels:
+          severity: critical
+          component: outbox
+        annotations:
+          summary: "{{ $labels.service }} Outbox 严重延迟"
+          impact: "跨服务主链至少 5 分钟未收敛；建议或派生链路可能需要降级。"
+          current_value: "oldest_nonterminal_seconds={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxpublishdelayed"
+          recovery: "最老 PENDING/SENDING 降到 30 秒以内，并从原 event 的 Inbox/领域事实确认完成；禁止绕过 Outbox 直发。"
+
+      - alert: LeetModelOutboxBlocked
+        expr: max by (service) (leetmodel_messaging_outbox_records{status="blocked"}) > 0
+        labels:
+          severity: critical
+          component: outbox
+        annotations:
+          summary: "{{ $labels.service }} 存在 BLOCKED Outbox"
+          impact: "稳定配置或契约错误阻止消息发布，Relay 不会用快速重试自行恢复。"
+          current_value: "blocked={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxblocked"
+          recovery: "修复 Topic/schema/配置后通过受控补发恢复原 eventId，BLOCKED=0 且下游事实完成。"
+
+      - alert: LeetModelOnlineConsumerBacklogHigh
+        expr: max by (service, consumer_group, topic) (leetmodel_messaging_consumer_backlog{topic=~"(.*%)?(review-task-v1|suggestion-task-v1)"}) >= 200
+        for: 2m
+        labels:
+          severity: warning
+          component: rocketmq-consumer
+        annotations:
+          summary: "{{ $labels.consumer_group }} 在线消息积压偏高"
+          impact: "评审或建议唤醒变慢，应暂停批任务并保护在线容量。"
+          current_value: "backlog={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodelonlineconsumerbackloghigh"
+          recovery: "积压降到 200 以下，consumer metrics.available=1，领域最老等待同步下降。"
+
+      - alert: LeetModelOnlineConsumerBacklogHigh
+        expr: max by (service, consumer_group, topic) (leetmodel_messaging_consumer_backlog{topic=~"(.*%)?(review-task-v1|suggestion-task-v1)"}) >= 1000
+        for: 2m
+        labels:
+          severity: critical
+          component: rocketmq-consumer
+        annotations:
+          summary: "{{ $labels.consumer_group }} 在线消息严重积压"
+          impact: "用户可见评审或建议链路严重延迟；保留论文提交但限制新的建议任务。"
+          current_value: "backlog={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodelonlineconsumerbackloghigh"
+          recovery: "积压降到 200 以下，Inbox/领域任务继续推进；禁止用跳过消费或移动 offset 伪造恢复。"
+
+      - alert: LeetModelOnlineConsumerOldestHigh
+        expr: max by (service, consumer_group, topic) (leetmodel_messaging_consumer_oldest_seconds{topic=~"(.*%)?(review-task-v1|suggestion-task-v1)"}) >= 120
+        for: 1m
+        labels:
+          severity: warning
+          component: rocketmq-consumer
+        annotations:
+          summary: "{{ $labels.consumer_group }} 最老在线消息等待超过 2 分钟"
+          impact: "评审或建议唤醒已经超过 ONLINE_CORE 初始等待水位。"
+          current_value: "oldest_unconsumed_seconds={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodelonlineconsumeroldesthigh"
+          recovery: "最老未消费消息低于 2 分钟，metrics.available=1，领域最老等待同步下降。"
+
+      - alert: LeetModelOnlineConsumerOldestHigh
+        expr: max by (service, consumer_group, topic) (leetmodel_messaging_consumer_oldest_seconds{topic=~"(.*%)?(review-task-v1|suggestion-task-v1)"}) >= 600
+        for: 1m
+        labels:
+          severity: critical
+          component: rocketmq-consumer
+        annotations:
+          summary: "{{ $labels.consumer_group }} 最老在线消息等待超过 10 分钟"
+          impact: "用户可见评审或建议链路严重滞后，消息可能已错过业务期望时限。"
+          current_value: "oldest_unconsumed_seconds={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodelonlineconsumeroldesthigh"
+          recovery: "最老未消费消息低于 2 分钟，并确认原事件的 Inbox 与领域事实完成；不得移动 offset。"
+
+      - alert: LeetModelBrokerMetricsUnavailable
+        expr: min by (service, consumer_group) ({__name__=~"leetmodel_messaging_(consumer|dlq)_metrics_available"}) == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: rocketmq-metrics
+        annotations:
+          summary: "{{ $labels.service }} 无法读取 Broker 指标"
+          impact: "消费积压或 DLQ 零值不可解释，必须显式视为遥测空洞。"
+          current_value: "available={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodelbrokermetricsunavailable"
+          recovery: "consumer 与 DLQ metrics.available 均恢复为 1，再解释 backlog/DLQ 数值。"
+
+      - alert: LeetModelDeadLetterPresent
+        expr: max by (service, consumer_group) (leetmodel_messaging_dlq_records) > 0
+        labels:
+          severity: warning
+          component: rocketmq-dlq
+        annotations:
+          summary: "{{ $labels.consumer_group }} 出现死信"
+          impact: "至少一个事件未形成目标领域事实；DLQ 不会自动回灌。"
+          current_value: "dlq_records={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeldeadletterpresent"
+          recovery: "逐条核验并受控恢复或归档，DLQ=0 且对应领域事实已确认。"
+
+      - alert: LeetModelDeadLetterPresent
+        expr: max by (service, consumer_group) (delta(leetmodel_messaging_dlq_records[10m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: rocketmq-dlq
+        annotations:
+          summary: "{{ $labels.consumer_group }} 死信仍在增加"
+          impact: "稳定消费失败持续发生，更多业务事件正在失去自动收敛路径。"
+          current_value: "dlq_growth_10m={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+          investigation: "http://127.0.0.1:8080/api/admin/messaging"
+          runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeldeadletterpresent"
+          recovery: "先停止新增失败，再逐条受控恢复；不得自动循环回灌或移动消费位点。"

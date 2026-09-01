@@ -1,0 +1,105 @@
+groups:
+  - name: leetmodel-ai-task-alerts
+    interval: 15s
+    rules:
+      - alert: LeetModelAiP0QueueWaitHigh
+        expr: max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p0"}) >= 8
+        for: 30s
+        labels:
+          severity: warning
+          component: ai-queue
+        annotations:
+          summary: "AI P0 实时调用等待接近上限"
+          impact: "客服 Chat 或 RAG Query 可能在 10 秒队列期限前无法派发。"
+          current_value: "oldest_p0_seconds={{ printf \"%.1f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+          investigation: "http://127.0.0.1:8080/api/admin/ai/queue?priority=P0"
+          runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaip0queuewaithigh"
+          recovery: "P0 最老等待降到 8 秒以下，保留许可可用且新 P0 调用正常完成。"
+
+      - alert: LeetModelAiP0QueueWaitHigh
+        expr: max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p0"}) >= 10
+        labels:
+          severity: critical
+          component: ai-queue
+        annotations:
+          summary: "AI P0 实时调用达到最大排队时间"
+          impact: "客服实时调用会过期或返回 pending，不能靠提升后台优先级恢复。"
+          current_value: "oldest_p0_seconds={{ printf \"%.1f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+          investigation: "http://127.0.0.1:8080/api/admin/ai/queue?priority=P0"
+          runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaip0queuewaithigh"
+          recovery: "P0 最老等待降到 8 秒以下，确认没有持续 EXPIRED/QUEUE_FULL，禁止重排已派发 attempt。"
+
+      - alert: LeetModelAiBackgroundQueueWaitHigh
+        expr: max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p1"}) >= 48 or max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p2"}) >= 24 or max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p3"}) >= 240 or max by (service, priority) (leetmodel_ai_queue_oldest_seconds{priority="p4"}) >= 480
+        for: 1m
+        labels:
+          severity: warning
+          component: ai-queue
+        annotations:
+          summary: "AI {{ $labels.priority }} 等待达到期限的 80%"
+          impact: "正式评审、建议、管理测试或批任务接近各自排队期限。"
+          current_value: "oldest_seconds={{ printf \"%.1f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+          investigation: "http://127.0.0.1:8080/api/admin/ai/queue?priority={{ $labels.priority }}"
+          runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaibackgroundqueuewaithigh"
+          recovery: "对应优先级低于 80% 时限，且 P0 保留许可与公平调度未被破坏。"
+
+      - alert: LeetModelAiQueueCapacityHigh
+        expr: sum by (service) (leetmodel_ai_queue_tasks) >= 400
+        for: 1m
+        labels:
+          severity: warning
+          component: ai-queue
+        annotations:
+          summary: "AI 队列活跃任务达到总容量 80%"
+          impact: "接近 500 个任务准入上限，新的调用可能被拒绝。"
+          current_value: "active_tasks={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+          investigation: "http://127.0.0.1:8080/api/admin/ai/queue"
+          runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaiqueuecapacityhigh"
+          recovery: "活跃任务持续低于 400，并确认 P0 延迟与上游限流同时恢复。"
+
+      - alert: LeetModelAiUpstreamResultUnknown
+        expr: max by (service) (leetmodel_ai_results_unknown) > 0
+        labels:
+          severity: critical
+          component: ai-result
+        annotations:
+          summary: "存在 AI_UPSTREAM_RESULT_UNKNOWN"
+          impact: "上游可能已执行并产生费用，自动重试会造成重复调用或重复扣费。"
+          current_value: "unknown_tasks={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+          investigation: "http://127.0.0.1:8080/api/admin/ai/queue?state=FAILED"
+          runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaiupstreamresultunknown"
+          recovery: "完成上游只读对账与业务 owner 决策；不得直接把 UNKNOWN 改回 QUEUED。"
+
+      - alert: LeetModelDomainLeaseExpired
+        expr: max by (service) ({__name__=~"leetmodel_(ai_queue|review_tasks|suggestion_tasks|evaluation_slots|ranking_rebuild)_expired_leases"}) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: domain-lease
+        annotations:
+          summary: "{{ $labels.service }} 存在过期执行租约"
+          impact: "Worker 可能崩溃或失去 heartbeat，任务需要按 fencing 语义恢复。"
+          current_value: "expired_leases={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-async-tasks"
+          investigation: "http://127.0.0.1:8080/api/admin"
+          runbook: "docs/runbooks/observability/domain-leases.md#leetmodeldomainleaseexpired"
+          recovery: "恢复器清除过期租约，任务进入可解释终态或新 attempt；旧 owner 的 fencing 写入继续失败。"
+
+      - alert: LeetModelDomainLeaseExpired
+        expr: max by (service) (min_over_time({__name__=~"leetmodel_(ai_queue|review_tasks|suggestion_tasks|evaluation_slots|ranking_rebuild)_expired_leases"}[10m])) > 0
+        labels:
+          severity: critical
+          component: domain-lease
+        annotations:
+          summary: "{{ $labels.service }} 过期租约持续 10 分钟"
+          impact: "自动恢复没有收敛，领域任务可能永久停滞或进入未知结果。"
+          current_value: "expired_leases={{ printf \"%.0f\" $value }}"
+          dashboard: "http://127.0.0.1:13000/d/leetmodel-async-tasks"
+          investigation: "http://127.0.0.1:8080/api/admin"
+          runbook: "docs/runbooks/observability/domain-leases.md#leetmodeldomainleaseexpired"
+          recovery: "确认恢复器、数据库与 owner 状态，租约归零且任务进入可解释终态；AI UNKNOWN 禁止自动重做。"

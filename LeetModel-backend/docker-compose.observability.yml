@@ -89,6 +89,7 @@ services:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker/observability/prometheus-rules:/etc/prometheus/rules:ro
       - ./docker/observability/prometheus-targets:/etc/prometheus/targets:ro
+      - ./.observability-runtime/prometheus-rules:/etc/prometheus/runtime-rules:ro
       - ./.observability-runtime/prometheus-targets:/etc/prometheus/runtime-targets:ro
       - ${LEETMODEL_MANAGEMENT_TOKEN_FILE:-./.observability-runtime/management-token}:/run/secrets/management_token:ro
       - prometheus-data:/prometheus
@@ -106,14 +107,14 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
-    ports:
-      - "127.0.0.1:19093:9093"
+      - --web.listen-address=127.0.0.1:19093
+    network_mode: host
     volumes:
       - ./docker/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     mem_limit: 256m
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9093/-/ready"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:19093/-/ready"]
       interval: 5s
       timeout: 3s
       retries: 30

@@ -7,6 +7,12 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    - receiver: local-drill-webhook
+      matchers:
+        - drill="true"
+      group_wait: 1s
+      group_interval: 1s
+      repeat_interval: 1m
     - receiver: local-null-critical
       matchers:
         - severity="critical"
@@ -27,3 +33,7 @@ receivers:
   - name: local-null-default
   - name: local-null-warning
   - name: local-null-critical
+  - name: local-drill-webhook
+    webhook_configs:
+      - url: http://127.0.0.1:19094/alerts
+        send_resolved: true

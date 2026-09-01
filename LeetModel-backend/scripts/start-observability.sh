@@ -7,8 +7,9 @@ COMPOSE_FILE="${BACKEND_DIR}/docker-compose.observability.yml"
 RUNTIME_DIR="${BACKEND_DIR}/.observability-runtime"
 TOKEN_FILE="${LEETMODEL_MANAGEMENT_TOKEN_FILE:-${RUNTIME_DIR}/management-token}"
 RUNTIME_TARGETS_DIR="${RUNTIME_DIR}/prometheus-targets"
+RUNTIME_RULES_DIR="${RUNTIME_DIR}/prometheus-rules"
 
-mkdir -p "${RUNTIME_TARGETS_DIR}"
+mkdir -p "${RUNTIME_TARGETS_DIR}" "${RUNTIME_RULES_DIR}"
 mkdir -p "$(dirname "${TOKEN_FILE}")"
 chmod 750 "${RUNTIME_DIR}"
 
@@ -27,6 +28,9 @@ chmod 640 "${TOKEN_FILE}"
 
 if [[ ! -e "${RUNTIME_TARGETS_DIR}/runtime.json" ]]; then
   printf '[]\n' >"${RUNTIME_TARGETS_DIR}/runtime.json"
+fi
+if [[ ! -e "${RUNTIME_RULES_DIR}/runtime.yml" ]]; then
+  printf 'groups: []\n' >"${RUNTIME_RULES_DIR}/runtime.yml"
 fi
 
 export LEETMODEL_MANAGEMENT_TOKEN_FILE="${TOKEN_FILE}"

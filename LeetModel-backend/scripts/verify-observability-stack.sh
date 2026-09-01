@@ -86,10 +86,6 @@ if rg -n --glob 'application*.yml' 'Path=/actuator|Path=/actuator/\*\*' \
   echo "Gateway 路由不得代理 Actuator 管理端点。" >&2
   exit 1
 fi
-if rg -n '^[[:space:]]*alert:' "${OBSERVABILITY_DIR}/prometheus-rules" >/dev/null; then
-  echo "MET-03 只允许记录规则，生产告警应在 MET-04 落地。" >&2
-  exit 1
-fi
 if git -C "${BACKEND_DIR}" ls-files --error-unmatch .observability-runtime/management-token \
     >/dev/null 2>&1; then
   echo "管理 Token 不得进入版本库。" >&2

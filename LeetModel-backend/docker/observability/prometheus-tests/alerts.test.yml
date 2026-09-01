@@ -1,0 +1,49 @@
+rule_files:
+  - ../prometheus-rules/*.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: blocked Outbox immediately fires a critical alert
+    interval: 15s
+    input_series:
+      - series: 'leetmodel_messaging_outbox_records{service="submission-service",status="blocked"}'
+        values: '1x4'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: LeetModelOutboxBlocked
+        exp_alerts:
+          - exp_labels:
+              service: submission-service
+              severity: critical
+              component: outbox
+            exp_annotations:
+              summary: "submission-service 存在 BLOCKED Outbox"
+              impact: "稳定配置或契约错误阻止消息发布，Relay 不会用快速重试自行恢复。"
+              current_value: "blocked=1"
+              dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
+              investigation: "http://127.0.0.1:8080/api/admin/messaging"
+              runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxblocked"
+              recovery: "修复 Topic/schema/配置后通过受控补发恢复原 eventId，BLOCKED=0 且下游事实完成。"
+
+  - name: AI UNKNOWN immediately fires a critical alert
+    interval: 15s
+    input_series:
+      - series: 'leetmodel_ai_results_unknown{service="ai-gateway-service"}'
+        values: '2x4'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: LeetModelAiUpstreamResultUnknown
+        exp_alerts:
+          - exp_labels:
+              service: ai-gateway-service
+              severity: critical
+              component: ai-result
+            exp_annotations:
+              summary: "存在 AI_UPSTREAM_RESULT_UNKNOWN"
+              impact: "上游可能已执行并产生费用，自动重试会造成重复调用或重复扣费。"
+              current_value: "unknown_tasks=2"
+              dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
+              investigation: "http://127.0.0.1:8080/api/admin/ai/queue?state=FAILED"
+              runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaiupstreamresultunknown"
+              recovery: "完成上游只读对账与业务 owner 决策；不得直接把 UNKNOWN 改回 QUEUED。"
