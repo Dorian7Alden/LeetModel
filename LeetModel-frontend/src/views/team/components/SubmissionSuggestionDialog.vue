@@ -54,6 +54,14 @@
             <template #default><el-button type="primary" link @click="retry">按原版本重试</el-button></template>
           </el-alert>
 
+          <el-alert
+            v-else-if="task.status === 'UNKNOWN'"
+            title="AI 上游结果未知，为避免重复计费不会自动重试，请联系管理员核查"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+
           <template v-if="task.status === 'COMPLETED' && result">
             <template v-if="isV2">
               <el-alert
@@ -112,7 +120,7 @@
             </template>
           </template>
 
-          <el-empty v-else-if="task.status !== 'FAILED'" :description="stageLabel(task.currentStage)" :image-size="60" />
+          <el-empty v-else-if="!['FAILED', 'UNKNOWN'].includes(task.status)" :description="stageLabel(task.currentStage)" :image-size="60" />
         </template>
 
         <el-empty v-else description="该论文版本尚未生成建议" :image-size="80">
@@ -148,10 +156,10 @@ function formatDate(value) {
   return value ? String(value).replace("T", " ").slice(0, 16) : "-";
 }
 function statusLabel(status) {
-  return ({ WAITING: "等待生成", RUNNING: "生成中", COMPLETED: "已完成", FAILED: "生成失败" })[status] || status;
+  return ({ WAITING: "等待生成", LEASED: "准备生成", RUNNING: "生成中", COMPLETED: "已完成", FAILED: "生成失败", UNKNOWN: "结果待核查" })[status] || status;
 }
 function statusType(status) {
-  return ({ COMPLETED: "success", FAILED: "danger", RUNNING: "warning" })[status] || "info";
+  return ({ COMPLETED: "success", FAILED: "danger", UNKNOWN: "warning", LEASED: "warning", RUNNING: "warning" })[status] || "info";
 }
 function stageLabel(stage) {
   return ({
@@ -189,7 +197,7 @@ function stopPolling() {
 }
 function startPolling() {
   stopPolling();
-  if (task.value && ["WAITING", "RUNNING"].includes(task.value.status)) {
+  if (task.value && ["WAITING", "LEASED", "RUNNING"].includes(task.value.status)) {
     timer = window.setInterval(load, 4000);
   }
 }

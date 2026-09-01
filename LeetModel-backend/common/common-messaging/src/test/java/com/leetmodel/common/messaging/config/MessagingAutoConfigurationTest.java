@@ -9,6 +9,9 @@ import com.leetmodel.common.messaging.internal.OutboxRelay;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,6 +55,27 @@ class MessagingAutoConfigurationTest {
     }
 
     @Test
+    void shouldCreateMessagingBeansAfterBootJdbcAutoConfiguration() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        JdbcTemplateAutoConfiguration.class,
+                        TransactionAutoConfiguration.class,
+                        JacksonAutoConfiguration.class,
+                        MessagingAutoConfiguration.class
+                ))
+                .withUserConfiguration(BootInfrastructure.class)
+                .withPropertyValues(
+                        "spring.application.name=test-service",
+                        "leetmodel.messaging.enabled=true",
+                        "leetmodel.messaging.relay.enabled=false"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(MessageOutbox.class);
+                    assertThat(context).hasSingleBean(MessageInbox.class);
+                });
+    }
+
+    @Test
     void shouldCreateRelayWhenPublisherExists() {
         contextRunner
                 .withPropertyValues(
@@ -69,6 +93,28 @@ class MessagingAutoConfigurationTest {
                         "leetmodel.messaging.max-payload-bytes=65537"
                 )
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class BootInfrastructure {
+
+        @Bean
+        DataSource dataSource() {
+            JdbcDataSource dataSource = new JdbcDataSource();
+            dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID()
+                    + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+            return dataSource;
+        }
+
+        @Bean
+        DataSourceTransactionManager transactionManager(DataSource dataSource) {
+            return new DataSourceTransactionManager(dataSource);
+        }
+
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
     }
 
     @Configuration(proxyBeanMethods = false)

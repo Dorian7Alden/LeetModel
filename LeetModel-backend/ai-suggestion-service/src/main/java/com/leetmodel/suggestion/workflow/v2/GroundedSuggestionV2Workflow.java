@@ -70,7 +70,9 @@ public class GroundedSuggestionV2Workflow {
                 AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                 taskId, VERSION, "PROMPT_GROUNDED_SUGGESTION_0001",
                 "MODEL_CFG_SUGGESTION_TEXT_0002", null, AiCallPriority.P1,
-                "grounded-suggestion:" + task.getId() + ":attempt:" + task.getAttemptNo(),
+                task.getAiIdempotencyKey() == null
+                        ? "suggestion:task:" + task.getId() + ":attempt:" + task.getAttemptNo()
+                        : task.getAiIdempotencyKey(),
                 Instant.now().plusSeconds(360));
         AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                 List.of(message(AiRole.SYSTEM, task.getPromptSnapshot()),

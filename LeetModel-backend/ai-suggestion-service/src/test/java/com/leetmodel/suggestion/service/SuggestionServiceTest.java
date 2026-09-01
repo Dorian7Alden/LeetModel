@@ -2,6 +2,7 @@ package com.leetmodel.suggestion.service;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.common.ai.client.AiClientException;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
@@ -13,6 +14,7 @@ import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.suggestion.entity.SuggestionTask;
+import com.leetmodel.suggestion.enums.SuggestionErrorCode;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
 import com.leetmodel.suggestion.vo.SuggestionVO;
 import com.leetmodel.suggestion.workflow.SuggestionV1Workflow;
@@ -32,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -147,10 +151,13 @@ class SuggestionServiceTest {
     }
 
     @Test
-    void processNextCompletesClaimedTaskWithTraceableAiResult() throws Exception {
-        SuggestionTask task = task("WAITING");
-        when(taskMapper.selectNextWaiting(any(LocalDateTime.class))).thenReturn(task);
-        when(taskMapper.claim(anyLong(), any(LocalDateTime.class))).thenReturn(1);
+    void executeClaimedCompletesTaskWithFencingAndTraceableAiResult() throws Exception {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(taskMapper.complete(anyLong(), anyString(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class))).thenReturn(1);
         when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
         when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));
         ProblemContextDTO problem = new ProblemContextDTO(PROBLEM_ID, "调度题", "题面", 60, 1);
@@ -159,22 +166,24 @@ class SuggestionServiceTest {
                 .thenReturn(new SuggestionWorkflowResult(
                         "{\"summary\":\"优先补验证\",\"items\":[]}", "model-a", "call-1"));
 
-        service.processNext();
+        service.executeClaimed(task.getId(), "owner-a", "token-a");
 
-        ArgumentCaptor<SuggestionTask> captor = ArgumentCaptor.forClass(SuggestionTask.class);
-        verify(taskMapper).updateById(captor.capture());
-        SuggestionTask completed = captor.getValue();
-        assertThat(completed.getStatus()).isEqualTo("COMPLETED");
-        assertThat(completed.getModelName()).isEqualTo("model-a");
-        assertThat(completed.getAiCallId()).isEqualTo("call-1");
-        assertThat(completed.getFinishedAt()).isNotNull();
+        verify(taskMapper).complete(org.mockito.ArgumentMatchers.eq(task.getId()),
+                org.mockito.ArgumentMatchers.eq("token-a"),
+                org.mockito.ArgumentMatchers.contains("优先补验证"),
+                org.mockito.ArgumentMatchers.eq("model-a"),
+                org.mockito.ArgumentMatchers.eq("call-1"), any(LocalDateTime.class));
+        assertThat(task.getAiIdempotencyKey()).isEqualTo("suggestion:task:9001:attempt:1");
     }
 
     @Test
-    void processNextPersistsFailureReasonAndRetryResetsTask() throws Exception {
-        SuggestionTask task = task("WAITING");
-        when(taskMapper.selectNextWaiting(any(LocalDateTime.class))).thenReturn(task);
-        when(taskMapper.claim(anyLong(), any(LocalDateTime.class))).thenReturn(1);
+    void executeClaimedPersistsFailureReasonAndRetryCreatesNewAttempt() throws Exception {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(taskMapper.markTerminalFailure(anyLong(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(1);
         when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
         when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));
         when(problemFeignClient.getProblemContext(PROBLEM_ID))
@@ -182,14 +191,16 @@ class SuggestionServiceTest {
         when(workflow.execute(any(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("AI gateway timeout"));
 
-        service.processNext();
+        service.executeClaimed(task.getId(), "owner-a", "token-a");
 
-        assertThat(task.getStatus()).isEqualTo("FAILED");
-        assertThat(task.getErrorMessage()).isEqualTo("AI gateway timeout");
+        verify(taskMapper).markTerminalFailure(task.getId(), "token-a", "FAILED",
+                "WORKFLOW_FAILED", "AI gateway timeout");
+        task.setStatus("FAILED");
         task.setRetryCount(0);
+        task.setAttemptNo(1);
         when(taskMapper.selectById(task.getId())).thenReturn(task);
         when(teamFeignClient.getMemberIds(TEAM_ID)).thenReturn(Result.ok(List.of(USER_ID)));
-        when(taskMapper.resetForRetry(anyLong(), any(LocalDateTime.class))).thenReturn(1);
+        when(taskMapper.resetForRetry(anyLong(), any(LocalDateTime.class), anyString())).thenReturn(1);
         SuggestionVO retried = service.retry(task.getId(), USER_ID);
         assertThat(retried.getStatus()).isEqualTo("WAITING");
         assertThat(retried.getRetryCount()).isEqualTo(1);
@@ -197,22 +208,79 @@ class SuggestionServiceTest {
     }
 
     @Test
-    void processNextDoesNothingWhenAnotherWorkerWinsClaim() {
-        SuggestionTask task = task("WAITING");
-        when(taskMapper.selectNextWaiting(any(LocalDateTime.class))).thenReturn(task);
-        when(taskMapper.claim(anyLong(), any(LocalDateTime.class))).thenReturn(0);
+    void executeClaimedDoesNothingWhenLeaseWasLost() {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(0);
 
-        service.processNext();
+        service.executeClaimed(task.getId(), "owner-a", "stale-token");
 
         verify(submissionFeignClient, never()).getForReview(anyLong());
-        verify(taskMapper, never()).updateById(any(SuggestionTask.class));
+        verify(taskMapper, never()).complete(anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(LocalDateTime.class));
     }
 
     @Test
-    void recoversStaleRunningTasksWithBoundedCutoff() {
-        service.recoverStaleTasks();
+    void aiIdempotencyKeyIsStableWithinAttempt() {
+        assertThat(SuggestionService.aiIdempotencyKey(9001L, 2))
+                .isEqualTo("suggestion:task:9001:attempt:2");
+    }
 
-        verify(taskMapper).recoverStale(any(LocalDateTime.class), any(LocalDateTime.class));
+    @Test
+    void unknownAiOutcomeBecomesVisibleTerminalStateWithoutAutomaticRetry() throws Exception {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
+        when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));
+        when(problemFeignClient.getProblemContext(PROBLEM_ID))
+                .thenReturn(Result.ok(new ProblemContextDTO(PROBLEM_ID, "调度题", "题面", 60, 1)));
+        when(workflow.execute(any(), any(), any(), any()))
+                .thenThrow(new AiClientException(51213, "unknown"));
+
+        service.executeClaimed(task.getId(), "owner-a", "token-a");
+
+        verify(taskMapper).markTerminalFailure(task.getId(), "token-a", "UNKNOWN",
+                "AI_UNKNOWN", "AI 上游结果未知，禁止自动重试");
+        verify(taskMapper, never()).scheduleRetry(anyLong(), anyString(), any(), anyString(),
+                anyString(), anyString());
+    }
+
+    @Test
+    void onlyTransientDependencyFailureCreatesAutomaticNextAttempt() {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(submissionFeignClient.getForReview(SUBMISSION_ID))
+                .thenThrow(new IllegalStateException("submission unavailable"));
+
+        service.executeClaimed(task.getId(), "owner-a", "token-a");
+
+        verify(taskMapper).scheduleRetry(eq(task.getId()), eq("token-a"), any(LocalDateTime.class),
+                eq("DEPENDENCY_TRANSIENT"), eq("论文建议依赖服务暂不可用"),
+                eq("suggestion:task:9001:attempt:2"));
+        verify(taskMapper, never()).markTerminalFailure(anyLong(), anyString(), anyString(),
+                anyString(), anyString());
+    }
+
+    @Test
+    void stableSourceFailureDoesNotConsumeAutomaticRetryBudget() {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(submissionFeignClient.getForReview(SUBMISSION_ID))
+                .thenThrow(new BusinessException(SuggestionErrorCode.SOURCE_DATA_INVALID));
+
+        service.executeClaimed(task.getId(), "owner-a", "token-a");
+
+        verify(taskMapper).markTerminalFailure(task.getId(), "token-a", "FAILED",
+                "WORKFLOW_FAILED", "论文建议源数据不完整或互相矛盾");
+        verify(taskMapper, never()).scheduleRetry(anyLong(), anyString(), any(), anyString(),
+                anyString(), anyString());
     }
 
     private void prepareValidCreationFacts() {
@@ -248,6 +316,9 @@ class SuggestionServiceTest {
         task.setPromptSnapshot("prompt-v1");
         task.setStatus(status);
         task.setRetryCount(0);
+        task.setAttemptNo(1);
+        task.setMaxAttempts(3);
+        task.setTraceId("trace-test");
         task.setCreateTime(LocalDateTime.now());
         return task;
     }

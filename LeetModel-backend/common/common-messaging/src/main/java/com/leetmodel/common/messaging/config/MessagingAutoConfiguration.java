@@ -22,10 +22,15 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +48,8 @@ import java.util.UUID;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureAfter({DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class,
+        TransactionAutoConfiguration.class, JacksonAutoConfiguration.class})
 @EnableConfigurationProperties(MessagingProperties.class)
 @ConditionalOnClass(RocketMQTemplate.class)
 public class MessagingAutoConfiguration {
@@ -53,7 +60,6 @@ public class MessagingAutoConfiguration {
     @Configuration(proxyBeanMethods = false)
     @EnableScheduling
     @ConditionalOnProperty(prefix = "leetmodel.messaging", name = "enabled", havingValue = "true")
-    @ConditionalOnBean({JdbcTemplate.class, PlatformTransactionManager.class})
     public static class EnabledMessagingConfiguration {
 
         /**

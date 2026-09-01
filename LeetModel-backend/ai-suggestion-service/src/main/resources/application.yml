@@ -4,5 +4,34 @@ spring:
   profiles:
     active: dev
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-ai-suggestion-v1
+    send-message-timeout: 3000
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: true
+
+suggestion:
+  messaging:
+    consumer-enabled: true
+  worker:
+    enabled: true
+    concurrency: 1
+    lease-seconds: 120
+    heartbeat-ms: 20000
+    signal-capacity: 256
+    signal-drain-ms: 500
+    reconciliation-delay-ms: 30000
+    reconciliation-batch-size: 50
+    max-attempts: 3
+    severe-backlog-count: 1000
+    severe-oldest-waiting-seconds: 600
+
 server:
   shutdown: graceful
