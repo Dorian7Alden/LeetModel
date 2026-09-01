@@ -9,6 +9,7 @@ import com.leetmodel.common.core.logging.LogEventCodes;
 import com.leetmodel.common.core.logging.LogFieldNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -34,8 +35,9 @@ public class AiCostEnrichmentService {
     @Autowired
     public AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,
                                    AiGatewayMetrics metrics,
-                                   FailureLogLimiter failureLogLimiter) {
-        this(mapper, properties, Clock.systemUTC(), metrics, failureLogLimiter);
+                                   ObjectProvider<FailureLogLimiter> failureLogLimiterProvider) {
+        this(mapper, properties, Clock.systemUTC(), metrics,
+                failureLogLimiterProvider.getIfAvailable(FailureLogLimiter::disabled));
     }
 
     AiCostEnrichmentService(AiCallLogMapper mapper, CostEnrichmentProperties properties,

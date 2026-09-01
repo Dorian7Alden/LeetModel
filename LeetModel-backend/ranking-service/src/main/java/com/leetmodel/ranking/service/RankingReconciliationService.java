@@ -9,6 +9,7 @@ import com.leetmodel.common.core.logging.FailureLogLimiter;
 import com.leetmodel.common.core.logging.LogEventCodes;
 import com.leetmodel.common.core.logging.LogFieldNames;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -40,7 +41,15 @@ public class RankingReconciliationService {
     public RankingReconciliationService(SubmissionFeignClient submissionFeignClient,
                                         ReviewFeignClient reviewFeignClient,
                                         RankingRebuildRequestService requestService,
-                                        FailureLogLimiter failureLogLimiter) {
+                                        ObjectProvider<FailureLogLimiter> failureLogLimiterProvider) {
+        this(submissionFeignClient, reviewFeignClient, requestService,
+                failureLogLimiterProvider.getIfAvailable(FailureLogLimiter::disabled));
+    }
+
+    RankingReconciliationService(SubmissionFeignClient submissionFeignClient,
+                                 ReviewFeignClient reviewFeignClient,
+                                 RankingRebuildRequestService requestService,
+                                 FailureLogLimiter failureLogLimiter) {
         this.submissionFeignClient = submissionFeignClient;
         this.reviewFeignClient = reviewFeignClient;
         this.requestService = requestService;
