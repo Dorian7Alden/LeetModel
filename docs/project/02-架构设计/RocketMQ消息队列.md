@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建；MQ4 已实现建议任务可靠唤醒与租约恢复，后续按 MQ5 至 MQ6 继续迁移。
+> 设计状态：MQ0 已完成目标设计；MQ1 已实现基础设施和公共可靠消息能力；MQ2 已实现提交到评审可靠异步链路；MQ3 已实现评审与最终提交驱动的合并排行重建；MQ4 已实现建议任务可靠唤醒与租约恢复；MQ5 已实现后台评价隔离调度，后续由 MQ6 完成统一运维治理、故障演练与旧链清理。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0、RocketMQ Spring 2.3.3 与 RocketMQ Client 5.3.1。Spring Boot BOM 默认的历史 Client 5.1.4 缺少 Starter 所需的 `setNamespaceV2` API，MQ4 已统一覆盖相关客户端组件并通过真实服务启动。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复均有验证证据。
 
@@ -263,7 +263,7 @@ Outbox 已发布记录至少保留 30 天，RocketMQ 消息保留期首期目标
 - 工作线程在进入外部 AI 调用前生成稳定 AI 幂等键。进程重启后必须使用相同键查询或复用 AI 网关任务，不能盲目产生第二次调用。
 - AI 网关 attempt 已进入 `DISPATCHING` 或 `ACKNOWLEDGED` 后结果不明时，业务任务进入人工可见的未知或失败状态，不自动重新计费。
 
-ai-review-service 已在 MQ2 补齐运行任务的租约、逐任务 fencing token heartbeat、过期恢复和 AI UNKNOWN 保护；ai-suggestion-service 已在 MQ4 删除两秒执行扫描和十分钟强制重置，改为同样的租约、heartbeat、fencing 与低频漏唤醒修复，合法长任务不会仅因运行时间超过十分钟被重置。
+ai-review-service 已在 MQ2 补齐运行任务的租约、逐任务 fencing token heartbeat、过期恢复和 AI UNKNOWN 保护；ai-suggestion-service 已在 MQ4 删除两秒执行扫描和十分钟强制重置，改为同样的租约、heartbeat、fencing 与低频漏唤醒修复，合法长任务不会仅因运行时间超过十分钟被重置。ai-evaluation-service 已在 MQ5 删除两秒槽位执行扫描，评价运行改由独立消息唤醒、单并发租约 Worker 和 30 秒漏唤醒对账驱动。
 
 #### 业务重试矩阵
 
@@ -335,6 +335,12 @@ MQ3 实施结果：最终提交锁与 `FINAL_SUBMISSION_CHANGED`、评审结果�
 #### 后台评价
 
 ai-evaluation-service 使用独立 Topic、消费组和工作池。系统处于降级或在线 P1 积压超过阈值时暂停领取新评价任务，任务继续保存在数据库和 Broker 中。暂停不能通过返回消费失败制造重试风暴。
+
+MQ5 实施结果：任务创建、失败项显式重试和管理员恢复都在本地事务中写入 `EVALUATION_SLOT_READY` Outbox，Payload 只携带 evaluationTaskId、物理 runAttemptId、稳定 slotKey、attemptNo、featureCode 和不可变 datasetVersion。真实消费者以 `cg-ai-evaluation-task-v1` Inbox 去重后唤醒已有槽位，消费线程不执行 AI 调用；重复事件仍重发 JVM 信号，覆盖 Inbox 已提交但本地信号尚未执行时的崩溃窗口。
+
+本地 Worker 固定并发 1，采用 120 秒租约、20 秒 heartbeat 和逐 attempt fencing token，结果写入只有当前租约持有者能推进。租约过期而上游结果不明的运行进入 `UNKNOWN`，保留原 attempt 和统计历史，不自动重新计费；`PENDING` 复用同一 attempt 并由低频对账再次唤醒。暂停阻断新领取，恢复只重新唤醒仍为 `WAITING` 的最新槽位，取消只取消未领取槽位并保留全部终态和历史尝试。
+
+领取前通过 AI 网关的可信管理契约分别读取 `QUEUED` P0、P1 水位；合计数量达到 20、最老等待达到 30 秒，或水位查询失败时，批任务按 fail-closed 策略暂停新领取。水位按 5 秒缓存，定时信号排空会自动恢复，不通过 Broker NACK 做限流。评价 Runner 构造的 AI 调用继续使用 P3，消息声明不参与提权。低基数指标暴露等待槽位、过期租约和批任务暂停状态。
 
 
 ### 背压与策略配置
