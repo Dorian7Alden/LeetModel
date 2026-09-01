@@ -1,5 +1,5 @@
 # LeetModel 全服务结构化日志基线。
-# 业务服务通过 spring.config.import 显式导入；LOG-02 在同一 schema 上补充脱敏与限频。
+# 业务服务通过 spring.config.import 显式导入；Reporter 默认关闭且所有资源有界。
 logging:
   config: classpath:leetmodel-logback-spring.xml
   register-shutdown-hook: true
@@ -16,6 +16,16 @@ leetmodel:
       enabled: true
       summary-interval: ${LEETMODEL_LOG_FAILURE_SUMMARY_INTERVAL:1m}
       max-keys: ${LEETMODEL_LOG_FAILURE_MAX_KEYS:256}
+    reporter:
+      enabled: ${LEETMODEL_SKYWALKING_LOG_ENABLED:false}
+      endpoint: ${LEETMODEL_SKYWALKING_LOG_ENDPOINT:http://127.0.0.1:12800/v3/logs}
+      queue-capacity: ${LEETMODEL_SKYWALKING_LOG_QUEUE_CAPACITY:2048}
+      batch-size: ${LEETMODEL_SKYWALKING_LOG_BATCH_SIZE:64}
+      flush-interval-millis: ${LEETMODEL_SKYWALKING_LOG_FLUSH_MS:500}
+      connect-timeout-millis: ${LEETMODEL_SKYWALKING_LOG_CONNECT_TIMEOUT_MS:500}
+      request-timeout-millis: ${LEETMODEL_SKYWALKING_LOG_REQUEST_TIMEOUT_MS:1500}
+      max-attempts: ${LEETMODEL_SKYWALKING_LOG_MAX_ATTEMPTS:2}
+      retry-backoff-millis: ${LEETMODEL_SKYWALKING_LOG_RETRY_BACKOFF_MS:100}
 
 spring:
   main:
