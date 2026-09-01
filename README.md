@@ -140,6 +140,8 @@ cd LeetModel-backend
 
 AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 
+需要本地 Trace/APM 时，先执行 `./scripts/start-observability.sh`，再以 `LEETMODEL_SKYWALKING_ENABLED=true ./scripts/start-mvp.sh` 启动业务服务。组件版本、端口、资源、登录和兼容限制见 [可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md)。
+
 #### 2. 启动前端
 
 新建终端窗口：
@@ -167,6 +169,9 @@ cd LeetModel-backend
 # 后端全量测试
 cd LeetModel-backend
 mvn test
+
+# 可观测基线真实运行验收
+./scripts/verify-observability-baseline.sh
 
 # 前端生产构建
 cd ../LeetModel-frontend

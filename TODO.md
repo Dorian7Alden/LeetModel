@@ -15,8 +15,7 @@
 
 ## 当前任务
 
-当前没有进行中的任务。系统保障设计已经确认，实施从 `OBS-01` 开始；收到开始指令前不领取任务卡、不修改运行代码。
-
+当前没有进行中的任务。下一张可领取任务卡为 `OBS-02`；收到开始指令前不修改运行代码。
 
 ## 系统保障实施路线图
 
@@ -31,12 +30,6 @@
 
 
 ### 阶段 0：实施基线与公共约束
-
-#### [ ] OBS-01 组件兼容矩阵与部署基线
-
-- 范围：验证 Spring Boot 3.3/JDK 17 下 SkyWalking Java Agent 对 Gateway、MVC/WebFlux、Feign、JDBC、RocketMQ 的兼容性；确定 OAP、Prometheus、Grafana、Alertmanager、遥测存储的版本、端口、资源和环境隔离。
-- 交付：版本锁定、配置样例、开发环境部署清单和不支持项记录；生产遥测存储与 RAG Elasticsearch 明确隔离。
-- 验收：最小示例真实启动并产生 HTTP Trace、指标和日志；不启用 Micrometer Tracing 或 OpenTelemetry Trace Exporter。
 
 #### [ ] OBS-02 公共标识与遥测字段契约
 
