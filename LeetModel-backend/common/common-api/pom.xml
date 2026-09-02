@@ -27,6 +27,12 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
+
+        <!-- Feign 13 不在 Agent 9.7 自动插件范围内，使用官方 Toolkit 补齐有界 Exit Span。 -->
+        <dependency>
+            <groupId>org.apache.skywalking</groupId>
+            <artifactId>apm-toolkit-trace</artifactId>
+        </dependency>
     </dependencies>
 
     <!-- 公共 jar 模块不启用 spring-boot-maven-plugin -->

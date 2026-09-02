@@ -7,8 +7,11 @@ RUNTIME_DIR="${BACKEND_DIR}/.mvp-runtime"
 SKIP_BUILD=false
 SKYWALKING_ENABLED="${LEETMODEL_SKYWALKING_ENABLED:-false}"
 SKYWALKING_BACKEND="${LEETMODEL_SKYWALKING_BACKEND:-127.0.0.1:11800}"
+SKYWALKING_SAMPLE="${LEETMODEL_SKYWALKING_SAMPLE:-100}"
 SKYWALKING_LOG_ENABLED="${LEETMODEL_SKYWALKING_LOG_ENABLED:-${SKYWALKING_ENABLED}}"
 SKYWALKING_LOG_ENDPOINT="${LEETMODEL_SKYWALKING_LOG_ENDPOINT:-http://127.0.0.1:12800/v3/logs}"
+TELEMETRY_ENVIRONMENT="${LEETMODEL_ENVIRONMENT:-${SPRING_PROFILES_ACTIVE:-dev}}"
+SERVICE_VERSION_VALUE="${SERVICE_VERSION:-0.0.1-SNAPSHOT}"
 SKYWALKING_AGENT_JAR=""
 management_curl_args=()
 OBSERVABILITY_TOKEN_FILE="${LEETMODEL_MANAGEMENT_TOKEN_FILE:-${BACKEND_DIR}/.observability-runtime/management-token}"
@@ -39,6 +42,16 @@ ports=(8081 8083 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080)
 mkdir -p "${RUNTIME_DIR}/logs"
 
 if [[ "${SKYWALKING_ENABLED}" == "true" ]]; then
+  if [[ ! "${SKYWALKING_SAMPLE}" =~ ^-?[0-9]+$ ]]; then
+    echo "LEETMODEL_SKYWALKING_SAMPLE 必须是整数。" >&2
+    exit 1
+  fi
+  for resource_value in "${TELEMETRY_ENVIRONMENT}" "${SERVICE_VERSION_VALUE}"; do
+    if [[ ! "${resource_value}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]]; then
+      echo "SkyWalking 环境或版本资源字段不合法。" >&2
+      exit 1
+    fi
+  done
   SKYWALKING_AGENT_JAR="$("${SCRIPT_DIR}/prepare-skywalking-agent.sh")"
   if [[ ! -f "${SKYWALKING_AGENT_JAR}" ]]; then
     echo "SkyWalking Agent 准备失败。" >&2
@@ -97,13 +110,25 @@ for index in "${!services[@]}"; do
   log_file="${RUNTIME_DIR}/logs/${service}.log"
   structured_log_dir="${RUNTIME_DIR}/logs"
   service_instance="${LEETMODEL_SERVICE_INSTANCE_PREFIX:-local}-${service}"
+  if [[ ! "${service_instance}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$ ]]; then
+    echo "SkyWalking 实例名不合法或超过 50 字符：${service_instance}" >&2
+    "${SCRIPT_DIR}/stop-mvp.sh"
+    exit 1
+  fi
+  instance_properties_json="{\"environment\":\"${TELEMETRY_ENVIRONMENT}\",\"serviceVersion\":\"${SERVICE_VERSION_VALUE}\",\"instance\":\"${service_instance}\"}"
 
   java_command=(java)
   if [[ "${SKYWALKING_ENABLED}" == "true" ]]; then
     java_command+=(
       "-javaagent:${SKYWALKING_AGENT_JAR}"
       "-Dskywalking.agent.service_name=${service}"
-      "-Dskywalking.agent.instance_name=local-${service}"
+      "-Dskywalking.agent.namespace=${TELEMETRY_ENVIRONMENT}"
+      "-Dskywalking.agent.instance_name=${service_instance}"
+      "-Dskywalking.agent.instance_properties_json=${instance_properties_json}"
+      "-Dskywalking.agent.sample_n_per_3_secs=${SKYWALKING_SAMPLE}"
+      "-Dskywalking.correlation.auto_tag_keys=business.trace_id"
+      "-Dskywalking.plugin.exclude_plugins=feign-default-http-9.x,feign-pathvar-9.x"
+      "-Dskywalking.plugin.jdbc.trace_sql_parameters=false"
       "-Dskywalking.collector.backend_service=${SKYWALKING_BACKEND}"
     )
   fi
@@ -113,7 +138,7 @@ for index in "${!services[@]}"; do
     "LEETMODEL_SKYWALKING_LOG_ENABLED=${SKYWALKING_LOG_ENABLED}" \
     "LEETMODEL_SKYWALKING_LOG_ENDPOINT=${SKYWALKING_LOG_ENDPOINT}" \
     "SERVICE_INSTANCE=${service_instance}" \
-    "SERVICE_VERSION=${SERVICE_VERSION:-0.0.1-SNAPSHOT}" \
+    "SERVICE_VERSION=${SERVICE_VERSION_VALUE}" \
     "${java_command[@]}" -jar "${jar}" </dev/null >"${log_file}" 2>&1 &
   pid=$!
   printf '%s\n' "${pid}" >"${pid_file}"

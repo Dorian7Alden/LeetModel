@@ -82,6 +82,9 @@
         <rocketmq-spring-boot.version>2.3.3</rocketmq-spring-boot.version>
         <rocketmq-client.version>5.3.1</rocketmq-client.version>
 
+        <!-- Agent 9.7.0 激活接口与 9.6.0 Toolkit ABI 兼容；9.7.0 Toolkit 父 POM 未发布到 Central。 -->
+        <skywalking-toolkit.version>9.6.0</skywalking-toolkit.version>
+
         <!-- === 插件版本 === -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
     </properties>
@@ -232,6 +235,13 @@
                 <groupId>org.apache.rocketmq</groupId>
                 <artifactId>rocketmq-srvutil</artifactId>
                 <version>${rocketmq-client.version}</version>
+            </dependency>
+
+            <!-- SkyWalking Agent 激活的应用侧 no-op API，不包含 Reporter 或第二套 Trace 实现。 -->
+            <dependency>
+                <groupId>org.apache.skywalking</groupId>
+                <artifactId>apm-toolkit-trace</artifactId>
+                <version>${skywalking-toolkit.version}</version>
             </dependency>
 
             <!-- ========== 内部模块（跨模块依赖使用统一版本） ========== -->
