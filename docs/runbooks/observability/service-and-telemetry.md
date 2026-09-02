@@ -31,6 +31,18 @@
 4. 只恢复故障组件，不停止业务服务或清空命名卷。禁止通过扩大 Reporter 队列或无限重试掩盖后端故障。
 5. 恢复标准：组件 `up=1`、抓取样本重新增长；Reporter `connected=1` 且 `recovered` 增长；使用脱敏测试标记在 GraphQL 查询一条新日志。
 
+## SkyWalking Trace 缺失或分段
+
+影响：业务请求可能成功，但某次物理执行不能在 OAP 中形成完整拓扑。Trace 可采样且不是业务事实，不能因为 Trace 缺失重做请求或外部副作用。
+
+1. 先用响应 `X-Trace-Id`、结构化日志 `traceId` 或领域事实确认请求是否真实成功；不要把 OAP 空结果解释成业务失败。
+2. 检查进程是否以 `LEETMODEL_SKYWALKING_ENABLED=true` 启动，以及 Agent service、namespace、instance、environment、serviceVersion 和 `sample_n_per_3_secs` 是否为本次发布值。`LEETMODEL_SKYWALKING_SAMPLE=0` 或负数表示关闭每三秒限流、即全量采集，不表示关闭 Agent。
+3. OAP 查询在 segment 到达期间可能先返回 Gateway 局部 Span；等待两个上报周期后再确认是否同时存在 Gateway Exit、下游 MVC Entry、Feign Exit 和 JDBC Span。
+4. Feign 缺失时确认 `feign-default-http-9.x,feign-pathvar-9.x` 已排除，公共 `SkyWalkingFeignCapability` 已装配；不得临时启用不兼容旧插件或增加第二套 exporter。
+5. RocketMQ 5.3.1 仅承诺生产端自动 Exit Span，消费、Inbox、Worker attempt 和租约接管依赖项目自定义边界；不能把没有自动 Consumer Entry 当成 Broker 丢消息。
+6. 使用 `./scripts/verify-skywalking-tracing.sh` 做静态检查；隔离环境运行 `./scripts/verify-skywalking-tracing.sh --runtime`，需要故障演练时增加 `VERIFY_OAP_OUTAGE=true`。运行模式使用 18081–18084 临时端口和唯一临时消费组，不能占用或停止标准端口业务进程。
+7. 恢复标准：新请求在同一 Trace 中出现完整同步链，中央日志可分别按 `business_trace_id` 与 `sw_trace_id` 查到同一 JSON 记录；OAP 中断演练期间请求仍为 200，恢复后 GraphQL 正常响应。
+
 ## LeetModelAlertmanagerDisconnected
 
 影响：Prometheus 仍会计算规则，但分组、抑制、静默与通知失效。

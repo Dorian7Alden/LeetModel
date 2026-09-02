@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] TRACE-01 Java Agent 自动埋点接入
+### [~] TRACE-02 异步边界与 Worker attempt Span
 
-目标：让 13 个服务统一接入固定版本的 SkyWalking Java Agent，并形成可复现的 Gateway → Feign → 下游 MVC → JDBC 同步 Trace 与服务拓扑；保留业务 `traceId`，使其与 `swTraceId` 可双向定位。
+目标：在 Agent 自动埋点和同步 Feign Trace 之上，为可靠消息、租约 Worker 与两阶段 AI 调度建立短小、有界、可恢复解释的物理执行 Span；一次租约接管必须产生新的 Trace/attempt，不能把跨分钟等待伪装成一个长 Span。
 
-入口：OBS-01 锁定的 Agent 9.7.0、OAP 11.0.0 与 BanyanDB 0.11.0 基线，OBS-02 的业务关联上下文，以及 [可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md)、[可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md) 和 [关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
+入口：TRACE-01 已验证的 Agent/Toolkit、业务 `traceId` 与 `swTraceId` 双向定位，MET-02 的可靠消息/领域任务/AI 指标，以及 [可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)、[common-messaging](docs/project/03-微服务设计/common/common-messaging/README.md)、[AI 队列与调度](docs/project/03-微服务设计/ai-gateway-service/06-任务队列与调度.md) 和 [AI 调用追踪与可观测性](docs/project/03-微服务设计/ai-gateway-service/16-调用追踪与可观测性.md)。
 
-主流程：统一 Agent 下载校验、可选插件与 13 服务启动参数 → 配置稳定的 service、environment、serviceVersion、instance 资源字段和分环境采样 → 真实验证 Gateway/WebFlux、MVC、JDBC 与 RocketMQ 自动埋点边界 → 为已确认不受支持的 OpenFeign 4.1.3/Feign 13.3 客户端补充与 Agent 兼容的有界增强和 SW8 传播 → 将 Agent 当前 Trace/Span 安全映射到公共 MDC，使结构化日志同时保存业务 `traceId` 与 `swTraceId/swSpanId` → 验证同步调用拓扑、采样行为、日志反查和 OAP 中断 fail-open。
+主流程：盘点所有 Outbox Relay、RocketMQ Listener、Inbox/任务创建、租约领取/接管、Worker attempt、AI admission/dispatch/provider attempt/recovery 与完成派生事件 → 定义固定 operation name、允许的低基数 tag 和错误分类 → 用官方 Toolkit 在每个真实物理尝试处创建/结束 Span，并从持久化业务事实恢复 `traceId/eventId/domainTaskId/attemptNo/aiCallId` 到日志上下文 → 让 Broker 消费只覆盖 Inbox 和任务落库，不跨越后续 Worker → 对评审、建议、评价、排行与 AI 调用分别验证成功、重试、租约接管、UNKNOWN 和派生事件链 → 建立无正文、无凭据、无高基数动态 operation 的静态与真实协议门禁。
 
-完成标准：13 个服务可由同一开关附加 Agent 且不开启时保持旧启动语义；一条典型请求可从 Gateway 追踪到 Feign 下游和 MySQL Span，服务、版本、环境与实例资源可筛选；结构化日志中的业务 `traceId` 可定位 SkyWalking Trace，SkyWalking Trace 也可回查同一业务日志；采样关闭或 Trace 丢失不破坏业务 `traceId`，OAP 不可用不阻塞请求。
+完成标准：Outbox 的每次发布尝试、消费短事务和每个 Worker/AI provider 物理 attempt 都有独立且正常结束的 Span；评审、建议和评价从消息到领域终态可由持久化业务标识串联；租约接管不续用旧 Span/Trace，而以递增 attemptNo 建新 Trace；AI 排队等待不占用长 Span，`AI_UPSTREAM_RESULT_UNKNOWN` 与确定失败可区分；日志能从任一 attempt 回查任务/AI Call，但 Span 不含正文、Payload、Token、业务主键 tag 或原始异常；无 Agent/OAP 时所有业务路径 fail-open。
 
-修改范围：Agent 准备与启动脚本、必要的可选插件或兼容增强、公共 SkyWalking/MDC 桥接、13 服务资源与采样配置、同步链与协议验收脚本、Runbook 和正式可观测文档。
+修改范围：`common-messaging` 物理发布/消费边界，评审、建议、评价、排行的任务协调器与 Worker，AI Gateway 队列/调用/恢复边界，公共 Toolkit 辅助契约，相关测试、协议验收脚本、Runbook 和正式设计文档。
 
-非目标：本卡不为 Outbox/Inbox、消费 ACK 后 Worker、租约接管或两阶段 AI 调度建立自定义 attempt Span（留给 TRACE-02），不引入 Micrometer Tracing/OpenTelemetry 第二套 Trace，不把 Prompt、论文、回答、知识片段、消息 Payload 或凭据写入 Span，也不改动 `cli-proxy-api` 或现有标准端口业务进程。
+非目标：本卡不建立 Grafana 告警到 Trace/日志/AI 事实的最终联合验收（留给 TRACE-03），不建立中央操作审计，不跨等待时间保留 Span，不引入 Micrometer Tracing/OpenTelemetry，不记录 Prompt、论文、回答、知识片段、消息 Payload、JWT/Relay Token 或数据库凭据，也不修改 `cli-proxy-api` 或标准端口进程。
 
 ## 系统保障实施路线图
 
@@ -48,12 +48,6 @@
 ### 阶段 2：结构化日志系统
 
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
-
-#### [ ] TRACE-01 Java Agent 自动埋点接入
-
-- 依赖：`OBS-01`、`OBS-02`。
-- 范围：为 13 个当前服务接入 Agent，验证 Gateway、HTTP、Feign、JDBC、RocketMQ 和服务拓扑；建立环境、版本、实例资源标签与采样配置。
-- 验收：典型同步请求可以从 Gateway 追踪到下游和数据库；业务 `traceId` 与 SkyWalking Trace 可双向定位。
 
 #### [ ] TRACE-02 异步边界与 Worker attempt Span
 
