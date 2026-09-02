@@ -255,6 +255,7 @@ public class MessagingAutoConfiguration {
                 MessagePublisher publisher,
                 OutboxRetryPolicy retryPolicy,
                 MessagingMetrics metrics,
+                MessageCodec codec,
                 Clock clock,
                 @Value("${spring.application.name}") String applicationName,
                 MessagingProperties properties
@@ -269,6 +270,7 @@ public class MessagingAutoConfiguration {
                     publisher,
                     retryPolicy,
                     metrics,
+                    codec,
                     clock,
                     owner,
                     relay.getBatchSize(),

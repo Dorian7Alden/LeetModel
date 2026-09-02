@@ -31,6 +31,7 @@ class OutboxRelayTest {
     private static final String EVENT_RETRY = "00000000-0000-4000-8000-000000000007";
 
     private JdbcMessageOutbox outbox;
+    private MessageCodec codec;
     private Clock clock;
 
     @BeforeEach
@@ -40,12 +41,13 @@ class OutboxRelayTest {
                 + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
         new ResourceDatabasePopulator(new ClassPathResource("messaging-schema.sql")).execute(dataSource);
         clock = Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC);
+        codec = new MessageCodec(
+                new ObjectMapper().registerModule(new JavaTimeModule()),
+                MessageCodec.MAX_PAYLOAD_BYTES
+        );
         outbox = new JdbcMessageOutbox(
                 new JdbcTemplate(dataSource),
-                new MessageCodec(
-                        new ObjectMapper().registerModule(new JavaTimeModule()),
-                        MessageCodec.MAX_PAYLOAD_BYTES
-                ),
+                codec,
                 new MessagingNamespace("lm-test"),
                 clock
         );
@@ -91,6 +93,7 @@ class OutboxRelayTest {
                 publisher,
                 new OutboxRetryPolicy(),
                 new MessagingMetrics(null, outbox),
+                codec,
                 clock,
                 "relay-test",
                 10,
