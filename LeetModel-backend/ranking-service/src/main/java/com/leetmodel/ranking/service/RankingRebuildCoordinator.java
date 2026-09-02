@@ -5,6 +5,9 @@ import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.observability.RankingRebuildMetrics;
 import com.leetmodel.common.core.logging.DomainTaskLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -68,27 +71,36 @@ public class RankingRebuildCoordinator {
         DomainTaskLogEvents.claimed(log, "ranking_rebuild", candidate.getId(),
                 candidate.getRetryCount() == null ? null : candidate.getRetryCount() + 1, takeover);
         activeLeases.put(candidate.getId(), token);
+        Integer attemptNo = candidate.getRetryCount() == null ? 1 : candidate.getRetryCount() + 1;
+        CorrelationSnapshot correlation = CorrelationSnapshot.EMPTY
+                .withTraceId(candidate.getTraceId())
+                .withDomainTask(candidate.getId().toString(), attemptNo);
         try {
             executor.execute(() -> {
                 long started = System.nanoTime();
-                try {
-                    worker.execute(candidate.getId(), token);
-                } finally {
+                try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
+                        ExecutionSpanOperation.RANKING_REBUILD_WORKER, correlation).attemptKind(takeover)) {
                     try {
-                        RankingRebuildTask completed = taskMapper.selectById(candidate.getId());
-                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                        DomainTaskLogEvents.finished(log, "ranking_rebuild", candidate.getId(),
-                                completed == null || completed.getRetryCount() == null
-                                        ? null : completed.getRetryCount() + 1,
-                                completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                    } catch (RuntimeException exception) {
-                        log.debug("排行 attempt 指标不可用: type={}",
-                                exception.getClass().getSimpleName());
+                        worker.execute(candidate.getId(), token);
                     } finally {
-                        activeLeases.remove(candidate.getId(), token);
-                        permit.release();
+                        try {
+                            RankingRebuildTask completed = taskMapper.selectById(candidate.getId());
+                            String status = completed == null ? null : completed.getStatus();
+                            metrics.attemptFinished(status, System.nanoTime() - started);
+                            DomainTaskLogEvents.finished(log, "ranking_rebuild", candidate.getId(),
+                                    completed == null || completed.getRetryCount() == null
+                                            ? null : completed.getRetryCount() + 1,
+                                    status, System.nanoTime() - started);
+                            span.outcome(status == null ? "unresolved" : status);
+                            if ("FAILED".equals(status)) span.error("domain_failure");
+                        } catch (RuntimeException exception) {
+                            span.outcome("observation_failed").error("observation");
+                            log.debug("排行 attempt 指标不可用: type={}",
+                                    exception.getClass().getSimpleName());
+                        } finally {
+                            activeLeases.remove(candidate.getId(), token);
+                            permit.release();
+                        }
                     }
                 }
             });
