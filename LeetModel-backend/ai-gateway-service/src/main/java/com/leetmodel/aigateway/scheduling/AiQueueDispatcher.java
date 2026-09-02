@@ -9,6 +9,9 @@ import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -110,6 +113,7 @@ public class AiQueueDispatcher {
     private void executeClaimed(String taskId, boolean p0) {
         ScheduledFuture<?> heartbeatTask = null;
         AiCallAttempt attempt = null;
+        SkyWalkingExecutionSpan executionSpan = null;
         String attemptState = "PREPARED";
         try {
             AiCallTask task = selectTask(taskId);
@@ -118,11 +122,21 @@ public class AiQueueDispatcher {
                 return;
             }
             attempt = attempt(task);
+            executionSpan = SkyWalkingExecutionSpan.open(
+                    ExecutionSpanOperation.AI_PROVIDER,
+                    CorrelationSnapshot.EMPTY
+                            .withTraceId(task.getTraceId())
+                            .withDomainTask(task.getTaskId(), attempt.getAttemptNo())
+                            .withAiCallId(task.getCallId()))
+                    .attemptKind(task.getAttemptCount() != null && task.getAttemptCount() > 0)
+                    .aiCallType(task.getCallType())
+                    .aiPriority(task.getEffectivePriority());
             attemptMapper.insert(attempt);
             if (taskMapper.transition(taskId, task.getVersion(), "LEASED", "RUNNING", owner,
                     utcNow()) != 1) {
                 attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "FAILED",
                         "AI_STATE_CONFLICT", utcNow());
+                executionSpan.outcome("state_conflict").error("state_conflict");
                 return;
             }
             heartbeatTask = heartbeat.scheduleAtFixedRate(() -> renew(taskId),
@@ -148,6 +162,7 @@ public class AiQueueDispatcher {
             AiCallTask terminalTask = selectTask(taskId);
             metrics.terminal(terminalTask, terminal.toLowerCase());
             waitRegistry.complete(terminalTask);
+            executionSpan.outcome(terminal.toLowerCase());
         } catch (RuntimeException exception) {
             if (exception instanceof AiUpstreamRateLimitException rateLimited) {
                 rateLimitBackoff.onRateLimited(rateLimited.getRetryAfter());
@@ -164,6 +179,10 @@ public class AiQueueDispatcher {
             metrics.terminal(safelySelectTask(taskId), resultUncertain
                     ? "upstream_result_unknown" : "failed");
             AiCallTask failed = safelySelectTask(taskId);
+            if (executionSpan != null) {
+                executionSpan.outcome(resultUncertain ? "upstream_result_unknown" : "failed")
+                        .error(resultUncertain ? "result_unknown" : errorKind(exception));
+            }
             if (resultUncertain) {
                 AiCallLogEvents.resultUnknown(log,
                         failed == null ? null : failed.getCallId(),
@@ -179,6 +198,7 @@ public class AiQueueDispatcher {
             }
         } finally {
             if (heartbeatTask != null) heartbeatTask.cancel(false);
+            if (executionSpan != null) executionSpan.close();
             release(p0);
         }
     }
@@ -250,6 +270,11 @@ public class AiQueueDispatcher {
         attempt.setUpdateTime(now);
         attempt.setDeleted(0);
         return attempt;
+    }
+
+    private String errorKind(RuntimeException exception) {
+        if (exception instanceof AiUpstreamRateLimitException) return "rate_limited";
+        return "execution_failure";
     }
 
     @PreDestroy
