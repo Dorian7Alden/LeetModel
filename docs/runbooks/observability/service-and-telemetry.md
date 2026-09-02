@@ -39,9 +39,10 @@
 2. 检查进程是否以 `LEETMODEL_SKYWALKING_ENABLED=true` 启动，以及 Agent service、namespace、instance、environment、serviceVersion 和 `sample_n_per_3_secs` 是否为本次发布值。`LEETMODEL_SKYWALKING_SAMPLE=0` 或负数表示关闭每三秒限流、即全量采集，不表示关闭 Agent。
 3. OAP 查询在 segment 到达期间可能先返回 Gateway 局部 Span；等待两个上报周期后再确认是否同时存在 Gateway Exit、下游 MVC Entry、Feign Exit 和 JDBC Span。
 4. Feign 缺失时确认 `feign-default-http-9.x,feign-pathvar-9.x` 已排除，公共 `SkyWalkingFeignCapability` 已装配；不得临时启用不兼容旧插件或增加第二套 exporter。
-5. RocketMQ 5.3.1 仅承诺生产端自动 Exit Span，消费、Inbox、Worker attempt 和租约接管依赖项目自定义边界；不能把没有自动 Consumer Entry 当成 Broker 丢消息。
-6. 使用 `./scripts/verify-skywalking-tracing.sh` 做静态检查；隔离环境运行 `./scripts/verify-skywalking-tracing.sh --runtime`，需要故障演练时增加 `VERIFY_OAP_OUTAGE=true`。运行模式使用 18081–18084 临时端口和唯一临时消费组，不能占用或停止标准端口业务进程。
-7. 恢复标准：新请求在同一 Trace 中出现完整同步链，中央日志可分别按 `business_trace_id` 与 `sw_trace_id` 查到同一 JSON 记录；OAP 中断演练期间请求仍为 200，恢复后 GraphQL 正常响应。
+5. RocketMQ 5.3.1 仅承诺生产端自动 Exit Span；消费与 Inbox 使用 `Messaging/InboxConsumeAttempt`，Worker 领取/接管、AI provider attempt 和恢复判定使用项目固定 Entry operation。不能把没有自动 Consumer Entry 当成 Broker 丢消息。
+6. 若任务出现异常长 Span，对比 Span 起止与数据库 `queuedAt/leaseExpiresAt/attemptNo`。排队等待和租约间隙不得进入 Span；接管必须拥有不同 `swTraceId` 和递增 attempt，禁止手工续接上一任 Trace。
+7. 使用 `./scripts/verify-skywalking-tracing.sh` 与 `./scripts/verify-skywalking-async.sh` 做静态检查；隔离环境运行对应的 `--runtime`。异步门禁创建并清理精确临时消费组，在 OAP 核对 Outbox 成功/重试、Inbox consumed/duplicate、正常/接管和 AI UNKNOWN；不得操作固定业务消费组。
+8. 恢复标准：新请求在同一 Trace 中出现完整同步链，每个异步物理 attempt 是独立有界 Trace，UNKNOWN 与确定失败可区分；中央日志可分别按 `business_trace_id` 与 `sw_trace_id` 查到同一 JSON 记录；OAP 中断时业务请求仍成功。
 
 ## LeetModelAlertmanagerDisconnected
 

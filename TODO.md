@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] TRACE-02 异步边界与 Worker attempt Span
+### [~] TRACE-03 Trace、日志、指标联合验收
 
-目标：在 Agent 自动埋点和同步 Feign Trace 之上，为可靠消息、租约 Worker 与两阶段 AI 调度建立短小、有界、可恢复解释的物理执行 Span；一次租约接管必须产生新的 Trace/attempt，不能把跨分钟等待伪装成一个长 Span。
+目标：把已有 Prometheus/Grafana 告警、SkyWalking 同步与异步 Trace、中央结构化日志和持久化业务事实组成可重复的定位闭环；采样或局部遥测不可用时仍能用业务 `traceId` 解释结果。
 
-入口：TRACE-01 已验证的 Agent/Toolkit、业务 `traceId` 与 `swTraceId` 双向定位，MET-02 的可靠消息/领域任务/AI 指标，以及 [可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)、[common-messaging](docs/project/03-微服务设计/common/common-messaging/README.md)、[AI 队列与调度](docs/project/03-微服务设计/ai-gateway-service/06-任务队列与调度.md) 和 [AI 调用追踪与可观测性](docs/project/03-微服务设计/ai-gateway-service/16-调用追踪与可观测性.md)。
+入口：MET-04 的主动告警与 Runbook、LOG-03 的中央日志查询、TRACE-01 的同步链和 TRACE-02 的独立 attempt Trace，以及 [可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[日志系统](docs/project/02-架构设计/日志系统.md)、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md) 和现有 observability drill 脚本。
 
-主流程：盘点所有 Outbox Relay、RocketMQ Listener、Inbox/任务创建、租约领取/接管、Worker attempt、AI admission/dispatch/provider attempt/recovery 与完成派生事件 → 定义固定 operation name、允许的低基数 tag 和错误分类 → 用官方 Toolkit 在每个真实物理尝试处创建/结束 Span，并从持久化业务事实恢复 `traceId/eventId/domainTaskId/attemptNo/aiCallId` 到日志上下文 → 让 Broker 消费只覆盖 Inbox 和任务落库，不跨越后续 Worker → 对评审、建议、评价、排行与 AI 调用分别验证成功、重试、租约接管、UNKNOWN 和派生事件链 → 建立无正文、无凭据、无高基数动态 operation 的静态与真实协议门禁。
+主流程：选择可靠消息积压、领域过期租约和 AI UNKNOWN 三类有权威业务事实的场景 → 从 Prometheus 规则与 Grafana 面板取得服务/阶段/固定维度 → 查询 SkyWalking operation 与错误分类 → 由 `business.trace_id/swTraceId` 定位中央日志 → 由日志中的 `traceId/eventId/domainTaskId/attemptNo/aiCallId` 回查脱敏数据库事实 → 验证采样、Trace 缺失、日志 Reporter 降级和指标不可用时的显式空洞与替代路径 → 把面板链接、查询模板、演练与恢复判据固化为静态和真实协议门禁。
 
-完成标准：Outbox 的每次发布尝试、消费短事务和每个 Worker/AI provider 物理 attempt 都有独立且正常结束的 Span；评审、建议和评价从消息到领域终态可由持久化业务标识串联；租约接管不续用旧 Span/Trace，而以递增 attemptNo 建新 Trace；AI 排队等待不占用长 Span，`AI_UPSTREAM_RESULT_UNKNOWN` 与确定失败可区分；日志能从任一 attempt 回查任务/AI Call，但 Span 不含正文、Payload、Token、业务主键 tag 或原始异常；无 Agent/OAP 时所有业务路径 fail-open。
+完成标准：至少一条积压告警和一条 AI UNKNOWN 告警能定位到具体执行阶段、固定错误分类、领域任务/attempt 与 AI Call；Trace 被采样时仍能通过业务 `traceId`、中央日志和数据库事实解释结果；所有跳转使用稳定资源或精确标识查询而非 Prometheus 高基数标签；数据源不可用显示空洞而非零值/成功；门禁不记录或输出 Prompt、Payload、论文、回答、Token、凭据或原始异常。
 
-修改范围：`common-messaging` 物理发布/消费边界，评审、建议、评价、排行的任务协调器与 Worker，AI Gateway 队列/调用/恢复边界，公共 Toolkit 辅助契约，相关测试、协议验收脚本、Runbook 和正式设计文档。
+修改范围：Grafana dashboard/链接、Prometheus recording/alert annotations、OAP/日志/业务事实只读查询脚本、联合演练脚本、Runbook、相关测试与正式设计文档。
 
-非目标：本卡不建立 Grafana 告警到 Trace/日志/AI 事实的最终联合验收（留给 TRACE-03），不建立中央操作审计，不跨等待时间保留 Span，不引入 Micrometer Tracing/OpenTelemetry，不记录 Prompt、论文、回答、知识片段、消息 Payload、JWT/Relay Token 或数据库凭据，也不修改 `cli-proxy-api` 或标准端口进程。
+非目标：本卡不建设中央操作审计（阶段 4/5），不自动重放消息、接管任务或处理 UNKNOWN，不修改业务状态机，不引入第二套 Trace/日志/指标后端，也不修改 `cli-proxy-api` 或标准端口进程。
 
 ## 系统保障实施路线图
 
@@ -48,12 +48,6 @@
 ### 阶段 2：结构化日志系统
 
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
-
-#### [ ] TRACE-02 异步边界与 Worker attempt Span
-
-- 依赖：`TRACE-01`。
-- 范围：为 Outbox Relay、Inbox 短事务、领域任务创建、租约 Worker attempt、AI 调度/调用和派生事件补充必要的自定义 Span；不记录业务正文。
-- 验收：评审、建议和评价的每个物理 attempt 都是有界 Trace；租约接管产生新 Trace/attempt，同时仍能通过持久化业务标识串联完整生命周期。
 
 #### [ ] TRACE-03 Trace、日志、指标联合验收
 
