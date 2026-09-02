@@ -2,6 +2,7 @@ package com.leetmodel.gateway.filter;
 
 import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.SkyWalkingCorrelation;
 import com.leetmodel.common.core.logging.LogEventCodes;
 import com.leetmodel.common.core.logging.LogFieldNames;
 import org.slf4j.Logger;
@@ -67,10 +68,12 @@ public class TraceIdFilter implements GlobalFilter {
         mutatedExchange.getResponse().getHeaders().set(TRACE_ID_HEADER, traceId);
 
         // ② 组装阶段用作用域保护当前线程，运行阶段从 Reactor Context 恢复。
-        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY.withTraceId(traceId);
+        CorrelationSnapshot snapshot = SkyWalkingCorrelation.enrich(
+                CorrelationSnapshot.EMPTY.withTraceId(traceId));
         long started = System.nanoTime();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
+            SkyWalkingCorrelation.bindBusinessTraceId(traceId);
             return chain.filter(mutatedExchange)
                     .doOnError(failure::set)
                     .doFinally(ignoredSignal -> {
