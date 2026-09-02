@@ -38,7 +38,8 @@ class RocketMqProtocolIntegrationTest {
 
     private static final String NAME_SERVER = "127.0.0.1:9876";
     private static final String TOPIC = "lm-dev%review-task-v1";
-    private static final String GROUP = "lm-dev%cg-ai-review-task-v1";
+    private static final String GROUP = System.getenv().getOrDefault(
+            "ROCKETMQ_INTEGRATION_GROUP", "lm-dev%cg-ai-review-task-v1");
 
     @Test
     @Timeout(45)
