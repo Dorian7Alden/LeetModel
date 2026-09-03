@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] AUD-06 内容、提交与领域治理审计
+### [~] AUD-07 AI、消息与派生数据治理审计
 
-目标：为题目/赛事/附件管理和最终提交接入领域所有者计算的最小差异审计事件，保持 admin-service 只做权限门面。
+目标：覆盖 AI 队列/评价任务治理、生产版本切换、Consumer 暂停恢复、Outbox/DLQ 重放和排行重建，保持现有 AI 调用及领域审计原语义。
 
-入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、problem-service、submission-service 服务设计、`OperationAuditCatalog` 与本地审计 Outbox 约束。
+入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、ai-gateway-service、ai-evaluation-service、ai-assistant-service、common-messaging 和 ranking-service 管理契约。
 
-主流程：领域服务重新授权并执行业务变更 → 业务所有者按 `operationCode` 白名单计算前后摘要 → 成功事实与 `COMPLETED/SUCCEEDED` 审计 Outbox 同事务写入；拒绝/失败使用短事务追加 `REJECTED/FAILED`，不把题面、附件正文、PDF 或提交内容复制进审计。
+主流程：管理命令在领域服务重新授权 → 外部副作用先追加 `REQUESTED/PENDING`，完成后追加 `COMPLETED/SUCCEEDED|FAILED` → 消息暂停/恢复、Outbox/DLQ 重放和排行重建由各所有者计算稳定摘要并与本地事实/命令记录关联；AI 计量仍留在 `ai_call_log`，不复制成人工审计。
 
-完成标准：题目/赛事/附件/最终提交的成功、拒绝和回滚边界可验证；差异字段严格受目录约束；admin-service 不直连领域库、不生成成功审计；重复投递可幂等归档，负面测试覆盖越权、敏感正文泄露与事务回滚。
+完成标准：所有高风险治理动作有成对阶段事件和完成 deadline；Consumer、Outbox、DLQ、排行和 AI UNKNOWN 的恢复动作可追溯；原因、版本、计数等摘要严格白名单，禁止 Prompt、回答、消息正文和调用 ID；负面测试覆盖越权、重复命令、失败回滚和跨服务伪造。
 
-修改范围：problem-service、submission-service 审计生产者与迁移、服务侧权限校验、契约/事务/安全负面测试、正式文档和 Runbook。
+修改范围：AI/消息/排行治理命令的审计生产者、阶段状态与恢复关联、服务侧鉴权、契约/事务/安全负面测试、正式文档和 Runbook。
 
-非目标：本卡不实现统一前端审计页、不改变中央查询权限、不记录题面或论文正文，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
+非目标：本卡不重写 AI 计量或领域历史表、不实现统一前端审计页、不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -52,12 +52,6 @@
 ### 阶段 4：中央操作审计基础设施
 
 ### 阶段 5：领域审计生产者与管理端
-
-#### [ ] AUD-06 内容、提交与领域治理审计
-
-- 依赖：`AUD-01`、`AUD-03`。
-- 范围：覆盖题目/赛事/附件管理、最终提交和其他已确认高风险领域操作；每个 operationCode 独立定义前后差异白名单。
-- 验收：业务所有者计算差异并写本地审计 Outbox；admin-service 不生成成功审计、不复制领域规则。
 
 #### [ ] AUD-07 AI、消息与派生数据治理审计
 
