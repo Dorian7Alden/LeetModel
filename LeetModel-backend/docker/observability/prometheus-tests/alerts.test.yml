@@ -24,6 +24,10 @@ tests:
               dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
               investigation: "http://127.0.0.1:8080/api/admin/messaging"
               runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxblocked"
+              correlation_contract: "leetmodel.correlation.v1"
+              trace_operation: "Messaging/OutboxPublishAttempt"
+              log_event_code: "OUTBOX_PUBLISH_BLOCKED"
+              fact_query: "/api/admin/messaging/overview"
               recovery: "修复 Topic/schema/配置后通过受控补发恢复原 eventId，BLOCKED=0 且下游事实完成。"
 
   - name: AI UNKNOWN immediately fires a critical alert
@@ -46,4 +50,8 @@ tests:
               dashboard: "http://127.0.0.1:13000/d/leetmodel-ai-resources"
               investigation: "http://127.0.0.1:8080/api/admin/ai/queue?state=FAILED"
               runbook: "docs/runbooks/observability/ai-queue-and-unknown.md#leetmodelaiupstreamresultunknown"
+              correlation_contract: "leetmodel.correlation.v1"
+              trace_operation: "AI/RecoveryAttempt"
+              log_event_code: "AI_CALL_RESULT_UNKNOWN"
+              fact_query: "/api/admin/ai/queue?state=FAILED"
               recovery: "完成上游只读对账与业务 owner 决策；不得直接把 UNKNOWN 改回 QUEUED。"

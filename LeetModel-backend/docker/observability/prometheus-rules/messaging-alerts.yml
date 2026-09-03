@@ -15,6 +15,10 @@ groups:
           dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
           investigation: "http://127.0.0.1:8080/api/admin/messaging"
           runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxpublishdelayed"
+          correlation_contract: "leetmodel.correlation.v1"
+          trace_operation: "Messaging/OutboxPublishAttempt"
+          log_event_code: "OUTBOX_PUBLISH_RETRY"
+          fact_query: "/api/admin/messaging/overview"
           recovery: "最老 PENDING/SENDING 降到 30 秒以内，并核验对应 Inbox 与领域任务继续推进。"
 
       - alert: LeetModelOutboxPublishDelayed
@@ -30,6 +34,10 @@ groups:
           dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
           investigation: "http://127.0.0.1:8080/api/admin/messaging"
           runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxpublishdelayed"
+          correlation_contract: "leetmodel.correlation.v1"
+          trace_operation: "Messaging/OutboxPublishAttempt"
+          log_event_code: "OUTBOX_PUBLISH_RETRY"
+          fact_query: "/api/admin/messaging/overview"
           recovery: "最老 PENDING/SENDING 降到 30 秒以内，并从原 event 的 Inbox/领域事实确认完成；禁止绕过 Outbox 直发。"
 
       - alert: LeetModelOutboxBlocked
@@ -44,6 +52,10 @@ groups:
           dashboard: "http://127.0.0.1:13000/d/leetmodel-reliable-messaging"
           investigation: "http://127.0.0.1:8080/api/admin/messaging"
           runbook: "docs/runbooks/observability/reliable-messaging.md#leetmodeloutboxblocked"
+          correlation_contract: "leetmodel.correlation.v1"
+          trace_operation: "Messaging/OutboxPublishAttempt"
+          log_event_code: "OUTBOX_PUBLISH_BLOCKED"
+          fact_query: "/api/admin/messaging/overview"
           recovery: "修复 Topic/schema/配置后通过受控补发恢复原 eventId，BLOCKED=0 且下游事实完成。"
 
       - alert: LeetModelOnlineConsumerBacklogHigh
