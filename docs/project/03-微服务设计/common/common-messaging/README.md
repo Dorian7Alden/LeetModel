@@ -2,7 +2,7 @@
 
 ### 模块定位
 
-`common-messaging` 是不含业务语义的可靠消息公共 Jar。它提供 `MessageEnvelopeV1<T>`、UUID/ULID 与 64 KiB 契约校验、环境 namespace、事务 Outbox、短租约 Relay、RocketMQ Spring 发布适配器、事务 Inbox、消息关联上下文、低基数指标、健康检查和 `RecordingMessagePublisher` 测试替身。
+`common-messaging` 是可靠消息公共 Jar。它提供 `MessageEnvelopeV1<T>`、UUID/ULID 与 64 KiB 契约校验、环境 namespace、事务 Outbox、短租约 Relay、RocketMQ Spring 发布适配器、事务 Inbox、消息关联上下文、低基数指标、健康检查和 `RecordingMessagePublisher` 测试替身。唯一纳入的跨域专用适配是 `OperationAuditMessageCodec`：它引用 common-api 的封闭审计目录并校验信封与载荷等式，不在消息模块复制领域规则。
 
 `MessageEnvelopeV1` 固定保存 `eventId` 和 `traceId`，并以可选 `operationId` 连接人工治理命令。该可选字段向后兼容，旧信封解码为 null。`MessageCorrelationContext` 只在信封校验后恢复 Trace、Operation、Event 与明确的任务 attempt，作用域关闭时恢复消费线程 MDC。
 
@@ -48,6 +48,8 @@ leetmodel:
 
 配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness。
 
+操作审计固定使用 `leetmodel-operation-audit-v1`、`OPERATION_AUDIT_RECORDED` 和 `cg-audit-archive-v1`。专用 Codec 拒绝未知 JSON 字段，并要求 `auditEventId=eventId=idempotencyKey`、`aggregateId=operationId` 及来源、发生时间、Trace 完全一致；编码仍受当前环境配置和项目 64 KiB 双重上限约束。
+
 Micrometer 指标覆盖以下稳定事实：
 
 | 指标 | 维度与语义 |
@@ -75,6 +77,8 @@ cd LeetModel-backend
 docker compose up -d --wait rocketmq-namesrv rocketmq-broker
 ./scripts/init-rocketmq.sh
 ./scripts/verify-rocketmq.sh
+./scripts/verify-audit-contract.sh
+./scripts/verify-audit-rocketmq.sh
 ./scripts/verify-skywalking-async.sh
 mvn -pl common/common-messaging test
 RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test
@@ -82,3 +86,5 @@ RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test
 ```
 
 RocketMQ 集成命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。SkyWalking 运行门禁使用唯一临时消费组，并直接在 OAP 验证 Outbox 成功/重试、Inbox consumed/duplicate、Producer Exit、独立 attempt Trace ID 与 tag 最小化。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。
+
+操作审计门禁使用一次性非标准端口 Broker 和运行时随机凭据，不接触常驻开发 Broker。它验证严格序列化、ACL 正负路径、固定重试和真实 DLQ 后自动删除隔离容器；运行目录被 Git 忽略且不会输出凭据。生产部署使用 `docker/rocketmq/broker-acl.conf.example` 的 ACL 2.0 开关，通过 Secret Manager 补齐管理凭据，再以 `init-audit-rocketmq-acl.sh` 创建两个最小权限应用账号。

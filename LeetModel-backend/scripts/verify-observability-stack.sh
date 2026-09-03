@@ -72,14 +72,14 @@ fi
 echo "[通过] 六类 Grafana 看板 JSON"
 
 targets_file="${OBSERVABILITY_DIR}/prometheus-targets/leetmodel-services.json"
-expected_services='["admin-service","ai-assistant-service","ai-evaluation-service","ai-gateway-service","ai-review-service","ai-suggestion-service","gateway-service","knowledge-retrieval-service","problem-service","ranking-service","submission-service","team-service","user-service"]'
+expected_services='["admin-service","ai-assistant-service","ai-evaluation-service","ai-gateway-service","ai-review-service","ai-suggestion-service","audit-service","gateway-service","knowledge-retrieval-service","problem-service","ranking-service","submission-service","team-service","user-service"]'
 if ! jq -e --argjson expected "${expected_services}" \
-    'length == 13 and ([.[].labels.service] | sort | unique) == $expected' \
+    'length == 14 and ([.[].labels.service] | sort | unique) == $expected' \
     "${targets_file}" >/dev/null; then
-  echo "Prometheus 服务发现文件没有且仅有 13 个固定服务。" >&2
+  echo "Prometheus 服务发现文件没有且仅有 14 个固定服务。" >&2
   exit 1
 fi
-echo "[通过] 13 个服务抓取目标"
+echo "[通过] 14 个服务抓取目标"
 
 if rg -n --glob 'application*.yml' 'Path=/actuator|Path=/actuator/\*\*' \
     "${BACKEND_DIR}/gateway-service/src/main/resources" >/dev/null; then
@@ -195,7 +195,7 @@ for _ in {1..30}; do
   sleep 2
 done
 if [[ "${service_targets_ready}" != "true" ]]; then
-  echo "Prometheus 未发现 13 个固定服务，或未抓取临时服务。" >&2
+  echo "Prometheus 未发现 14 个固定服务，或未抓取临时服务。" >&2
   exit 1
 fi
 if ! prometheus_query "jvm_info{job=\"leetmodel-services\",instance=\"${SMOKE_INSTANCE}\"}" \
@@ -203,7 +203,7 @@ if ! prometheus_query "jvm_info{job=\"leetmodel-services\",instance=\"${SMOKE_IN
   echo "Prometheus 未查询到临时服务 JVM 指标。" >&2
   exit 1
 fi
-echo "[通过] 13 服务发现、受保护抓取与 PromQL 查询"
+echo "[通过] 14 服务发现、受保护抓取与 PromQL 查询"
 
 infra_ready=false
 for _ in {1..20}; do

@@ -50,5 +50,9 @@
   {
     "targets": ["127.0.0.1:8080"],
     "labels": {"service": "gateway-service"}
+  },
+  {
+    "targets": ["127.0.0.1:8094"],
+    "labels": {"service": "audit-service"}
   }
 ]

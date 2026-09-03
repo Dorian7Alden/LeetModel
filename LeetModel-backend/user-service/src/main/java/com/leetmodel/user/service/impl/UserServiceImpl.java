@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.Role;
@@ -45,6 +46,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
     private final StorageService storageService;
+    private final UserAuditEventProducer audit;
 
     /**
      * 根据用户名查找用户
@@ -103,6 +105,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param request 修改密码请求
      */
     @Override
+    @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = getById(userId);
         BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
@@ -122,6 +125,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 更新密码
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         updateById(user);
+        audit.passwordChanged(userId);
         log.info("用户 {} 修改密码", userId);
     }
 
@@ -218,6 +222,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param status 状态
      */
     @Override
+    @Transactional
     public void updateStatus(Long userId, Integer status) {
         // 获取用户
         User user = getById(userId);
@@ -226,6 +231,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 更新用户状态
         user.setStatus(status);
         updateById(user);
+        audit.statusChanged(userId, status);
         log.info("管理员更新用户 {} 状态为 {}", userId, status);
     }
 
@@ -260,6 +266,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             userRole.setRoleId(roleId);
             userRoleMapper.insert(userRole);
         }
+        audit.rolesChanged(userId, distinctRoleIds);
 
         log.info("管理员更新用户角色完成: userId={}, roleCount={}",
                 userId, distinctRoleIds.size());

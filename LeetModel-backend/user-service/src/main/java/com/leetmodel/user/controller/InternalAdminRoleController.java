@@ -1,5 +1,6 @@
 package com.leetmodel.user.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
 import com.leetmodel.common.api.dto.PermissionRequest;
 import com.leetmodel.common.api.dto.RolePermissionsRequest;
 import com.leetmodel.common.api.dto.RoleRequest;
@@ -33,6 +34,7 @@ import java.util.List;
 @Tag(name = "内部接口-角色权限管理")
 @RestController
 @RequestMapping("/internal/admin")
+@SaCheckRole("admin")
 @RequiredArgsConstructor
 public class InternalAdminRoleController {
 

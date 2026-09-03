@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 已完成目标设计；MQ1 至 MQ5 已完成基础设施和五条可靠异步业务链路；MQ6 已完成统一运维治理、故障演练与旧链清理。RocketMQ 首期设计、实现与验收已闭环。
+> 设计状态：MQ0 至 MQ6 的五条业务链路已闭环；操作审计专用 Topic、消费组、ACL 2.0 初始化、严格消费与幂等归档门禁也已建立，领域生产者仍由操作审计后续任务接入。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0、RocketMQ Spring 2.3.3 与 RocketMQ Client 5.3.1。Spring Boot BOM 默认的历史 Client 5.1.4 缺少 Starter 所需的 `setNamespaceV2` API，MQ4 已统一覆盖相关客户端组件并通过真实服务启动。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复均有验证证据。
 
@@ -113,15 +113,17 @@ RocketMQ 5.x 要求不同消息类型使用对应类型 Topic。首期全部使�
 
 一个消费组只承载一种稳定消费逻辑。同组全部实例必须使用相同 Topic、Tag、并发模式和重试策略。需要独立获得同一事件的下游使用独立消费组，不共享组名。
 
-#### 目标扩展：操作审计资源
+#### 操作审计专用资源
 
-以下资源是已确认目标，尚未计入上述五条已实现业务链路：
+以下资源已由版本化脚本显式创建，但在 audit-service 与领域生产者完成前不计作一条已上线业务链路：
 
 | Topic | Tag | 生产者 | 消费组 | 消费动作 |
 |-------|-----|--------|--------|----------|
 | `leetmodel-operation-audit-v1` | `OPERATION_AUDIT_RECORDED` | 产生语义审计的业务所有者服务 | `cg-audit-archive-v1` | audit-service 校验、幂等并只追加归档 |
 
 它使用 NORMAL Topic 和公共消息信封，`eventId` 作为 Key。审计生产者仍遵循事务 Outbox；中央消费者使用 Inbox/唯一约束承受至少一次投递。审计 DLQ 的重放恢复原 `auditEventId` 的归档，批准重放这一人工动作另产生新的操作审计。
+
+`cg-audit-archive-v1` 固定最多重试 5 次，退避为 1 秒、5 秒、30 秒、2 分钟和 10 分钟，耗尽后进入 `%DLQ%<物理消费组>`。ACL 2.0 策略只允许生产账号对精确审计 Topic 执行 `Pub`，只允许 archive 账号对精确 Topic 与消费组执行 `Sub`；两者均为 Normal 用户，不持有通配符或管理权限。认证初始化凭据和两个应用密码只由环境 Secret 注入，不写入仓库。
 
 首期不建立以下资源：
 

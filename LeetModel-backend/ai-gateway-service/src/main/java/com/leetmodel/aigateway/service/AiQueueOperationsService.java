@@ -7,7 +7,10 @@ import com.leetmodel.aigateway.scheduling.AiTaskWaitRegistry;
 import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiQueueTaskDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -22,10 +25,18 @@ public class AiQueueOperationsService {
     private static final Set<String> ACTIVE = Set.of("QUEUED", "LEASED", "RUNNING");
     private final AiCallTaskMapper mapper;
     private final AiTaskWaitRegistry waitRegistry;
+    private final OperationAuditGovernanceProducer audit;
 
-    public AiQueueOperationsService(AiCallTaskMapper mapper, AiTaskWaitRegistry waitRegistry) {
+    @Autowired
+    public AiQueueOperationsService(AiCallTaskMapper mapper, AiTaskWaitRegistry waitRegistry,
+                                    ObjectProvider<OperationAuditGovernanceProducer> audit) {
         this.mapper = mapper;
         this.waitRegistry = waitRegistry;
+        this.audit = audit == null ? null : audit.getIfAvailable();
+    }
+
+    public AiQueueOperationsService(AiCallTaskMapper mapper, AiTaskWaitRegistry waitRegistry) {
+        this(mapper, waitRegistry, null);
     }
 
     public List<AiQueueTaskDTO> list(AiQueueQueryDTO query) {
@@ -48,11 +59,14 @@ public class AiQueueOperationsService {
         if (!ACTIVE.contains(task.getState())) {
             throw new BusinessException(AiGatewayErrorCode.AI_TASK_NOT_CANCELLABLE);
         }
+        if (audit != null) audit.assertReady("AI_QUEUE.CANCEL");
         if (mapper.requestCancel(taskId, LocalDateTime.now(ZoneOffset.UTC)) != 1) {
             throw new BusinessException(AiGatewayErrorCode.AI_TASK_NOT_CANCELLABLE);
         }
         AiCallTask cancelled = mapper.selectByTaskId(taskId);
         waitRegistry.complete(cancelled);
+        if (audit != null) audit.emit("AI_QUEUE.CANCEL", "AI_CALL_TASK", taskId,
+                java.util.Map.of("taskState", cancelled.getState(), "cancelRequested", "true"));
         return toDto(cancelled, LocalDateTime.now(ZoneOffset.UTC));
     }
 

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.cache.ProblemPublicCacheService;
+import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ContestMapper;
@@ -23,6 +24,7 @@ import java.util.List;
 public class ContestServiceImpl extends ServiceImpl<ContestMapper, Contest> implements ContestService {
 
     private final CacheInvalidator cacheInvalidator;
+    private final ProblemAuditEventProducer audit;
 
     @Override
     public List<Contest> list() {
@@ -42,6 +44,7 @@ public class ContestServiceImpl extends ServiceImpl<ContestMapper, Contest> impl
         contest.setCode(normalizedCode);
         contest.setName(name.trim());
         updateById(contest);
+        audit.contestUpdated(id);
         cacheInvalidator.record(
                 ProblemPublicCacheService.REGION,
                 ProblemPublicCacheService.SCOPE,

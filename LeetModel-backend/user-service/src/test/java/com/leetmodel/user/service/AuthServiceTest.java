@@ -6,6 +6,7 @@ import com.leetmodel.common.security.util.TokenUtil;
 import com.leetmodel.user.dto.LoginRequest;
 import com.leetmodel.user.dto.LoginResponse;
 import com.leetmodel.user.dto.RegisterRequest;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.entity.UserRole;
@@ -52,6 +53,9 @@ class AuthServiceTest {
 
     @Mock
     private RoleService roleService;
+
+    @Mock
+    private UserAuditEventProducer audit;
 
     @InjectMocks
     private AuthServiceImpl authService;

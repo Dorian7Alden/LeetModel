@@ -22,6 +22,7 @@ import com.leetmodel.common.api.dto.AiQueueQueryDTO;
 import com.leetmodel.common.api.dto.AiEvaluationCallAggregateDTO;
 import com.leetmodel.common.api.dto.EvaluationRawMetricsDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.util.TraceIdUtil;
 import com.leetmodel.common.core.telemetry.CorrelationContext;
@@ -87,6 +88,8 @@ public class EvaluationService {
     private final EvaluationCompletionPersistenceService completionPersistenceService;
     private final EvaluationSlotReadyMessageService readyMessageService;
     private final ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OperationAuditGovernanceProducer audit;
 
     /** 保留服务单元测试的构造契约。 */
     public EvaluationService(EvaluationDatasetMapper datasetMapper,
@@ -378,6 +381,7 @@ public class EvaluationService {
 
     @Transactional
     public EvaluationTaskDTO retry(Long taskId) {
+        if (audit != null) audit.assertReady("EVALUATION.RETRY");
         EvaluationTask task = requiredTask(taskId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), EvaluationErrorCode.TASK_NOT_FAILED);
         List<EvaluationRunAttempt> latest = latestRuns(taskId);
@@ -393,18 +397,24 @@ public class EvaluationService {
                 - retries.size();
         taskMapper.updateProgress(task.getId(), "WAITING", retainedTerminal,
                 Math.max(0, retainedFailed), 0, null, LocalDateTime.now());
+        if (audit != null) audit.emit("EVALUATION.RETRY", "EVALUATION_TASK", String.valueOf(taskId),
+                Map.of("retryCount", String.valueOf(retries.size()), "retryReasonCode", "ADMIN_REQUEST"));
         return toTask(requiredTask(taskId));
     }
 
     public EvaluationTaskDTO pause(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.PAUSE");
         requiredTask(taskId);
         BusinessException.throwIf(taskMapper.pause(taskId, operatorId, LocalDateTime.now()) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
+        if (audit != null) audit.emit("EVALUATION.PAUSE", "EVALUATION_TASK", String.valueOf(taskId),
+                Map.of("taskState", "PAUSED", "pauseReasonCode", "ADMIN_REQUEST"));
         return toTask(requiredTask(taskId));
     }
 
     @Transactional
     public EvaluationTaskDTO resume(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.RESUME");
         requiredTask(taskId);
         BusinessException.throwIf(taskMapper.resume(taskId, operatorId, LocalDateTime.now()) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
@@ -412,16 +422,21 @@ public class EvaluationService {
         refreshTask(resumed);
         latestRuns(taskId).stream().filter(run -> "WAITING".equals(run.getStatus()))
                 .forEach(run -> enqueueReady(resumed, run, wakeupBucket()));
+        if (audit != null) audit.emit("EVALUATION.RESUME", "EVALUATION_TASK", String.valueOf(taskId),
+                Map.of("taskState", "WAITING", "resumeReasonCode", "ADMIN_REQUEST"));
         return toTask(requiredTask(taskId));
     }
 
     public EvaluationTaskDTO cancel(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.CANCEL");
         requiredTask(taskId);
         LocalDateTime now = LocalDateTime.now();
         BusinessException.throwIf(taskMapper.cancel(taskId, operatorId, now) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
         runMapper.cancelWaiting(taskId, now);
         cancelQueuedGatewayCalls(taskId);
+        if (audit != null) audit.emit("EVALUATION.CANCEL", "EVALUATION_TASK", String.valueOf(taskId),
+                Map.of("taskState", "CANCELLED", "cancelReasonCode", "ADMIN_REQUEST"));
         return toTask(requiredTask(taskId));
     }
 

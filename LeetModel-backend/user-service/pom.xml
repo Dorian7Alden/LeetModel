@@ -31,6 +31,10 @@
             <artifactId>common-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.leetmodel</groupId>
+            <artifactId>common-messaging</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
         </dependency>

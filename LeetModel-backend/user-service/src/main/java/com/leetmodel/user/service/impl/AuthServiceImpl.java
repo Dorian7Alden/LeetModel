@@ -7,6 +7,7 @@ import com.leetmodel.common.security.util.TokenUtil;
 import com.leetmodel.user.dto.LoginRequest;
 import com.leetmodel.user.dto.LoginResponse;
 import com.leetmodel.user.dto.RegisterRequest;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.entity.UserRole;
 import com.leetmodel.user.entity.Role;
@@ -33,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
     private final RoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
     private final RoleService roleService;
+    private final UserAuditEventProducer audit;
 
     private static final String DEFAULT_ROLE_CODE = "user";
 
@@ -80,22 +82,29 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse login(LoginRequest request) {
         // 查询用户
         User user = userService.findByUsername(request.getUsername());
-        BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
+        if (user == null) {
+            audit.loginRejected("USER_NOT_FOUND");
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
+        }
 
         // 校验密码
-        BusinessException.throwIf(
-                !passwordEncoder.matches(request.getPassword(), user.getPassword()),
-                UserErrorCode.PASSWORD_INVALID
-        );
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            audit.loginRejected("PASSWORD_INVALID");
+            throw new BusinessException(UserErrorCode.PASSWORD_INVALID);
+        }
 
         // 校验账号状态
-        BusinessException.throwIf(user.getStatus() == 0, UserErrorCode.ACCOUNT_DISABLED);
+        if (user.getStatus() == 0) {
+            audit.loginRejected("ACCOUNT_DISABLED");
+            throw new BusinessException(UserErrorCode.ACCOUNT_DISABLED);
+        }
 
         // 签发 Token
         String token = TokenUtil.login(user.getId());
 
         // 查询用户角色和权限，供客户端初始化菜单和路由
         UserRoleDTO authorization = roleService.getUserRoles(user.getId());
+        audit.loginSucceeded(user.getId(), authorization);
         return new LoginResponse(
                 token,
                 user.getId(),

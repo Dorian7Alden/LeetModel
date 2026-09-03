@@ -8,6 +8,7 @@ import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.common.messaging.MessagePublisher;
 import com.leetmodel.common.messaging.MessagingNamespace;
 import com.leetmodel.common.messaging.MessagingDomainBacklogContributor;
+import com.leetmodel.common.messaging.OperationAuditMessageCodec;
 import com.leetmodel.common.messaging.internal.JdbcMessageInbox;
 import com.leetmodel.common.messaging.internal.JdbcMessageOutbox;
 import com.leetmodel.common.messaging.internal.MessagingHealthIndicator;
@@ -21,6 +22,7 @@ import com.leetmodel.common.messaging.internal.RocketMqConsumerControl;
 import com.leetmodel.common.messaging.internal.RocketMqDeadLetterOperations;
 import com.leetmodel.common.messaging.internal.MessagingOperationsController;
 import com.leetmodel.common.messaging.internal.MessagingOperationsService;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -102,6 +104,30 @@ public class MessagingAutoConfiguration {
         @Bean
         public MessageCodec messageCodec(ObjectMapper objectMapper, MessagingProperties properties) {
             return new MessageCodec(objectMapper, properties.getMaxPayloadBytes());
+        }
+
+        /**
+         * 创建拒绝未知字段并校验审计跨层等式的专用编解码器。
+         *
+         * @param objectMapper JSON 映射器
+         * @param properties 消息配置
+         * @return 操作审计消息编解码器
+         */
+        @Bean
+        public OperationAuditMessageCodec operationAuditMessageCodec(
+                ObjectMapper objectMapper,
+                MessagingProperties properties
+        ) {
+            return new OperationAuditMessageCodec(objectMapper, properties.getMaxPayloadBytes());
+        }
+
+        @Bean
+        public OperationAuditGovernanceProducer operationAuditGovernanceProducer(
+                @Value("${spring.application.name}") String applicationName,
+                MessageOutbox outbox,
+                OperationAuditMessageCodec codec,
+                JdbcMessageOutbox jdbcOutbox) {
+            return new OperationAuditGovernanceProducer(applicationName, outbox, codec, jdbcOutbox);
         }
 
         /**
@@ -326,11 +352,12 @@ public class MessagingAutoConfiguration {
                 RocketMqConsumerControl consumerControl,
                 MessagingMetrics metrics,
                 RocketMqDeadLetterOperations deadLetters,
-                ObjectProvider<MessagingDomainBacklogContributor> backlogContributors
+                ObjectProvider<MessagingDomainBacklogContributor> backlogContributors,
+                OperationAuditGovernanceProducer audit
         ) {
             List<MessagingDomainBacklogContributor> contributors = backlogContributors.orderedStream().toList();
             return new MessagingOperationsService(
-                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors);
+                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors, audit);
         }
 
         /** 暴露统一内网运维端点。 */

@@ -13,6 +13,7 @@ import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.messaging.FinalSubmissionMessageContract;
+import com.leetmodel.submission.audit.SubmissionAuditEventProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class SubmissionFinalizationPersistenceService {
     private final SubmissionMapper submissionMapper;
     private final MessageEnvelopeFactory envelopeFactory;
     private final MessageOutbox messageOutbox;
+    private final SubmissionAuditEventProducer audit;
 
     /** 锁定最终提交，并在同一事务写入排行事件 Outbox。 */
     @Transactional
@@ -53,6 +55,7 @@ public class SubmissionFinalizationPersistenceService {
         lock.setLockedAt(LocalDateTime.now());
         lockMapper.insert(lock);
         enqueue(lock, latest);
+        audit.finalized(team, latest.getId(), latest.getVersion());
         return latest;
     }
 

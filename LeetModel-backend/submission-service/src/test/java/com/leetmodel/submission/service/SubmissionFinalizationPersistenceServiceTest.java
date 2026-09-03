@@ -7,6 +7,7 @@ import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionLock;
+import com.leetmodel.submission.audit.SubmissionAuditEventProducer;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ class SubmissionFinalizationPersistenceServiceTest {
     @Mock SubmissionLockMapper lockMapper;
     @Mock SubmissionMapper submissionMapper;
     @Mock MessageOutbox messageOutbox;
+    @Mock SubmissionAuditEventProducer audit;
     private SubmissionFinalizationPersistenceService service;
 
     @BeforeEach
@@ -42,7 +44,7 @@ class SubmissionFinalizationPersistenceServiceTest {
                 submissionMapper,
                 new MessageEnvelopeFactory("submission-service",
                         Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC)),
-                messageOutbox);
+                messageOutbox, audit);
     }
 
     @Test

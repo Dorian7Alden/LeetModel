@@ -15,6 +15,7 @@ import com.leetmodel.assistant.mapper.AssistantWorkflowVersionMapper;
 import com.leetmodel.common.api.dto.AssistantProductionChangeResultDTO;
 import com.leetmodel.common.api.dto.AssistantProductionConfigDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,8 @@ public class AssistantProductionChangeTransactionService {
     private final AssistantProductionConfigMapper configMapper;
     private final AssistantWorkflowVersionMapper workflowMapper;
     private final AssistantProductionAuditMapper auditMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OperationAuditGovernanceProducer centralAudit;
 
     public AssistantProductionChangeTransactionService(
             AssistantProductionChangeRequestMapper changeMapper,
@@ -55,12 +58,19 @@ public class AssistantProductionChangeTransactionService {
     @Transactional
     public AssistantProductionChangeResultDTO apply(String changeRequestId, Long operatorId,
                                                     boolean dependenciesReady) {
+        // 生产切换属于高风险治理；审计 Outbox 阻塞时 fail-closed。
+        // 具体动作仍在本地事务内完成，审计事件与指针变更保持一致。
         // 锁定变更请求，保证同一确认只能进入一次终态
         LocalDateTime now = LocalDateTime.now();
         AssistantProductionChangeRequest change =
                 changeMapper.selectByRequestIdForUpdate(changeRequestId);
         BusinessException.throwIf(change == null || !operatorId.equals(change.getOperatorId()),
                 AssistantErrorCode.PRODUCTION_CHANGE_INVALID);
+
+        if (centralAudit != null) {
+            centralAudit.assertReady("ACTIVATE".equals(change.getAction())
+                    ? "ASSISTANT_CONFIG.ACTIVATE" : "ASSISTANT_CONFIG.ROLLBACK");
+        }
 
         if (!"PENDING".equals(change.getStatus())) return existingResult(change);
         if (!change.getExpiresAt().isAfter(now)) {
@@ -102,6 +112,14 @@ public class AssistantProductionChangeTransactionService {
         audit.setCreateTime(now);
         audit.setUpdateTime(now);
         auditMapper.insert(audit);
+        if (centralAudit != null) {
+            String operation = "ACTIVATE".equals(change.getAction())
+                    ? "ASSISTANT_CONFIG.ACTIVATE" : "ASSISTANT_CONFIG.ROLLBACK";
+            centralAudit.emit(operation, "ASSISTANT_CONFIG", String.valueOf(change.getTargetConfigId()),
+                    java.util.Map.of("fromVersion", String.valueOf(change.getSourceConfigId()),
+                            "toVersion", String.valueOf(change.getTargetConfigId()),
+                            "revision", String.valueOf(change.getExpectedRevision() + 1)));
+        }
         finish(change, "APPLIED", "生产配置已生效", now);
         pointer.setActiveConfigId(change.getTargetConfigId());
         pointer.setRevision(change.getExpectedRevision() + 1);

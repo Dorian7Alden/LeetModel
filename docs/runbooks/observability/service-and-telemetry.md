@@ -14,9 +14,9 @@
 
 ## LeetModelServiceDiscoveryIncomplete
 
-影响：版本化发现集合少于 13 个服务，缺失目标不会产生普通的逐服务 `up=0`。
+影响：版本化发现集合少于 14 个服务，缺失目标不会产生普通的逐服务 `up=0`。
 
-1. 对比 `docker/observability/prometheus-targets/leetmodel-services.json` 与当前 13 个服务清单，确认文件仍有 13 个唯一 `service` 标签。
+1. 对比 `docker/observability/prometheus-targets/leetmodel-services.json` 与当前 14 个服务清单，确认文件仍有 14 个唯一 `service` 标签。
 2. 检查 Prometheus `/service-discovery` 的 file-SD 错误与容器内 `/etc/prometheus/targets` 挂载。
 3. 使用 `./scripts/verify-observability-stack.sh --static` 验证目标集合与配置。
 4. 恢复标准：`leetmodel:service_targets:count` 回到至少 13，且缺失服务重新表现为可解释的 `up=0/1`。

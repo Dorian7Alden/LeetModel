@@ -27,6 +27,7 @@ public final class MessagingOperationsService {
     private final MessagingMetrics metrics;
     private final RocketMqDeadLetterOperations deadLetters;
     private final List<MessagingDomainBacklogContributor> backlogContributors;
+    private final OperationAuditGovernanceProducer audit;
 
     public MessagingOperationsService(
             String service,
@@ -37,6 +38,19 @@ public final class MessagingOperationsService {
             RocketMqDeadLetterOperations deadLetters,
             List<MessagingDomainBacklogContributor> backlogContributors
     ) {
+        this(service, outbox, inbox, consumerControl, metrics, deadLetters, backlogContributors, null);
+    }
+
+    public MessagingOperationsService(
+            String service,
+            JdbcMessageOutbox outbox,
+            JdbcMessageInbox inbox,
+            RocketMqConsumerControl consumerControl,
+            MessagingMetrics metrics,
+            RocketMqDeadLetterOperations deadLetters,
+            List<MessagingDomainBacklogContributor> backlogContributors,
+            OperationAuditGovernanceProducer audit
+    ) {
         this.service = service;
         this.outbox = outbox;
         this.inbox = inbox;
@@ -44,6 +58,7 @@ public final class MessagingOperationsService {
         this.metrics = metrics;
         this.deadLetters = deadLetters;
         this.backlogContributors = List.copyOf(backlogContributors);
+        this.audit = audit;
     }
 
     public MessagingOverviewDTO overview() {
@@ -82,27 +97,41 @@ public final class MessagingOperationsService {
                 || request.reason().length() > 200) {
             throw new IllegalArgumentException("补发需提供 1-20 个 eventId 和 3-200 字原因");
         }
+        if (audit != null) audit.assertReady("OUTBOX.REPLAY");
         List<String> accepted = outbox.replay(request.eventIds(), request.reason().trim());
         metrics.replayed(accepted.size());
+        if (audit != null && !accepted.isEmpty()) audit.emit("OUTBOX.REPLAY", "MESSAGE_OUTBOX", service,
+                Map.of("replayCount", String.valueOf(accepted.size()), "replayReasonCode", "ADMIN_REQUEST",
+                        "eventHash", "REDACTED"));
         log.warn("消息人工补发 service={}, requested={}, accepted={}",
                 service, request.eventIds().size(), accepted.size());
         return new MessagingOperationResultDTO(service, "OUTBOX_REPLAY", accepted.size(), accepted);
     }
 
     public MessagingOperationResultDTO pause(String consumerGroup) {
+        if (audit != null) audit.assertReady("CONSUMER.PAUSE");
         boolean changed = consumerControl.pause(consumerGroup);
         if (changed) metrics.consumerPaused();
+        if (changed && audit != null) audit.emit("CONSUMER.PAUSE", "MESSAGE_CONSUMER", stableTarget(consumerGroup),
+                Map.of("consumerGroup", consumerGroup, "pauseReasonCode", "ADMIN_REQUEST"));
         log.warn("消息消费人工暂停 service={}, consumerGroup={}, changed={}", service, consumerGroup, changed);
         return new MessagingOperationResultDTO(service, "CONSUMER_PAUSE", changed ? 1 : 0,
                 changed ? List.of(consumerGroup) : List.of());
     }
 
     public MessagingOperationResultDTO resume(String consumerGroup) {
+        if (audit != null) audit.assertReady("CONSUMER.RESUME");
         boolean changed = consumerControl.resume(consumerGroup);
         if (changed) metrics.consumerResumed();
+        if (changed && audit != null) audit.emit("CONSUMER.RESUME", "MESSAGE_CONSUMER", stableTarget(consumerGroup),
+                Map.of("consumerGroup", consumerGroup, "resumeReasonCode", "ADMIN_REQUEST"));
         log.warn("消息消费人工恢复 service={}, consumerGroup={}, changed={}", service, consumerGroup, changed);
         return new MessagingOperationResultDTO(service, "CONSUMER_RESUME", changed ? 1 : 0,
                 changed ? List.of(consumerGroup) : List.of());
+    }
+
+    private String stableTarget(String value) {
+        return value == null ? "unknown-consumer" : value.replace('%', '-');
     }
 
 }

@@ -1,5 +1,6 @@
 package com.leetmodel.user.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
@@ -31,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequestMapping("/api/users")
+@SaCheckLogin
 @RequiredArgsConstructor
 @Tag(name = "客户端-用户自助")
 public class UserController {

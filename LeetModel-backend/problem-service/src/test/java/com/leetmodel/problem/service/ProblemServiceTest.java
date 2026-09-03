@@ -6,6 +6,7 @@ import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
+import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Contest;
@@ -59,6 +60,7 @@ class ProblemServiceTest {
     @Mock private ObjectProvider<StorageService> storageServiceProvider;
     @Mock private StorageService storageService;
     @Mock private CacheInvalidator cacheInvalidator;
+    @Mock private ProblemAuditEventProducer audit;
 
     @InjectMocks
     private ProblemServiceImpl problemService;

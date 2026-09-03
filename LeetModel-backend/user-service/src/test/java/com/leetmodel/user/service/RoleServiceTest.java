@@ -8,6 +8,7 @@ import com.leetmodel.user.entity.Permission;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.RolePermission;
 import com.leetmodel.user.entity.UserRole;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RoleMapper;
@@ -49,6 +50,9 @@ class RoleServiceTest {
 
     @Mock
     private PermissionMapper permissionMapper;
+
+    @Mock
+    private UserAuditEventProducer audit;
 
     @InjectMocks
     private RoleServiceImpl roleService;

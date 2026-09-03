@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${BACKEND_DIR}/.." && pwd)"
+CATALOG_FILE="${BACKEND_DIR}/common/common-api/src/main/java/com/leetmodel/common/api/audit/OperationAuditCatalog.java"
+PAYLOAD_FILE="${BACKEND_DIR}/common/common-api/src/main/java/com/leetmodel/common/api/audit/OperationAuditPayloadV1.java"
+CODEC_FILE="${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/common/messaging/OperationAuditMessageCodec.java"
+INIT_FILE="${SCRIPT_DIR}/init-rocketmq.sh"
+ACL_FILE="${SCRIPT_DIR}/init-audit-rocketmq-acl.sh"
+ACL_CONFIG_FILE="${BACKEND_DIR}/docker/rocketmq/broker-acl.conf.example"
+AUDIT_SERVICE_DIR="${BACKEND_DIR}/audit-service"
+USER_SERVICE_DIR="${BACKEND_DIR}/user-service"
+GATEWAY_TRACE_FILE="${BACKEND_DIR}/gateway-service/src/main/java/com/leetmodel/gateway/filter/TraceIdFilter.java"
+PROBLEM_SERVICE_DIR="${BACKEND_DIR}/problem-service"
+SUBMISSION_SERVICE_DIR="${BACKEND_DIR}/submission-service"
+MESSAGING_SERVICE_FILE="${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/common/messaging/internal/MessagingOperationsService.java"
+
+required_tokens=(
+  'AUTH.LOGIN_SUCCESS' 'USER.ROLE_CHANGE' 'PROBLEM.DELETE' 'SUBMISSION.FINALIZE'
+  'AI_QUEUE.CANCEL' 'EVALUATION.RETRY' 'ASSISTANT_CONFIG.ROLLBACK'
+  'CONSUMER.PAUSE' 'OUTBOX.REPLAY' 'DLQ.REPLAY' 'RANKING.REBUILD'
+  'AUDIT.SEARCH_EXPORT'
+)
+for token in "${required_tokens[@]}"; do
+  grep -Fq "${token}" "${CATALOG_FILE}" || {
+    echo "P0 操作目录缺少 ${token}。" >&2
+    exit 1
+  }
+done
+
+for field in auditEventId operationId phase outcome actorType actorId targetType targetId \
+    beforeSummary afterSummary traceId swTraceId clientIpHash userAgentHash; do
+  grep -Fq "${field}" "${PAYLOAD_FILE}" || {
+    echo "审计载荷缺少 ${field}。" >&2
+    exit 1
+  }
+done
+
+grep -Fq 'OPERATION_AUDIT_RECORDED' "${CODEC_FILE}"
+grep -Fq 'payload.auditEventId(), envelope.eventId()' "${CODEC_FILE}"
+grep -Fq 'FAIL_ON_UNKNOWN_PROPERTIES' "${CODEC_FILE}"
+grep -Fq 'leetmodel-operation-audit-v1' "${INIT_FILE}"
+grep -Fq 'cg-audit-archive-v1' "${INIT_FILE}"
+grep -Fq 'Topic:${TOPIC}' "${ACL_FILE}"
+grep -Fq 'Group:${GROUP}' "${ACL_FILE}"
+grep -Fq 'authenticationEnabled=true' "${ACL_CONFIG_FILE}"
+grep -Fq 'authorizationEnabled=true' "${ACL_CONFIG_FILE}"
+grep -Fq 'LocalAuthenticationMetadataProvider' "${ACL_CONFIG_FILE}"
+grep -Fq 'LocalAuthorizationMetadataProvider' "${ACL_CONFIG_FILE}"
+
+for required_file in \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/service/AuditArchiveService.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/repository/AuditQueryRepository.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/config/AuditInternalAccessFilter.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/resources/db/migration/V1__create_audit_archive.sql"; do
+  [[ -s "${required_file}" ]] || { echo "AUD-03 审计管道文件缺失：${required_file}" >&2; exit 1; }
+done
+[[ -s "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/audit/UserAuditEventProducer.java" ]] || {
+  echo "AUD-05 user-service 审计生产者缺失。" >&2; exit 1;
+}
+grep -Fq '@SaCheckLogin' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/UserController.java"
+grep -Fq '@SaCheckRole("admin")' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/InternalAdminUserController.java"
+grep -Fq '@SaCheckRole("admin")' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/InternalAdminRoleController.java"
+grep -Fq 'INTERNAL_CORRELATION_HEADERS.forEach(headers::remove)' "${GATEWAY_TRACE_FILE}"
+grep -Fq 'OperationAuditContract.validate(payload)' \
+  "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/audit/UserAuditEventProducer.java"
+for producer in \
+    "${PROBLEM_SERVICE_DIR}/src/main/java/com/leetmodel/problem/audit/ProblemAuditEventProducer.java" \
+    "${SUBMISSION_SERVICE_DIR}/src/main/java/com/leetmodel/submission/audit/SubmissionAuditEventProducer.java"; do
+  [[ -s "${producer}" ]] || { echo "AUD-06 领域审计生产者缺失：${producer}" >&2; exit 1; }
+  grep -Fq 'OperationAuditContract.validate(payload)' "${producer}"
+done
+grep -Fq 'SUBMISSION.FINALIZE' "${SUBMISSION_SERVICE_DIR}/src/main/java/com/leetmodel/submission/audit/SubmissionAuditEventProducer.java"
+grep -Fq 'PROBLEM.ATTACHMENT_DELETE' "${PROBLEM_SERVICE_DIR}/src/main/java/com/leetmodel/problem/audit/ProblemAuditEventProducer.java"
+grep -Fq 'OperationAuditGovernanceProducer' "${MESSAGING_SERVICE_FILE}"
+grep -Fq 'AI_QUEUE.CANCEL' "${BACKEND_DIR}/ai-gateway-service/src/main/java/com/leetmodel/aigateway/service/AiQueueOperationsService.java"
+grep -Fq 'EVALUATION.RETRY' "${BACKEND_DIR}/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationService.java"
+grep -Fq 'ASSISTANT_CONFIG.ACTIVATE' "${BACKEND_DIR}/ai-assistant-service/src/main/java/com/leetmodel/assistant/service/AssistantProductionChangeTransactionService.java"
+grep -Fq 'RANKING.REBUILD' "${BACKEND_DIR}/ranking-service/src/main/java/com/leetmodel/ranking/service/RankingService.java"
+grep -Fq 'maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES' \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java"
+grep -Fq "status='PROCESSING'" \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java"
+grep -Fq "phase='REQUESTED' AND outcome='PENDING'" \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java"
+grep -Fq 'audit.consumer.dlq' \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/metrics/AuditMetrics.java"
+grep -Fq 'MAX_LIMIT = 100' "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/repository/AuditQueryRepository.java"
+grep -Fq 'MessageDigest.isEqual' "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/config/AuditInternalAccessFilter.java"
+grep -Fq '@SaCheckRole("admin")' \
+  "${ROOT_DIR}/LeetModel-backend/admin-service/src/main/java/com/leetmodel/admin/controller/AdminAuditController.java"
+
+if rg -n -i '(passwordValue|accessToken|promptText|answerText|paperContent|messagePayload)' \
+    "${BACKEND_DIR}/common/common-api/src/main/java/com/leetmodel/common/api/audit" \
+    "${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/common/messaging/OperationAuditMessageCodec.java" \
+    "${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/common/messaging/OperationAuditResources.java" \
+    | grep -v 'OperationAuditContract.java'; then
+  echo "操作审计生产契约出现禁止的正文/凭据字段。" >&2
+  exit 1
+fi
+
+echo "操作审计静态契约验证通过。"

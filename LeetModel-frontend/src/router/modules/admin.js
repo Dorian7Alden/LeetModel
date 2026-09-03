@@ -41,6 +41,12 @@ export default [
         component: () => import("@/views/admin/pages/AiCenterPage.vue"),
         meta: { title: "AI 中枢", description: "调用、评价与生产版本治理", icon: "Cpu" },
       },
+      {
+        path: "audit",
+        name: "AdminAudit",
+        component: () => import("@/views/admin/pages/AuditPage.vue"),
+        meta: { title: "操作审计", navTitle: "审计", description: "高风险操作的只读时间线", icon: "DocumentChecked" },
+      },
       legacyRedirect("users/list", { domain: "access", key: "users" }),
       legacyRedirect("role/list", { domain: "access", key: "roles" }),
       legacyRedirect("permission/list", { domain: "access", key: "permissions" }),
