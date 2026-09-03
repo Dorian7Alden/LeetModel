@@ -43,3 +43,8 @@ leetmodel:
     consumer-enabled: ${AUDIT_CONSUMER_ENABLED:true}
     max-payload-bytes: ${AUDIT_MAX_PAYLOAD_BYTES:65536}
     monitor-delay-ms: ${AUDIT_MONITOR_DELAY_MS:30000}
+    retention:
+      online-retention-days: ${AUDIT_ONLINE_RETENTION_DAYS:365}
+      archive-enabled: ${AUDIT_ARCHIVE_ENABLED:false}
+      backup-required: ${AUDIT_BACKUP_REQUIRED:true}
+      policy-version: ${AUDIT_RETENTION_POLICY_VERSION:v1}

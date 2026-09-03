@@ -45,7 +45,9 @@ if ss -ltn "sport = :${SERVICE_PORT}" | tail -n +2 | grep -q .; then
 fi
 
 cd "${BACKEND_DIR}"
-mvn -pl audit-service -am package
+if [[ "${AUDIT_SKIP_BUILD:-false}" != "true" ]]; then
+  mvn -pl audit-service -am package
+fi
 
 docker run -d --name "${MYSQL_CONTAINER}" \
   -e "MYSQL_ROOT_PASSWORD=${ROOT_PASSWORD}" \
