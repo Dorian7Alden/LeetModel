@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 public class AuditFeignConfig {
     @Bean
     RequestInterceptor auditInternalTokenInterceptor(
-            @Value("${AUDIT_INTERNAL_TOKEN:}") String token) {
+            @Value("${AUDIT_INTERNAL_TOKEN:lm-audit-internal-local-only-change-me}") String token) {
         return template -> {
             if (token != null && !token.isBlank()) {
                 template.header("X-LeetModel-Audit-Token", token);
