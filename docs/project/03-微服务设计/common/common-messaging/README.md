@@ -70,6 +70,12 @@ Broker 位点与 DLQ 查询各有 `*.metrics.available` 仪表。读取失败时
 
 DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%ConsumerGroup`，不会创建 DLQ 消费者或移动 offset。公共模块只负责精确定位死信并解码信封元数据；实际重放由 admin-service 校验完整 eventId 集合后，委托信封中的来源服务重置原 Outbox。DLQ 永不自动回灌，所有写操作都由管理员入口提供原因并形成操作结果。
 
+### MQ6 运维边界
+
+启用模块的服务会暴露 `/internal/messaging` 内网契约，返回脱敏 Outbox、Inbox、领域积压、真实 consumer 运行状态和 Broker DLQ 摘要。consumer 暂停/恢复直接调用 RocketMQ Push Consumer 的 `suspend`/`resume`；Outbox 补发只接受 `PUBLISHED` 或 `BLOCKED` 的原 eventId，最多 20 条，不生成新业务事件。
+
+DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%ConsumerGroup`，不会创建 DLQ 消费者或移动 offset。公共模块只负责精确定位死信并解码信封元数据；实际重放由 admin-service 校验完整 eventId 集合后，委托信封中的来源服务重置原 Outbox。DLQ 永不自动回灌，所有写操作都由管理员入口提供原因并形成操作结果。
+
 ### 本地验证
 
 ```bash
