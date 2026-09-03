@@ -5,6 +5,7 @@
 | 范围 | Runbook |
 |------|---------|
 | 服务抓取、发现、OAP/Grafana/Alertmanager 与规则失败 | [服务与遥测管道](service-and-telemetry.md) |
+| 遥测、MQ、租约、AI UNKNOWN 与审计消费的综合演练 | [全链路故障演练矩阵](fault-drills.md) |
 | Outbox、Broker 位点、消费积压与 DLQ | [可靠消息](reliable-messaging.md) |
 | AI P0-P4 队列、容量与 UNKNOWN | [AI 队列与未知结果](ai-queue-and-unknown.md) |
 | 评审、建议、评价、排行和 AI 租约 | [领域租约](domain-leases.md) |

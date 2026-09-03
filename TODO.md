@@ -62,17 +62,18 @@
 
 ### 阶段 6：容量保护、故障演练与最终验收
 
-#### [~] SAFE-01 遥测和审计故障保护
+#### [ ] SAFE-01 遥测和审计故障保护
 
 - 目标：日志 Reporter 使用有界队列和本地滚动兜底；遥测故障 fail-open；审计 Outbox 阻塞时高风险治理命令 fail-closed，普通业务不被拖垮。
 - 入口：[可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[遥测与审计故障保护 Runbook](docs/runbooks/observability/telemetry-and-audit-safety.md)。
 - 验收：Reporter 队列/超时/尝试有界且丢弃可度量；OAP/Prometheus 不可用不阻塞业务；`BLOCKED` 审计 Outbox 拒绝高风险命令，查询页显式表达不可用。
 
-#### [ ] SAFE-02 全链路故障演练
+#### [~] SAFE-02 全链路故障演练
 
-- 依赖：`SAFE-01`。
-- 范围：演练 OAP/Prometheus/audit-service 中断、日志队列溢出、审计重复/乱序/DLQ、MQ 积压、租约接管、AI UNKNOWN 和遥测存储故障。
-- 验收：每个场景都有可观察信号、Runbook、受审计恢复动作和恢复判据；故障不会被零值、空集合或成功状态掩盖。
+- 目标：将 OAP/Prometheus/Alertmanager、日志队列、MQ/DLQ、租约接管、AI UNKNOWN、审计重复乱序和遥测存储故障纳入可重复演练矩阵。
+- 入口：[全链路故障演练矩阵](docs/runbooks/observability/fault-drills.md)、`LeetModel-backend/scripts/drill-fault-protection.sh` 及已有隔离演练脚本。
+- 验收：每个场景都有固定信号、Runbook、受审计恢复动作和恢复判据；演练不修改固定业务进程/消费组，空洞不被零值或成功状态掩盖。
+
 
 #### [ ] SAFE-03 最终门禁与文档收敛
 
