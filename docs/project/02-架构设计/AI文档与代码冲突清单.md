@@ -37,7 +37,7 @@
 
 #### 采用结论
 
-RAG V1 归 `ai-assistant-service`。`ai-review-service` 不是第一版知识检索的所有者，`legacy/knowledge-base/` 不是当前知识源。D-03 必须同步校准 RAG 架构文档、assistant README、根 `CONTEXT.md` 与 `rag_kb` 行为说明。
+RAG V1 归 `ai-assistant-service`。`ai-review-service` 不是第一版知识检索的所有者，`legacy/knowledge-base/` 不是当前知识源。D-03 必须同步校准 RAG 架构文档、assistant README、根 `AGENTS.md` 与 `rag_kb` 行为说明。
 
 
 ### RAG 版本定义冲突
@@ -133,7 +133,7 @@ D-01 的采用结论是“已部署但未接入”；S1 随后完成真实迁移
 | 后续任务 | 必须更新的正式文档 | 必须消除的冲突 |
 |----------|--------------------------|--------------------|
 | D-02 | `AI系统分层.md`、`new-api第三方网关集成.md`、`ai-gateway-service/README.md` 及 01 至 19 | C-03、C-04 |
-| D-03 | `RAG知识库.md`、`ai-assistant-service/README.md`、根 `CONTEXT.md`、`rag_kb` 行为说明 | C-01、C-02 |
+| D-03 | `RAG知识库.md`、`ai-assistant-service/README.md`、根 `AGENTS.md`、`rag_kb` 行为说明 | C-01、C-02 |
 | D-04 | `ai-evaluation-service/README.md` 及稳定性评价全部原子文档、`admin-service/AI测试控制`、`admin-service/AI调用监控` | C-05 |
 | D-05 | 上述 AI 架构和服务文档中使用版本标识的位置 | 防止在新设计中继续混用五类版本标识 |
 | S6-01 | `ai-suggestion-service/README.md` 及相关架构索引 | C-06 |
