@@ -20,8 +20,8 @@ spring:
   flyway:
     enabled: true
     url: ${AUDIT_DB_URL:jdbc:mysql://localhost:3306/lm_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
-    user: ${AUDIT_DB_MIGRATOR_USERNAME:lm-audit-migrator-local-only-change-me}
-    password: ${AUDIT_DB_MIGRATOR_PASSWORD}
+    user: ${AUDIT_DB_MIGRATOR_USERNAME:lm_audit_migrator}
+    password: ${AUDIT_DB_MIGRATOR_PASSWORD:lm-audit-migrator-local-only-change-me}
     clean-disabled: true
     validate-migration-naming: true
     baseline-on-migrate: false

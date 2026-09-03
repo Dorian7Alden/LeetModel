@@ -39,7 +39,9 @@ class AuditMigrationContractTest {
     void shouldUseDedicatedSchemaAndExternalizedCredentials() throws IOException {
         String application = read("application.yml");
 
-        assertThat(application).contains("lm_audit", "AUDIT_DB_APP_PASSWORD", "AUDIT_DB_MIGRATOR_PASSWORD");
+        assertThat(application).contains(
+                "AUDIT_DB_APP_PASSWORD:lm-audit-app-local-only-change-me",
+                "AUDIT_DB_MIGRATOR_PASSWORD:lm-audit-migrator-local-only-change-me");
         assertThat(application).doesNotContain("lm_user", "lm_problem", "lm_submission", "root");
         assertThat(application).contains("clean-disabled: true", "baseline-on-migrate: false");
         assertThat(application).contains("connect-retries: 0");
