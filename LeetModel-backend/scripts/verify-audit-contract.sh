@@ -10,6 +10,7 @@ CODEC_FILE="${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/c
 INIT_FILE="${SCRIPT_DIR}/init-rocketmq.sh"
 ACL_FILE="${SCRIPT_DIR}/init-audit-rocketmq-acl.sh"
 ACL_CONFIG_FILE="${BACKEND_DIR}/docker/rocketmq/broker-acl.conf.example"
+AUDIT_SERVICE_DIR="${BACKEND_DIR}/audit-service"
 
 required_tokens=(
   'AUTH.LOGIN_SUCCESS' 'USER.ROLE_CHANGE' 'PROBLEM.DELETE' 'SUBMISSION.FINALIZE'
@@ -43,6 +44,22 @@ grep -Fq 'authenticationEnabled=true' "${ACL_CONFIG_FILE}"
 grep -Fq 'authorizationEnabled=true' "${ACL_CONFIG_FILE}"
 grep -Fq 'LocalAuthenticationMetadataProvider' "${ACL_CONFIG_FILE}"
 grep -Fq 'LocalAuthorizationMetadataProvider' "${ACL_CONFIG_FILE}"
+
+for required_file in \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/service/AuditArchiveService.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java" \
+    "${AUDIT_SERVICE_DIR}/src/main/resources/db/migration/V1__create_audit_archive.sql"; do
+  [[ -s "${required_file}" ]] || { echo "AUD-03 审计管道文件缺失：${required_file}" >&2; exit 1; }
+done
+grep -Fq 'maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES' \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java"
+grep -Fq "status='PROCESSING'" \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java"
+grep -Fq "phase='REQUESTED' AND outcome='PENDING'" \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/monitor/AuditIntegrityMonitor.java"
+grep -Fq 'audit.consumer.dlq' \
+  "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/metrics/AuditMetrics.java"
 
 if rg -n -i '(passwordValue|accessToken|promptText|answerText|paperContent|messagePayload)' \
     "${BACKEND_DIR}/common/common-api/src/main/java/com/leetmodel/common/api/audit" \
