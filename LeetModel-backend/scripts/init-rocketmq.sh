@@ -15,11 +15,13 @@ fi
 topics=(
   review-task-v1 suggestion-task-v1 evaluation-task-v1
   submission-event-v1 review-event-v1
+  leetmodel-operation-audit-v1
 )
 
 consumer_groups=(
   cg-ai-review-task-v1 cg-ai-suggestion-task-v1 cg-ai-evaluation-task-v1
   cg-ranking-submission-v1 cg-ranking-review-v1
+  cg-audit-archive-v1
 )
 
 physical_name() {
