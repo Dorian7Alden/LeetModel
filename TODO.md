@@ -15,33 +15,19 @@
 
 ## 当前任务
 
-### [~] AUD-04 中央查询、权限与保留治理
+### [~] AUD-06 内容、提交与领域治理审计
 
-目标：为已归档的操作审计提供受信内部只读查询与保留/归档治理；admin-service 只代理权限控制后的查询，不直连 `lm_audit`，并让查询、导出、保留策略和权限变更自身具备可审计边界。
+目标：为题目/赛事/附件管理和最终提交接入领域所有者计算的最小差异审计事件，保持 admin-service 只做权限门面。
 
-入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[微服务架构](docs/project/02-架构设计/微服务架构.md)、`OperationAuditCatalog` 与现有管理鉴权/Feign 约束。
+入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、problem-service、submission-service 服务设计、`OperationAuditCatalog` 与本地审计 Outbox 约束。
 
-主流程：audit-service 暴露内部受保护查询 → 严格校验时间、服务、分类、操作、风险、操作者、目标、结果、`operationId`、`traceId`、`swTraceId` 和 limit → 只从 `operation_audit_event` 读取并分页返回白名单字段/差异摘要 → admin-service 复用现有权限边界代理，不保存副本 → 按环境配置在线保留、归档、备份和导出权限；查询源不可用时显式失败，不返回空成功。
+主流程：领域服务重新授权并执行业务变更 → 业务所有者按 `operationCode` 白名单计算前后摘要 → 成功事实与 `COMPLETED/SUCCEEDED` 审计 Outbox 同事务写入；拒绝/失败使用短事务追加 `REJECTED/FAILED`，不把题面、附件正文、PDF 或提交内容复制进审计。
 
-完成标准：普通管理员越权、通配过滤、超限分页和导出均被拒绝；不存在的结果与查询源故障可区分；服务不拥有业务数据库连接、不复制审计表；归档保留与备份策略可配置且不删除在线事实；查询/导出/保留/权限变更产生新的审计操作契约事件。
+完成标准：题目/赛事/附件/最终提交的成功、拒绝和回滚边界可验证；差异字段严格受目录约束；admin-service 不直连领域库、不生成成功审计；重复投递可幂等归档，负面测试覆盖越权、敏感正文泄露与事务回滚。
 
-修改范围：audit-service 查询 DTO/Controller/Repository、内部鉴权与分页、admin-service 代理和权限映射、保留/备份/导出配置、负面安全测试、正式文档和 Runbook。
+修改范围：problem-service、submission-service 审计生产者与迁移、服务侧权限校验、契约/事务/安全负面测试、正式文档和 Runbook。
 
-非目标：本卡不接入领域审计生产者、不提供前端统一审计页、不允许任何修改/删除审计事实，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
-
-### [ ] AUD-05 用户、安全与 RBAC 审计
-
-目标：把身份与权限变更的语义审计事件接入 user-service，并确保 Gateway 与 user-service 共同阻断伪造内部身份上下文。
-
-入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[user-service 设计](docs/project/03-微服务设计/user-service/README.md)、Gateway 内部请求头策略、`OperationAuditCatalog` 与本地审计 Outbox 约束。
-
-主流程：Gateway 清理外部提交的内部身份头 → user-service 基于会话重新授权 → 登录、密码修改、账号状态、角色与角色权限操作计算最小差异摘要 → 成功的 `COMPLETED/SUCCEEDED` 与本地业务变更同事务写入审计 Outbox；拒绝/失败事件使用独立短事务，且不记录密码、验证码、Token 或原始凭据。
-
-完成标准：成功变更与业务事实原子提交或回滚；拒绝事件可在业务回滚后可靠归档；伪造内部头无法提升权限；事件严格通过目录、actor、字段和大小校验；负面测试覆盖未授权、越权、敏感字段泄露和重复投递。
-
-修改范围：Gateway 身份头清洗、user-service 认证/RBAC 审计生产者、事务 Outbox、契约与安全负面测试、正式文档和 Runbook。
-
-非目标：本卡不改中央审计查询权限、不实现统一前端页面、不把密码或令牌写入日志/审计，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
+非目标：本卡不实现统一前端审计页、不改变中央查询权限、不记录题面或论文正文，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -66,12 +52,6 @@
 ### 阶段 4：中央操作审计基础设施
 
 ### 阶段 5：领域审计生产者与管理端
-
-#### [ ] AUD-05 用户、安全与 RBAC 审计
-
-- 依赖：`AUD-01`、`AUD-03`。
-- 范围：覆盖登录成功/失败、密码修改、账号状态、用户角色和角色权限；Gateway 清理伪造内部头，user-service 重新授权并生成语义事件。
-- 验收：角色变更与 `COMPLETED/SUCCEEDED` 审计 Outbox 同事务提交或回滚；拒绝事件使用独立短事务且不记录密码、验证码或 Token。
 
 #### [ ] AUD-06 内容、提交与领域治理审计
 
