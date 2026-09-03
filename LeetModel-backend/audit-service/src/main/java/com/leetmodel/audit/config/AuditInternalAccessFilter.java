@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
@@ -18,7 +20,7 @@ public class AuditInternalAccessFilter extends OncePerRequestFilter {
     static final String TOKEN_HEADER = "X-LeetModel-Audit-Token";
     private final byte[] token;
 
-    public AuditInternalAccessFilter(@Value("${AUDIT_INTERNAL_TOKEN:}") String configuredToken) {
+    public AuditInternalAccessFilter(@Value("${AUDIT_INTERNAL_TOKEN:lm-audit-internal-local-only-change-me}") String configuredToken) {
         this.token = configuredToken == null || configuredToken.isBlank()
                 ? null : configuredToken.getBytes(StandardCharsets.UTF_8);
     }
@@ -43,7 +45,18 @@ public class AuditInternalAccessFilter extends OncePerRequestFilter {
     }
 
     private boolean isLoopback(String address) {
-        return address != null && (address.startsWith("127.") || "::1".equals(address)
-                || "0:0:0:0:0:0:0:1".equals(address));
+        if (address == null || address.isBlank()) {
+            return false;
+        }
+        if (address.startsWith("127.") || "::1".equals(address)
+                || "0:0:0:0:0:0:0:1".equals(address)) {
+            return true;
+        }
+        try {
+            InetAddress addr = InetAddress.getByName(address);
+            return addr.isLoopbackAddress() || NetworkInterface.getByInetAddress(addr) != null;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

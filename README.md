@@ -46,7 +46,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `docs/` | 项目全部文档，按 project / troubleshooting / learning / concepts / standards 五类组织 |
 | `rag_kb/` | 当前 RAG 知识源。V1 只索引 `数学建模/` 下排除 README 后的整理内容 |
 | `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与历史知识库 |
-| `CONTEXT.md` | 给 AI 看的行为说明与协作规则 |
+| `AGENTS.md` | 给 AI 看的行为说明与协作规则 |
 | `TODO.md` | 当前任务、候选任务和条件任务 |
 | `README.md` | 本文件，项目正常说明 |
 

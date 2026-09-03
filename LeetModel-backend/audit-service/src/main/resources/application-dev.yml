@@ -6,3 +6,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
+
+audit:
+  internal-token: ${AUDIT_INTERNAL_TOKEN:lm-audit-internal-local-only-change-me}
+

@@ -22,6 +22,9 @@ jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
 
+audit:
+  internal-token: ${AUDIT_INTERNAL_TOKEN:lm-audit-internal-local-only-change-me}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

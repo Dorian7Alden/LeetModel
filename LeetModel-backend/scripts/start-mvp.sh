@@ -20,6 +20,7 @@ AUDIT_DB_APP_USERNAME_VALUE="${AUDIT_DB_APP_USERNAME:-lm_audit_app}"
 AUDIT_DB_APP_PASSWORD_VALUE="${AUDIT_DB_APP_PASSWORD:-lm-audit-app-local-only-change-me}"
 AUDIT_DB_MIGRATOR_USERNAME_VALUE="${AUDIT_DB_MIGRATOR_USERNAME:-lm_audit_migrator}"
 AUDIT_DB_MIGRATOR_PASSWORD_VALUE="${AUDIT_DB_MIGRATOR_PASSWORD:-lm-audit-migrator-local-only-change-me}"
+AUDIT_INTERNAL_TOKEN_VALUE="${AUDIT_INTERNAL_TOKEN:-lm-audit-internal-local-only-change-me}"
 
 if [[ -z "${MANAGEMENT_TOKEN:-}" && -s "${OBSERVABILITY_TOKEN_FILE}" ]]; then
   MANAGEMENT_TOKEN="$(<"${OBSERVABILITY_TOKEN_FILE}")"
@@ -137,6 +138,11 @@ for index in "${!services[@]}"; do
     "SERVICE_INSTANCE=${service_instance}"
     "SERVICE_VERSION=${SERVICE_VERSION_VALUE}"
   )
+  if [[ "${service}" == "admin-service" || "${service}" == "audit-service" ]]; then
+    service_env+=(
+      "AUDIT_INTERNAL_TOKEN=${AUDIT_INTERNAL_TOKEN_VALUE}"
+    )
+  fi
   if [[ "${service}" == "audit-service" ]]; then
     service_env+=(
       "AUDIT_DB_URL=${AUDIT_DB_URL_VALUE}"
