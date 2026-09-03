@@ -11,6 +11,7 @@ import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.cache.CacheSpec;
@@ -67,6 +68,8 @@ public class RankingService {
     private final MultiLevelCache cache;
     private final CacheInvalidator cacheInvalidator;
     private final ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OperationAuditGovernanceProducer audit;
 
     /**
      * 重建指定题目的当前排行。所有依赖数据先完整读取，失败时不会覆盖已有排行。
@@ -76,7 +79,11 @@ public class RankingService {
      */
     @Transactional
     public RankingOverviewVO rebuild(Long problemId) {
-        return rebuildInternal(problemId, null, null, null);
+        RankingOverviewVO result = rebuildInternal(problemId, null, null, null);
+        if (audit != null) audit.emit("RANKING.REBUILD", "RANKING_SCOPE", String.valueOf(problemId),
+                Map.of("scopeType", "PROBLEM", "affectedCount", String.valueOf(result.getTotal()),
+                        "rebuildVersion", "CURRENT"));
+        return result;
     }
 
     /**

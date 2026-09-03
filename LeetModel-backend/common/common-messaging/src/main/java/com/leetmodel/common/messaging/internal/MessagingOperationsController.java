@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +28,7 @@ import java.util.List;
 /** 仅供内网管理聚合调用的可靠消息运维端点。 */
 @Validated
 @RestController
+@ConditionalOnBean(MessagingOperationsService.class)
 @RequestMapping("/internal/messaging")
 public class MessagingOperationsController {
 

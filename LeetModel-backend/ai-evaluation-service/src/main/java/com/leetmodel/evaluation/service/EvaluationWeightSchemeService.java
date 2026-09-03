@@ -6,6 +6,7 @@ import com.leetmodel.common.api.dto.EvaluationWeightItemDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
 import com.leetmodel.common.api.dto.EvaluationWeightSchemeDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import com.leetmodel.evaluation.entity.EvaluationWeightScheme;
 import com.leetmodel.evaluation.entity.EvaluationWeightSchemeItem;
 import com.leetmodel.evaluation.enums.EvaluationErrorCode;
@@ -34,6 +35,8 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class EvaluationWeightSchemeService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OperationAuditGovernanceProducer audit;
 
     private static final BigDecimal TOTAL_WEIGHT = new BigDecimal("100.0000");
     private static final Set<String> STATUSES = Set.of("ACTIVE", "INACTIVE");
@@ -112,8 +115,10 @@ public class EvaluationWeightSchemeService {
         // 明细从不更新或删除，旧任务仍可引用同一版本
         List<EvaluationWeightSchemeItem> items = itemMapper.selectList(
                 new LambdaQueryWrapper<EvaluationWeightSchemeItem>()
-                        .eq(EvaluationWeightSchemeItem::getSchemeId, schemeId)
+                .eq(EvaluationWeightSchemeItem::getSchemeId, schemeId)
                         .orderByAsc(EvaluationWeightSchemeItem::getId));
+        if (audit != null) audit.emit("WEIGHT_SCHEME.DEACTIVATE", "WEIGHT_SCHEME", String.valueOf(schemeId),
+                Map.of("schemeVersion", scheme.getSchemeVersion(), "active", "false"));
         return toDto(scheme, items);
     }
 

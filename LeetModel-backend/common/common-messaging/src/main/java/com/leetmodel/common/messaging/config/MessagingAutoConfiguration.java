@@ -22,6 +22,7 @@ import com.leetmodel.common.messaging.internal.RocketMqConsumerControl;
 import com.leetmodel.common.messaging.internal.RocketMqDeadLetterOperations;
 import com.leetmodel.common.messaging.internal.MessagingOperationsController;
 import com.leetmodel.common.messaging.internal.MessagingOperationsService;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -118,6 +119,14 @@ public class MessagingAutoConfiguration {
                 MessagingProperties properties
         ) {
             return new OperationAuditMessageCodec(objectMapper, properties.getMaxPayloadBytes());
+        }
+
+        @Bean
+        public OperationAuditGovernanceProducer operationAuditGovernanceProducer(
+                @Value("${spring.application.name}") String applicationName,
+                MessageOutbox outbox,
+                OperationAuditMessageCodec codec) {
+            return new OperationAuditGovernanceProducer(applicationName, outbox, codec);
         }
 
         /**
@@ -342,11 +351,12 @@ public class MessagingAutoConfiguration {
                 RocketMqConsumerControl consumerControl,
                 MessagingMetrics metrics,
                 RocketMqDeadLetterOperations deadLetters,
-                ObjectProvider<MessagingDomainBacklogContributor> backlogContributors
+                ObjectProvider<MessagingDomainBacklogContributor> backlogContributors,
+                OperationAuditGovernanceProducer audit
         ) {
             List<MessagingDomainBacklogContributor> contributors = backlogContributors.orderedStream().toList();
             return new MessagingOperationsService(
-                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors);
+                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors, audit);
         }
 
         /** 暴露统一内网运维端点。 */

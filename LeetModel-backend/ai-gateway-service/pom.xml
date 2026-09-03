@@ -18,6 +18,10 @@
     <dependencies>
         <dependency>
             <groupId>com.leetmodel</groupId>
+            <artifactId>common-messaging</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.leetmodel</groupId>
             <artifactId>common-core</artifactId>
         </dependency>
         <dependency>

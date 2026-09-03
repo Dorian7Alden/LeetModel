@@ -15,6 +15,7 @@ import com.leetmodel.assistant.mapper.AssistantWorkflowVersionMapper;
 import com.leetmodel.common.api.dto.AssistantProductionChangeResultDTO;
 import com.leetmodel.common.api.dto.AssistantProductionConfigDTO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,8 @@ public class AssistantProductionChangeTransactionService {
     private final AssistantProductionConfigMapper configMapper;
     private final AssistantWorkflowVersionMapper workflowMapper;
     private final AssistantProductionAuditMapper auditMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OperationAuditGovernanceProducer centralAudit;
 
     public AssistantProductionChangeTransactionService(
             AssistantProductionChangeRequestMapper changeMapper,
@@ -102,6 +105,14 @@ public class AssistantProductionChangeTransactionService {
         audit.setCreateTime(now);
         audit.setUpdateTime(now);
         auditMapper.insert(audit);
+        if (centralAudit != null) {
+            String operation = "ACTIVATE".equals(change.getAction())
+                    ? "ASSISTANT_CONFIG.ACTIVATE" : "ASSISTANT_CONFIG.ROLLBACK";
+            centralAudit.emit(operation, "ASSISTANT_CONFIG", String.valueOf(change.getTargetConfigId()),
+                    java.util.Map.of("fromVersion", String.valueOf(change.getSourceConfigId()),
+                            "toVersion", String.valueOf(change.getTargetConfigId()),
+                            "revision", String.valueOf(change.getExpectedRevision() + 1)));
+        }
         finish(change, "APPLIED", "生产配置已生效", now);
         pointer.setActiveConfigId(change.getTargetConfigId());
         pointer.setRevision(change.getExpectedRevision() + 1);

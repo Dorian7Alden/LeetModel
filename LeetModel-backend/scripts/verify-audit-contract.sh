@@ -15,6 +15,7 @@ USER_SERVICE_DIR="${BACKEND_DIR}/user-service"
 GATEWAY_TRACE_FILE="${BACKEND_DIR}/gateway-service/src/main/java/com/leetmodel/gateway/filter/TraceIdFilter.java"
 PROBLEM_SERVICE_DIR="${BACKEND_DIR}/problem-service"
 SUBMISSION_SERVICE_DIR="${BACKEND_DIR}/submission-service"
+MESSAGING_SERVICE_FILE="${BACKEND_DIR}/common/common-messaging/src/main/java/com/leetmodel/common/messaging/internal/MessagingOperationsService.java"
 
 required_tokens=(
   'AUTH.LOGIN_SUCCESS' 'USER.ROLE_CHANGE' 'PROBLEM.DELETE' 'SUBMISSION.FINALIZE'
@@ -75,6 +76,11 @@ for producer in \
 done
 grep -Fq 'SUBMISSION.FINALIZE' "${SUBMISSION_SERVICE_DIR}/src/main/java/com/leetmodel/submission/audit/SubmissionAuditEventProducer.java"
 grep -Fq 'PROBLEM.ATTACHMENT_DELETE' "${PROBLEM_SERVICE_DIR}/src/main/java/com/leetmodel/problem/audit/ProblemAuditEventProducer.java"
+grep -Fq 'OperationAuditGovernanceProducer' "${MESSAGING_SERVICE_FILE}"
+grep -Fq 'AI_QUEUE.CANCEL' "${BACKEND_DIR}/ai-gateway-service/src/main/java/com/leetmodel/aigateway/service/AiQueueOperationsService.java"
+grep -Fq 'EVALUATION.RETRY' "${BACKEND_DIR}/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationService.java"
+grep -Fq 'ASSISTANT_CONFIG.ACTIVATE' "${BACKEND_DIR}/ai-assistant-service/src/main/java/com/leetmodel/assistant/service/AssistantProductionChangeTransactionService.java"
+grep -Fq 'RANKING.REBUILD' "${BACKEND_DIR}/ranking-service/src/main/java/com/leetmodel/ranking/service/RankingService.java"
 grep -Fq 'maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES' \
   "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java"
 grep -Fq "status='PROCESSING'" \
