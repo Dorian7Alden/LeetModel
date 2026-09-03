@@ -1,6 +1,6 @@
 # 操作审计服务
 
-> 设计状态：公共审计契约、专用 RocketMQ 资源、audit-service Maven 模块和 `lm_audit` Flyway V1 已建立；消费者、查询 API 与业务生产者仍是后续实现。本文确定服务边界；跨服务完整设计见 [操作审计架构](../../02-架构设计/操作审计架构.md)。
+> 设计状态：公共审计契约、专用 RocketMQ 资源、audit-service Maven 模块、`lm_audit` Flyway V1 和严格消费者/幂等归档已建立；查询 API 与业务生产者仍是后续实现。本文确定服务边界；跨服务完整设计见 [操作审计架构](../../02-架构设计/操作审计架构.md)。
 
 
 ## 服务定位与整体流程
@@ -17,7 +17,7 @@ flowchart LR
 
     topic["leetmodel-operation-audit-v1<br/>专用 NORMAL Topic（已建资源契约）"]
 
-    subgraph audit["audit-service（目标，尚未实现）"]
+    subgraph audit["audit-service（消费/归档已实现，查询待接入）"]
         consumer["审计 Consumer / Inbox 幂等"]
         validator["版本与白名单校验"]
         archive["只追加归档"]
@@ -37,7 +37,7 @@ flowchart LR
     audit -. "低基数指标" .-> prometheus
 ```
 
-图中消费者、查询和业务生产者仍为目标设计；当前已可启动的 audit-service 只负责健康基线和 Flyway 建表，尚未启动 RocketMQ 消费。业务服务本地事务先落审计 Outbox，audit-service 异步归档，因此中央查询具有明确的最终一致性窗口。
+图中查询和业务生产者仍为目标设计；当前 audit-service 已启动专用 RocketMQ 消费、严格校验和异步归档，中央查询具有明确的最终一致性窗口。
 
 
 ## 职责边界
@@ -86,10 +86,10 @@ audit-service 目标上独占 `lm_audit`，核心事实是只追加的 `operatio
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | 专用 schema 与 Flyway V1 | 已实现 | `lm_audit` 建立 Inbox、只追加归档表及调查索引 |
-| 审计事件消费与幂等归档 | 目标 | 校验契约并只追加保存，重复消息幂等 ACK |
-| 操作阶段时间线 | 目标 | 按 `operationId` 展示 `REQUESTED/PENDING` 与 `COMPLETED` 结果等追加事件 |
+| 审计事件消费与幂等归档 | 已实现 | 专用 Consumer 严格校验，Inbox 去重后在短事务中只追加保存，重复消息幂等 ACK |
+| 操作阶段时间线 | 基础已实现 | 归档表保存 `operationId` 阶段事件；查询 API 按 AUD-04 接入 |
 | 操作者与目标调查 | 目标 | 提供受权限约束的多条件查询和白名单差异展示 |
-| 完整性与管道监测 | 目标 | 监测积压、非法 schema、DLQ 和超时未完整操作 |
+| 完整性与管道监测 | 基础已实现 | 输出 Inbox 处理中、非法消息、失败、DLQ 及超 deadline 未完成操作的低基数指标 |
 | 保留、归档与备份 | 目标 | 按环境政策配置，保留期长于运行日志和 Trace |
 | 审计导出治理 | 目标 | 导出自身受权限控制并产生审计，不提供默认批量下载 |
 

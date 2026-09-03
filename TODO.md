@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [ ] AUD-03 审计消费、幂等归档与完整性监测
+### [ ] AUD-04 中央查询、权限与保留治理
 
-目标：在已建立的 audit-service 与 `lm_audit` 基础上接入专用 RocketMQ 消费，严格校验版本化审计消息并以 Inbox + 追加表实现幂等归档，同时暴露归档延迟、非法消息、DLQ 和未完成阶段等低基数指标。
+目标：为已归档的操作审计提供受信内部只读查询与保留/归档治理；admin-service 只代理权限控制后的查询，不直连 `lm_audit`，并让查询、导出、保留策略和权限变更自身具备可审计边界。
 
-入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md)、`common-messaging` Inbox/重试契约、`OperationAuditMessageCodec` 与 `OperationAuditContract`。
+入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[微服务架构](docs/project/02-架构设计/微服务架构.md)、`OperationAuditCatalog` 与现有管理鉴权/Feign 约束。
 
-主流程：专用 Topic/消费组启动 → 消费线程建立 bounded attempt Trace → 解码并校验 envelope/payload/目录/字段大小 → 在短事务内 INSERT Inbox（重复消息幂等 ACK）与 `operation_audit_event`（只追加）→ 成功后 ACK，失败按固定重试并进入 DLQ → 监测归档延迟、非法 schema、Inbox/DLQ 水位以及只有 `REQUESTED/PENDING` 超过 deadline 的未完整操作；不得根据审计记录自动重做外部副作用。
+主流程：audit-service 暴露内部受保护查询 → 严格校验时间、服务、分类、操作、风险、操作者、目标、结果、`operationId`、`traceId`、`swTraceId` 和 limit → 只从 `operation_audit_event` 读取并分页返回白名单字段/差异摘要 → admin-service 复用现有权限边界代理，不保存副本 → 按环境配置在线保留、归档、备份和导出权限；查询源不可用时显式失败，不返回空成功。
 
-完成标准：重复、乱序和重放不会复制归档；未知字段、大小超限、信封不一致和不支持操作进入可观测拒绝/DLQ；应用数据库账号仍不能更新/删除归档；关键指标标签不含 operation/event/task/trace/用户 ID；`SimpleMeterRegistry`、RocketMQ 协议和隔离数据库集成验证通过。
+完成标准：普通管理员越权、通配过滤、超限分页和导出均被拒绝；不存在的结果与查询源故障可区分；服务不拥有业务数据库连接、不复制审计表；归档保留与备份策略可配置且不删除在线事实；查询/导出/保留/权限变更产生新的审计操作契约事件。
 
-修改范围：audit-service 消费/归档/完整性监测、专用 RocketMQ listener 与重试配置、低基数指标和告警、Flyway 必要增量、运行与安全门禁、正式服务/审计文档和 Runbook。
+修改范围：audit-service 查询 DTO/Controller/Repository、内部鉴权与分页、admin-service 代理和权限映射、保留/备份/导出配置、负面安全测试、正式文档和 Runbook。
 
-非目标：本卡不提供中央查询 API、管理页面或领域审计生产者，不改变业务事实和现有消息链路，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
+非目标：本卡不接入领域审计生产者、不提供前端统一审计页、不允许任何修改/删除审计事实，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -50,12 +50,6 @@
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 
 ### 阶段 4：中央操作审计基础设施
-
-#### [ ] AUD-03 审计消费、幂等归档与完整性监测
-
-- 依赖：`AUD-02`。
-- 范围：实现契约校验、Inbox 去重、只追加归档、非法 schema/DLQ、归档延迟和未完整操作检测。
-- 验收：重复、乱序和重放不会复制审计；只有 `REQUESTED/PENDING` 且超过 deadline 的操作产生告警，不自动重做外部副作用。
 
 #### [ ] AUD-04 中央查询、权限与保留治理
 

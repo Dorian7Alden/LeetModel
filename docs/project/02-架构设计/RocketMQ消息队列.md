@@ -1,6 +1,6 @@
 ## RocketMQ 消息队列
 
-> 设计状态：MQ0 至 MQ6 的五条业务链路已闭环；操作审计专用 Topic、消费组、ACL 2.0 初始化和协议门禁也已建立，audit-service 消费与领域生产者仍由操作审计后续任务接入。
+> 设计状态：MQ0 至 MQ6 的五条业务链路已闭环；操作审计专用 Topic、消费组、ACL 2.0 初始化、严格消费与幂等归档门禁也已建立，领域生产者仍由操作审计后续任务接入。
 >
 > 已验证基线：Apache RocketMQ Broker Docker 镜像 5.5.0、RocketMQ Spring 2.3.3 与 RocketMQ Client 5.3.1。Spring Boot BOM 默认的历史 Client 5.1.4 缺少 Starter 所需的 `setNamespaceV2` API，MQ4 已统一覆盖相关客户端组件并通过真实服务启动。RocketMQ 5.5.1 已发布但没有对应 Docker Hub 镜像标签，因此本地可复现环境固定为 5.5.0；JDK 17、Spring Boot 3、真实发送消费、重复投递、客户端重试、Broker 重启与数据卷恢复均有验证证据。
 
