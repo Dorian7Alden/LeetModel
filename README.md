@@ -115,7 +115,7 @@ curl -fsS http://127.0.0.1:9200/_cluster/health
 
 #### 验证 Actuator 与 Prometheus
 
-后端 13 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
+后端 14 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
 
 ```bash
 cd LeetModel-backend
@@ -128,7 +128,7 @@ cd LeetModel-backend
 
 #### 启动与验证观测栈
 
-本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 13 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
+本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 14 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
 
 ```bash
 cd LeetModel-backend
@@ -170,7 +170,7 @@ cd LeetModel-backend
 ./scripts/start-mvp.sh
 ```
 
-脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 13 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 14 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service 与端口 `8094` 的 audit-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
 AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 

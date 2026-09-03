@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [ ] AUD-02 audit-service 骨架与 lm_audit
+### [ ] AUD-03 审计消费、幂等归档与完整性监测
 
-目标：创建边界独立、可运行的 audit-service 与专属 `lm_audit` schema，以 Flyway 建立 Inbox 和只追加 `operation_audit_event`，为下一卡的 RocketMQ 消费与归档逻辑提供可靠持久化基础，但尚不接入消费者、查询 API 或领域生产者。
+目标：在已建立的 audit-service 与 `lm_audit` 基础上接入专用 RocketMQ 消费，严格校验版本化审计消息并以 Inbox + 追加表实现幂等归档，同时暴露归档延迟、非法消息、DLQ 和未完成阶段等低基数指标。
 
-入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、根 Maven 聚合与现有服务骨架、common-messaging Inbox 表契约、MySQL 初始化与最小权限配置、[数据库设计](docs/project/02-架构设计/数据库设计.md)。
+入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[RocketMQ 消息队列](docs/project/02-架构设计/RocketMQ消息队列.md)、`common-messaging` Inbox/重试契约、`OperationAuditMessageCodec` 与 `OperationAuditContract`。
 
-主流程：根 Reactor 注册 audit-service → 独立应用名/端口/Nacos/Actuator/日志与观测基线 → MySQL 初始化专属 `lm_audit` 与应用账号 → Flyway V1 创建 `message_inbox` 和只追加 `operation_audit_event` → 建立 auditEvent、operation 时间线、操作者、目标、操作结果及 Trace 索引 → 数据库权限拒绝应用账号 UPDATE/DELETE → 用隔离 MySQL 证明迁移、约束、索引、账号边界和服务真实启动。
+主流程：专用 Topic/消费组启动 → 消费线程建立 bounded attempt Trace → 解码并校验 envelope/payload/目录/字段大小 → 在短事务内 INSERT Inbox（重复消息幂等 ACK）与 `operation_audit_event`（只追加）→ 成功后 ACK，失败按固定重试并进入 DLQ → 监测归档延迟、非法 schema、Inbox/DLQ 水位以及只有 `REQUESTED/PENDING` 超过 deadline 的未完整操作；不得根据审计记录自动重做外部副作用。
 
-完成标准：服务独占 `lm_audit` 且不配置或访问任何业务 schema；Flyway 从空库可重复建立 Inbox 与追加表；`audit_event_id` 唯一且 `operation_id + occurred_at`、操作者、目标、结果和 Trace 调查索引真实存在；应用账号可 INSERT/SELECT 所需表但 UPDATE/DELETE 被 MySQL 拒绝；健康、Prometheus 与配置失败语义符合公共基线。
+完成标准：重复、乱序和重放不会复制归档；未知字段、大小超限、信封不一致和不支持操作进入可观测拒绝/DLQ；应用数据库账号仍不能更新/删除归档；关键指标标签不含 operation/event/task/trace/用户 ID；`SimpleMeterRegistry`、RocketMQ 协议和隔离数据库集成验证通过。
 
-修改范围：根 Maven、audit-service 模块/配置/最小骨架、MySQL 初始化与 Flyway、数据库账号权限、启动/迁移/安全集成测试、部署脚本、正式服务与数据库文档。
+修改范围：audit-service 消费/归档/完整性监测、专用 RocketMQ listener 与重试配置、低基数指标和告警、Flyway 必要增量、运行与安全门禁、正式服务/审计文档和 Runbook。
 
-非目标：本卡不启动 RocketMQ 消费、不实现幂等归档服务或完整性监测、不提供查询/导出、不接入任何领域生产者，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
+非目标：本卡不提供中央查询 API、管理页面或领域审计生产者，不改变业务事实和现有消息链路，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -50,12 +50,6 @@
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 
 ### 阶段 4：中央操作审计基础设施
-
-#### [ ] AUD-02 audit-service 骨架与 lm_audit
-
-- 依赖：`AUD-01`。
-- 范围：创建目标 Maven 服务、服务配置、Flyway、Inbox 和只追加 `operation_audit_event`；限制应用数据库账号的更新/删除能力。
-- 验收：服务独占 `lm_audit`，不直连业务数据库；归档唯一约束和 `operationId` 时间线、操作者、目标、操作结果索引通过集成测试。
 
 #### [ ] AUD-03 审计消费、幂等归档与完整性监测
 
