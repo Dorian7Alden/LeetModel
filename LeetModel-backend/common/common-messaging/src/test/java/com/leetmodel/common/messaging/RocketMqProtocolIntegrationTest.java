@@ -3,6 +3,9 @@ package com.leetmodel.common.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leetmodel.common.messaging.internal.JdbcMessageInbox;
+import com.leetmodel.common.messaging.internal.MessagingMetrics;
+import com.leetmodel.common.messaging.internal.ObservedMessageInbox;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
@@ -38,7 +41,8 @@ class RocketMqProtocolIntegrationTest {
 
     private static final String NAME_SERVER = "127.0.0.1:9876";
     private static final String TOPIC = "lm-dev%review-task-v1";
-    private static final String GROUP = "lm-dev%cg-ai-review-task-v1";
+    private static final String GROUP = System.getenv().getOrDefault(
+            "ROCKETMQ_INTEGRATION_GROUP", "lm-dev%cg-ai-review-task-v1");
 
     @Test
     @Timeout(45)
@@ -52,7 +56,7 @@ class RocketMqProtocolIntegrationTest {
         );
         MessageEnvelopeV1<Map<String, String>> duplicateEnvelope = envelope(UUID.randomUUID().toString());
         MessageEnvelopeV1<Map<String, String>> retryEnvelope = envelope(UUID.randomUUID().toString());
-        JdbcMessageInbox inbox = inbox(suffix);
+        MessageInbox inbox = inbox(suffix);
         AtomicInteger domainActions = new AtomicInteger();
         AtomicInteger observedRetryTimes = new AtomicInteger(-1);
         CountDownLatch duplicateDeliveries = new CountDownLatch(2);
@@ -111,7 +115,7 @@ class RocketMqProtocolIntegrationTest {
     private ConsumeConcurrentlyStatus consume(
             MessageExt message,
             MessageCodec codec,
-            JdbcMessageInbox inbox,
+            MessageInbox inbox,
             AtomicInteger domainActions,
             CountDownLatch duplicateDeliveries,
             CountDownLatch retryDelivery,
@@ -128,7 +132,9 @@ class RocketMqProtocolIntegrationTest {
         }
 
         MessageEnvelopeV1<?> envelope = codec.decode(message.getBody(), Map.class);
-        inbox.executeOnce("cg-ai-review-task-v1", envelope, domainActions::incrementAndGet);
+        try (CorrelationContext.Scope ignored = MessageCorrelationContext.open(envelope)) {
+            inbox.executeOnce("cg-ai-review-task-v1", envelope, domainActions::incrementAndGet);
+        }
         duplicateDeliveries.countDown();
         return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
     }
@@ -165,16 +171,17 @@ class RocketMqProtocolIntegrationTest {
         );
     }
 
-    private JdbcMessageInbox inbox(String suffix) {
+    private MessageInbox inbox(String suffix) {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:rocketmq-" + suffix
                 + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
         new ResourceDatabasePopulator(new ClassPathResource("messaging-schema.sql")).execute(dataSource);
-        return new JdbcMessageInbox(
+        JdbcMessageInbox jdbcInbox = new JdbcMessageInbox(
                 new JdbcTemplate(dataSource),
                 new TransactionTemplate(new DataSourceTransactionManager(dataSource)),
                 new MessagingNamespace("lm-dev"),
                 Clock.fixed(Instant.now(), ZoneOffset.UTC)
         );
+        return new ObservedMessageInbox(jdbcInbox, new MessagingMetrics(null, null, jdbcInbox));
     }
 }

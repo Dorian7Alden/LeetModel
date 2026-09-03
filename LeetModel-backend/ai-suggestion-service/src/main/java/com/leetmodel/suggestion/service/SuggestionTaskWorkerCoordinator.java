@@ -5,6 +5,9 @@ import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
 import com.leetmodel.suggestion.observability.SuggestionTaskMetrics;
 import com.leetmodel.common.core.logging.DomainTaskLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -78,7 +81,13 @@ public class SuggestionTaskWorkerCoordinator {
                     candidate == null || candidate.getAttemptNo() == null
                             ? null : candidate.getAttemptNo() + 1, takeover);
             activeLeases.put(taskId, token);
-            submit(taskId, token);
+            Integer attemptNo = candidate == null || candidate.getAttemptNo() == null
+                    ? 1 : candidate.getAttemptNo() + 1;
+            CorrelationSnapshot correlation = CorrelationSnapshot.EMPTY
+                    .withTraceId(candidate == null ? null : candidate.getTraceId())
+                    .withDomainTask(taskId.toString(), attemptNo)
+                    .withAiCallId(candidate == null ? null : candidate.getAiCallId());
+            submit(taskId, token, takeover, correlation);
         }
     }
 
@@ -89,28 +98,32 @@ public class SuggestionTaskWorkerCoordinator {
                 taskId, owner, token, now, now.plusSeconds(properties.getLeaseSeconds())));
     }
 
-    private void submit(Long taskId, String token) {
+    private void submit(Long taskId, String token, boolean takeover, CorrelationSnapshot correlation) {
         try {
             executor.execute(() -> {
                 long started = System.nanoTime();
-                try {
-                    suggestionService.executeClaimed(taskId, owner, token);
-                } finally {
+                try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
+                        ExecutionSpanOperation.SUGGESTION_WORKER, correlation).attemptKind(takeover)) {
                     try {
-                        SuggestionTask completed = taskMapper.selectById(taskId);
-                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                        DomainTaskLogEvents.finished(log, "suggestion", taskId,
-                                completed == null ? null : completed.getAttemptNo(),
-                                completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                    } catch (RuntimeException exception) {
-                        log.debug("建议 attempt 指标不可用: type={}",
-                                exception.getClass().getSimpleName());
+                        suggestionService.executeClaimed(taskId, owner, token);
                     } finally {
-                        activeLeases.remove(taskId, token);
-                        permits.release();
-                        drain();
+                        try {
+                            SuggestionTask completed = taskMapper.selectById(taskId);
+                            String status = completed == null ? null : completed.getStatus();
+                            metrics.attemptFinished(status, System.nanoTime() - started);
+                            DomainTaskLogEvents.finished(log, "suggestion", taskId,
+                                    completed == null ? null : completed.getAttemptNo(), status,
+                                    System.nanoTime() - started);
+                            finishSpan(span, status);
+                        } catch (RuntimeException exception) {
+                            span.outcome("observation_failed").error("observation");
+                            log.debug("建议 attempt 指标不可用: type={}",
+                                    exception.getClass().getSimpleName());
+                        } finally {
+                            activeLeases.remove(taskId, token);
+                            permits.release();
+                            drain();
+                        }
                     }
                 }
             });
@@ -120,5 +133,12 @@ public class SuggestionTaskWorkerCoordinator {
             permits.release();
             DomainTaskLogEvents.executorRejected(log, "suggestion", taskId);
         }
+    }
+
+    private void finishSpan(SkyWalkingExecutionSpan span, String status) {
+        String outcome = status == null ? "unresolved" : status;
+        span.outcome(outcome);
+        if ("FAILED".equals(status)) span.error("domain_failure");
+        if ("UNKNOWN".equals(status)) span.error("result_unknown");
     }
 }

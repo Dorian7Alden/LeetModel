@@ -14,6 +14,8 @@
 
 消费端先通过 `MessageCodec.decode` 校验消息，再调用 `MessageInbox.executeOnce`。Inbox 唯一键为 `consumer_group + event_id`，首次消息的 Inbox 与调用方短事务动作一起提交；动作抛异常时两者一起回滚，重复消息返回 `DUPLICATE`。不要在 `domainAction` 中执行远程调用或长计算。
 
+每次 Outbox 发布由 `Messaging/OutboxPublishAttempt` 包围，每次 Inbox 事务由 `Messaging/InboxConsumeAttempt` 包围。Relay 从持久化信封恢复业务 Trace、Event 和可选 Operation；消费端只在信封通过校验后打开 Span。成功、重试、阻断、正常消费、重复抑制和事务失败都使用固定结果/错误分类。Topic、消费组、eventId、消息 Key 和 Payload 不进入自定义 Span tag。RocketMQ 5.3.1 生产端 Exit Span 仍由 Agent 管理；兼容 Agent 未观察到消费端 Entry，因此由 Inbox 边界提供消费侧业务 Entry。
+
 ### 数据表契约
 
 每个生产服务通过自己的 Flyway 迁移创建 `message_outbox`，至少包含事件、物理 Topic、Tag、Key、契约字段、JSON、`PENDING/SENDING/PUBLISHED/BLOCKED` 状态、重试时间、租约、Broker messageId、错误摘要和审计时间，并建立 `(status, next_attempt_at, lease_expires_at, create_time)` 索引。
@@ -73,8 +75,10 @@ cd LeetModel-backend
 docker compose up -d --wait rocketmq-namesrv rocketmq-broker
 ./scripts/init-rocketmq.sh
 ./scripts/verify-rocketmq.sh
+./scripts/verify-skywalking-async.sh
 mvn -pl common/common-messaging test
 RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test
+./scripts/verify-skywalking-async.sh --runtime
 ```
 
-最后一条命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。
+RocketMQ 集成命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。SkyWalking 运行门禁使用唯一临时消费组，并直接在 OAP 验证 Outbox 成功/重试、Inbox consumed/duplicate、Producer Exit、独立 attempt Trace ID 与 tag 最小化。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。

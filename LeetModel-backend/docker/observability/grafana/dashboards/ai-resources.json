@@ -3,6 +3,11 @@
   "description": "AI P0-P4 调度队列、延迟、Token、费用完整性与 UNKNOWN 结果。",
   "editable": false,
   "graphTooltip": 1,
+  "links": [
+    {"asDropdown": true, "includeVars": false, "keepTime": true, "targetBlank": false, "title": "告警与联合定位", "type": "link", "url": "/alerting/list"},
+    {"asDropdown": false, "includeVars": false, "keepTime": true, "targetBlank": true, "title": "SkyWalking Trace", "type": "link", "url": "http://127.0.0.1:18080"},
+    {"asDropdown": false, "includeVars": false, "keepTime": true, "targetBlank": true, "title": "AI 事实查询", "type": "link", "url": "http://127.0.0.1:8080/api/admin/ai/queue?state=FAILED"}
+  ],
   "panels": [
     {
       "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},

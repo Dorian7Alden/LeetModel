@@ -2,6 +2,7 @@ package com.leetmodel.evaluation.service;
 
 import com.leetmodel.evaluation.config.EvaluationWorkerProperties;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
+import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
 import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class EvaluationWorkerCoordinatorTest {
     @Mock EvaluationRunAttemptMapper runMapper;
+    @Mock EvaluationTaskMapper taskMapper;
     @Mock EvaluationService evaluationService;
     @Mock OnlineCorePressureGuard pressureGuard;
     @Mock ThreadPoolTaskExecutor executor;
@@ -33,7 +35,7 @@ class EvaluationWorkerCoordinatorTest {
         properties.setConcurrency(1);
         properties.setLeaseSeconds(120);
         coordinator = new EvaluationWorkerCoordinator(
-                runMapper, evaluationService, properties, pressureGuard, executor, metrics);
+                runMapper, taskMapper, evaluationService, properties, pressureGuard, executor, metrics);
     }
 
     @Test

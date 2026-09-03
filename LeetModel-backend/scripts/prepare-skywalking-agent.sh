@@ -30,6 +30,15 @@ activate_optional_plugins() {
     fi
     cp "${plugin_path}" "${agent_home}/plugins/"
   done
+
+  for activation in \
+      'apm-toolkit-trace-activation-9.7.0.jar' \
+      'apm-toolkit-logback-1.x-activation-9.7.0.jar'; do
+    if [[ ! -f "${agent_home}/activations/${activation}" ]]; then
+      echo "未找到 SkyWalking Toolkit activation：${activation}" >&2
+      exit 1
+    fi
+  done
 }
 
 if [[ -f "${AGENT_JAR}" ]]; then

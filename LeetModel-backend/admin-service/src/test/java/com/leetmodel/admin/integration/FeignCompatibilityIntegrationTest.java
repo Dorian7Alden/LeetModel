@@ -2,7 +2,13 @@ package com.leetmodel.admin.integration;
 
 import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.api.feign.UserFeignFallback;
+import com.leetmodel.common.api.feign.SkyWalkingFeignCapability;
+import com.leetmodel.common.api.feign.TraceIdFeignInterceptor;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.SkyWalkingCorrelation;
+import org.apache.skywalking.apm.toolkit.trace.Trace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.SpringBootConfiguration;
@@ -30,7 +36,8 @@ class FeignCompatibilityIntegrationTest {
     @SpringBootConfiguration
     @EnableAutoConfiguration
     @EnableFeignClients(clients = UserFeignClient.class)
-    @Import(UserFeignFallback.class)
+    @Import({UserFeignFallback.class, TraceIdFeignInterceptor.class,
+            SkyWalkingFeignCapability.class})
     static class TestApplication {
     }
 
@@ -38,8 +45,16 @@ class FeignCompatibilityIntegrationTest {
     private UserFeignClient userFeignClient;
 
     @Test
+    @Trace(operationName = "trace-contract/feign-user-count")
     void shouldCallSpringBoot3ServiceWithOpenFeign() {
-        Result<Long> result = userFeignClient.getUserCount();
+        String traceId = System.getenv().getOrDefault(
+                "OBSERVABILITY_COMPATIBILITY_TRACE_ID", "feign-compatibility-trace");
+        Result<Long> result;
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(
+                CorrelationSnapshot.EMPTY.withTraceId(traceId))) {
+            SkyWalkingCorrelation.bindBusinessTraceId(traceId);
+            result = userFeignClient.getUserCount();
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.isSuccess()).isTrue();

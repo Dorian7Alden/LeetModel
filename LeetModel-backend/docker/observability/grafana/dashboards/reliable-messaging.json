@@ -3,6 +3,11 @@
   "description": "Outbox、Inbox、RocketMQ 消费积压和 DLQ 的收敛视图。",
   "editable": false,
   "graphTooltip": 1,
+  "links": [
+    {"asDropdown": true, "includeVars": false, "keepTime": true, "targetBlank": false, "title": "告警与联合定位", "type": "link", "url": "/alerting/list"},
+    {"asDropdown": false, "includeVars": false, "keepTime": true, "targetBlank": true, "title": "SkyWalking Trace", "type": "link", "url": "http://127.0.0.1:18080"},
+    {"asDropdown": false, "includeVars": false, "keepTime": true, "targetBlank": true, "title": "消息事实查询", "type": "link", "url": "http://127.0.0.1:8080/api/admin/messaging/overview"}
+  ],
   "panels": [
     {
       "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},

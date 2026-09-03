@@ -5,6 +5,9 @@ import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.observability.ReviewTaskMetrics;
 import com.leetmodel.common.core.logging.DomainTaskLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -83,7 +86,10 @@ public class ReviewTaskWorkerCoordinator {
             DomainTaskLogEvents.claimed(log, "review", candidate.getId(),
                     candidate.getAttemptNo() == null ? null : candidate.getAttemptNo() + 1, takeover);
             activeLeases.put(candidate.getId(), token);
-            submit(candidate.getId(), token);
+            Integer attemptNo = candidate.getAttemptNo() == null ? 1 : candidate.getAttemptNo() + 1;
+            submit(candidate.getId(), token, takeover, CorrelationSnapshot.EMPTY
+                    .withTraceId(candidate.getTraceId())
+                    .withDomainTask(candidate.getId().toString(), attemptNo));
         }
     }
 
@@ -97,27 +103,31 @@ public class ReviewTaskWorkerCoordinator {
                 taskId, owner, token, now, now.plusSeconds(properties.getLeaseSeconds())));
     }
 
-    private void submit(Long taskId, String token) {
+    private void submit(Long taskId, String token, boolean takeover, CorrelationSnapshot correlation) {
         try {
             executor.execute(() -> {
                 long started = System.nanoTime();
-                try {
-                    worker.execute(taskId, owner, token);
-                } finally {
+                try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
+                        ExecutionSpanOperation.REVIEW_WORKER, correlation).attemptKind(takeover)) {
                     try {
-                        ReviewTask completed = taskMapper.selectById(taskId);
-                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                        DomainTaskLogEvents.finished(log, "review", taskId,
-                                completed == null ? null : completed.getAttemptNo(),
-                                completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                    } catch (RuntimeException exception) {
-                        log.debug("评审 attempt 指标不可用: type={}",
-                                exception.getClass().getSimpleName());
+                        worker.execute(taskId, owner, token);
                     } finally {
-                        activeLeases.remove(taskId, token);
-                        permits.release();
+                        try {
+                            ReviewTask completed = taskMapper.selectById(taskId);
+                            String status = completed == null ? null : completed.getStatus();
+                            metrics.attemptFinished(status, System.nanoTime() - started);
+                            DomainTaskLogEvents.finished(log, "review", taskId,
+                                    completed == null ? null : completed.getAttemptNo(), status,
+                                    System.nanoTime() - started);
+                            finishSpan(span, status);
+                        } catch (RuntimeException exception) {
+                            span.outcome("observation_failed").error("observation");
+                            log.debug("评审 attempt 指标不可用: type={}",
+                                    exception.getClass().getSimpleName());
+                        } finally {
+                            activeLeases.remove(taskId, token);
+                            permits.release();
+                        }
                     }
                 }
             });
@@ -127,5 +137,12 @@ public class ReviewTaskWorkerCoordinator {
             permits.release();
             DomainTaskLogEvents.executorRejected(log, "review", taskId);
         }
+    }
+
+    private void finishSpan(SkyWalkingExecutionSpan span, String status) {
+        String outcome = status == null ? "unresolved" : status;
+        span.outcome(outcome);
+        if ("FAILED".equals(status)) span.error("domain_failure");
+        if ("UNKNOWN".equals(status)) span.error("result_unknown");
     }
 }

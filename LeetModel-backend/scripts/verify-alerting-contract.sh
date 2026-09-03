@@ -119,6 +119,32 @@ for path, rule in alerts:
     if not separator or anchor not in anchor_set(runbook):
         raise SystemExit(f"{name} Runbook anchor 不存在：{runbook_ref}")
 
+correlation_contracts = {
+    ("LeetModelOutboxPublishDelayed", "warning"):
+        ("Messaging/OutboxPublishAttempt", "OUTBOX_PUBLISH_RETRY"),
+    ("LeetModelOutboxPublishDelayed", "critical"):
+        ("Messaging/OutboxPublishAttempt", "OUTBOX_PUBLISH_RETRY"),
+    ("LeetModelOutboxBlocked", "critical"):
+        ("Messaging/OutboxPublishAttempt", "OUTBOX_PUBLISH_BLOCKED"),
+    ("LeetModelAiUpstreamResultUnknown", "critical"):
+        ("AI/RecoveryAttempt", "AI_CALL_RESULT_UNKNOWN"),
+}
+for path, rule in alerts:
+    key = (rule["alert"], rule.get("labels", {}).get("severity"))
+    if key not in correlation_contracts:
+        continue
+    annotations = rule.get("annotations", {})
+    missing = {"correlation_contract", "trace_operation", "log_event_code", "fact_query"} - annotations.keys()
+    if missing:
+        raise SystemExit(f"{rule['alert']} 缺少联合定位注解：{sorted(missing)}")
+    if annotations["correlation_contract"] != "leetmodel.correlation.v1":
+        raise SystemExit(f"{rule['alert']} correlation_contract 版本错误")
+    operation, event_code = correlation_contracts[key]
+    if annotations["trace_operation"] != operation or annotations["log_event_code"] != event_code:
+        raise SystemExit(f"{rule['alert']} Trace operation/log event 契约不匹配")
+    if not str(annotations["fact_query"]).startswith("/api/admin/"):
+        raise SystemExit(f"{rule['alert']} fact_query 必须是只读管理端点")
+
 expected = {
     "LeetModelServiceMetricsUnavailable",
     "LeetModelServiceDiscoveryIncomplete",

@@ -2,6 +2,7 @@ package com.leetmodel.common.core.filter;
 
 import com.leetmodel.common.core.telemetry.CorrelationContext;
 import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.SkyWalkingCorrelation;
 import com.leetmodel.common.core.logging.LogEventCodes;
 import com.leetmodel.common.core.logging.LogFieldNames;
 import jakarta.servlet.FilterChain;
@@ -56,13 +57,14 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         String inboundOperationId = request.getHeader(CorrelationContext.OPERATION_ID_HEADER);
         String operationId = CorrelationContext.isValidHttpId(inboundOperationId)
                 ? inboundOperationId.trim() : null;
-        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+        CorrelationSnapshot snapshot = SkyWalkingCorrelation.enrich(CorrelationSnapshot.EMPTY
                 .withTraceId(traceId)
-                .withOperationId(operationId);
+                .withOperationId(operationId));
         long started = System.nanoTime();
         Throwable failure = null;
 
         try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
+            SkyWalkingCorrelation.bindBusinessTraceId(traceId);
             response.setHeader(TRACE_ID_HEADER, traceId);
             try {
                 filterChain.doFilter(request, response);

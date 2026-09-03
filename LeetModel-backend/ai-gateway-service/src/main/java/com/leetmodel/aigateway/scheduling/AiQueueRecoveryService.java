@@ -6,6 +6,9 @@ import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -47,36 +50,57 @@ public class AiQueueRecoveryService {
 
     private int recover(AiCallTask task, LocalDateTime now) {
         AiCallAttempt attempt = attemptMapper.selectLatest(task.getTaskId());
-        if (attempt == null) {
-            int updated = "LEASED".equals(task.getState())
-                    ? taskMapper.releaseExpiredLeaseWithoutAttempt(task.getTaskId(), now) : 0;
-            if (updated == 1) metrics.recovered("released_without_attempt");
-            return updated;
-        }
-        if ("PREPARED".equals(attempt.getState())) {
-            if (attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "FAILED",
-                    "AI_LEASE_EXPIRED_BEFORE_DISPATCH", now) != 1) return 0;
-            int updated = taskMapper.requeueExpiredBeforeDispatch(task.getTaskId(), task.getVersion(), now);
-            if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
-            metrics.recovered("requeued_before_dispatch");
-            return updated;
-        }
-        if ("RUNNING".equals(task.getState())
-                && ("DISPATCHING".equals(attempt.getState()) || "ACKNOWLEDGED".equals(attempt.getState()))) {
-            if (attemptMapper.transition(attempt.getAttemptId(), attempt.getState(), "UNKNOWN",
-                    UNKNOWN_RESULT, now) != 1) return 0;
-            int updated = taskMapper.failExpiredRunningUnknown(task.getTaskId(), task.getVersion(), now);
-            if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
-            if (updated == 1) {
-                metrics.recovered("upstream_result_unknown");
-                AiCallTask terminal = taskMapper.selectByTaskId(task.getTaskId());
-                metrics.terminal(terminal, "upstream_result_unknown");
-                AiCallLogEvents.resultUnknown(log, terminal.getCallId(), terminal.getCallType(),
-                        terminal.getEffectivePriority(), terminal.getTaskId(), attempt.getAttemptNo());
-                waitRegistry.complete(terminal);
+        CorrelationSnapshot correlation = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getTaskId(), attempt == null ? null : attempt.getAttemptNo())
+                .withAiCallId(task.getCallId());
+        try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
+                ExecutionSpanOperation.AI_RECOVERY, correlation)
+                .aiCallType(task.getCallType()).aiPriority(task.getEffectivePriority())) {
+            if (attempt == null) {
+                int updated = "LEASED".equals(task.getState())
+                        ? taskMapper.releaseExpiredLeaseWithoutAttempt(task.getTaskId(), now) : 0;
+                if (updated == 1) metrics.recovered("released_without_attempt");
+                span.outcome(updated == 1 ? "released_without_attempt" : "state_conflict");
+                return updated;
             }
-            return updated;
+            if ("PREPARED".equals(attempt.getState())) {
+                if (attemptMapper.transition(attempt.getAttemptId(), "PREPARED", "FAILED",
+                        "AI_LEASE_EXPIRED_BEFORE_DISPATCH", now) != 1) {
+                    span.outcome("state_conflict");
+                    return 0;
+                }
+                int updated = taskMapper.requeueExpiredBeforeDispatch(task.getTaskId(), task.getVersion(), now);
+                if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
+                metrics.recovered("requeued_before_dispatch");
+                span.outcome("requeued_before_dispatch");
+                return updated;
+            }
+            if ("RUNNING".equals(task.getState())
+                    && ("DISPATCHING".equals(attempt.getState()) || "ACKNOWLEDGED".equals(attempt.getState()))) {
+                if (attemptMapper.transition(attempt.getAttemptId(), attempt.getState(), "UNKNOWN",
+                        UNKNOWN_RESULT, now) != 1) {
+                    span.outcome("state_conflict");
+                    return 0;
+                }
+                int updated = taskMapper.failExpiredRunningUnknown(task.getTaskId(), task.getVersion(), now);
+                if (updated != 1) throw new IllegalStateException("AI 恢复状态冲突");
+                if (updated == 1) {
+                    metrics.recovered("upstream_result_unknown");
+                    AiCallTask terminal = taskMapper.selectByTaskId(task.getTaskId());
+                    metrics.terminal(terminal, "upstream_result_unknown");
+                    AiCallLogEvents.resultUnknown(log, terminal.getCallId(), terminal.getCallType(),
+                            terminal.getEffectivePriority(), terminal.getTaskId(), attempt.getAttemptNo());
+                    waitRegistry.complete(terminal);
+                }
+                span.outcome("upstream_result_unknown").error("result_unknown");
+                return updated;
+            }
+            span.outcome("not_applicable");
+            return 0;
+        } catch (RuntimeException exception) {
+            // 事务仍按原语义回滚；异常正文不会进入 Span。
+            throw exception;
         }
-        return 0;
     }
 }

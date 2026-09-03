@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] TRACE-01 Java Agent 自动埋点接入
+### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
 
-目标：让 13 个服务统一接入固定版本的 SkyWalking Java Agent，并形成可复现的 Gateway → Feign → 下游 MVC → JDBC 同步 Trace 与服务拓扑；保留业务 `traceId`，使其与 `swTraceId` 可双向定位。
+目标：定义能跨服务一致生产、可由 audit-service 严格校验和归档的最小操作审计信封与 P0 操作目录；建立独立的 RocketMQ Topic、消费组、ACL、重试与 DLQ 边界，但尚不创建 audit-service 或修改业务生产者。
 
-入口：OBS-01 锁定的 Agent 9.7.0、OAP 11.0.0 与 BanyanDB 0.11.0 基线，OBS-02 的业务关联上下文，以及 [可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md)、[可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md) 和 [关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
+入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、现有 `common-messaging` 信封/Outbox 契约、RocketMQ 初始化与观测资源配置、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
 
-主流程：统一 Agent 下载校验、可选插件与 13 服务启动参数 → 配置稳定的 service、environment、serviceVersion、instance 资源字段和分环境采样 → 真实验证 Gateway/WebFlux、MVC、JDBC 与 RocketMQ 自动埋点边界 → 为已确认不受支持的 OpenFeign 4.1.3/Feign 13.3 客户端补充与 Agent 兼容的有界增强和 SW8 传播 → 将 Agent 当前 Trace/Span 安全映射到公共 MDC，使结构化日志同时保存业务 `traceId` 与 `swTraceId/swSpanId` → 验证同步调用拓扑、采样行为、日志反查和 OAP 中断 fail-open。
+主流程：审计 `auditEventId=eventId` → `REQUESTED/PENDING`、`COMPLETED/SUCCEEDED|FAILED` 事实 → 只允许目录中的 `operationCode`、风险等级、操作者/目标类型和前后差异白名单 → 编码前限制 64 KiB、版本和枚举 → 创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1`、固定重试/DLQ 和 ACL → 以静态、序列化和真实 RocketMQ 协议门禁证明未知 schema/操作 fail-fast、无敏感正文或泛化实体快照。
 
-完成标准：13 个服务可由同一开关附加 Agent 且不开启时保持旧启动语义；一条典型请求可从 Gateway 追踪到 Feign 下游和 MySQL Span，服务、版本、环境与实例资源可筛选；结构化日志中的业务 `traceId` 可定位 SkyWalking Trace，SkyWalking Trace 也可回查同一业务日志；采样关闭或 Trace 丢失不破坏业务 `traceId`，OAP 不可用不阻塞请求。
+完成标准：公共契约对未知 schema、operation、状态组合、超长/敏感字段 fail-fast；`auditEventId` 与消息 `eventId` 一致且消息小于 64 KiB；Topic/消费组/ACL/重试/DLQ 通过隔离 Broker 验收；不记录 Password、Token、Prompt、回答、Payload、论文正文或未声明字段。
 
-修改范围：Agent 准备与启动脚本、必要的可选插件或兼容增强、公共 SkyWalking/MDC 桥接、13 服务资源与采样配置、同步链与协议验收脚本、Runbook 和正式可观测文档。
+修改范围：公共 API/消息契约、P0 操作目录和白名单、RocketMQ 资源/初始化/观测配置、契约/安全/集成测试、正式设计文档与 Runbook。
 
-非目标：本卡不为 Outbox/Inbox、消费 ACK 后 Worker、租约接管或两阶段 AI 调度建立自定义 attempt Span（留给 TRACE-02），不引入 Micrometer Tracing/OpenTelemetry 第二套 Trace，不把 Prompt、论文、回答、知识片段、消息 Payload 或凭据写入 Span，也不改动 `cli-proxy-api` 或现有标准端口业务进程。
+非目标：本卡不创建 `audit-service` 数据库或消费者、不接入领域生产者、不提供审计查询/导出、不自动执行业务补偿，也不修改 `cli-proxy-api` 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -49,28 +49,9 @@
 
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 
-#### [ ] TRACE-01 Java Agent 自动埋点接入
-
-- 依赖：`OBS-01`、`OBS-02`。
-- 范围：为 13 个当前服务接入 Agent，验证 Gateway、HTTP、Feign、JDBC、RocketMQ 和服务拓扑；建立环境、版本、实例资源标签与采样配置。
-- 验收：典型同步请求可以从 Gateway 追踪到下游和数据库；业务 `traceId` 与 SkyWalking Trace 可双向定位。
-
-#### [ ] TRACE-02 异步边界与 Worker attempt Span
-
-- 依赖：`TRACE-01`。
-- 范围：为 Outbox Relay、Inbox 短事务、领域任务创建、租约 Worker attempt、AI 调度/调用和派生事件补充必要的自定义 Span；不记录业务正文。
-- 验收：评审、建议和评价的每个物理 attempt 都是有界 Trace；租约接管产生新 Trace/attempt，同时仍能通过持久化业务标识串联完整生命周期。
-
-#### [ ] TRACE-03 Trace、日志、指标联合验收
-
-- 依赖：`MET-04`、`LOG-03`、`TRACE-02`。
-- 范围：打通 Grafana 告警、SkyWalking Trace/日志、业务关联查询和 AI Call 事实。
-- 验收：从一条积压或 UNKNOWN 告警能够定位执行阶段、脱敏错误、领域任务、attempt 和 AI Call；采样后仍可依靠业务 `traceId` 解释结果。
-
-
 ### 阶段 4：中央操作审计基础设施
 
-#### [ ] AUD-01 审计契约、操作目录与专用 MQ 资源
+#### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
 
 - 依赖：`OBS-02`。
 - 范围：定义公共审计信封、`REQUESTED/PENDING` 与 `COMPLETED` 结果、字段白名单、风险等级和 P0 操作目录；创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1` 及 ACL/重试/DLQ 配置。

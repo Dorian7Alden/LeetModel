@@ -2,9 +2,14 @@ package com.leetmodel.evaluation.service;
 
 import com.leetmodel.evaluation.config.EvaluationWorkerProperties;
 import com.leetmodel.evaluation.entity.EvaluationRunAttempt;
+import com.leetmodel.evaluation.entity.EvaluationTask;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
+import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
 import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import com.leetmodel.common.core.logging.DomainTaskLogEvents;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
+import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,6 +30,7 @@ import java.util.concurrent.Semaphore;
         havingValue = "true", matchIfMissing = true)
 public class EvaluationWorkerCoordinator {
     private final EvaluationRunAttemptMapper runMapper;
+    private final EvaluationTaskMapper taskMapper;
     private final EvaluationService evaluationService;
     private final EvaluationWorkerProperties properties;
     private final OnlineCorePressureGuard pressureGuard;
@@ -36,12 +42,14 @@ public class EvaluationWorkerCoordinator {
     private final String owner = "ai-evaluation-service:" + UUID.randomUUID();
 
     public EvaluationWorkerCoordinator(EvaluationRunAttemptMapper runMapper,
+                                       EvaluationTaskMapper taskMapper,
                                        EvaluationService evaluationService,
                                        EvaluationWorkerProperties properties,
                                        OnlineCorePressureGuard pressureGuard,
                                        @Qualifier("evaluationTaskExecutor") ThreadPoolTaskExecutor executor,
                                        EvaluationDispatchMetrics metrics) {
         this.runMapper = runMapper;
+        this.taskMapper = taskMapper;
         this.evaluationService = evaluationService;
         this.properties = properties;
         this.pressureGuard = pressureGuard;
@@ -77,7 +85,13 @@ public class EvaluationWorkerCoordinator {
             DomainTaskLogEvents.claimed(log, "evaluation", runId,
                     claimed == null ? null : claimed.getAttemptNo(), false);
             activeLeases.put(runId, token);
-            submit(runId, token);
+            EvaluationTask task = claimed == null || claimed.getTaskId() == null
+                    ? null : taskMapper.selectById(claimed.getTaskId());
+            CorrelationSnapshot correlation = CorrelationSnapshot.EMPTY
+                    .withTraceId(task == null ? null : task.getTraceId())
+                    .withDomainTask(runId.toString(), claimed == null ? null : claimed.getAttemptNo())
+                    .withAiCallId(claimed == null ? null : claimed.getAiCallId());
+            submit(runId, token, correlation);
         }
     }
 
@@ -88,28 +102,34 @@ public class EvaluationWorkerCoordinator {
                 runId, owner, token, now, now.plusSeconds(properties.getLeaseSeconds())));
     }
 
-    private void submit(Long runId, String token) {
+    private void submit(Long runId, String token, CorrelationSnapshot correlation) {
         try {
             executor.execute(() -> {
                 long started = System.nanoTime();
-                try {
-                    evaluationService.executeClaimed(runId, token);
-                } finally {
+                try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
+                        ExecutionSpanOperation.EVALUATION_WORKER, correlation).attemptKind(false)) {
                     try {
-                        EvaluationRunAttempt completed = runMapper.selectById(runId);
-                        metrics.attemptFinished(completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                        DomainTaskLogEvents.finished(log, "evaluation", runId,
-                                completed == null ? null : completed.getAttemptNo(),
-                                completed == null ? null : completed.getStatus(),
-                                System.nanoTime() - started);
-                    } catch (RuntimeException exception) {
-                        log.debug("评价 attempt 指标不可用: type={}",
-                                exception.getClass().getSimpleName());
+                        evaluationService.executeClaimed(runId, token);
                     } finally {
-                        activeLeases.remove(runId, token);
-                        permits.release();
-                        drain();
+                        try {
+                            EvaluationRunAttempt completed = runMapper.selectById(runId);
+                            String status = completed == null ? null : completed.getStatus();
+                            metrics.attemptFinished(status, System.nanoTime() - started);
+                            DomainTaskLogEvents.finished(log, "evaluation", runId,
+                                    completed == null ? null : completed.getAttemptNo(), status,
+                                    System.nanoTime() - started);
+                            span.outcome(status == null ? "unresolved" : status);
+                            if ("FAILED".equals(status)) span.error("domain_failure");
+                            if ("UNKNOWN".equals(status)) span.error("result_unknown");
+                        } catch (RuntimeException exception) {
+                            span.outcome("observation_failed").error("observation");
+                            log.debug("评价 attempt 指标不可用: type={}",
+                                    exception.getClass().getSimpleName());
+                        } finally {
+                            activeLeases.remove(runId, token);
+                            permits.release();
+                            drain();
+                        }
                     }
                 }
             });

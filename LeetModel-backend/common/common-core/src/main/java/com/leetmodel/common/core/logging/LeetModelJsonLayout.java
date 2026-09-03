@@ -6,6 +6,7 @@ import ch.qos.logback.classic.spi.StackTraceElementProxy;
 import ch.qos.logback.core.LayoutBase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.common.core.telemetry.SkyWalkingCorrelation;
 import org.slf4j.event.KeyValuePair;
 
 import java.time.Instant;
@@ -71,8 +72,12 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         value.put("thread", LogSanitizer.field(event.getThreadName()));
 
         value.put(LogFieldNames.TRACE_ID, identifier(structured, mdc, LogFieldNames.TRACE_ID));
-        value.put(LogFieldNames.SW_TRACE_ID, identifier(structured, mdc, LogFieldNames.SW_TRACE_ID));
-        value.put(LogFieldNames.SW_SPAN_ID, identifier(structured, mdc, LogFieldNames.SW_SPAN_ID));
+        value.put(LogFieldNames.SW_TRACE_ID, firstIdentifier(
+                identifier(structured, mdc, LogFieldNames.SW_TRACE_ID),
+                SkyWalkingCorrelation.traceId()));
+        value.put(LogFieldNames.SW_SPAN_ID, firstIdentifier(
+                identifier(structured, mdc, LogFieldNames.SW_SPAN_ID),
+                SkyWalkingCorrelation.spanId()));
         value.put(LogFieldNames.REQUEST_ID, identifier(structured, mdc, LogFieldNames.REQUEST_ID));
         value.put(LogFieldNames.OPERATION_ID, identifier(structured, mdc, LogFieldNames.OPERATION_ID));
 
@@ -152,6 +157,10 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         if (structuredValue != null) return LogSanitizer.identifier(String.valueOf(structuredValue));
         String mdcValue = mdc.get(key);
         return mdcValue == null || mdcValue.isBlank() ? null : LogSanitizer.identifier(mdcValue);
+    }
+
+    private String firstIdentifier(String preferred, String fallback) {
+        return preferred == null ? LogSanitizer.identifier(fallback) : preferred;
     }
 
     private Integer integer(Map<String, Object> structured, Map<String, String> mdc, String key) {
