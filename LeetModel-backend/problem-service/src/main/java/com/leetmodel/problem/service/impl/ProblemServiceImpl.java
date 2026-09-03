@@ -13,6 +13,7 @@ import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
 import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.cache.ProblemDetailReadModel;
+import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
@@ -61,6 +62,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private final ContestMapper contestMapper;
     private final ObjectProvider<StorageService> storageServiceProvider;
     private final CacheInvalidator cacheInvalidator;
+    private final ProblemAuditEventProducer audit;
 
     // ==================== 分页查询 ====================
 
@@ -472,6 +474,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         problem.setCode(nextProblemCode());
 
         save(problem);
+        audit.problemCreated(problem.getId());
         log.info("创建题目完成: id={}", problem.getId());
 
         // 保存标签
@@ -539,6 +542,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         if (request.getTagIds() != null) {
             tagNames = replaceTags(id, request.getTagIds());
         }
+        if (changed || request.getTagIds() != null) audit.problemUpdated(id);
 
         log.info("更新题目: {}", id);
         recordPublicInvalidation();
@@ -568,6 +572,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         // 逻辑删除题目
         removeById(id);
+        audit.problemDeleted(id);
         deleteObjectsAfterCommit(attachments.stream()
                 .map(ProblemAttachment::getObjectKey)
                 .toList());
@@ -636,6 +641,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         // 删除元数据，提交后删除对象
         problemAttachmentMapper.deleteById(attachmentId);
+        audit.attachmentDeleted(attachmentId);
         deleteObjectsAfterCommit(List.of(attachment.getObjectKey()));
         recordPublicInvalidation();
     }

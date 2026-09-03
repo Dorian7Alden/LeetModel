@@ -13,6 +13,8 @@ ACL_CONFIG_FILE="${BACKEND_DIR}/docker/rocketmq/broker-acl.conf.example"
 AUDIT_SERVICE_DIR="${BACKEND_DIR}/audit-service"
 USER_SERVICE_DIR="${BACKEND_DIR}/user-service"
 GATEWAY_TRACE_FILE="${BACKEND_DIR}/gateway-service/src/main/java/com/leetmodel/gateway/filter/TraceIdFilter.java"
+PROBLEM_SERVICE_DIR="${BACKEND_DIR}/problem-service"
+SUBMISSION_SERVICE_DIR="${BACKEND_DIR}/submission-service"
 
 required_tokens=(
   'AUTH.LOGIN_SUCCESS' 'USER.ROLE_CHANGE' 'PROBLEM.DELETE' 'SUBMISSION.FINALIZE'
@@ -65,6 +67,14 @@ grep -Fq '@SaCheckRole("admin")' "${USER_SERVICE_DIR}/src/main/java/com/leetmode
 grep -Fq 'INTERNAL_CORRELATION_HEADERS.forEach(headers::remove)' "${GATEWAY_TRACE_FILE}"
 grep -Fq 'OperationAuditContract.validate(payload)' \
   "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/audit/UserAuditEventProducer.java"
+for producer in \
+    "${PROBLEM_SERVICE_DIR}/src/main/java/com/leetmodel/problem/audit/ProblemAuditEventProducer.java" \
+    "${SUBMISSION_SERVICE_DIR}/src/main/java/com/leetmodel/submission/audit/SubmissionAuditEventProducer.java"; do
+  [[ -s "${producer}" ]] || { echo "AUD-06 领域审计生产者缺失：${producer}" >&2; exit 1; }
+  grep -Fq 'OperationAuditContract.validate(payload)' "${producer}"
+done
+grep -Fq 'SUBMISSION.FINALIZE' "${SUBMISSION_SERVICE_DIR}/src/main/java/com/leetmodel/submission/audit/SubmissionAuditEventProducer.java"
+grep -Fq 'PROBLEM.ATTACHMENT_DELETE' "${PROBLEM_SERVICE_DIR}/src/main/java/com/leetmodel/problem/audit/ProblemAuditEventProducer.java"
 grep -Fq 'maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES' \
   "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java"
 grep -Fq "status='PROCESSING'" \

@@ -25,7 +25,21 @@ spring:
 server:
   shutdown: graceful
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-problem-v1
+    send-message-timeout: 3000
+
 leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: true
+      batch-size: 50
+      interval-ms: 1000
+      lease-seconds: 30
   cache:
     enabled: ${CACHE_ENABLED:true}
     environment: ${CACHE_ENVIRONMENT:${spring.profiles.active:dev}}

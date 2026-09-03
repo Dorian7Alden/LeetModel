@@ -31,6 +31,10 @@
             <groupId>com.leetmodel</groupId>
             <artifactId>common-cache</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.leetmodel</groupId>
+            <artifactId>common-messaging</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>io.minio</groupId>
