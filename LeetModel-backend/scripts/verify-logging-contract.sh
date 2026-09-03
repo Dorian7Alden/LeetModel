@@ -16,6 +16,7 @@ services=(
   user-service problem-service team-service submission-service ai-review-service
   ranking-service ai-suggestion-service ai-assistant-service knowledge-retrieval-service
   ai-evaluation-service gateway-service admin-service ai-gateway-service
+  audit-service
 )
 
 shared_layout="${BACKEND_DIR}/common/common-core/src/main/resources/leetmodel-logback-spring.xml"

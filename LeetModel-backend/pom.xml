@@ -41,6 +41,7 @@
         <module>gateway-service</module>
         <module>admin-service</module>
         <module>ai-gateway-service</module>
+        <module>audit-service</module>
     </modules>
 
     <!-- ==================== 集中版本管理 ==================== -->

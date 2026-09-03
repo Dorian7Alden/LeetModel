@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: audit-service
+  profiles:
+    active: dev
+  config:
+    import:
+      - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
+  datasource:
+    url: ${AUDIT_DB_URL:jdbc:mysql://localhost:3306/lm_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${AUDIT_DB_APP_USERNAME:lm_audit_app}
+    password: ${AUDIT_DB_APP_PASSWORD}
+    hikari:
+      pool-name: audit-service-pool
+      minimum-idle: 1
+      maximum-pool-size: 8
+      connection-timeout: 3000
+      validation-timeout: 1000
+  flyway:
+    enabled: true
+    url: ${AUDIT_DB_URL:jdbc:mysql://localhost:3306/lm_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    user: ${AUDIT_DB_MIGRATOR_USERNAME:lm_audit_migrator}
+    password: ${AUDIT_DB_MIGRATOR_PASSWORD}
+    clean-disabled: true
+    validate-migration-naming: true
+    baseline-on-migrate: false
+    connect-retries: 10
+
+server:
+  shutdown: graceful
+
+spring.lifecycle.timeout-per-shutdown-phase: 20s

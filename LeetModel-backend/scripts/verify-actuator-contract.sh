@@ -21,8 +21,9 @@ services=(
   user-service problem-service team-service submission-service ai-review-service
   ranking-service ai-suggestion-service ai-assistant-service knowledge-retrieval-service
   ai-evaluation-service gateway-service admin-service ai-gateway-service
+  audit-service
 )
-ports=(8081 8083 8082 8092 8086 8087 8088 8089 8093 8091 8080 8084 8090)
+ports=(8081 8083 8082 8092 8086 8087 8088 8089 8093 8091 8080 8084 8090 8094)
 
 for index in "${!services[@]}"; do
   service="${services[$index]}"
