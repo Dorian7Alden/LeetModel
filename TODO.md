@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] TRACE-03 Trace、日志、指标联合验收
+### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
 
-目标：把已有 Prometheus/Grafana 告警、SkyWalking 同步与异步 Trace、中央结构化日志和持久化业务事实组成可重复的定位闭环；采样或局部遥测不可用时仍能用业务 `traceId` 解释结果。
+目标：定义能跨服务一致生产、可由 audit-service 严格校验和归档的最小操作审计信封与 P0 操作目录；建立独立的 RocketMQ Topic、消费组、ACL、重试与 DLQ 边界，但尚不创建 audit-service 或修改业务生产者。
 
-入口：MET-04 的主动告警与 Runbook、LOG-03 的中央日志查询、TRACE-01 的同步链和 TRACE-02 的独立 attempt Trace，以及 [可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[日志系统](docs/project/02-架构设计/日志系统.md)、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md) 和现有 observability drill 脚本。
+入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、现有 `common-messaging` 信封/Outbox 契约、RocketMQ 初始化与观测资源配置、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
 
-主流程：选择可靠消息积压、领域过期租约和 AI UNKNOWN 三类有权威业务事实的场景 → 从 Prometheus 规则与 Grafana 面板取得服务/阶段/固定维度 → 查询 SkyWalking operation 与错误分类 → 由 `business.trace_id/swTraceId` 定位中央日志 → 由日志中的 `traceId/eventId/domainTaskId/attemptNo/aiCallId` 回查脱敏数据库事实 → 验证采样、Trace 缺失、日志 Reporter 降级和指标不可用时的显式空洞与替代路径 → 把面板链接、查询模板、演练与恢复判据固化为静态和真实协议门禁。
+主流程：审计 `auditEventId=eventId` → `REQUESTED/PENDING`、`COMPLETED/SUCCEEDED|FAILED` 事实 → 只允许目录中的 `operationCode`、风险等级、操作者/目标类型和前后差异白名单 → 编码前限制 64 KiB、版本和枚举 → 创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1`、固定重试/DLQ 和 ACL → 以静态、序列化和真实 RocketMQ 协议门禁证明未知 schema/操作 fail-fast、无敏感正文或泛化实体快照。
 
-完成标准：至少一条积压告警和一条 AI UNKNOWN 告警能定位到具体执行阶段、固定错误分类、领域任务/attempt 与 AI Call；Trace 被采样时仍能通过业务 `traceId`、中央日志和数据库事实解释结果；所有跳转使用稳定资源或精确标识查询而非 Prometheus 高基数标签；数据源不可用显示空洞而非零值/成功；门禁不记录或输出 Prompt、Payload、论文、回答、Token、凭据或原始异常。
+完成标准：公共契约对未知 schema、operation、状态组合、超长/敏感字段 fail-fast；`auditEventId` 与消息 `eventId` 一致且消息小于 64 KiB；Topic/消费组/ACL/重试/DLQ 通过隔离 Broker 验收；不记录 Password、Token、Prompt、回答、Payload、论文正文或未声明字段。
 
-修改范围：Grafana dashboard/链接、Prometheus recording/alert annotations、OAP/日志/业务事实只读查询脚本、联合演练脚本、Runbook、相关测试与正式设计文档。
+修改范围：公共 API/消息契约、P0 操作目录和白名单、RocketMQ 资源/初始化/观测配置、契约/安全/集成测试、正式设计文档与 Runbook。
 
-非目标：本卡不建设中央操作审计（阶段 4/5），不自动重放消息、接管任务或处理 UNKNOWN，不修改业务状态机，不引入第二套 Trace/日志/指标后端，也不修改 `cli-proxy-api` 或标准端口进程。
+非目标：本卡不创建 `audit-service` 数据库或消费者、不接入领域生产者、不提供审计查询/导出、不自动执行业务补偿，也不修改 `cli-proxy-api` 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -49,16 +49,9 @@
 
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 
-#### [ ] TRACE-03 Trace、日志、指标联合验收
-
-- 依赖：`MET-04`、`LOG-03`、`TRACE-02`。
-- 范围：打通 Grafana 告警、SkyWalking Trace/日志、业务关联查询和 AI Call 事实。
-- 验收：从一条积压或 UNKNOWN 告警能够定位执行阶段、脱敏错误、领域任务、attempt 和 AI Call；采样后仍可依靠业务 `traceId` 解释结果。
-
-
 ### 阶段 4：中央操作审计基础设施
 
-#### [ ] AUD-01 审计契约、操作目录与专用 MQ 资源
+#### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
 
 - 依赖：`OBS-02`。
 - 范围：定义公共审计信封、`REQUESTED/PENDING` 与 `COMPLETED` 结果、字段白名单、风险等级和 P0 操作目录；创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1` 及 ACL/重试/DLQ 配置。

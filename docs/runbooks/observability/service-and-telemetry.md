@@ -42,7 +42,8 @@
 5. RocketMQ 5.3.1 仅承诺生产端自动 Exit Span；消费与 Inbox 使用 `Messaging/InboxConsumeAttempt`，Worker 领取/接管、AI provider attempt 和恢复判定使用项目固定 Entry operation。不能把没有自动 Consumer Entry 当成 Broker 丢消息。
 6. 若任务出现异常长 Span，对比 Span 起止与数据库 `queuedAt/leaseExpiresAt/attemptNo`。排队等待和租约间隙不得进入 Span；接管必须拥有不同 `swTraceId` 和递增 attempt，禁止手工续接上一任 Trace。
 7. 使用 `./scripts/verify-skywalking-tracing.sh` 与 `./scripts/verify-skywalking-async.sh` 做静态检查；隔离环境运行对应的 `--runtime`。异步门禁创建并清理精确临时消费组，在 OAP 核对 Outbox 成功/重试、Inbox consumed/duplicate、正常/接管和 AI UNKNOWN；不得操作固定业务消费组。
-8. 恢复标准：新请求在同一 Trace 中出现完整同步链，每个异步物理 attempt 是独立有界 Trace，UNKNOWN 与确定失败可区分；中央日志可分别按 `business_trace_id` 与 `sw_trace_id` 查到同一 JSON 记录；OAP 中断时业务请求仍成功。
+8. 使用 `./scripts/drill-observability-correlation.sh` 在隔离环境验证 Outbox backlog 与 AI UNKNOWN 的告警 → operation → 中央日志 → 事实闭环。该脚本只读 OAP/日志与临时 H2 事实，并在 Trace 尚未到达、被采样或 Reporter 不可用时输出 `sampled_or_not_found/unavailable` 空洞和业务 `traceId` 回退路径。
+9. 恢复标准：新请求在同一 Trace 中出现完整同步链，每个异步物理 attempt 是独立有界 Trace，UNKNOWN 与确定失败可区分；中央日志可分别按 `business_trace_id` 与 `sw_trace_id` 查到同一 JSON 记录；OAP 中断时业务请求仍成功。
 
 ## LeetModelAlertmanagerDisconnected
 
