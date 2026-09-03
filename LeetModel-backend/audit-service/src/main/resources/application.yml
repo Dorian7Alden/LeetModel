@@ -10,7 +10,7 @@ spring:
   datasource:
     url: ${AUDIT_DB_URL:jdbc:mysql://localhost:3306/lm_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
     username: ${AUDIT_DB_APP_USERNAME:lm_audit_app}
-    password: ${AUDIT_DB_APP_PASSWORD}
+    password: ${AUDIT_DB_APP_PASSWORD:lm-audit-app-local-only-change-me}
     hikari:
       pool-name: audit-service-pool
       minimum-idle: 1
@@ -20,12 +20,13 @@ spring:
   flyway:
     enabled: true
     url: ${AUDIT_DB_URL:jdbc:mysql://localhost:3306/lm_audit?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
-    user: ${AUDIT_DB_MIGRATOR_USERNAME:lm_audit_migrator}
+    user: ${AUDIT_DB_MIGRATOR_USERNAME:lm-audit-migrator-local-only-change-me}
     password: ${AUDIT_DB_MIGRATOR_PASSWORD}
     clean-disabled: true
     validate-migration-naming: true
     baseline-on-migrate: false
-    connect-retries: 10
+    # 认证失败不可通过重试恢复；快速失败避免错误凭据阻塞整套服务启动。
+    connect-retries: 0
 
 server:
   shutdown: graceful

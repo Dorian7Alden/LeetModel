@@ -42,6 +42,7 @@ class AuditMigrationContractTest {
         assertThat(application).contains("lm_audit", "AUDIT_DB_APP_PASSWORD", "AUDIT_DB_MIGRATOR_PASSWORD");
         assertThat(application).doesNotContain("lm_user", "lm_problem", "lm_submission", "root");
         assertThat(application).contains("clean-disabled: true", "baseline-on-migrate: false");
+        assertThat(application).contains("connect-retries: 0");
     }
 
     private String read(String resource) throws IOException {
