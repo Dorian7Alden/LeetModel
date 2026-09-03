@@ -148,19 +148,20 @@ Prometheus、Alertmanager、Grafana、OAP 和 Horizon 分别只在本机 `19090`
 
 #### 启动 RocketMQ
 
-本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个 NORMAL Topic 和五个消费组：
+本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个业务 NORMAL Topic、一个操作审计专用 NORMAL Topic 及其六个消费组：
 
 ```bash
 cd LeetModel-backend
 docker compose up -d --wait rocketmq-namesrv rocketmq-broker
 ./scripts/init-rocketmq.sh
 ./scripts/verify-rocketmq.sh
+./scripts/verify-audit-contract.sh
 ./scripts/drill-messaging-failures.sh status
 ```
 
-需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。`scripts/drill-messaging-failures.sh` 还提供 Broker 网络中断、MySQL 短故障和指定消息服务进程终止等单步演练命令；暂停故障必须显式执行对应的 resume 命令。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
+需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。操作审计的严格信封、ACL 2.0 正负路径、固定重试与 DLQ 使用 `./scripts/verify-audit-rocketmq.sh` 在一次性非标准端口 Broker 集中验证，不修改常驻开发 Broker。`scripts/drill-messaging-failures.sh` 还提供 Broker 网络中断、MySQL 短故障和指定消息服务进程终止等单步演练命令；暂停故障必须显式执行对应的 resume 命令。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
 
-NameServer、Broker 和 Dashboard 均只绑定本机端口。本地 Broker 数据保存在 `rocketmq-broker-store` 命名卷；常规停止使用 `docker compose stop rocketmq-broker rocketmq-namesrv`。`docker compose down` 默认保留消息，禁止使用 `down -v` 或删除 RocketMQ 命名卷，除非明确要清空本地消息与消费位点。当前单 Broker、无 ACL 配置只用于本地开发，生产环境必须另行部署多副本集群并通过 `rocketmq.producer.access-key`、`secret-key` 等外部密钥配置启用 ACL。
+NameServer、Broker 和 Dashboard 均只绑定本机端口。本地 Broker 数据保存在 `rocketmq-broker-store` 命名卷；常规停止使用 `docker compose stop rocketmq-broker rocketmq-namesrv`。`docker compose down` 默认保留消息，禁止使用 `down -v` 或删除 RocketMQ 命名卷，除非明确要清空本地消息与消费位点。常驻单 Broker 仍是受回环网络保护的开发环境；生产环境必须另行部署多副本集群，采用 `docker/rocketmq/broker-acl.conf.example` 的 ACL 2.0 开关并从 Secret Manager 注入管理与应用凭据。审计生产账号只授予精确 Topic `Pub`，归档账号只授予精确 Topic/Group `Sub`，不得把隔离验收的临时凭据用于其他环境。
 
 #### 1. 启动后端
 

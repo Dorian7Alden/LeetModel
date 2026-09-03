@@ -1,6 +1,6 @@
 # 操作审计服务
 
-> 设计状态：目标服务，尚未创建 Maven 模块、数据库或运行实例。本文只确定服务边界；跨服务完整设计见 [操作审计架构](../../02-架构设计/操作审计架构.md)。
+> 设计状态：公共审计契约和专用 RocketMQ 资源已经建立；本服务的 Maven 模块、数据库、消费者与运行实例仍是后续实现。本文确定服务边界；跨服务完整设计见 [操作审计架构](../../02-架构设计/操作审计架构.md)。
 
 
 ## 服务定位与整体流程
@@ -15,7 +15,7 @@ flowchart LR
         domains -->|"业务变更同事务"| outbox
     end
 
-    topic["leetmodel-operation-audit-v1<br/>目标专用 NORMAL Topic"]
+    topic["leetmodel-operation-audit-v1<br/>专用 NORMAL Topic（已建资源契约）"]
 
     subgraph audit["audit-service（目标，尚未实现）"]
         consumer["审计 Consumer / Inbox 幂等"]

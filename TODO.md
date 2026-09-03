@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
+### [ ] AUD-02 audit-service 骨架与 lm_audit
 
-目标：定义能跨服务一致生产、可由 audit-service 严格校验和归档的最小操作审计信封与 P0 操作目录；建立独立的 RocketMQ Topic、消费组、ACL、重试与 DLQ 边界，但尚不创建 audit-service 或修改业务生产者。
+目标：创建边界独立、可运行的 audit-service 与专属 `lm_audit` schema，以 Flyway 建立 Inbox 和只追加 `operation_audit_event`，为下一卡的 RocketMQ 消费与归档逻辑提供可靠持久化基础，但尚不接入消费者、查询 API 或领域生产者。
 
-入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、现有 `common-messaging` 信封/Outbox 契约、RocketMQ 初始化与观测资源配置、[关联标识与遥测字段契约](docs/project/02-架构设计/关联标识与遥测字段契约.md)。
+入口：[audit-service 服务边界](docs/project/03-微服务设计/audit-service/README.md)、[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、根 Maven 聚合与现有服务骨架、common-messaging Inbox 表契约、MySQL 初始化与最小权限配置、[数据库设计](docs/project/02-架构设计/数据库设计.md)。
 
-主流程：审计 `auditEventId=eventId` → `REQUESTED/PENDING`、`COMPLETED/SUCCEEDED|FAILED` 事实 → 只允许目录中的 `operationCode`、风险等级、操作者/目标类型和前后差异白名单 → 编码前限制 64 KiB、版本和枚举 → 创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1`、固定重试/DLQ 和 ACL → 以静态、序列化和真实 RocketMQ 协议门禁证明未知 schema/操作 fail-fast、无敏感正文或泛化实体快照。
+主流程：根 Reactor 注册 audit-service → 独立应用名/端口/Nacos/Actuator/日志与观测基线 → MySQL 初始化专属 `lm_audit` 与应用账号 → Flyway V1 创建 `message_inbox` 和只追加 `operation_audit_event` → 建立 auditEvent、operation 时间线、操作者、目标、操作结果及 Trace 索引 → 数据库权限拒绝应用账号 UPDATE/DELETE → 用隔离 MySQL 证明迁移、约束、索引、账号边界和服务真实启动。
 
-完成标准：公共契约对未知 schema、operation、状态组合、超长/敏感字段 fail-fast；`auditEventId` 与消息 `eventId` 一致且消息小于 64 KiB；Topic/消费组/ACL/重试/DLQ 通过隔离 Broker 验收；不记录 Password、Token、Prompt、回答、Payload、论文正文或未声明字段。
+完成标准：服务独占 `lm_audit` 且不配置或访问任何业务 schema；Flyway 从空库可重复建立 Inbox 与追加表；`audit_event_id` 唯一且 `operation_id + occurred_at`、操作者、目标、结果和 Trace 调查索引真实存在；应用账号可 INSERT/SELECT 所需表但 UPDATE/DELETE 被 MySQL 拒绝；健康、Prometheus 与配置失败语义符合公共基线。
 
-修改范围：公共 API/消息契约、P0 操作目录和白名单、RocketMQ 资源/初始化/观测配置、契约/安全/集成测试、正式设计文档与 Runbook。
+修改范围：根 Maven、audit-service 模块/配置/最小骨架、MySQL 初始化与 Flyway、数据库账号权限、启动/迁移/安全集成测试、部署脚本、正式服务与数据库文档。
 
-非目标：本卡不创建 `audit-service` 数据库或消费者、不接入领域生产者、不提供审计查询/导出、不自动执行业务补偿，也不修改 `cli-proxy-api` 或标准端口业务进程。
+非目标：本卡不启动 RocketMQ 消费、不实现幂等归档服务或完整性监测、不提供查询/导出、不接入任何领域生产者，也不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
 
 ## 系统保障实施路线图
 
@@ -50,12 +50,6 @@
 ### 阶段 3：SkyWalking Trace 与长耗时 AI 关联
 
 ### 阶段 4：中央操作审计基础设施
-
-#### [~] AUD-01 审计契约、操作目录与专用 MQ 资源
-
-- 依赖：`OBS-02`。
-- 范围：定义公共审计信封、`REQUESTED/PENDING` 与 `COMPLETED` 结果、字段白名单、风险等级和 P0 操作目录；创建 `leetmodel-operation-audit-v1`、`cg-audit-archive-v1` 及 ACL/重试/DLQ 配置。
-- 验收：`auditEventId` 等于消息 `eventId`；消息小于 64 KiB；未知 schema/操作编码 fail-fast；不携带敏感正文或泛化实体快照。
 
 #### [ ] AUD-02 audit-service 骨架与 lm_audit
 
