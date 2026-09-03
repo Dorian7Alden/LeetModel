@@ -1,5 +1,6 @@
 package com.leetmodel.user.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.common.api.dto.UserRolesRequest;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "内部接口-用户管理")
 @RestController
 @RequestMapping("/internal/admin/users")
+@SaCheckRole("admin")
 @RequiredArgsConstructor
 public class InternalAdminUserController {
 

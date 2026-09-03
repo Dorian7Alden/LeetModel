@@ -3,6 +3,7 @@ package com.leetmodel.user.service;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.User;
@@ -54,6 +55,9 @@ class UserServiceTest {
 
     @Mock
     private StorageService storageService;
+
+    @Mock
+    private UserAuditEventProducer audit;
 
     @InjectMocks
     private UserServiceImpl userService;

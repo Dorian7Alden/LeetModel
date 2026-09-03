@@ -10,6 +10,7 @@ import com.leetmodel.user.entity.Permission;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.RolePermission;
 import com.leetmodel.user.entity.UserRole;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RoleMapper;
@@ -42,6 +43,7 @@ public class RoleServiceImpl implements RoleService {
     private final RoleMapper roleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final PermissionMapper permissionMapper;
+    private final UserAuditEventProducer audit;
 
     /**
      * 查询用户角色与权限编码。
@@ -254,6 +256,7 @@ public class RoleServiceImpl implements RoleService {
             rolePermission.setPermissionId(permissionId);
             rolePermissionMapper.insert(rolePermission);
         }
+        audit.rolePermissionsChanged(roleId, distinctPermissionIds);
 
         log.info("更新角色权限完成: roleId={}, permissionCount={}",
                 roleId, distinctPermissionIds.size());

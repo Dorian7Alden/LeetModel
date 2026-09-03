@@ -11,6 +11,8 @@ INIT_FILE="${SCRIPT_DIR}/init-rocketmq.sh"
 ACL_FILE="${SCRIPT_DIR}/init-audit-rocketmq-acl.sh"
 ACL_CONFIG_FILE="${BACKEND_DIR}/docker/rocketmq/broker-acl.conf.example"
 AUDIT_SERVICE_DIR="${BACKEND_DIR}/audit-service"
+USER_SERVICE_DIR="${BACKEND_DIR}/user-service"
+GATEWAY_TRACE_FILE="${BACKEND_DIR}/gateway-service/src/main/java/com/leetmodel/gateway/filter/TraceIdFilter.java"
 
 required_tokens=(
   'AUTH.LOGIN_SUCCESS' 'USER.ROLE_CHANGE' 'PROBLEM.DELETE' 'SUBMISSION.FINALIZE'
@@ -54,6 +56,15 @@ for required_file in \
     "${AUDIT_SERVICE_DIR}/src/main/resources/db/migration/V1__create_audit_archive.sql"; do
   [[ -s "${required_file}" ]] || { echo "AUD-03 审计管道文件缺失：${required_file}" >&2; exit 1; }
 done
+[[ -s "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/audit/UserAuditEventProducer.java" ]] || {
+  echo "AUD-05 user-service 审计生产者缺失。" >&2; exit 1;
+}
+grep -Fq '@SaCheckLogin' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/UserController.java"
+grep -Fq '@SaCheckRole("admin")' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/InternalAdminUserController.java"
+grep -Fq '@SaCheckRole("admin")' "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/controller/InternalAdminRoleController.java"
+grep -Fq 'INTERNAL_CORRELATION_HEADERS.forEach(headers::remove)' "${GATEWAY_TRACE_FILE}"
+grep -Fq 'OperationAuditContract.validate(payload)' \
+  "${USER_SERVICE_DIR}/src/main/java/com/leetmodel/user/audit/UserAuditEventProducer.java"
 grep -Fq 'maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES' \
   "${AUDIT_SERVICE_DIR}/src/main/java/com/leetmodel/audit/messaging/OperationAuditConsumer.java"
 grep -Fq "status='PROCESSING'" \
