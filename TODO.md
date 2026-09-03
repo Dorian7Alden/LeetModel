@@ -15,19 +15,19 @@
 
 ## 当前任务
 
-### [~] AUD-07 AI、消息与派生数据治理审计
+### [~] AUD-08 管理端统一操作审计页
 
-目标：覆盖 AI 队列/评价任务治理、生产版本切换、Consumer 暂停恢复、Outbox/DLQ 重放和排行重建，保持现有 AI 调用及领域审计原语义。
+目标：为管理员提供统一、只读、可追溯的操作审计查询入口，覆盖筛选、阶段时间线、白名单差异与 Trace 关联。
 
-入口：[操作审计架构](docs/project/02-架构设计/操作审计架构.md)、ai-gateway-service、ai-evaluation-service、ai-assistant-service、common-messaging 和 ranking-service 管理契约。
+入口：admin-service 审计代理、audit-service 受信查询、LeetModel-frontend 管理控制台和 [操作审计架构](docs/project/02-架构设计/操作审计架构.md)。
 
-主流程：管理命令在领域服务重新授权 → 外部副作用先追加 `REQUESTED/PENDING`，完成后追加 `COMPLETED/SUCCEEDED|FAILED` → 消息暂停/恢复、Outbox/DLQ 重放和排行重建由各所有者计算稳定摘要并与本地事实/命令记录关联；AI 计量仍留在 `ai_call_log`，不复制成人工审计。
+主流程：admin 角色请求管理端 → admin-service 代理独立内部令牌访问 audit-service → 前端按时间/服务/操作/风险/结果筛选 → 点击事件查看阶段、目标、原因、白名单 before/after 摘要并复制 Trace；中央或来源不可用必须显式提示。
 
-完成标准：所有高风险治理动作有成对阶段事件和完成 deadline；Consumer、Outbox、DLQ、排行和 AI UNKNOWN 的恢复动作可追溯；原因、版本、计数等摘要严格白名单，禁止 Prompt、回答、消息正文和调用 ID；负面测试覆盖越权、重复命令、失败回滚和跨服务伪造。
+完成标准：admin-service 无审计数据库和副本；查询结果有界且不含正文、凭据或完整快照；页面不提供修改、删除或默认批量导出；权限、不可用和 Trace 关联负面测试/契约检查通过。
 
-修改范围：AI/消息/排行治理命令的审计生产者、阶段状态与恢复关联、服务侧鉴权、契约/事务/安全负面测试、正式文档和 Runbook。
+修改范围：admin-service 查询 DTO/代理与鉴权、前端审计页面/API/路由、不可用提示与文档 Runbook。
 
-非目标：本卡不重写 AI 计量或领域历史表、不实现统一前端审计页、不修改 `cli-proxy-api`、常驻 Broker 或标准端口业务进程。
+非目标：本卡不新增业务写操作、不绕过 admin 角色、不把审计查询改造成领域服务直连或同步双写。
 
 ## 系统保障实施路线图
 
@@ -52,12 +52,6 @@
 ### 阶段 4：中央操作审计基础设施
 
 ### 阶段 5：领域审计生产者与管理端
-
-#### [ ] AUD-07 AI、消息与派生数据治理审计
-
-- 依赖：`AUD-01`、`AUD-03`。
-- 范围：覆盖 AI 队列/评价任务治理、生产版本切换、Consumer 暂停恢复、Outbox/DLQ 重放和排行重建；保留现有 AI 调用及领域审计的原语义。
-- 验收：外部副作用均追加 `REQUESTED/PENDING` 与 `COMPLETED/SUCCEEDED|FAILED`；AI 调用计量不复制成人工审计；高风险原因结构化保存。
 
 #### [ ] AUD-08 管理端统一操作审计页
 
