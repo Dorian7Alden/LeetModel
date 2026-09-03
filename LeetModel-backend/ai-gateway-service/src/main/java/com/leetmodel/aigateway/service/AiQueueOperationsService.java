@@ -59,6 +59,7 @@ public class AiQueueOperationsService {
         if (!ACTIVE.contains(task.getState())) {
             throw new BusinessException(AiGatewayErrorCode.AI_TASK_NOT_CANCELLABLE);
         }
+        if (audit != null) audit.assertReady("AI_QUEUE.CANCEL");
         if (mapper.requestCancel(taskId, LocalDateTime.now(ZoneOffset.UTC)) != 1) {
             throw new BusinessException(AiGatewayErrorCode.AI_TASK_NOT_CANCELLABLE);
         }

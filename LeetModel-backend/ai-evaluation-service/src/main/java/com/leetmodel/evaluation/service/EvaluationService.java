@@ -381,6 +381,7 @@ public class EvaluationService {
 
     @Transactional
     public EvaluationTaskDTO retry(Long taskId) {
+        if (audit != null) audit.assertReady("EVALUATION.RETRY");
         EvaluationTask task = requiredTask(taskId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), EvaluationErrorCode.TASK_NOT_FAILED);
         List<EvaluationRunAttempt> latest = latestRuns(taskId);
@@ -402,6 +403,7 @@ public class EvaluationService {
     }
 
     public EvaluationTaskDTO pause(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.PAUSE");
         requiredTask(taskId);
         BusinessException.throwIf(taskMapper.pause(taskId, operatorId, LocalDateTime.now()) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
@@ -412,6 +414,7 @@ public class EvaluationService {
 
     @Transactional
     public EvaluationTaskDTO resume(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.RESUME");
         requiredTask(taskId);
         BusinessException.throwIf(taskMapper.resume(taskId, operatorId, LocalDateTime.now()) == 0,
                 EvaluationErrorCode.TASK_STATE_CONFLICT);
@@ -425,6 +428,7 @@ public class EvaluationService {
     }
 
     public EvaluationTaskDTO cancel(Long taskId, Long operatorId) {
+        if (audit != null) audit.assertReady("EVALUATION.CANCEL");
         requiredTask(taskId);
         LocalDateTime now = LocalDateTime.now();
         BusinessException.throwIf(taskMapper.cancel(taskId, operatorId, now) == 0,

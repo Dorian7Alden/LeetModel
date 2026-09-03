@@ -15,7 +15,7 @@
 
 ## 当前任务
 
-### [~] AUD-08 管理端统一操作审计页
+### [ ] AUD-08 管理端统一操作审计页
 
 目标：为管理员提供统一、只读、可追溯的操作审计查询入口，覆盖筛选、阶段时间线、白名单差异与 Trace 关联。
 
@@ -62,11 +62,11 @@
 
 ### 阶段 6：容量保护、故障演练与最终验收
 
-#### [ ] SAFE-01 遥测和审计故障保护
+#### [~] SAFE-01 遥测和审计故障保护
 
-- 依赖：`TRACE-03`、`AUD-08`。
-- 范围：实现日志有界队列、遥测空洞表达、审计 Outbox 水位和高风险操作 fail-closed；普通业务与高风险治理采用不同降级策略。
-- 验收：OAP、Prometheus、Broker 或 audit-service 分别中断时不会耗尽业务线程/内存；高风险审计长时间无法可靠归档时拒绝新的高风险操作。
+- 目标：日志 Reporter 使用有界队列和本地滚动兜底；遥测故障 fail-open；审计 Outbox 阻塞时高风险治理命令 fail-closed，普通业务不被拖垮。
+- 入口：[可观测性与系统保障](docs/project/02-架构设计/可观测性与系统保障.md)、[遥测与审计故障保护 Runbook](docs/runbooks/observability/telemetry-and-audit-safety.md)。
+- 验收：Reporter 队列/超时/尝试有界且丢弃可度量；OAP/Prometheus 不可用不阻塞业务；`BLOCKED` 审计 Outbox 拒绝高风险命令，查询页显式表达不可用。
 
 #### [ ] SAFE-02 全链路故障演练
 

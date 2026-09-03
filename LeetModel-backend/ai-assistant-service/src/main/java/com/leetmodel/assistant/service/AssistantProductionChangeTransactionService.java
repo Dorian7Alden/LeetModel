@@ -58,12 +58,19 @@ public class AssistantProductionChangeTransactionService {
     @Transactional
     public AssistantProductionChangeResultDTO apply(String changeRequestId, Long operatorId,
                                                     boolean dependenciesReady) {
+        // 生产切换属于高风险治理；审计 Outbox 阻塞时 fail-closed。
+        // 具体动作仍在本地事务内完成，审计事件与指针变更保持一致。
         // 锁定变更请求，保证同一确认只能进入一次终态
         LocalDateTime now = LocalDateTime.now();
         AssistantProductionChangeRequest change =
                 changeMapper.selectByRequestIdForUpdate(changeRequestId);
         BusinessException.throwIf(change == null || !operatorId.equals(change.getOperatorId()),
                 AssistantErrorCode.PRODUCTION_CHANGE_INVALID);
+
+        if (centralAudit != null) {
+            centralAudit.assertReady("ACTIVATE".equals(change.getAction())
+                    ? "ASSISTANT_CONFIG.ACTIVATE" : "ASSISTANT_CONFIG.ROLLBACK");
+        }
 
         if (!"PENDING".equals(change.getStatus())) return existingResult(change);
         if (!change.getExpiresAt().isAfter(now)) {

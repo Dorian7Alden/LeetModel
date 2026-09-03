@@ -125,8 +125,9 @@ public class MessagingAutoConfiguration {
         public OperationAuditGovernanceProducer operationAuditGovernanceProducer(
                 @Value("${spring.application.name}") String applicationName,
                 MessageOutbox outbox,
-                OperationAuditMessageCodec codec) {
-            return new OperationAuditGovernanceProducer(applicationName, outbox, codec);
+                OperationAuditMessageCodec codec,
+                JdbcMessageOutbox jdbcOutbox) {
+            return new OperationAuditGovernanceProducer(applicationName, outbox, codec, jdbcOutbox);
         }
 
         /**

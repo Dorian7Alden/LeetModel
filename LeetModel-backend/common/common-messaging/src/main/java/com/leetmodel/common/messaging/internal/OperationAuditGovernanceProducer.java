@@ -19,12 +19,29 @@ public final class OperationAuditGovernanceProducer {
     private final String sourceService;
     private final MessageOutbox outbox;
     private final OperationAuditMessageCodec codec;
+    private final JdbcMessageOutbox jdbcOutbox;
 
     public OperationAuditGovernanceProducer(String sourceService, MessageOutbox outbox,
                                             OperationAuditMessageCodec codec) {
+        this(sourceService, outbox, codec, null);
+    }
+
+    public OperationAuditGovernanceProducer(String sourceService, MessageOutbox outbox,
+                                            OperationAuditMessageCodec codec,
+                                            JdbcMessageOutbox jdbcOutbox) {
         this.sourceService = sourceService;
         this.outbox = outbox;
         this.codec = codec;
+        this.jdbcOutbox = jdbcOutbox;
+    }
+
+    /** 高风险命令的本地审计 Outbox fail-closed 门禁。 */
+    public void assertReady(String operationCode) {
+        OperationAuditCatalog.Spec spec = OperationAuditCatalog.require(operationCode);
+        if (!"HIGH".equals(spec.riskLevel()) || jdbcOutbox == null) return;
+        if (jdbcOutbox.count(OutboxStatus.BLOCKED) > 0) {
+            throw new IllegalStateException("高风险操作审计 Outbox 已阻塞，拒绝继续执行: " + operationCode);
+        }
     }
 
     public void emit(String operationCode, String targetType, String targetId,

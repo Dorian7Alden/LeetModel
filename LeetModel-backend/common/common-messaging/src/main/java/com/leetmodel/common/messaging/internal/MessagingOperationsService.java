@@ -97,6 +97,7 @@ public final class MessagingOperationsService {
                 || request.reason().length() > 200) {
             throw new IllegalArgumentException("补发需提供 1-20 个 eventId 和 3-200 字原因");
         }
+        if (audit != null) audit.assertReady("OUTBOX.REPLAY");
         List<String> accepted = outbox.replay(request.eventIds(), request.reason().trim());
         metrics.replayed(accepted.size());
         if (audit != null && !accepted.isEmpty()) audit.emit("OUTBOX.REPLAY", "MESSAGE_OUTBOX", service,
@@ -108,6 +109,7 @@ public final class MessagingOperationsService {
     }
 
     public MessagingOperationResultDTO pause(String consumerGroup) {
+        if (audit != null) audit.assertReady("CONSUMER.PAUSE");
         boolean changed = consumerControl.pause(consumerGroup);
         if (changed) metrics.consumerPaused();
         if (changed && audit != null) audit.emit("CONSUMER.PAUSE", "MESSAGE_CONSUMER", stableTarget(consumerGroup),
@@ -118,6 +120,7 @@ public final class MessagingOperationsService {
     }
 
     public MessagingOperationResultDTO resume(String consumerGroup) {
+        if (audit != null) audit.assertReady("CONSUMER.RESUME");
         boolean changed = consumerControl.resume(consumerGroup);
         if (changed) metrics.consumerResumed();
         if (changed && audit != null) audit.emit("CONSUMER.RESUME", "MESSAGE_CONSUMER", stableTarget(consumerGroup),

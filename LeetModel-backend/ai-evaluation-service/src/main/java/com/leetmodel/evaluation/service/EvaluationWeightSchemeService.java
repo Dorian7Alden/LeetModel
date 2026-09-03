@@ -105,6 +105,7 @@ public class EvaluationWeightSchemeService {
      * @return 停用后的方案
      */
     public EvaluationWeightSchemeDTO deactivate(Long schemeId, Long operatorId) {
+        if (audit != null) audit.assertReady("WEIGHT_SCHEME.DEACTIVATE");
         // 已停用请求保持幂等；主表条件更新处理并发停用
         EvaluationWeightScheme scheme = requiredScheme(schemeId);
         if ("ACTIVE".equals(scheme.getStatus())) {
