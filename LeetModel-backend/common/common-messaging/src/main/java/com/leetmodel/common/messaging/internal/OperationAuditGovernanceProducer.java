@@ -48,12 +48,22 @@ public final class OperationAuditGovernanceProducer {
                      Map<String, String> after) {
         OperationAuditCatalog.Spec spec = OperationAuditCatalog.require(operationCode);
         if (!spec.sourceServices().contains(sourceService)) return;
+        String operationId = CorrelationContext.ensureOperationId();
+        if (spec.externalSideEffect()) {
+            emitPhase(spec, operationId, targetType, targetId, "PENDING", "PENDING", after);
+        }
+        emitPhase(spec, operationId, targetType, targetId, "COMPLETED", "SUCCEEDED", after);
+    }
+
+    private void emitPhase(OperationAuditCatalog.Spec spec, String operationId,
+                           String targetType, String targetId, String phase,
+                           String outcome, Map<String, String> after) {
         String trace = TraceIdUtil.getTraceId();
         if (trace == null || trace.isBlank()) trace = CorrelationContext.newId();
         String eventId = UUID.randomUUID().toString();
         OperationAuditPayloadV1 payload = new OperationAuditPayloadV1(
-                1, eventId, CorrelationContext.ensureOperationId(), "COMPLETED", Instant.now(),
-                sourceService, "dev", spec.category(), operationCode, spec.riskLevel(), "SUCCEEDED",
+                1, eventId, operationId, phase, Instant.now(),
+                sourceService, "dev", spec.category(), spec.operationCode(), spec.riskLevel(), outcome,
                 "ADMIN_REQUEST", null, "ADMIN", "admin-command", List.of(), targetType, targetId,
                 null, Map.of(), after, trace, null, null, null, null, null, null);
         OperationAuditContract.validate(payload);
