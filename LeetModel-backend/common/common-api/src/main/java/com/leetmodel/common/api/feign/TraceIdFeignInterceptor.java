@@ -8,23 +8,24 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Feign TraceId 透传拦截器 —— 从 MDC 读取 TraceId 并注入 Feign 请求头。
+ * Feign 全链路追踪透传拦截器。
  *
- * <p>每次 Feign 调用时自动执行，将当前线程 MDC 中的 {@code X-Trace-Id}
- * 注入到下游服务的请求头中。下游的 {@code TraceIdServletFilter}
- * 会提取该 Header 并写入自己的 MDC，实现全链路追踪。</p>
- *
- * <p>放在 common-api 而非 common-core 的原因是：
- * common-core 不依赖 Feign，引入 {@link RequestInterceptor}
- * 会增加不必要的传递依赖。</p>
+ * <p>从当前线程 MDC 提取 X-Trace-Id 与 X-Operation-Id 请求头注入下游请求，
+ * 并在注入前清理手工伪造的不受信任头部，实现跨微服务 Trace 透传。</p>
  */
 @Component
 public class TraceIdFeignInterceptor implements RequestInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(TraceIdFeignInterceptor.class);
 
+    /** 跨服务透传的标准 HTTP Header */
     static final String TRACE_ID_HEADER = CorrelationContext.TRACE_ID_HEADER;
 
+    /**
+     * 拦截 Feign 请求模板，注入当前受信任的追踪与治理标识。
+     *
+     * @param template 待发送的 Feign 请求模板，不能为空
+     */
     @Override
     public void apply(RequestTemplate template) {
         // 不信任 Feign 契约参数或手工预置的内部关联头。
