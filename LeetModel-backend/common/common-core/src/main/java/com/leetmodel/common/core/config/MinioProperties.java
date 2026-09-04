@@ -5,6 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * MinIO 对象存储配置属性。
+ *
+ * <p>映射 application.yml 中 minio.* 前缀的存储桶、访问端点与鉴权密钥。</p>
  */
 @Data
 @ConfigurationProperties(prefix = "minio")
@@ -13,7 +15,9 @@ public class MinioProperties {
     /** MinIO 服务地址（含协议和端口） */
     private String endpoint = "http://localhost:9000";
 
+    /** 访问标识 Access Key */
     private String accessKey = "minioadmin";
+    /** 访问密钥 Secret Key */
     private String secretKey = "minioadmin";
 
     /** 默认 Bucket 名称 */

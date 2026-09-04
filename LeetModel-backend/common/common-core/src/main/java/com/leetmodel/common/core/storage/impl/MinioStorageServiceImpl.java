@@ -21,8 +21,7 @@ import java.util.UUID;
 /**
  * MinIO 对象存储服务实现。
  *
- * <p>文件命名策略：{prefix}/{UUID}.{原始扩展名}，避免文件名冲突。
- * 预签名 URL 有效期通过配置文件控制，默认 7 天。</p>
+ * <p>采用 {prefix}/{UUID}.{ext} 规则重命名以防御同名冲突与路径遍历，生成有界时效的 GET 预签名访问地址。</p>
  */
 @Slf4j
 @Service
@@ -42,7 +41,9 @@ public class MinioStorageServiceImpl implements StorageService {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         // Excel xlsx
     );
 
+    /** MinIO 底层 SDK 客户端 */
     private final MinioClient minioClient;
+    /** 对象存储配置属性 */
     private final MinioProperties minioProperties;
 
     @Override
@@ -140,7 +141,7 @@ public class MinioStorageServiceImpl implements StorageService {
     // ==================== 私有方法 ====================
 
     /**
-     * 确保配置的 Bucket 已创建。
+     * 确保配置的存储桶已初始化，若不存在则调用接口自动创建。
      */
     private void ensureBucketExists() {
         try {
@@ -166,6 +167,12 @@ public class MinioStorageServiceImpl implements StorageService {
         }
     }
 
+    /**
+     * 记录存储操作失败日志。
+     *
+     * @param operation 失败的操作名称，如 upload、download、presign
+     * @param exception 捕获的底层异常对象
+     */
     private void logStorageFailure(String operation, Exception exception) {
         log.atError()
                 .setCause(exception)
@@ -175,7 +182,10 @@ public class MinioStorageServiceImpl implements StorageService {
     }
 
     /**
-     * 校验上传文件：非空、大小、类型。
+     * 校验待上传文件的完整性、大小上限与类型白名单。
+     *
+     * @param file 待校验的文件对象
+     * @throws BusinessException 当文件为空、超出大小限制或类型不支持时抛出
      */
     private void validateFile(MultipartFile file) {
 
@@ -201,7 +211,10 @@ public class MinioStorageServiceImpl implements StorageService {
     }
 
     /**
-     * 从原始文件名提取扩展名（含点号），无扩展名时返回空串。
+     * 从原始文件名中提取包含点号的后缀扩展名。
+     *
+     * @param filename 原始文件名，允许为 null
+     * @return 提取的扩展名（如 .pdf）；无扩展名时返回空字符串
      */
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "";

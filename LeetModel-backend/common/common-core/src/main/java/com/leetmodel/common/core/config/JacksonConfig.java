@@ -21,27 +21,25 @@ import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 
 /**
- * Jackson 全局序列化配置 —— 统一日期格式、时区、空值处理。
+ * Jackson 全局序列化配置。
  *
- * <p>通过 {@link Jackson2ObjectMapperBuilderCustomizer} 而非直接覆盖 {@link ObjectMapper}，
- * 保留 Spring Boot 的其他自动配置（如 HttpMessageConverter），仅追加自定义规则。</p>
+ * <p>统一全平台日期时间格式（yyyy-MM-dd HH:mm:ss）与 Asia/Shanghai 时区。
+ * 通过追加定制器而非替换 ObjectMapper，完整保留 Spring Boot 其他默认序列化特性。</p>
  */
 @Configuration
 public class JacksonConfig {
 
-    /** 统一日期时间格式 */
+    /** 统一年月日时分秒格式 */
     static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
-    /** 统一日期格式 */
+    /** 统一年月日日期格式 */
     static final String DATE_PATTERN = "yyyy-MM-dd";
-    /** 统一时间格式 */
+    /** 统一时分秒时间格式 */
     static final String TIME_PATTERN = "HH:mm:ss";
 
     /**
-     * Jackson 全局配置定制器。
+     * 注册全局 Jackson 配置定制器。
      *
-     * <p>注意：此配置仅影响 Jackson 序列化。Spring MVC 的参数绑定（如
-     * {@code @RequestParam LocalDateTime}）由 {@code @DateTimeFormat} 控制，
-     * 需要通过 {@code spring.mvc.format.date-time} 或单独配置。</p>
+     * @return 用于配置时区、Java 8 时间模块与容错特性的定制器实例
      */
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer jackson2ObjectMapperBuilderCustomizer() {
@@ -80,10 +78,9 @@ public class JacksonConfig {
     }
 
     /**
-     * 全局 ObjectMapper —— 供非 Web 场景（如 Redis 序列化、测试工具）使用。
+     * 构建供非 Web 场景（如 Redis 序列化、单测工具）使用的独立 ObjectMapper 单例。
      *
-     * <p>Web 请求/响应序列化使用 Spring Boot 自动配置的 ObjectMapper（已接受上述 Customizer），
-     * 此 Bean 用于需要手动获取 ObjectMapper 的场景。</p>
+     * @return 配置了统一时区与时间模块的 ObjectMapper 实例
      */
     @Bean
     public ObjectMapper objectMapper() {
