@@ -11,12 +11,20 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 团队服务 Feign 降级工厂。
+ * 团队微服务 Feign 客户端降级工厂。
+ *
+ * <p>当 team-service 发生超时或网络异常时触发降级，统一返回系统错误响应。</p>
  */
 @Slf4j
 @Component
 public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
 
+    /**
+     * 创建 TeamFeignClient 失败降级代理实例。
+     *
+     * @param cause 触发远程调用失败的底层异常对象
+     * @return 返回统一错误码的降级客户端实例
+     */
     @Override
     public TeamFeignClient create(Throwable cause) {
         log.error("TeamFeignClient 调用失败", cause);

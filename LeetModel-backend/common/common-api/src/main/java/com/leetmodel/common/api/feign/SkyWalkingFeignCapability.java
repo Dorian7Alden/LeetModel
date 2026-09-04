@@ -15,19 +15,28 @@ import java.io.IOException;
 import java.net.URI;
 
 /**
- * 补齐 Agent 9.7 尚未覆盖的 OpenFeign 4.1 / Feign 13 客户端 Trace。
+ * OpenFeign 客户端 SkyWalking APM 链路增强能力组件。
  *
- * <p>每次物理 HTTP 尝试创建一个有界 Exit Span，并通过官方 Toolkit Carrier
- * 注入 SW8。操作名只使用 Feign 契约方法，不使用已解析 URL、参数或请求体。</p>
+ * <p>为 Feign 物理调用创建有界 Exit Span 并注入 SW8 上下文，操作名采用低基数契约方法签名，
+ * 隔离原始 URL 动态参数与异常明文。</p>
  */
 @Component
 public final class SkyWalkingFeignCapability implements Capability {
 
+    /**
+     * 包装 Feign 客户端以赋予分布式追踪链路注入能力。
+     *
+     * @param client 原始 Feign HTTP Client
+     * @return 增强了 SkyWalking Span 追踪的 TracingClient 代理实例
+     */
     @Override
     public Client enrich(Client client) {
         return new TracingClient(client);
     }
 
+    /**
+     * 负责维护 Exit Span 生命周期与 SW8 上下文注入的 Feign Client 包装类。
+     */
     static final class TracingClient implements Client {
         private final Client delegate;
 
@@ -35,6 +44,14 @@ public final class SkyWalkingFeignCapability implements Capability {
             this.delegate = delegate;
         }
 
+        /**
+         * 执行带分布式链路追踪的 HTTP 调用。
+         *
+         * @param request 待发送的请求对象
+         * @param options 超时与重试选项
+         * @return 远程响应对象
+         * @throws IOException 网络通信异常
+         */
         @Override
         public Response execute(Request request, Request.Options options) throws IOException {
             ContextCarrierRef carrier = new ContextCarrierRef();
@@ -57,6 +74,12 @@ public final class SkyWalkingFeignCapability implements Capability {
             }
         }
 
+        /**
+         * 将 ContextCarrier 中的追踪头注入 Feign 请求头中。
+         *
+         * @param request 待发送的请求对象
+         * @param carrier SkyWalking 上下文载体
+         */
         private static void inject(Request request, ContextCarrierRef carrier) {
             CarrierItemRef item = carrier.items();
             while (item.hasNext()) {
@@ -69,6 +92,12 @@ public final class SkyWalkingFeignCapability implements Capability {
             }
         }
 
+        /**
+         * 提取低基数的标准操作名称。
+         *
+         * @param request 待发送的请求对象
+         * @return 格式为 Feign/MethodSignature 的低基数操作名
+         */
         static String operationName(Request request) {
             if (request.requestTemplate() != null
                     && request.requestTemplate().methodMetadata() != null) {
@@ -77,6 +106,12 @@ public final class SkyWalkingFeignCapability implements Capability {
             return "Feign/" + request.httpMethod().name();
         }
 
+        /**
+         * 提取目标服务的对端主机与端口标识。
+         *
+         * @param request 待发送的请求对象
+         * @return 目标主机与端口字符串
+         */
         private static String peer(Request request) {
             try {
                 URI uri = URI.create(request.url());

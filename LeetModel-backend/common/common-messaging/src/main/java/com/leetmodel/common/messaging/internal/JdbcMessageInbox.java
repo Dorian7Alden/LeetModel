@@ -89,9 +89,21 @@ public final class JdbcMessageInbox implements MessageInbox {
         });
     }
 
-    /** 查询消费事实，不读取业务数据。 */
+    /**
+     * 查询消费去重记录与执行状态元数据（不读取业务领域载荷）。
+     *
+     * @param service 本微服务名称标识
+     * @param traceId 可选的链路追踪 ID 筛选
+     * @param eventId 可选的事件唯一 ID 筛选
+     * @param limit   单次拉取数量上限
+     * @return 符合筛选条件的 Inbox 记录 DTO 列表
+     */
     public List<MessagingInboxRecordDTO> findOperations(
-            String service, String traceId, String eventId, int limit) {
+            String service,
+            String traceId,
+            String eventId,
+            int limit
+    ) {
         StringBuilder sql = new StringBuilder("""
                 SELECT consumer_group, event_id, event_type, source_service, trace_id, status,
                        occurred_at, consumed_at, update_time
@@ -116,12 +128,22 @@ public final class JdbcMessageInbox implements MessageInbox {
         ), arguments.toArray());
     }
 
-    /** 返回已消费 Inbox 数量。 */
+    /**
+     * 返回本微服务已成功完成本地事务消费的 Inbox 记录总数。
+     *
+     * @return 已完成消费的记录数量
+     */
     public long consumedCount() {
         return count("CONSUMED");
     }
 
-    /** 返回指定固定状态的 Inbox 数量。 */
+    /**
+     * 返回本微服务指定固定状态的 Inbox 记录数。
+     *
+     * @param status 目标状态（PROCESSING 或 CONSUMED）
+     * @return 符合该状态的记录总数
+     * @throws IllegalArgumentException 若状态不受支持
+     */
     public long count(String status) {
         if (!List.of("PROCESSING", "CONSUMED").contains(status)) {
             throw new IllegalArgumentException("unsupported inbox status");
@@ -131,7 +153,11 @@ public final class JdbcMessageInbox implements MessageInbox {
         return count == null ? 0L : count;
     }
 
-    /** 返回最老处理中 Inbox 的年龄；正常短事务下应接近零。 */
+    /**
+     * 返回最老处于处理中状态（PROCESSING）的 Inbox 事务存活秒数。
+     *
+     * @return 最老事务存活秒数；若无处理中事务则返回 0
+     */
     public long oldestProcessingAgeSeconds() {
         Timestamp timestamp = jdbcTemplate.queryForObject(
                 "SELECT MIN(create_time) FROM message_inbox WHERE status = 'PROCESSING'",
@@ -143,8 +169,22 @@ public final class JdbcMessageInbox implements MessageInbox {
                 timestamp.toInstant(), Instant.now(clock)).toSeconds());
     }
 
-    private void appendExact(StringBuilder sql, List<Object> arguments,
-                             String column, String value, int maxLength) {
+    /**
+     * 为动态 SQL 拼接严格的等值查询条件与参数校验。
+     *
+     * @param sql       SQL 构建器
+     * @param arguments 参数列表
+     * @param column    列名
+     * @param value     查询值
+     * @param maxLength 允许的最大字符长度
+     */
+    private void appendExact(
+            StringBuilder sql,
+            List<Object> arguments,
+            String column,
+            String value,
+            int maxLength
+    ) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -156,6 +196,12 @@ public final class JdbcMessageInbox implements MessageInbox {
         arguments.add(trimmed);
     }
 
+    /**
+     * 将 JDBC Timestamp 安全转换为本地 LocalDateTime。
+     *
+     * @param value SQL 时间戳
+     * @return 转换后的 LocalDateTime 实例，空值保持为 null
+     */
     private java.time.LocalDateTime localDateTime(Timestamp value) {
         return value == null ? null : value.toLocalDateTime();
     }

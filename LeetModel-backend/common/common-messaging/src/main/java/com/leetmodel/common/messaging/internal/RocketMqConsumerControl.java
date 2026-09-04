@@ -14,10 +14,20 @@ public final class RocketMqConsumerControl {
 
     private final ApplicationContext applicationContext;
 
+    /**
+     * 构造 RocketMQ 消费者控制门面。
+     *
+     * @param applicationContext Spring 容器上下文，用于动态发现注册的消费者容器
+     */
     public RocketMqConsumerControl(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
     }
 
+    /**
+     * 获取当前服务内全部 RocketMQ 消费者的运行状态与暂停标记。
+     *
+     * @return 消费者状态信息列表
+     */
     public List<MessagingConsumerDTO> statuses() {
         return containers().stream()
                 .map(value -> new MessagingConsumerDTO(
@@ -28,6 +38,12 @@ public final class RocketMqConsumerControl {
                 .toList();
     }
 
+    /**
+     * 暂停指定消费组的消息消费拉取。
+     *
+     * @param consumerGroup 待暂停的目标消费组名称
+     * @return 若成功触发暂停返回 true；若消费者未运行或已失效返回 false
+     */
     public boolean pause(String consumerGroup) {
         DefaultRocketMQListenerContainer container = required(consumerGroup);
         if (container.getConsumer() == null || !container.isRunning()) {
@@ -37,6 +53,12 @@ public final class RocketMqConsumerControl {
         return true;
     }
 
+    /**
+     * 恢复指定消费组的消息拉取与消费处理。
+     *
+     * @param consumerGroup 待恢复的目标消费组名称
+     * @return 若成功触发恢复返回 true；若消费者未运行或已失效返回 false
+     */
     public boolean resume(String consumerGroup) {
         DefaultRocketMQListenerContainer container = required(consumerGroup);
         if (container.getConsumer() == null || !container.isRunning()) {
@@ -46,7 +68,11 @@ public final class RocketMqConsumerControl {
         return true;
     }
 
-    /** 读取本服务消费者的 Broker 最大位点与已消费位点差值。 */
+    /**
+     * 采集本服务各消费者的 Broker 最大位点与已提交消费位点差值（积压量）及最老延迟时间。
+     *
+     * @return 各消费组的积压快照列表
+     */
     public List<ConsumerBacklogSnapshot> backlogs() {
         List<ConsumerBacklogSnapshot> snapshots = new ArrayList<>();
         for (DefaultRocketMQListenerContainer container : containers()) {
@@ -82,6 +108,13 @@ public final class RocketMqConsumerControl {
                 .toList();
     }
 
+    /**
+     * 从 Spring 容器中查找指定消费组的容器实例，校验合法性。
+     *
+     * @param consumerGroup 消费组名称
+     * @return 匹配的 RocketMQ 监听容器实例
+     * @throws IllegalArgumentException 若参数为空或不存在对应容器
+     */
     private DefaultRocketMQListenerContainer required(String consumerGroup) {
         if (consumerGroup == null || consumerGroup.isBlank() || consumerGroup.length() > 255) {
             throw new IllegalArgumentException("consumerGroup 无效");
@@ -92,6 +125,11 @@ public final class RocketMqConsumerControl {
                 .orElseThrow(() -> new IllegalArgumentException("consumerGroup 不属于当前服务"));
     }
 
+    /**
+     * 获取当前 Spring 上下文中所有已注册的 RocketMQ 消费者容器实例。
+     *
+     * @return 监听容器列表
+     */
     private List<DefaultRocketMQListenerContainer> containers() {
         return List.copyOf(applicationContext
                 .getBeansOfType(DefaultRocketMQListenerContainer.class, false, false).values());

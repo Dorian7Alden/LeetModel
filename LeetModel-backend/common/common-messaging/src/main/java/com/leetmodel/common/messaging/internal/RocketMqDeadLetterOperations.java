@@ -29,19 +29,46 @@ public final class RocketMqDeadLetterOperations {
     private final MessageCodec codec;
     private final RocketMqConsumerControl consumerControl;
 
-    public RocketMqDeadLetterOperations(String service, RocketMQTemplate template,
-                                        MessageCodec codec, RocketMqConsumerControl consumerControl) {
+    /**
+     * 构造 RocketMQ 死信队列运维操作工具。
+     *
+     * @param service         当前微服务名称
+     * @param template        RocketMQ 模板客户端，可为 null
+     * @param codec           消息编解码器
+     * @param consumerControl 消费者控制组件
+     */
+    public RocketMqDeadLetterOperations(
+            String service,
+            RocketMQTemplate template,
+            MessageCodec codec,
+            RocketMqConsumerControl consumerControl
+    ) {
         this.service = service;
         this.template = template;
         this.codec = codec;
         this.consumerControl = consumerControl;
     }
 
+    /**
+     * 汇总当前微服务全部消费组对应 DLQ 死信队列的元数据摘要。
+     *
+     * @return 死信队列摘要列表
+     */
     public List<MessagingDeadLetterQueueDTO> summaries() {
         return consumerControl.statuses().stream().map(consumer -> summary(consumer.consumerGroup())).toList();
     }
 
-    public List<MessagingDeadLetterRecordDTO> locate(String consumerGroup, List<String> eventIds) {
+    /**
+     * 在特定消费组关联的 DLQ 中按事件 ID 检索定位死信消息。
+     *
+     * @param consumerGroup 目标消费组名称
+     * @param eventIds      待匹配的事件 ID 列表
+     * @return 匹配到的死信明细列表
+     */
+    public List<MessagingDeadLetterRecordDTO> locate(
+            String consumerGroup,
+            List<String> eventIds
+    ) {
         requireLocalConsumer(consumerGroup);
         if (template == null) throw new IllegalStateException("RocketMQ 管理连接不可用");
         DefaultMQProducer producer = template.getProducer();
@@ -66,6 +93,12 @@ public final class RocketMqDeadLetterOperations {
         return records;
     }
 
+    /**
+     * 采集指定消费组死信队列的消息积压数与最老消息时间。
+     *
+     * @param consumerGroup 消费组名称
+     * @return 死信队列摘要 DTO
+     */
     private MessagingDeadLetterQueueDTO summary(String consumerGroup) {
         String topic = MixAll.DLQ_GROUP_TOPIC_PREFIX + consumerGroup;
         if (template == null) {
@@ -94,13 +127,31 @@ public final class RocketMqDeadLetterOperations {
         }
     }
 
-    private MessagingDeadLetterRecordDTO toRecord(String consumerGroup, String eventId, MessageExt message) {
+    /**
+     * 将 RocketMQ 原生死信消息实体反序列化并转换为运维明细 DTO。
+     *
+     * @param consumerGroup 消费组名称
+     * @param eventId       事件唯一 ID
+     * @param message       RocketMQ 原始消息扩展对象
+     * @return 转换后的死信明细 DTO
+     */
+    private MessagingDeadLetterRecordDTO toRecord(
+            String consumerGroup,
+            String eventId,
+            MessageExt message
+    ) {
         MessageEnvelopeV1<Object> envelope = codec.decode(message.getBody(), Object.class);
         return new MessagingDeadLetterRecordDTO(service, consumerGroup, eventId,
                 envelope.eventType(), envelope.sourceService(), message.getMsgId(),
                 message.getReconsumeTimes(), localDateTime(message.getStoreTimestamp()));
     }
 
+    /**
+     * 校验消费组是否归属于当前微服务，防止跨服务误操作。
+     *
+     * @param consumerGroup 消费组名称
+     * @throws IllegalArgumentException 若不属于当前服务
+     */
     private void requireLocalConsumer(String consumerGroup) {
         Set<String> localGroups = consumerControl.statuses().stream()
                 .map(value -> value.consumerGroup()).collect(java.util.stream.Collectors.toSet());
@@ -109,15 +160,34 @@ public final class RocketMqDeadLetterOperations {
         }
     }
 
+    /**
+     * 检查 RocketMQ 消息的 keys 字段是否包含指定的事件 ID。
+     *
+     * @param message 待检查的消息
+     * @param eventId 目标事件 ID
+     * @return 若匹配返回 true，否则 false
+     */
     private boolean hasKey(MessageExt message, String eventId) {
         String keys = message.getKeys();
         return keys != null && List.of(keys.split("\\s+")).contains(eventId);
     }
 
+    /**
+     * 将毫秒时间戳转换为 UTC LocalDateTime。
+     *
+     * @param epochMillis 毫秒时间戳
+     * @return 转换后的 LocalDateTime 实例
+     */
     private LocalDateTime localDateTime(long epochMillis) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneOffset.UTC);
     }
 
+    /**
+     * 判断异常是否因 Broker 尚未生成对应的 DLQ Topic 导致。
+     *
+     * @param error 异常对象
+     * @return 若为 Topic 不存在导致的常规错误返回 true，否则 false
+     */
     private boolean isMissingTopic(Throwable error) {
         Throwable current = error;
         while (current != null) {

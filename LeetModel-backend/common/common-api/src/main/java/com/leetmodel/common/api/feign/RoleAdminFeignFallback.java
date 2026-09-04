@@ -14,12 +14,20 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * RoleAdminFeignClient 降级工厂。
+ * 角色权限管理 Feign 客户端降级工厂。
+ *
+ * <p>当角色管理内部端点调用失败时触发降级，统一返回系统错误响应。</p>
  */
 @Slf4j
 @Component
 public class RoleAdminFeignFallback implements FallbackFactory<RoleAdminFeignClient> {
 
+    /**
+     * 创建 RoleAdminFeignClient 失败降级代理实例。
+     *
+     * @param cause 触发远程调用失败的底层异常对象
+     * @return 返回统一错误码的降级客户端实例
+     */
     @Override
     public RoleAdminFeignClient create(Throwable cause) {
         log.error("RoleAdminFeignClient 调用失败", cause);

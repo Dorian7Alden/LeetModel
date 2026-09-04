@@ -49,7 +49,11 @@ public final class JdbcMessageOutbox implements MessageOutbox {
     }
 
     @Override
-    public String enqueue(String logicalTopic, String tag, MessageEnvelopeV1<?> envelope) {
+    public String enqueue(
+            String logicalTopic,
+            String tag,
+            MessageEnvelopeV1<?> envelope
+    ) {
         byte[] body = codec.encode(envelope);
         Instant now = Instant.now(clock);
         jdbcTemplate.update("""
@@ -283,9 +287,23 @@ public final class JdbcMessageOutbox implements MessageOutbox {
         return Math.max(0L, Duration.between(timestamp.toInstant(), Instant.now(clock)).toSeconds());
     }
 
-    /** 查询不含消息正文与幂等键的运维元数据。 */
+    /**
+     * 查询不含消息正文与敏感业务键的 Outbox 运维元数据。
+     *
+     * @param service 本服务名称标识
+     * @param status  可选的状态筛选过滤条件
+     * @param traceId 可选的链路追踪 ID 筛选
+     * @param eventId 可选的事件唯一 ID 筛选
+     * @param limit   查询记录数量上限
+     * @return 符合筛选条件的运维记录 DTO 列表
+     */
     public List<MessagingOutboxRecordDTO> findOperations(
-            String service, String status, String traceId, String eventId, int limit) {
+            String service,
+            String status,
+            String traceId,
+            String eventId,
+            int limit
+    ) {
         StringBuilder sql = new StringBuilder("""
                 SELECT event_id, topic, tag, event_type, aggregate_type, aggregate_id, trace_id,
                        status, retry_count, last_error, occurred_at, published_at, update_time
@@ -323,6 +341,10 @@ public final class JdbcMessageOutbox implements MessageOutbox {
     /**
      * 将已发布（含进入 DLQ 的原事件）或已阻塞事件重新置为待发送。
      * 事件 ID 和消息正文保持不变，消费端继续由 Inbox 保证幂等。
+     *
+     * @param eventIds 待重新发布的事件唯一 ID 列表，单次上限 20 个
+     * @param reason   人工触发重放的审计原因说明
+     * @return 实际被成功更新并重置为 PENDING 状态的事件 ID 列表
      */
     public List<String> replay(List<String> eventIds, String reason) {
         Instant now = Instant.now(clock);
@@ -347,6 +369,13 @@ public final class JdbcMessageOutbox implements MessageOutbox {
         return accepted;
     }
 
+    /**
+     * 精确查询已成功被当前 Relay 实例领取的待发消息明细。
+     *
+     * @param eventId 事件唯一 ID
+     * @param owner   当前租约所有者实例标识
+     * @return 待发送消息对象
+     */
     private PendingMessage findClaimed(String eventId, String owner) {
         return jdbcTemplate.queryForObject("""
                 SELECT event_id, topic, tag, message_key, event_type, payload_json,
@@ -369,8 +398,22 @@ public final class JdbcMessageOutbox implements MessageOutbox {
         );
     }
 
-    private void appendExact(StringBuilder sql, List<Object> arguments,
-                             String column, String value, int maxLength) {
+    /**
+     * 为动态 SQL 拼接严格的等值查询条件与参数校验。
+     *
+     * @param sql       SQL 构建器
+     * @param arguments 参数列表
+     * @param column    列名
+     * @param value     查询值
+     * @param maxLength 允许的最大字符长度
+     */
+    private void appendExact(
+            StringBuilder sql,
+            List<Object> arguments,
+            String column,
+            String value,
+            int maxLength
+    ) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -382,10 +425,23 @@ public final class JdbcMessageOutbox implements MessageOutbox {
         arguments.add(trimmed);
     }
 
+    /**
+     * 将 JDBC Timestamp 安全转换为本地 LocalDateTime。
+     *
+     * @param value SQL 时间戳
+     * @return 转换后的 LocalDateTime 实例，空值保持为 null
+     */
     private java.time.LocalDateTime localDateTime(Timestamp value) {
         return value == null ? null : value.toLocalDateTime();
     }
 
+    /**
+     * 严格校验并归一化 RocketMQ Tag 字符合法性。
+     *
+     * @param tag 原始 Tag 字符串
+     * @return 校验通过的修剪后 Tag 字符串
+     * @throws IllegalArgumentException 若 tag 包含非法字符或为空
+     */
     private String requiredTag(String tag) {
         String value = Objects.requireNonNull(tag, "tag").trim();
         if (value.isEmpty() || !value.matches("[A-Z0-9_]{1,80}")) {
@@ -397,11 +453,24 @@ public final class JdbcMessageOutbox implements MessageOutbox {
     private record ClaimCandidate(String eventId, boolean takeover) {
     }
 
+    /**
+     * 将错误堆栈摘要化并去除换行，防止日志或数据库列注入。
+     *
+     * @param error 原始错误字符串
+     * @return 截断至 500 字符的安全单行摘要
+     */
     private String errorSummary(String error) {
         String value = error == null ? "Unknown" : error.replaceAll("[\\r\\n]+", " ");
         return value.substring(0, Math.min(value.length(), 500));
     }
 
+    /**
+     * 断言乐观租约更新影响行数为 1，防止在丢失所有权后破坏性修改记录。
+     *
+     * @param changed 数据库更新受影响行数
+     * @param eventId 关联的事件唯一标识
+     * @throws IllegalStateException 若更新行数不为 1（表明租约已丢失）
+     */
     private void requireLease(int changed, String eventId) {
         if (changed != 1) {
             throw new IllegalStateException("outbox lease lost: " + eventId);
