@@ -121,12 +121,22 @@ public class MessagingAutoConfiguration {
             return new OperationAuditMessageCodec(objectMapper, properties.getMaxPayloadBytes());
         }
 
+        /**
+         * 装配可靠消息运维操作审计生产者。
+         *
+         * @param applicationName 当前服务名称
+         * @param outbox          本地 Outbox 写入端口
+         * @param codec           审计消息编解码器
+         * @param jdbcOutbox      JDBC Outbox 实例
+         * @return 操作审计生产者实例
+         */
         @Bean
         public OperationAuditGovernanceProducer operationAuditGovernanceProducer(
                 @Value("${spring.application.name}") String applicationName,
                 MessageOutbox outbox,
                 OperationAuditMessageCodec codec,
-                JdbcMessageOutbox jdbcOutbox) {
+                JdbcMessageOutbox jdbcOutbox
+        ) {
             return new OperationAuditGovernanceProducer(applicationName, outbox, codec, jdbcOutbox);
         }
 
@@ -315,13 +325,26 @@ public class MessagingAutoConfiguration {
             return new MessagingHealthIndicator(outbox);
         }
 
-        /** 创建当前服务的真实 RocketMQ consumer 控制器。 */
+        /**
+         * 创建当前微服务运行态 RocketMQ 消费者容器控制器。
+         *
+         * @param applicationContext Spring 容器上下文
+         * @return 消费者控制器实例
+         */
         @Bean
         public RocketMqConsumerControl rocketMqConsumerControl(ApplicationContext applicationContext) {
             return new RocketMqConsumerControl(applicationContext);
         }
 
-        /** 创建只读 Broker DLQ 查询器；恢复仍必须经过源 Outbox。 */
+        /**
+         * 创建只读 Broker DLQ 查询器（恢复重放仍必须通过源 Outbox）。
+         *
+         * @param applicationName  当前应用名称
+         * @param rocketMQTemplate RocketMQ 模板提供者
+         * @param codec            消息编解码器
+         * @param consumerControl  消费者控制器
+         * @return DLQ 死信运维操作实例
+         */
         @Bean
         public RocketMqDeadLetterOperations rocketMqDeadLetterOperations(
                 @Value("${spring.application.name}") String applicationName,
@@ -330,10 +353,21 @@ public class MessagingAutoConfiguration {
                 RocketMqConsumerControl consumerControl
         ) {
             return new RocketMqDeadLetterOperations(
-                    applicationName, rocketMQTemplate.getIfAvailable(), codec, consumerControl);
+                    applicationName,
+                    rocketMQTemplate.getIfAvailable(),
+                    codec,
+                    consumerControl
+            );
         }
 
-        /** 周期刷新 Broker 消费位点与 DLQ 指标。 */
+        /**
+         * 周期刷新 Broker 消费位点与 DLQ 指标的定时刷新器。
+         *
+         * @param consumerControl 消费者控制器
+         * @param deadLetters     死信队列查询器
+         * @param metrics         消息指标门面
+         * @return 刷新器实例
+         */
         @Bean
         public MessagingBrokerMetricsRefresher messagingBrokerMetricsRefresher(
                 RocketMqConsumerControl consumerControl,
@@ -343,7 +377,19 @@ public class MessagingAutoConfiguration {
             return new MessagingBrokerMetricsRefresher(consumerControl, deadLetters, metrics);
         }
 
-        /** 汇总 Outbox、Inbox、consumer 与可选领域积压。 */
+        /**
+         * 汇总 Outbox、Inbox、消费者状态与可选领域积压的消息运维应用服务。
+         *
+         * @param applicationName     应用名称
+         * @param outbox              JDBC Outbox 实例
+         * @param inbox               JDBC Inbox 实例
+         * @param consumerControl     消费者控制器
+         * @param metrics             消息指标
+         * @param deadLetters         死信队列操作工具
+         * @param backlogContributors 领域积压量贡献者
+         * @param audit               操作审计生产者
+         * @return 消息运维应用服务实例
+         */
         @Bean
         public MessagingOperationsService messagingOperationsService(
                 @Value("${spring.application.name}") String applicationName,
@@ -357,13 +403,27 @@ public class MessagingAutoConfiguration {
         ) {
             List<MessagingDomainBacklogContributor> contributors = backlogContributors.orderedStream().toList();
             return new MessagingOperationsService(
-                    applicationName, outbox, inbox, consumerControl, metrics, deadLetters, contributors, audit);
+                    applicationName,
+                    outbox,
+                    inbox,
+                    consumerControl,
+                    metrics,
+                    deadLetters,
+                    contributors,
+                    audit
+            );
         }
 
-        /** 暴露统一内网运维端点。 */
+        /**
+         * 暴露统一内网消息运维 HTTP Controller。
+         *
+         * @param operationsService 消息运维应用服务
+         * @return 消息运维 Controller 实例
+         */
         @Bean
         public MessagingOperationsController messagingOperationsController(
-                MessagingOperationsService operationsService) {
+                MessagingOperationsService operationsService
+        ) {
             return new MessagingOperationsController(operationsService);
         }
     }

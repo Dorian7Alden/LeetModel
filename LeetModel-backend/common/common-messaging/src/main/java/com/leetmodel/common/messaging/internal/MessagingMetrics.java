@@ -101,7 +101,12 @@ public final class MessagingMetrics {
         }
     }
 
-    /** 用本服务固定消费者集合替换 Broker 快照。 */
+    /**
+     * 用本服务固定消费者集合与死信队列状态刷新 Broker 运行时指标快照。
+     *
+     * @param consumers   消费者积压快照列表
+     * @param deadLetters 死信队列摘要列表
+     */
     public void updateBroker(
             List<RocketMqConsumerControl.ConsumerBacklogSnapshot> consumers,
             List<MessagingDeadLetterQueueDTO> deadLetters
@@ -114,6 +119,12 @@ public final class MessagingMetrics {
         }
     }
 
+    /**
+     * 安全执行 Broker 运行态指标注册与数值覆盖。
+     *
+     * @param consumers   消费者积压快照列表
+     * @param deadLetters 死信队列摘要列表
+     */
     private void updateBrokerSafely(
             List<RocketMqConsumerControl.ConsumerBacklogSnapshot> consumers,
             List<MessagingDeadLetterQueueDTO> deadLetters
@@ -145,14 +156,25 @@ public final class MessagingMetrics {
         deadLetterAvailable.register(deadLetterAvailabilityRows, true);
     }
 
-    /** 记录 Outbox 领取类型。 */
+    /**
+     * 记录 Outbox 消息领取类型（正常领取 vs 租约接管）。
+     *
+     * @param topic    物理 Topic 名称
+     * @param takeover 是否属于过期租约接管
+     */
     public void claimed(String topic, boolean takeover) {
         increment(counter("leetmodel.messaging.outbox.claims",
                 "topic", dimension(topic),
                 "claim_type", takeover ? "takeover" : "normal"), 1D);
     }
 
-    /** 记录发布结果与耗时。 */
+    /**
+     * 记录消息向 Broker 发布的结果状态与网络耗时。
+     *
+     * @param topic        物理 Topic 名称
+     * @param outcome      发布结果（success / retry / blocked）
+     * @param elapsedNanos 物理网络往返纳秒耗时
+     */
     public void published(String topic, String outcome, long elapsedNanos) {
         String safeTopic = dimension(topic);
         String safeOutcome = outcome(outcome);
@@ -162,7 +184,13 @@ public final class MessagingMetrics {
                 "topic", safeTopic, "outcome", safeOutcome), elapsedNanos);
     }
 
-    /** 记录 Inbox 结果与短事务耗时。 */
+    /**
+     * 记录 Inbox 消息幂等消费结果与短事务执行耗时。
+     *
+     * @param consumerGroup 逻辑消费组名称
+     * @param outcome       消费处理结果（consumed / duplicate / failure）
+     * @param elapsedNanos  本地事务处理纳秒耗时
+     */
     public void consumed(String consumerGroup, String outcome, long elapsedNanos) {
         String safeGroup = dimension(consumerGroup);
         String safeOutcome = outcome(outcome);
@@ -172,7 +200,11 @@ public final class MessagingMetrics {
                 "consumer_group", safeGroup, "outcome", safeOutcome), elapsedNanos);
     }
 
-    /** 记录人工接受的重放事件数量。 */
+    /**
+     * 记录人工运维接受重放的消息条数。
+     *
+     * @param count 实际接受重放的消息条数
+     */
     public void replayed(int count) {
         if (count > 0) {
             increment(counter("leetmodel.messaging.operations",
@@ -180,13 +212,17 @@ public final class MessagingMetrics {
         }
     }
 
-    /** 记录一次真实 consumer 暂停。 */
+    /**
+     * 记录一次成功的消费者人工挂起操作。
+     */
     public void consumerPaused() {
         increment(counter("leetmodel.messaging.operations",
                 "operation", "consumer_control", "outcome", "paused"), 1D);
     }
 
-    /** 记录一次真实 consumer 恢复。 */
+    /**
+     * 记录一次成功的消费者人工恢复操作。
+     */
     public void consumerResumed() {
         increment(counter("leetmodel.messaging.operations",
                 "operation", "consumer_control", "outcome", "resumed"), 1D);

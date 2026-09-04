@@ -92,6 +92,12 @@ public final class OutboxRelay {
         }
     }
 
+    /**
+     * 执行单条消息的物理投递、链路 Span 上报、成功确认或重试/阻断状态流转。
+     *
+     * @param message  待发送的 Outbox 消息
+     * @param takeover 是否属于过期租约接管
+     */
     private void relay(PendingMessage message, boolean takeover) {
         long started = System.nanoTime();
         try (SkyWalkingExecutionSpan span = SkyWalkingExecutionSpan.open(
@@ -133,6 +139,12 @@ public final class OutboxRelay {
         }
     }
 
+    /**
+     * 解析待发消息载荷以提取 TraceId 与 OperationId，构建链路追踪上下文快照。
+     *
+     * @param message 待发消息实体
+     * @return 链路追踪快照对象
+     */
     private CorrelationSnapshot correlation(PendingMessage message) {
         try {
             MessageEnvelopeV1<Object> envelope = codec.decode(

@@ -31,6 +31,13 @@ public final class RocketMqMessagePublisher implements MessagePublisher {
         this.timeoutMs = timeoutMs;
     }
 
+    /**
+     * 向 RocketMQ Broker 同步发送已领取的待发消息。
+     *
+     * @param pending 待发布的本地 Outbox 消息实体
+     * @return 包含 Broker 消息全局 ID 的发布回执
+     * @throws PermanentPublishException 若发生不可自愈的拓扑或权限配置错误（如 TOPIC 不存在、无权限）
+     */
     @Override
     public PublishReceipt publish(PendingMessage pending) {
         Message<byte[]> message = MessageBuilder
@@ -52,6 +59,12 @@ public final class RocketMqMessagePublisher implements MessagePublisher {
         }
     }
 
+    /**
+     * 递归检查异常链，判断是否属于静态资源或权限配置错误（此类错误重试无法恢复，需直接阻断 Outbox）。
+     *
+     * @param error 捕获的异常对象
+     * @return 若包含不可恢复的配置错误特征返回 true，否则返回 false
+     */
     private boolean isStableConfigurationError(Throwable error) {
         Throwable current = error;
         while (current != null) {
