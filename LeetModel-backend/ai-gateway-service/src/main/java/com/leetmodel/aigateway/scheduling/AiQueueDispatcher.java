@@ -8,7 +8,7 @@ import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
 import com.leetmodel.aigateway.provider.AiUpstreamRateLimitException;
 import com.leetmodel.common.ai.model.AiCallPriority;
-import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.ai.logging.AiCallLogEvents;
 import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
 import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;

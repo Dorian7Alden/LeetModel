@@ -9,7 +9,7 @@ import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.ai.logging.AiCallLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

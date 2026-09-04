@@ -5,7 +5,7 @@ import com.leetmodel.aigateway.entity.AiCallTask;
 import com.leetmodel.aigateway.mapper.AiCallAttemptMapper;
 import com.leetmodel.aigateway.mapper.AiCallTaskMapper;
 import com.leetmodel.aigateway.observability.AiGatewayMetrics;
-import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.ai.logging.AiCallLogEvents;
 import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
 import com.leetmodel.common.core.telemetry.ExecutionSpanOperation;
 import com.leetmodel.common.core.telemetry.SkyWalkingExecutionSpan;

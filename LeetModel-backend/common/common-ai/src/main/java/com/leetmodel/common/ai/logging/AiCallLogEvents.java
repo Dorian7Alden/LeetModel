@@ -1,13 +1,14 @@
-package com.leetmodel.common.core.logging;
+package com.leetmodel.common.ai.logging;
 
+import com.leetmodel.common.core.logging.LogEventCodes;
+import com.leetmodel.common.core.logging.LogFieldNames;
 import org.slf4j.Logger;
 import org.slf4j.spi.LoggingEventBuilder;
 
 /** AI 调用阶段日志；只记录调度与计量关联事实，不记录请求或响应正文。 */
 public final class AiCallLogEvents {
 
-    private AiCallLogEvents() {
-    }
+    private AiCallLogEvents() { }
 
     public static void completed(Logger logger, String callId, String callType,
                                  String priority, long durationMs) {
