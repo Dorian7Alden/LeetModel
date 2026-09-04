@@ -42,6 +42,14 @@ public class SubmissionService {
     private final ReviewDispatchQueryService reviewDispatchQueryService;
     private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
+    /**
+     * 查询指定队伍的提交历史记录（倒序排列）。
+     *
+     * @param teamId 目标队伍 ID，不能为 null
+     * @param userId 操作用户 ID，不能为 null
+     * @return 队伍提交记录视图列表
+     * @throws BusinessException 若队伍不存在或用户非队员
+     */
     public List<SubmissionVO> history(Long teamId, Long userId) {
         requiredMemberTeam(teamId, userId);
         SubmissionLock lock = lockMapper.selectOne(new LambdaQueryWrapper<SubmissionLock>()
@@ -70,6 +78,14 @@ public class SubmissionService {
                 .collect(Collectors.toMap(ProblemPracticeDTO::getId, ProblemPracticeDTO::getCode));
     }
 
+    /**
+     * 锁定队伍的最终作品提交版本（触发榜单与评审异步事件）。
+     *
+     * @param teamId 目标队伍 ID，不能为 null
+     * @param userId 操作用户 ID，不能为 null
+     * @return 最终锁定的提交版本视图对象
+     * @throws BusinessException 若未达截止时间或没有成功提交记录
+     */
     @Transactional
     public SubmissionVO lockFinal(Long teamId, Long userId) {
         TeamDTO team = requiredMemberTeam(teamId, userId);
@@ -80,6 +96,9 @@ public class SubmissionService {
         return toVO(finalSubmission, finalSubmission.getId());
     }
 
+    /**
+     * 定时自动扫描截止时间已到达的实训队伍并执行最终版本锁定。
+     */
     @Scheduled(fixedDelayString = "${submission.finalizer.delay-ms:60000}")
     public void finalizeExpiredPractices() {
         Result<List<TeamDTO>> response = teamFeignClient.listExpiredPractices();
@@ -93,6 +112,13 @@ public class SubmissionService {
         }
     }
 
+    /**
+     * 查询指定提交记录的评审数据（供评审服务拉取）。
+     *
+     * @param id 目标提交 ID，不能为 null
+     * @return 评审提交摘要 DTO
+     * @throws BusinessException 若提交记录不存在
+     */
     public SubmissionReviewDTO getForReview(Long id) {
         Submission value = requiredSubmission(id);
         return new SubmissionReviewDTO(value.getId(), value.getTeamId(), value.getProblemId(),
