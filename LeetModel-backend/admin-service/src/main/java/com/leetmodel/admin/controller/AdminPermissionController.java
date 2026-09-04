@@ -35,24 +35,48 @@ public class AdminPermissionController {
 
     private final RoleAdminFeignClient roleAdminFeignClient;
 
+    /**
+     * 管理员查询系统所有细粒度权限列表。
+     *
+     * @return 权限视图对象列表
+     */
     @Operation(summary = "获取权限列表")
     @GetMapping
     public Result<List<PermissionVO>> list() {
         return roleAdminFeignClient.listPermissions();
     }
 
+    /**
+     * 查看指定权限的详情定义。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 权限视图对象
+     */
     @Operation(summary = "获取权限详情")
     @GetMapping("/{permissionId}")
     public Result<PermissionVO> detail(@PathVariable Long permissionId) {
         return roleAdminFeignClient.getPermission(permissionId);
     }
 
+    /**
+     * 录入新增的系统权限。
+     *
+     * @param request 包含编码、名称与描述的权限请求对象，不能为 null
+     * @return 创建后的权限视图对象
+     */
     @Operation(summary = "创建权限")
     @PostMapping
     public Result<PermissionVO> create(@Valid @RequestBody PermissionRequest request) {
         return roleAdminFeignClient.createPermission(request);
     }
 
+    /**
+     * 更新已有权限的信息定义。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @param request      包含修改内容的请求对象，不能为 null
+     * @return 更新后的权限视图对象
+     */
     @Operation(summary = "更新权限")
     @PutMapping("/{permissionId}")
     public Result<PermissionVO> update(@PathVariable Long permissionId,
@@ -60,6 +84,12 @@ public class AdminPermissionController {
         return roleAdminFeignClient.updatePermission(permissionId, request);
     }
 
+    /**
+     * 删除未被角色使用的废弃权限。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "删除权限")
     @DeleteMapping("/{permissionId}")
     public Result<Void> delete(@PathVariable Long permissionId) {
