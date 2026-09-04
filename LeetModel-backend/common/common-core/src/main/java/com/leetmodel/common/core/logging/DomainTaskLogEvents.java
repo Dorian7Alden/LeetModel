@@ -88,6 +88,15 @@ public final class DomainTaskLogEvents {
                 .log("Domain task executor rejected attempt");
     }
 
+    /**
+     * 注入业务类型、任务 ID 与尝试序号的基础日志构建器。
+     *
+     * @param event        SLF4J 事件构建器
+     * @param businessType 业务类型标识
+     * @param taskId       领域任务唯一主键标识
+     * @param attemptNo    物理尝试序号，允许为 null
+     * @return 注入公共键值对后的事件构建器
+     */
     private static LoggingEventBuilder base(LoggingEventBuilder event, String businessType,
                                             Object taskId, Integer attemptNo) {
         event.addKeyValue(LogFieldNames.BUSINESS_TYPE, businessType)
@@ -96,6 +105,12 @@ public final class DomainTaskLogEvents {
         return event;
     }
 
+    /**
+     * 规范化任务执行状态字符串，默认转为大写。
+     *
+     * @param state 原始状态文本
+     * @return 规范化后的状态文本；为空时返回 UNKNOWN
+     */
     private static String normalize(String state) {
         return state == null || state.isBlank() ? "UNKNOWN" : state.trim().toUpperCase(Locale.ROOT);
     }

@@ -97,6 +97,13 @@ public final class LogSanitizer {
         return sanitize(value, MAX_STACK_FRAME_LENGTH);
     }
 
+    /**
+     * 对输入文本执行控制字符清理、敏感模式不可逆脱敏及长度截断。
+     *
+     * @param value     待清洗的文本，允许为 null
+     * @param maxLength 允许保留的最大字符长度
+     * @return 清洗脱敏后的安全字符串；空串或 null 时返回 null
+     */
     private static String sanitize(String value, int maxLength) {
         if (value == null) return null;
         String normalized = stripControls(value);
@@ -109,6 +116,12 @@ public final class LogSanitizer {
         return limit(normalized, maxLength);
     }
 
+    /**
+     * 清理字符串中的不可见控制字符及换行符，防止日志注入伪造。
+     *
+     * @param value 原始文本字符串
+     * @return 消除非法控制符后的安全字符串
+     */
     private static String stripControls(String value) {
         StringBuilder safe = new StringBuilder(value.length());
         boolean lastWasSpace = false;
@@ -128,6 +141,13 @@ public final class LogSanitizer {
         return safe.toString();
     }
 
+    /**
+     * 对超长文本施加硬截断并追加 [TRUNCATED] 标识。
+     *
+     * @param value     待截断的字符串
+     * @param maxLength 最大长度限制
+     * @return 符合长度约束且不截断 UTF-16 代理对的字符串
+     */
     private static String limit(String value, int maxLength) {
         if (value.length() <= maxLength) return value;
         int prefixLength = maxLength - TRUNCATED.length();

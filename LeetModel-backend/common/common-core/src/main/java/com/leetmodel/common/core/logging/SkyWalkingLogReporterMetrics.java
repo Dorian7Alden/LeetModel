@@ -52,42 +52,81 @@ public final class SkyWalkingLogReporterMetrics {
         CONNECTED.set(0);
     }
 
+    /**
+     * 更新当前内存缓冲队列深度指标。
+     *
+     * @param depth 当前队列大小
+     */
     static void queueDepth(int depth) {
         QUEUE_DEPTH.set(Math.max(0, depth));
     }
 
+    /**
+     * 记录一条成功入队接收的日志事件。
+     */
     static void accepted() {
         ACCEPTED.incrementAndGet();
     }
 
+    /**
+     * 记录批量上报成功的日志条数，并标记连通状态为正常。
+     *
+     * @param count 成功上报的条数
+     */
     static void succeeded(int count) {
         SUCCEEDED.addAndGet(count);
         CONNECTED.set(1);
         if (FAILED_SINCE_LAST_SUCCESS.getAndSet(0) == 1) RECOVERED.incrementAndGet();
     }
 
+    /**
+     * 记录批量上报失败的日志条数，并标记连通状态为断开。
+     *
+     * @param count 失败的条数
+     */
     static void failed(int count) {
         FAILED.addAndGet(count);
         CONNECTED.set(0);
         FAILED_SINCE_LAST_SUCCESS.set(1);
     }
 
+    /**
+     * 记录因队列满载丢弃的低优先级日志数。
+     */
     static void droppedQueueLow() {
         DROPPED_QUEUE_LOW.incrementAndGet();
     }
 
+    /**
+     * 记录因队列极端满载丢弃的高优先级日志数。
+     */
     static void droppedQueueHigh() {
         DROPPED_QUEUE_HIGH.incrementAndGet();
     }
 
+    /**
+     * 记录因网络发送重试耗尽丢弃的日志数。
+     *
+     * @param count 丢弃的条数
+     */
     static void droppedSend(int count) {
         DROPPED_SEND.addAndGet(count);
     }
 
+    /**
+     * 记录应用停机未发送丢弃的日志数。
+     *
+     * @param count 停机丢弃的条数
+     */
     static void droppedShutdown(int count) {
         DROPPED_SHUTDOWN.addAndGet(count);
     }
 
+    /**
+     * 向 Micrometer 注册中心绑定所有的上报与丢弃指标。
+     *
+     * @param registry 指标注册中心
+     */
     private static void bind(MeterRegistry registry) {
         counter(registry, ACCEPTED, "accepted", "none");
         counter(registry, SUCCEEDED, "succeeded", "none");
@@ -108,6 +147,14 @@ public final class SkyWalkingLogReporterMetrics {
                 .register(registry);
     }
 
+    /**
+     * 注册指定 outcome 和 cause 维度的 FunctionCounter 指标。
+     *
+     * @param registry 指标注册中心
+     * @param value    原子计数值源
+     * @param outcome  结果类型标签
+     * @param cause    原因类型标签
+     */
     private static void counter(MeterRegistry registry, AtomicLong value,
                                 String outcome, String cause) {
         FunctionCounter.builder(EVENTS_METRIC, value, AtomicLong::doubleValue)
