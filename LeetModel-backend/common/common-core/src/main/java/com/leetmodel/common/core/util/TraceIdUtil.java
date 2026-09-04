@@ -3,25 +3,13 @@ package com.leetmodel.common.core.util;
 import com.leetmodel.common.core.telemetry.CorrelationContext;
 
 /**
- * TraceId 工具类 —— 封装 SLF4J MDC 的读写操作。
+ * 全链路 TraceId 读写门面工具类。
  *
- * <p>用于微服务全链路日志追踪：
- * <ul>
- *   <li>网关层接收到请求后生成 traceId，调用 {@link #setTraceId(String)} 写入 MDC</li>
- *   <li>Feign / RestTemplate 拦截器从 MDC 读取 traceId 并注入到 HTTP Header</li>
- *   <li>下游服务从 Header 提取 traceId 后再次写入 MDC</li>
- *   <li>Logback 配置通过 {@code %X{traceId}} 在每条日志中自动输出 traceId</li>
- * </ul>
- * </p>
- *
- * <p>日志输出示例：</p>
- * <pre>{@code
- * 2026-07-26 10:30:15.123 [user-service,abc123def456] INFO  c.l.u.c.UserController - 用户登录成功
- * }</pre>
+ * <p>底层委托 CorrelationContext 操作 SLF4J MDC，保持静态调用语法兼容。</p>
  */
 public final class TraceIdUtil {
 
-    /** HTTP Header 名称，用于跨服务透传 TraceId。 */
+    /** 跨服务透传 TraceId 的标准 HTTP Header 名称 */
     public static final String TRACE_ID_HEADER = CorrelationContext.TRACE_ID_HEADER;
 
     private TraceIdUtil() {
@@ -29,26 +17,25 @@ public final class TraceIdUtil {
     }
 
     /**
-     * 将 traceId 写入当前线程的 MDC。
+     * 设置当前线程绑定的全局追踪 ID。
      *
-     * @param traceId 链路追踪 ID
+     * @param traceId 链路追踪 ID，传 null 时清空
      */
     public static void setTraceId(String traceId) {
         CorrelationContext.setTraceId(traceId);
     }
 
     /**
-     * 从当前线程的 MDC 中读取 traceId。
+     * 读取当前线程绑定的全局追踪 ID。
      *
-     * @return traceId，未设置时返回 null
+     * @return 当前链路绑定的 traceId；未设置时返回 null
      */
     public static String getTraceId() {
         return CorrelationContext.traceId();
     }
 
     /**
-     * 清除当前线程 MDC 中的 traceId。
-     * 应在请求处理完成后（如 Filter / Interceptor 的 afterCompletion）调用，防止内存泄漏。
+     * 清除当前线程绑定的 traceId，防止线程复用污染。
      */
     public static void removeTraceId() {
         CorrelationContext.setTraceId(null);
