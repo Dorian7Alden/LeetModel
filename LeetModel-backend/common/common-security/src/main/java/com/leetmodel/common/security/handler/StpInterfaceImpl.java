@@ -13,31 +13,45 @@ import java.util.List;
 /**
  * Sa-Token 权限/角色数据源实现。
  *
- * <p>每次鉴权注解（@SaCheckRole / @SaCheckPermission）触发时，
- * Sa-Token 调用此实现获取当前用户的角色和权限列表进行比对。</p>
- *
- * <p>通过 Feign 调用 user 服务查询 RBAC 数据，
- * user 服务不可用时走 Feign 降级。</p>
+ * <p>触发 @SaCheckRole 或 @SaCheckPermission 时回调此类，通过 UserFeignClient 向 user-service
+ * 查询用户的角色和权限编码；在服务故障或降级时返回空列表并由处理器映射为 403（保证安全不倒置）。</p>
  */
 @Component
 @RequiredArgsConstructor
 public class StpInterfaceImpl implements StpInterface {
 
+    /** 用户微服务 Feign 远程客户端 */
     private final UserFeignClient userFeignClient;
 
+    /**
+     * 获取当前登录用户的权限编码列表。
+     *
+     * @param loginId   登录账号主键 ID
+     * @param loginType 账号登录体系类型
+     * @return 权限编码集合；查询失败或无权限时返回空列表
+     */
     @Override
     public List<String> getPermissionList(Object loginId, String loginType) {
         return fetchRoles(loginId).getPermissions();
     }
 
+    /**
+     * 获取当前登录用户的角色编码列表。
+     *
+     * @param loginId   登录账号主键 ID
+     * @param loginType 账号登录体系类型
+     * @return 角色编码集合；查询失败或无角色时返回空列表
+     */
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
         return fetchRoles(loginId).getRoles();
     }
 
     /**
-     * 通过 Feign 调用 user 服务获取角色和权限。
-     * 失败时返回空列表，AuthExceptionHandler 会将其转换为 403 响应。
+     * 通过 Feign 远程查询用户服务的 RBAC 角色与权限数据。
+     *
+     * @param loginId 登录账号主键 ID
+     * @return 包含角色与权限列表的 UserRoleDTO 传输对象；降级时返回包含空列表的对象
      */
     private UserRoleDTO fetchRoles(Object loginId) {
         try {
