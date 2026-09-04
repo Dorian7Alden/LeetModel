@@ -7,16 +7,18 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 通用分页查询基类 —— 所有分页查询 DTO 的父类。
+ * 通用分页查询基类 —— 所有前台列表与管理端分页检索入参的统一父类。
  *
- * <p>用法：各模块的 PageQuery DTO 继承此类，添加自己的查询条件即可。</p>
+ * <p>各业务模块的分页查询参数对象（PageQuery）均继承此类，并在子类中扩展业务筛选条件。</p>
  *
- * <pre>{@code
- * public class ProblemPageQuery extends BasePageQuery {
- *     private String keyword;
- *     private Integer status;
- * }
- * }</pre>
+ * <h3>核心设计思考与面试考点</h3>
+ * <ul>
+ *   <li><b>分页安全防御（防慢 SQL 与堆内存 OOM）：</b><br/>
+ *       强制使用 {@code @Max(100)} 对单页拉取上限施加硬约束。若缺乏条数限制，恶意调用方或前端 Bug 传入
+ *       {@code pageSize=1000000} 会触发全表扫库并加载海量数据到 JVM 堆中，极易引起频繁 Full GC 甚至内存溢出崩溃。</li>
+ *   <li><b>1-based 索引规范与组件对齐：</b><br/>
+ *       强制约束 {@code @Min(1)}，与国内主流前端 UI 库（Element Plus、Ant Design）及主流 ORM 分页插件保持 1-based 习惯统一。</li>
+ * </ul>
  */
 @Data
 @NoArgsConstructor

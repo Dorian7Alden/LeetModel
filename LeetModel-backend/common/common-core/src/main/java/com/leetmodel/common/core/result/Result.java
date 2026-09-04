@@ -7,20 +7,26 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 统一响应体 —— 所有 Controller 方法的返回类型。
+ * 统一接口响应体 —— 全平台所有对外 HTTP 接口与内部 Feign 调用的标准信封封装。
  *
- * <p>状态码采用 A-BB-CC 五段式编码规范：
+ * <p>契约固定包含四个核心字段：状态码（code）、描述文本（message）、数据负载（data）与时间戳（timestamp）。</p>
+ *
+ * <h3>核心设计思考与面试考点</h3>
  * <ul>
- *   <li>A（万位）：2=成功 4=客户端错误/业务阻断 5=服务端错误/第三方异常</li>
- *   <li>BB（千位百位）：业务模块，00=全局通用 01=认证鉴权 02=用户 03=团队...</li>
- *   <li>CC（十位个位）：具体错误序号，从 01 递增</li>
+ *   <li><b>为什么统一返回 HTTP 200 而不是直接使用 HTTP 4xx/5xx 状态码表达业务失败？</b><br/>
+ *       1. 职责分层：HTTP 状态码表达的是“传输层/网络层”通信状态，而业务状态码表达的是“领域应用层”执行结果；<br/>
+ *       2. 网关保护：若业务错误直接返回 HTTP 500，会触发微服务网关（Spring Cloud Gateway）或云负载均衡器的
+ *          重试风暴与熔断器误触发；<br/>
+ *       3. 客户端体验：统一信封结构便于前端网络拦截器（Axios）全局提取 message 并弹出 Toast 提示。</li>
+ *   <li><b>状态码分段规范（A-BB-CC 结构）：</b><br/>
+ *       采用五位分段标准：首位 A 表达错误严重等级（2 成功、4 业务阻断/参数不合规、5 系统严重故障）；
+ *       中间两位 BB 表达业务领域代号（00 通用、01 用户、02 组队、03 题库等）；后两位 CC 表达领域内具体错误编号。</li>
+ *   <li><b>为什么 isSuccess() 要标注 @JsonIgnore？</b><br/>
+ *       若不标注，Jackson 默认会将符合 JavaBean 规范的 isXxx() 方法自动识别并序列化为 {@code "success": true/false}，
+ *       导致网络传输体出现多余非契约字段，违背微服务严格传输契约原则。</li>
  * </ul>
- * </p>
  *
- * <p>不依赖具体 ErrorCode 枚举，通过 {@link ErrorCode} 接口解耦，
- * 各模块可定义自己的错误码并传入 {@code Result.fail()}。</p>
- *
- * @param <T> 响应数据的类型
+ * @param <T> 响应数据的实际类型
  */
 @Data
 @NoArgsConstructor
