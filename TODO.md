@@ -15,24 +15,24 @@
 
 ## 当前状态
 
-公共基础层（common 全部 6 个子模块）职责边界梳理、代码注释契约与多参排版规范化已全部完成并合入 dev。等待用户确认后进入下一微服务（推荐顺序 2：user-service）。
+当前处于用户服务（user-service）全景结构、执行流程与代码质量梳理阶段，工作分支为 phase/user-service-refine。
 
 ## 当前任务
 
-### 任务卡：TASK-COMMON-01 common 模块职责边界梳理与优化
-- **目标**：梳理 `common` 层 6 个子模块的职责边界、依赖关系、设计模式与实现细节，排查潜在代码问题与文档偏差，向用户提交详细分析与问题清单，由用户引导确认后执行代码与文档调整并完成验证。
-- **入口**：`LeetModel-backend/common/`、`docs/project/03-微服务设计/common/`
+### 任务卡：TASK-USER-01 user-service 架构全貌、核心业务流梳理与代码注释规范化
+- **目标**：梳理 `user-service` 的整体架构职责、组件交互、端到端业务执行流程（注册/登录/RBAC/头像/管理端/审计Outbox），通过 Mermaid 进行结构化呈现；排查代码注释、多参换行排版、可读性坏味道等问题，形成详细调整方案供用户决策确认后实施。
+- **入口**：`LeetModel-backend/user-service/`、`docs/project/03-微服务设计/user-service/`
 - **主流程**：
-  1. 深入分析 `common-core`, `common-api`, `common-security`, `common-cache`, `common-messaging`, `common-ai` 现状与职责边界。
-  2. 梳理各子模块间的依赖关系、跨服务使用情况、潜在代码坏味道或设计违规点。
-  3. 形成详细的问题与风险清单向用户汇报，由用户决策是否调整及调整方案。
-  4. 根据用户决策更新相关文档或代码，执行编译与测试验证。
+  1. 全面勘测 `user-service` 35 个源码文件，梳理对外 REST 与内部 Feign 接口、Service 业务逻辑、RBAC 五表模型。
+  2. 绘制服务依赖交互图、用户认证登录时序图、RBAC 授权链路图。
+  3. 按照项目代码风格规范排查 Javadoc 契约缺失、参数换行排版错乱、套娃式 return 与行内对齐问题。
+  4. 汇总问题清单向用户汇报，由用户引导确认后执行代码调整、文档同步与单元测试回归。
 - **完成标准**：
-  1. 完成 `common` 6 个子模块的边界分析并向用户输出清晰的现状与问题报告。
-  2. 经用户确认后完成对应的代码/文档调整，`mvn clean compile` 及相关测试通过。
-  3. 沉淀或更新对应的 `common` 设计与边界文档。
-- **修改范围**：`LeetModel-backend/common/`、`docs/project/03-微服务设计/common/`、`TODO.md`。
-- **非目标**：不擅自修改具体业务微服务业务逻辑；不推倒公共模块既有架构。
+  1. 输出清晰的整体架构全貌、核心执行流程图解与问题清单。
+  2. 经用户确认后完成代码注释与排版调整，`mvn test` 全部通过。
+  3. 同步更新 `user-service` 模块设计文档。
+- **修改范围**：`LeetModel-backend/user-service/`、`docs/project/03-微服务设计/user-service/`、`TODO.md`。
+- **非目标**：不推倒既有 RBAC 领域模型；不修改已对外发布的 REST/Feign 契约定义。
 
 ## 待梳理服务清单（按推荐顺序）
 
