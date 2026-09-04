@@ -23,31 +23,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Gateway 全局异常处理器 —— 将 WebFlux 异常转换为统一的 {@link Result} JSON 响应。
+ * Gateway 全局异常处理器：将 WebFlux 响应式异常统一转换为 {@link Result} JSON 响应。
  *
- * <p>为什么需要这个？
- * <ul>
- *   <li>Gateway 基于 Netty + WebFlux（响应式），不走 Servlet 容器，
- *       因此 common-core 中的 {@code @RestControllerAdvice} 对它无效</li>
- *   <li>没有此处理器时，路由失败/下游宕机/超时会返回 Spring 默认的 HTML/JSON 错误，
- *       破坏前端对统一 {@code Result} 格式的约定</li>
- * </ul>
- * </p>
- *
- * <h3>核心设计思考与技术要点</h3>
- * <ul>
- *   <li><b>WebFlux vs Servlet 异常处理</b>：Servlet 用 {@code @RestControllerAdvice + @ExceptionHandler}，
- *       WebFlux 用 {@code ErrorWebExceptionHandler}。根本原因是两者的请求处理模型不同
- *       （同步阻塞 vs 响应式非阻塞），全局通知机制不互通。</li>
- *   <li><b>{@code @Order(-1)}</b>：Spring Boot 默认注册的
- *       {@code DefaultErrorWebExceptionHandler} 优先级是 {@code -1} 的前一级，
- *       我们的实现用 {@code -2} 确保优先于默认处理器，覆盖其行为。</li>
- *   <li><b>{@code DataBuffer} 内存管理</b>：响应式 I/O 使用 Netty 的引用计数 ByteBuf，
- *       写入响应后 Spring 自动释放，无需手动 {@code release()}。</li>
- *   <li><b>{@code response.writeWith()} vs {@code response.writeAndFlushWith()}</b>：
- *       前者返回 Mono&lt;Void&gt; 表示写入完成信号（数据可能还在 OS 缓冲区），
- *       后者返回 Flux 支持流式写入。单个 JSON body 用前者即可。</li>
- * </ul>
+ * <p>在非阻塞网关管道中捕获未处理的路由异常、下游超时与网络中断，保证客户端获得契约对齐的错误返回。</p>
  */
 @Configuration
 @Order(-2)
@@ -61,6 +39,13 @@ public class JsonExceptionHandler implements ErrorWebExceptionHandler {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 统一处理 WebFlux 管道中的未捕获异常并写回 JSON 响应。
+     *
+     * @param exchange 响应式 HTTP 请求上下文，不能为 null
+     * @param ex       未捕获的根因异常对象，不能为 null
+     * @return Mono 表示写入完成的异步信号
+     */
     @Override
     public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
         ServerHttpResponse response = exchange.getResponse();
