@@ -107,20 +107,30 @@ public final class CorrelationContext {
         MDC_KEYS.forEach(MDC::remove);
     }
 
-    /** @return 当前 traceId */
+    /**
+     * 读取当前线程绑定的业务追踪 ID。
+     *
+     * @return 当前链路绑定的 traceId；未绑定时返回 null
+     */
     public static String traceId() {
         return MDC.get(TRACE_ID);
     }
 
-    /** @return 当前 operationId */
+    /**
+     * 读取当前线程绑定的治理操作 ID。
+     *
+     * @return 当前绑定的 operationId；未设置时返回 null
+     */
     public static String operationId() {
         return MDC.get(OPERATION_ID);
     }
 
     /**
-     * 返回已建立的 operationId，或为新的受信治理命令生成一个。
+     * 获取或初始化治理操作 ID。
      *
-     * @return 当前 operationId
+     * <p>若当前上下文已存在 operationId 则直接返回；若不存在则自动生成新 ID 写入当前上下文并返回。</p>
+     *
+     * @return 当前有效且可用的 operationId 字符串
      */
     public static String ensureOperationId() {
         String current = operationId();
@@ -151,10 +161,10 @@ public final class CorrelationContext {
     }
 
     /**
-     * 判断一个 HTTP 关联头是否满足公共契约。
+     * 校验 HTTP 关联请求头是否满足低基数安全契约。
      *
-     * @param value 头值
-     * @return 是否合法
+     * @param value 待判定的请求头字符串
+     * @return true 表示符合长度与字符集规范，false 表示非法
      */
     public static boolean isValidHttpId(String value) {
         return TelemetryFieldPolicy.isValidCorrelationId(value, 100);

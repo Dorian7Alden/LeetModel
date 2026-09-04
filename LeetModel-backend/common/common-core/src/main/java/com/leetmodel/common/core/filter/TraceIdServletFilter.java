@@ -54,10 +54,12 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
 
         String inboundTraceId = request.getHeader(TRACE_ID_HEADER);
         String traceId = CorrelationContext.isValidHttpId(inboundTraceId)
-                ? inboundTraceId.trim() : CorrelationContext.newId();
+                ? inboundTraceId.trim()
+                : CorrelationContext.newId();
         String inboundOperationId = request.getHeader(CorrelationContext.OPERATION_ID_HEADER);
         String operationId = CorrelationContext.isValidHttpId(inboundOperationId)
-                ? inboundOperationId.trim() : null;
+                ? inboundOperationId.trim()
+                : null;
         CorrelationSnapshot snapshot = SkyWalkingCorrelation.enrich(CorrelationSnapshot.EMPTY
                 .withTraceId(traceId)
                 .withOperationId(operationId));
@@ -97,7 +99,8 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         String routeTemplate = matched == null ? "UNMATCHED" : matched.toString();
         LoggingEventBuilder event = failed ? log.atWarn() : log.atInfo();
         event.addKeyValue(LogFieldNames.EVENT_CODE, failed
-                        ? LogEventCodes.HTTP_REQUEST_FAILED : LogEventCodes.HTTP_REQUEST_COMPLETED)
+                        ? LogEventCodes.HTTP_REQUEST_FAILED
+                        : LogEventCodes.HTTP_REQUEST_COMPLETED)
                 .addKeyValue(LogFieldNames.TRACE_ID, traceId)
                 .addKeyValue(LogFieldNames.HTTP_METHOD, request.getMethod())
                 .addKeyValue(LogFieldNames.ROUTE_TEMPLATE, routeTemplate)

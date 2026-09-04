@@ -20,15 +20,13 @@ public final class MetricTagPolicy {
     }
 
     /**
-     * 判断标签键是否属于禁止进入指标的业务或关联标识。
+     * 判定指定标签键是否属于严禁进入 Prometheus 的高基数业务标识。
      *
-     * @param tagKey Micrometer 标签键
-     * @return 是否禁止
+     * @param tagKey 待判定的指标 Tag 名称字符串
+     * @return true 表示包含用户、题目、Trace 等高基数标识，必须拦截拒绝；false 表示允许放行
      */
     public static boolean isForbiddenIdTag(String tagKey) {
-        if (tagKey == null || tagKey.isBlank()) {
-            return false;
-        }
+        if (tagKey == null || tagKey.isBlank()) return false;
         String normalized = tagKey.toLowerCase(Locale.ROOT)
                 .replace("_", "")
                 .replace("-", "")

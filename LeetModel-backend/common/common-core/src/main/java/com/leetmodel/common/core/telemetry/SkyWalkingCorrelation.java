@@ -22,7 +22,11 @@ public final class SkyWalkingCorrelation {
     private SkyWalkingCorrelation() {
     }
 
-    /** @return 当前可查询的 SkyWalking Trace ID；未采样或无 Agent 时返回 null */
+    /**
+     * 读取当前 SkyWalking 物理执行链路的 Trace ID。
+     *
+     * @return 可查询的 SkyWalking Trace ID；未采样或无 Agent 探针时返回 null
+     */
     public static String traceId() {
         try {
             return usable(TraceContext.traceId(), TelemetryFieldPolicy.MAX_SKYWALKING_ID_LENGTH);
@@ -49,7 +53,12 @@ public final class SkyWalkingCorrelation {
         }
     }
 
-    /** @return 在保留业务关联字段的同时加入当前 Agent Trace/Span 的新快照 */
+    /**
+     * 将当前线程的 SkyWalking 链路标识丰富注入到既有业务关联快照中。
+     *
+     * @param snapshot 原始业务关联快照，传 null 时视为空快照
+     * @return 注入了当前 Agent TraceId 与 SpanId 的新快照实例
+     */
     public static CorrelationSnapshot enrich(CorrelationSnapshot snapshot) {
         CorrelationSnapshot base = snapshot == null ? CorrelationSnapshot.EMPTY : snapshot;
         return base.withSkyWalking(traceId(), spanId());

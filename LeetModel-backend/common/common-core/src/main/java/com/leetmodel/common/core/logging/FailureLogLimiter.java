@@ -45,14 +45,24 @@ public final class FailureLogLimiter {
         this.maxKeys = Math.max(1, properties.getMaxKeys());
     }
 
-    /** 供不启动 Spring 容器的纯单元测试或可选组件使用。 */
+    /**
+     * 构建一个关闭限频的禁用实例，供单元测试或无 Spring 环境使用。
+     *
+     * @return 始终判定放行日志的 FailureLogLimiter 实例
+     */
     public static FailureLogLimiter disabled() {
         LogRateLimitProperties properties = new LogRateLimitProperties();
         properties.setEnabled(false);
         return new FailureLogLimiter(Metrics.globalRegistry, properties);
     }
 
-    /** 记录一次故障并决定是否输出首条或周期汇总。 */
+    /**
+     * 记录一次故障事件并基于滑动窗口判定日志输出决策。
+     *
+     * @param stableKey 固定小写的稳定限频标识键，不能为空
+     * @param eventCode 稳定大写下划线事件编码，不能为空
+     * @return 包含判定动作、抑制计数与总故障次数的 Decision 结果对象
+     */
     public Decision onFailure(String stableKey, String eventCode) {
         String key = requireStableKey(stableKey);
         String code = normalizeEventCode(eventCode);
@@ -83,7 +93,12 @@ public final class FailureLogLimiter {
         return holder.decision;
     }
 
-    /** 记录依赖恢复；没有先前故障时不产生恢复日志。 */
+    /**
+     * 记录依赖或故障恢复，清理滑动窗口状态。
+     *
+     * @param stableKey 固定小写的稳定限频标识键，不能为空
+     * @return 若先前存在故障则返回包含恢复信息的 Decision，无先前故障时返回 NONE
+     */
     public Decision onRecovery(String stableKey) {
         String key = requireStableKey(stableKey);
         if (!enabled) return Decision.none();

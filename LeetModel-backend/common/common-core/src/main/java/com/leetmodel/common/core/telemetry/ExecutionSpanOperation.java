@@ -30,7 +30,11 @@ public enum ExecutionSpanOperation {
         this.operationName = operationName;
     }
 
-    /** @return 不能包含运行时标识的固定 operation name */
+    /**
+     * 获取固定的低基数 SkyWalking 操作名称。
+     *
+     * @return 预定义的标准操作名称字符串，不包含任何动态业务或运行时标识
+     */
     public String operationName() {
         return operationName;
     }
