@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * </ul>
  * </p>
  *
- * <h3>核心设计思考与面试考点</h3>
+ * <h3>核心设计思考与架构约束</h3>
  * <ul>
  *   <li><b>为什么采用雪花算法（Snowflake ID）而非自增主键？</b><br/>
  *       1. 避免分库分表与多数据源聚合时产生主键冲突；<br/>

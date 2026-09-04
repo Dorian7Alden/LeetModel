@@ -13,7 +13,7 @@ import java.util.List;
  *
  * <p>通常配合统一响应体使用：{@code Result.ok(PageResult.from(page))}</p>
  *
- * <h3>核心设计思考与面试考点</h3>
+ * <h3>核心设计思考与架构约束</h3>
  * <ul>
  *   <li><b>防腐层设计（Anticorruption Layer）：为什么不直接返回 MyBatis-Plus 的 IPage 对象？</b><br/>
  *       1. 解耦持久层技术选型：{@code IPage} 带有 MyBatis-Plus 框架特有的内部实现属性（如 countId、optimizeCountSql、
