@@ -32,14 +32,14 @@ public class MinioStorageServiceImpl implements StorageService {
 
     /** 允许上传的文件类型 MIME 白名单 */
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "text/plain",           // 纯文本
-            "text/markdown",        // Markdown
-            "text/csv",             // csv
-            "application/pdf",      // PDF
-            "application/msword",   // doc
+            "text/plain",                                                               // 纯文本
+            "text/markdown",                                                            // Markdown
+            "text/csv",                                                                 // CSV 表格
+            "application/pdf",                                                          // PDF 文档
+            "application/msword",                                                       // Word doc
             "image/jpeg", "image/png", "image/gif", "image/webp",                       // 图片
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // .docx
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         // .xlsx
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // Word docx
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         // Excel xlsx
     );
 
     private final MinioClient minioClient;
