@@ -18,7 +18,7 @@
 3. 【强制】表名使用全小写 snake_case，单数名词命名。关联表（junction table）以两个关联表名组合，按字母序排列。
    示例：`user`、`role`、`problem`、`tag`；关联表：`user_role`、`role_permission`、`problem_tag`。
 
-4. 【强制】主键统一使用 MyBatis-Plus `IdType.ASSIGN_ID`（雪花算法，`com.leetmodel.common.core.entity.BaseEntity` 提供默认实现）。字段名为 `id`，类型为 `BIGINT`。
+4. 【强制】主键统一使用 MyBatis-Plus `IdType.ASSIGN_ID`（雪花算法，`BaseEntity` 提供默认实现）。字段名为 `id`，类型为 `BIGINT`。
 
 5. 【强制】唯一约束命名格式：`uk_{column}`（单列）或 `uk_{table}_{column}`（多列时避免歧义）。
    示例：`uk_username`（user 表 username 列）、`uk_problem_tag`（problem_tag 表的 problem_id + tag_id 组合唯一约束）。
@@ -41,4 +41,3 @@
 
 10. 【推荐】能字段化就不标签化。如果一种分类属性可以通过固定枚举值或范围字段来表达，优先使用数据库字段直接存储，避免引入标签关联表增加查询复杂度。
     示例：题目难度用 `difficulty TINYINT`（1-3），题目类型用 `contest_type VARCHAR`（MCM_ICM/CUMCM），都不走标签表。
-
