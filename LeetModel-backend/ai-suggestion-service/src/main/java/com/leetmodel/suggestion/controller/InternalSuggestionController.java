@@ -23,12 +23,23 @@ public class InternalSuggestionController {
 
     private final SuggestionService suggestionService;
 
+    /**
+     * 统计系统当前生成的建议任务记录总数。
+     *
+     * @return 建议任务总数
+     */
     @Operation(summary = "获取论文建议任务数量")
     @GetMapping("/count")
     public Result<Long> count() {
         return Result.ok(suggestionService.count());
     }
 
+    /**
+     * 按时间倒序查询最近的建议任务摘要列表。
+     *
+     * @param limit 单次拉取数量上限
+     * @return 建议任务摘要 DTO 列表
+     */
     @Operation(summary = "获取最近论文建议任务")
     @GetMapping("/tasks")
     public Result<List<SuggestionTaskSummaryDTO>> listRecent(

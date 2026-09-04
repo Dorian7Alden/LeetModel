@@ -33,6 +33,14 @@ public class RankingController {
     private final RankingService rankingService;
     private final RankingCachePolicy cachePolicy;
 
+    /**
+     * 客户端查询指定题目的当前榜单（支持按队伍名即时过滤与 ETag 协商缓存）。
+     *
+     * @param problemId   目标题目 ID，不能为 null 且须为正整数
+     * @param keyword     可选的队伍名称模糊过滤关键字
+     * @param ifNoneMatch 请求头 ETag 缓存标识，可为空
+     * @return 包含榜单概览视图对象的 HTTP 响应实体
+     */
     @Operation(summary = "查询题目当前排行")
     @GetMapping("/problems/{problemId}")
     public ResponseEntity<Result<RankingOverviewVO>> current(
@@ -45,6 +53,15 @@ public class RankingController {
         return validator.ok(Result.ok(rankingService.getCurrent(problemId, keyword)));
     }
 
+    /**
+     * 定位指定队伍在题目榜单中的排名及前后名次上下文。
+     *
+     * @param problemId   目标题目 ID，不能为 null
+     * @param teamId      目标队伍 ID，不能为 null
+     * @param radius      前后展示半径行数（0 到 10，默认 2）
+     * @param ifNoneMatch 请求头 ETag 缓存标识，可为空
+     * @return 包含目标队伍排名与邻近排行的 HTTP 响应实体
+     */
     @Operation(summary = "定位队伍在题目排行中的位置")
     @GetMapping("/problems/{problemId}/teams/{teamId}")
     public ResponseEntity<Result<TeamRankingContextVO>> locate(

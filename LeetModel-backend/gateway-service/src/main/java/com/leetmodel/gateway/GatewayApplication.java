@@ -8,17 +8,16 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import reactor.core.publisher.Hooks;
 
 /**
- * LeetModel API 网关 —— 系统唯一对外入口。
+ * LeetModel API 网关：系统唯一对外入口。
  *
  * <p>核心职责：
  * <ul>
- *   <li>路径匹配 → 路由转发到对应微服务</li>
- *   <li>TraceId 生成与透传：每个请求自动分配链路追踪 ID</li>
- *   <li>JWT 鉴权拦截：白名单路径放行，其余校验登录态</li>
- *   <li>跨域处理：统一 CORS，业务服务无需各自配置</li>
+ *   <li>路径匹配并路由转发到下游微服务</li>
+ *   <li>TraceId 生成与透传，建立全链路追踪</li>
+ *   <li>基于 Sa-Token 执行 JWT 统一鉴权拦截</li>
+ *   <li>全局 CORS 跨域治理</li>
  * </ul>
- *
- * <p>技术栈：Spring Cloud Gateway（Netty + WebFlux，非阻塞 I/O）。</p>
+ * </p>
  */
 @SpringBootApplication
 @EnableDiscoveryClient

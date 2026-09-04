@@ -17,7 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** submission-service 最终提交审计生产者，不复制 PDF 或提交正文。 */
+/**
+ * 论文提交服务最终作品锁定审计生产者。
+ *
+ * <p>在队伍锁定最终提交版本时，将版本号与元数据原子写入操作审计 Outbox，不包含二进制 PDF 内容。</p>
+ */
 @Component
 public class SubmissionAuditEventProducer {
     private final MessageOutbox outbox;
@@ -25,10 +29,23 @@ public class SubmissionAuditEventProducer {
     @Value("${spring.application.name:submission-service}") private String sourceService;
     @Value("${APP_VERSION:dev}") private String serviceVersion;
 
+    /**
+     * 构造作品提交审计生产者。
+     *
+     * @param outbox 本地 Outbox 写入端口
+     * @param codec  操作审计消息编解码器
+     */
     public SubmissionAuditEventProducer(MessageOutbox outbox, OperationAuditMessageCodec codec) {
         this.outbox = outbox; this.codec = codec;
     }
 
+    /**
+     * 发布队伍最终提交锁定的操作审计事件。
+     *
+     * @param team         队伍实体 DTO
+     * @param submissionId 锁定的提交记录 ID
+     * @param version      锁定的作品版本号
+     */
     public void finalized(TeamDTO team, Long submissionId, Integer version) {
         String eventId = UUID.nameUUIDFromBytes(("submission-finalize:" + submissionId).getBytes()).toString();
         String trace = TraceIdUtil.getTraceId();

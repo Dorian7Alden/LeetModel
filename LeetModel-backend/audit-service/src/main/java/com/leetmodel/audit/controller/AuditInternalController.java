@@ -25,11 +25,36 @@ public class AuditInternalController {
     private final AuditQueryRepository repository;
     private final AuditRetentionPolicyService retention;
 
+    /**
+     * 构造审计内部查询 Controller。
+     *
+     * @param repository 审计查询仓储
+     * @param retention  归档留存策略服务
+     */
     public AuditInternalController(AuditQueryRepository repository, AuditRetentionPolicyService retention) {
         this.repository = repository;
         this.retention = retention;
     }
 
+    /**
+     * 组合多维度条件检索操作审计日志记录（只读）。
+     *
+     * @param from          起始时间
+     * @param to            截止时间
+     * @param sourceService 来源微服务
+     * @param category      操作大类
+     * @param operationCode 具体操作码
+     * @param riskLevel     风险等级（HIGH/MEDIUM/LOW）
+     * @param actorId       操作人标识
+     * @param targetType    操作目标实体类型
+     * @param targetId      操作目标标识
+     * @param outcome       操作结果（SUCCEEDED/FAILED/REJECTED）
+     * @param operationId   全局治理操作唯一 ID
+     * @param traceId       链路追踪 ID
+     * @param swTraceId     SkyWalking 追踪 ID
+     * @param limit         单次拉取数量上限
+     * @return 分页包装的审计事件列表
+     */
     @GetMapping("/events")
     public Result<OperationAuditPageDTO> search(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
@@ -51,6 +76,11 @@ public class AuditInternalController {
                 swTraceId, limit)));
     }
 
+    /**
+     * 查询当前平台生效的操作审计保留与冷归档策略配置。
+     *
+     * @return 归档保留策略 DTO
+     */
     @GetMapping("/retention-policy")
     public Result<OperationAuditRetentionPolicyDTO> retentionPolicy() {
         return Result.ok(retention.current());

@@ -7,14 +7,16 @@ import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
 /**
- * 全局跨域配置 —— Gateway 统一处理 CORS，业务服务无需各自配置。
- *
- * <p>⚠️ Gateway 必须用 {@link CorsWebFilter}（WebFlux 响应式），
- * 不能用 Spring MVC 的 {@code CorsConfigurationSource}，否则不生效。</p>
+ * 全局跨域响应式 WebFilter 配置。
  */
 @Configuration
 public class CorsConfig {
 
+    /**
+     * 装配 WebFlux 全局跨域过滤器。
+     *
+     * @return CorsWebFilter 实例
+     */
     @Bean
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration config = new CorsConfiguration();

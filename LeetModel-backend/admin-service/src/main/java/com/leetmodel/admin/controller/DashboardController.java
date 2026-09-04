@@ -46,6 +46,11 @@ public class DashboardController {
     private final EvaluationFeignClient evaluationFeignClient;
     private final AiGatewayFeignClient aiGatewayFeignClient;
 
+    /**
+     * 聚合平台全量微服务的关键运行态统计大盘指标（容忍局部下游服务不可用）。
+     *
+     * @return 包含用户、队伍、题目、提交、评审、排行与 AI 调用的指标聚合视图对象
+     */
     @Operation(summary = "获取真实汇总统计及局部失败状态")
     @GetMapping("/stats")
     public Result<AdminDashboardVO> stats() {

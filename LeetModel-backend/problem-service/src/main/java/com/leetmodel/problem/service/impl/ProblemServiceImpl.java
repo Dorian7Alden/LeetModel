@@ -66,6 +66,12 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 分页查询 ====================
 
+    /**
+     * 管理员分页组合条件查询题目列表（含标签与赛事信息）。
+     *
+     * @param query 分页与组合筛选条件对象，不能为 null
+     * @return 分页包装的题目视图列表
+     */
     @Override
     public IPage<ProblemVO> pageProblems(ProblemPageQuery query) {
         validateScoreRange(query);
@@ -123,6 +129,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 详情查询 ====================
 
+    /**
+     * 查询题目的完整明细信息（含未发布题目与所有附件）。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @return 题目详情视图对象
+     * @throws BusinessException 若题目不存在
+     */
     @Override
     public ProblemVO getProblemDetail(Long id) {
         Problem problem = getById(id);
@@ -216,6 +229,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     }
 
     @Override
+    /**
+     * 根据条件在已发布的题目中随机抽取一道题目。
+     *
+     * @param query 过滤条件，不能为 null
+     * @return 随机匹配的题目视图对象
+     * @throws BusinessException 若未匹配到符合条件的已发布题目
+     */
     public ProblemVO getRandomPublishedProblem(ProblemPageQuery query) {
         validateScoreRange(query);
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
@@ -455,6 +475,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 创建 ====================
 
+    /**
+     * 创建新的建模题目并持久化初始标签关联。
+     *
+     * @param request   题目创建参数对象，不能为 null
+     * @param creatorId 创建人用户 ID，不能为 null
+     * @return 创建成功后的题目视图对象
+     */
     @Override
     @Transactional
     public ProblemVO createProblem(ProblemCreateRequest request, Long creatorId) {
@@ -496,6 +523,14 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 更新 ====================
 
+    /**
+     * 更新已有题目的基本信息、题面 Markdown 或发布状态。
+     *
+     * @param id      目标题目 ID，不能为 null
+     * @param request 包含修改内容的请求对象，不能为 null
+     * @return 更新后的题目视图对象
+     * @throws BusinessException 若题目不存在
+     */
     @Override
     @Transactional
     public ProblemVO updateProblem(Long id, ProblemUpdateRequest request) {
@@ -648,6 +683,12 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 标签名称查询 ====================
 
+    /**
+     * 查询指定题目关联的所有标签名称列表。
+     *
+     * @param problemId 目标题目 ID，不能为 null
+     * @return 标签名称字符串列表
+     */
     @Override
     public List<String> getTagNames(Long problemId) {
         LambdaQueryWrapper<ProblemTag> wrapper = new LambdaQueryWrapper<>();

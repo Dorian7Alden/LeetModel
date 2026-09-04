@@ -26,12 +26,24 @@ import java.util.List;
 public class ContestController {
     private final ContestService contestService;
 
+    /**
+     * 管理员查询系统预置的赛事字典列表。
+     *
+     * @return 赛事字典实体列表
+     */
     @Operation(summary = "查询预置赛事列表")
     @GetMapping
     public Result<List<Contest>> list() {
         return Result.ok(contestService.list());
     }
 
+    /**
+     * 管理员修改赛事的编码或名称基础数据。
+     *
+     * @param id      目标赛事 ID，不能为 null
+     * @param request 包含新编码与名称的请求对象，不能为 null
+     * @return 更新后的赛事字典实体
+     */
     @Operation(summary = "更新赛事基础数据")
     @PutMapping("/{id}")
     public Result<Contest> update(@PathVariable Long id,

@@ -62,19 +62,19 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements TeamService {
 
-    private static final String ROLE_LEADER = "leader";
-    private static final String ROLE_MEMBER = "member";
-    private static final String PENDING = "pending";
-    private static final String APPROVED = "approved";
-    private static final String REJECTED = "rejected";
-    private static final String CANCELLED = "cancelled";
-    private static final String CLOSED = "closed";
-    private static final String RECRUITMENT_OPEN = "OPEN";
-    private static final String RECRUITMENT_FILLED = "FILLED";
-    private static final String RECRUITMENT_CLOSED = "CLOSED";
-    private static final int DEFAULT_MAX_MEMBERS = 3;
-    private static final int STATUS_ACTIVE = 1;
-    private static final int STATUS_DISBANDED = 0;
+    private static final String ROLE_LEADER = "leader";          // 队长身份
+    private static final String ROLE_MEMBER = "member";          // 普通队员身份
+    private static final String PENDING = "pending";              // 入队申请：待审核
+    private static final String APPROVED = "approved";            // 入队申请：已批准
+    private static final String REJECTED = "rejected";            // 入队申请：已拒绝
+    private static final String CANCELLED = "cancelled";          // 入队申请：申请人已取消
+    private static final String CLOSED = "closed";                // 入队申请：队伍已满或解散关闭
+    private static final String RECRUITMENT_OPEN = "OPEN";        // 招募位置：开放中
+    private static final String RECRUITMENT_FILLED = "FILLED";    // 招募位置：已满额
+    private static final String RECRUITMENT_CLOSED = "CLOSED";    // 招募位置：已主动关闭
+    private static final int DEFAULT_MAX_MEMBERS = 3;            // 默认队伍人数上限（3人队伍）
+    private static final int STATUS_ACTIVE = 1;                  // 队伍状态：正常
+    private static final int STATUS_DISBANDED = 0;               // 队伍状态：已解散
 
     private final TeamMemberMapper teamMemberMapper;
     private final TeamJoinApplicationMapper applicationMapper;

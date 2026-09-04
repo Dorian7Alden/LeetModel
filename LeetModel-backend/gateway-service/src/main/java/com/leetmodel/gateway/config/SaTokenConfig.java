@@ -15,20 +15,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 
 /**
- * Sa-Token 响应式配置 —— JWT 无状态认证 + 路由鉴权规则。
+ * Sa-Token 响应式路由鉴权与 JWT 无状态认证配置。
  *
- * <p>关键设计决策：
- * <ul>
- *   <li><b>JWT 无状态模式</b>：Token 由签名自包含，校验不查 Redis Session。
- *       仅校验签名 + 过期时间，性能最优。</li>
- *   <li><b>白名单路径放行</b>：注册、登录无需携带 Token。</li>
- *   <li><b>其余路径全部拦截</b>：任何未在白名单中的路径，均需携带有效 JWT。</li>
- *   <li><b>Redis 黑名单已就绪</b>：登出 Token 加入 Redis 黑名单，
- *       Gateway 和业务服务均可校验，双重保障。</li>
- * </ul>
- *
- * <p>⚠️ 注意：Gateway 基于 WebFlux 响应式架构，必须使用
- * {@code sa-token-reactor-spring-boot3-starter}，servlet 版无法启动。</p>
+ * <p>在网关层建立第一道受信边界：静态放行公开白名单路径，非白名单路径校验有效 JWT 凭证。</p>
  */
 @Configuration
 @RequiredArgsConstructor
@@ -43,10 +32,9 @@ public class SaTokenConfig {
     private long timeout;
 
     /**
-     * 配置 StpLogic 为 JWT 无状态模式。
+     * 配置 StpLogic 为 JWT 无状态签名校验模式。
      *
-     * <p>密钥必须与 user 服务保持一致，否则 Gateway 校验签名失败，
-     * user 服务签发的 Token 会被网关拒绝。</p>
+     * @return StpLogic 实例
      */
     @Bean
     public StpLogic stpLogic() {
@@ -61,9 +49,9 @@ public class SaTokenConfig {
     }
 
     /**
-     * 注册 Sa-Token 响应式过滤器，定义路由鉴权规则。
+     * 注册 Sa-Token 响应式全局过滤器，定义路由白名单与鉴权拦截规则。
      *
-     * <p>规则：匹配所有请求 → 排除白名单 → 其余必须登录。</p>
+     * @return SaReactorFilter 过滤器实例
      */
     @Bean
     public SaReactorFilter saReactorFilter() {

@@ -17,7 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** problem-service 领域审计生产者；只保存目录允许的摘要字段。 */
+/**
+ * 题目服务操作审计事件生产者。
+ *
+ * <p>捕获题目增删改、附件删除与赛事基础信息更新动作，原子写入操作审计 Outbox。</p>
+ */
 @Component
 public class ProblemAuditEventProducer {
     private final MessageOutbox outbox;
@@ -29,12 +33,49 @@ public class ProblemAuditEventProducer {
         this.outbox = outbox; this.codec = codec;
     }
 
+    /**
+     * 发布题目创建的操作审计事件。
+     *
+     * @param id 新增题目唯一 ID
+     */
     public void problemCreated(Long id) { emit("PROBLEM.CREATE", "PROBLEM", id, Map.of("contentVersion", "CREATED")); }
+
+    /**
+     * 发布题目更新的操作审计事件。
+     *
+     * @param id 目标题目唯一 ID
+     */
     public void problemUpdated(Long id) { emit("PROBLEM.UPDATE", "PROBLEM", id, Map.of("contentVersion", "UPDATED")); }
+
+    /**
+     * 发布题目删除的操作审计事件。
+     *
+     * @param id 被删除题目唯一 ID
+     */
     public void problemDeleted(Long id) { emit("PROBLEM.DELETE", "PROBLEM", id, Map.of("contentVersion", "DELETED")); }
+
+    /**
+     * 发布附件删除的操作审计事件。
+     *
+     * @param id 被删除附件唯一 ID
+     */
     public void attachmentDeleted(Long id) { emit("PROBLEM.ATTACHMENT_DELETE", "ATTACHMENT", id, Map.of("attachmentKind", "OBJECT", "attachmentVersion", "DELETED")); }
+
+    /**
+     * 发布赛事信息更新的操作审计事件。
+     *
+     * @param id 被修改赛事唯一 ID
+     */
     public void contestUpdated(Long id) { emit("CONTEST.UPDATE", "CONTEST", id, Map.of("scheduleVersion", "UPDATED")); }
 
+    /**
+     * 构建标准操作审计载荷并投递至本地事务 Outbox。
+     *
+     * @param code       审计操作标识码
+     * @param targetType 操作目标实体类型
+     * @param targetId   操作目标实体 ID
+     * @param after      变更后属性快照 Map
+     */
     private void emit(String code, String targetType, Long targetId, Map<String, String> after) {
         String eventId = UUID.randomUUID().toString();
         String trace = TraceIdUtil.getTraceId();
