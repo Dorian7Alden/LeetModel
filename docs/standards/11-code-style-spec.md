@@ -62,6 +62,25 @@ public static <T> PageResult<T> from(IPage<T> page) {
 
 公有与私有方法均须遵守此格式。方法名已完全自解释且无入参出参的微型方法可适当简略。
 
+#### 2.4 尾随行内注释与对齐规范
+
+1. 【强制】尾随行内注释（`// ...`）必须**垂直对齐**，保证阅读工整。
+2. 【强制】对于内容较长、不易一眼识别或包含特定格式的值（如 MIME 类型、复杂正则表达式、配置键、状态常量等），必须在行末添加对齐的尾随注释说明业务含义。
+
+正例：
+
+```java
+private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+        "text/plain",                                                               // 纯文本
+        "text/markdown",                                                            // Markdown
+        "text/csv",                                                                 // CSV 表格
+        "application/pdf",                                                          // PDF 文档
+        "application/msword",                                                       // Word doc
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // Word docx
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         // Excel xlsx
+);
+```
+
 ---
 
 ### 三、方法内步骤注释
@@ -202,3 +221,43 @@ private UserAdminVO.RoleSimpleVO toRoleSimpleVO(Role role) {
 4. 【禁止】Builder 属性挤在一行。
 5. 【禁止】方法缺少 Javadoc 或步骤注释。
 6. 【禁止】在代码注释、Javadoc 中出现“面试”、“面试考点”、“考点”等求职元信息。代码注释必须保持严肃、纯粹的生产级工程与架构视角，仅说明职责、设计权衡、技术约束、线程安全与业务规则。
+7. 【禁止】尾随行内注释参差不齐、不垂直对齐。
+8. 【禁止】多参数换行时第一个参数不换行，或者括号格式错乱。
+9. 【禁止】在 return 语句中嵌套过深的对象构造（如匿名函数 + 深度 Builder + map + filter 等一长串堆叠）。
+10. 【禁止】为了追求代码行数少而使用大量晦涩语法糖、多层匿名嵌套，牺牲代码可读性与可维护性。
+
+---
+
+### 十一、代码可读性与排版规约
+
+代码的最首要目标是**可读性与可维护性**。严禁为了节省行数而写出晦涩隐晦的代码。
+
+#### 11.1 参数换行与对齐规范
+
+1. 单行代码过长时必须换行。
+2. 当方法声明或调用的参数较多需要换行时，**第一个参数必须换行**，每个参数独立成行，结尾括号与修饰单独换行闭合，形成清晰独立的参数块。
+
+正例：
+
+```java
+public PageResult(
+        long total,
+        int page,
+        int size,
+        List<T> rows
+) {
+    ...
+}
+```
+
+反例：
+
+```java
+public PageResult(long total, // ❌ 第一个参数未换行
+        int page, int size, List<T> rows) {
+```
+
+#### 11.2 拒绝隐晦代码与复杂堆叠
+
+1. 不允许一句代码写大量的逻辑堆叠。过于复杂的处理过程必须拆分为多个清晰命名的局部变量和明确的业务步骤。
+2. 严禁出现“俄罗斯套娃式 return”：禁止直接 return 一个高度嵌套构造的对象（如在 return 里内嵌匿名函数、多层 Builder 链式调用、Stream map/filter 转换）。必须先通过清晰的局部变量完成计算或拆解为私有辅助方法，最后平坦地 return。
