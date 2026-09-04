@@ -32,10 +32,20 @@ public final class SkyWalkingLogReporterMetrics {
     private SkyWalkingLogReporterMetrics() {
     }
 
+    /**
+     * 构造 MeterBinder 以便向 Spring Actuator 注册日志上报指标。
+     *
+     * @return 用于绑定指标的 MeterBinder 实例
+     */
     public static MeterBinder meterBinder() {
         return SkyWalkingLogReporterMetrics::bind;
     }
 
+    /**
+     * 记录 Reporter 启动时的队列容量配置。
+     *
+     * @param capacity 队列最大容量
+     */
     static void reporterStarted(int capacity) {
         QUEUE_CAPACITY.set(Math.max(0, capacity));
         QUEUE_DEPTH.set(0);

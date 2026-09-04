@@ -108,6 +108,11 @@ public final class FailureLogLimiter {
                 : Decision.recovery(previous.suppressedSinceEmission(), previous.totalFailures());
     }
 
+    /**
+     * 递增特定事件码被压制忽略的次数指标。
+     *
+     * @param eventCode 稳定事件编码
+     */
     private void incrementSuppressed(String eventCode) {
         Counter.builder(SUPPRESSED_METRIC)
                 .description("Repeated failure log events suppressed before append")
@@ -116,6 +121,13 @@ public final class FailureLogLimiter {
                 .increment();
     }
 
+    /**
+     * 校验限频键是否符合小写稳定编码正则。
+     *
+     * @param value 待判定的限频键字符串
+     * @return 校验通过的合法原值
+     * @throws IllegalArgumentException 当键名不合法时抛出
+     */
     private String requireStableKey(String value) {
         if (value == null || !STABLE_KEY.matcher(value).matches()) {
             throw new IllegalArgumentException("log rate-limit key must be a stable code");
@@ -123,6 +135,12 @@ public final class FailureLogLimiter {
         return value;
     }
 
+    /**
+     * 规范化事件编码，不匹配时回退为 UNCLASSIFIED。
+     *
+     * @param value 原始事件编码字符串
+     * @return 规范化的大写大括号下划线事件编码
+     */
     private String normalizeEventCode(String value) {
         if (value == null) return LogEventCodes.UNCLASSIFIED;
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -140,26 +158,61 @@ public final class FailureLogLimiter {
 
     /** 调用方只在 {@link #shouldLog()} 为真时写日志。 */
     public record Decision(Kind kind, long suppressedCount, long totalFailures) {
+        /**
+         * 判定当前决策是否允许实际输出日志。
+         *
+         * @return true 表示为首次发生、周期汇总或故障恢复，应打印日志；false 表示被压制
+         */
         public boolean shouldLog() {
             return kind == Kind.FIRST || kind == Kind.SUMMARY || kind == Kind.RECOVERY;
         }
 
+        /**
+         * 构建无需任何操作的空决策。
+         *
+         * @return NONE 状态的 Decision 实例
+         */
         private static Decision none() {
             return new Decision(Kind.NONE, 0L, 0L);
         }
 
+        /**
+         * 构建首次故障放行决策。
+         *
+         * @return FIRST 状态的 Decision 实例
+         */
         private static Decision first() {
             return new Decision(Kind.FIRST, 0L, 1L);
         }
 
+        /**
+         * 构建周期汇总输出决策。
+         *
+         * @param suppressedCount 窗口内被抑制的故障总数
+         * @param totalFailures   历史累计发生故障总数
+         * @return SUMMARY 状态的 Decision 实例
+         */
         private static Decision summary(long suppressedCount, long totalFailures) {
             return new Decision(Kind.SUMMARY, suppressedCount, totalFailures);
         }
 
+        /**
+         * 构建故障恢复通知决策。
+         *
+         * @param suppressedCount 上次输出至今被抑制的故障数
+         * @param totalFailures   累计发生故障总数
+         * @return RECOVERY 状态的 Decision 实例
+         */
         private static Decision recovery(long suppressedCount, long totalFailures) {
             return new Decision(Kind.RECOVERY, suppressedCount, totalFailures);
         }
 
+        /**
+         * 构建日志压制忽略决策。
+         *
+         * @param suppressedCount 当前窗口内已被抑制的次数
+         * @return SUPPRESSED 状态的 Decision 实例
+         */
         private static Decision suppressed(long suppressedCount) {
             return new Decision(Kind.SUPPRESSED, suppressedCount, 0L);
         }

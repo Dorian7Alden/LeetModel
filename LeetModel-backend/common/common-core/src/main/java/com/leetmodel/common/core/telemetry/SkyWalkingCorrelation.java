@@ -81,6 +81,13 @@ public final class SkyWalkingCorrelation {
         }
     }
 
+    /**
+     * 校验并提取可用的 SkyWalking 链路标识字符串。
+     *
+     * @param value     原始标识字符串
+     * @param maxLength 允许的最大长度上限
+     * @return 经过合法性与长度校验的标识；非法或属于无效占位符时返回 null
+     */
     static String usable(String value, int maxLength) {
         if (value == null || value.isBlank() || NON_TRACE_VALUES.contains(value)) return null;
         try {

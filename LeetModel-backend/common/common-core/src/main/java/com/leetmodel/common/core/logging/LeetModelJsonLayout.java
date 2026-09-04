@@ -39,6 +39,9 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
     private String serviceVersion = "unknown";
     private String instance;
 
+    /**
+     * 启动并初始化布局器，为各元数据字段设置默认值。
+     */
     @Override
     public void start() {
         service = fallback(service, "unknown-service");
@@ -48,6 +51,12 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         super.start();
     }
 
+    /**
+     * 将 Logback 日志事件格式化为单行白名单 JSON 字符串。
+     *
+     * @param event Logback 原始事件对象
+     * @return 格式化后的单行 JSON 字符串；事件为空时返回空字符串
+     */
     @Override
     public String doLayout(ILoggingEvent event) {
         if (event == null) return "";
@@ -120,22 +129,48 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         }
     }
 
+    /**
+     * 设置所属微服务名称。
+     *
+     * @param service 微服务名称
+     */
     public void setService(String service) {
         this.service = service;
     }
 
+    /**
+     * 设置当前运行环境。
+     *
+     * @param environment 运行环境标识（如 dev、prod）
+     */
     public void setEnvironment(String environment) {
         this.environment = environment;
     }
 
+    /**
+     * 设置微服务版本号。
+     *
+     * @param serviceVersion 服务版本号
+     */
     public void setServiceVersion(String serviceVersion) {
         this.serviceVersion = serviceVersion;
     }
 
+    /**
+     * 设置当前运行实例标识。
+     *
+     * @param instance 实例标识字符串
+     */
     public void setInstance(String instance) {
         this.instance = instance;
     }
 
+    /**
+     * 提取日志事件中携带的结构化键值对。
+     *
+     * @param pairs 键值对列表
+     * @return 提取后的 Map 结构
+     */
     private Map<String, Object> structured(List<KeyValuePair> pairs) {
         if (pairs == null || pairs.isEmpty()) return Map.of();
         Map<String, Object> values = new HashMap<>();
@@ -145,6 +180,14 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         return values;
     }
 
+    /**
+     * 从结构化参数或 MDC 中提取并清洗文本字段。
+     *
+     * @param structured 结构化参数映射
+     * @param mdc        MDC 属性映射
+     * @param key        字段键名
+     * @return 脱敏清洗后的字段文本；不存在时返回 null
+     */
     private String text(Map<String, Object> structured, Map<String, String> mdc, String key) {
         Object structuredValue = structured.get(key);
         if (structuredValue != null) return LogSanitizer.field(String.valueOf(structuredValue));
@@ -152,6 +195,14 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         return mdcValue == null || mdcValue.isBlank() ? null : LogSanitizer.field(mdcValue);
     }
 
+    /**
+     * 从结构化参数或 MDC 中提取并清洗关联标识字段。
+     *
+     * @param structured 结构化参数映射
+     * @param mdc        MDC 属性映射
+     * @param key        字段键名
+     * @return 脱敏清洗后的标识文本；不存在时返回 null
+     */
     private String identifier(Map<String, Object> structured, Map<String, String> mdc, String key) {
         Object structuredValue = structured.get(key);
         if (structuredValue != null) return LogSanitizer.identifier(String.valueOf(structuredValue));
@@ -159,20 +210,51 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         return mdcValue == null || mdcValue.isBlank() ? null : LogSanitizer.identifier(mdcValue);
     }
 
+    /**
+     * 优先选取首选标识，若不存在则回退至备选标识。
+     *
+     * @param preferred 优先标识
+     * @param fallback  回退标识
+     * @return 有效的标识文本
+     */
     private String firstIdentifier(String preferred, String fallback) {
         return preferred == null ? LogSanitizer.identifier(fallback) : preferred;
     }
 
+    /**
+     * 提取整型数值字段。
+     *
+     * @param structured 结构化参数映射
+     * @param mdc        MDC 属性映射
+     * @param key        字段键名
+     * @return 解析后的 Integer 值；不存在或溢出时返回 null
+     */
     private Integer integer(Map<String, Object> structured, Map<String, String> mdc, String key) {
         Long value = number(structured, mdc, key);
         if (value == null || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) return null;
         return value.intValue();
     }
 
+    /**
+     * 提取长整型数值字段。
+     *
+     * @param structured 结构化参数映射
+     * @param mdc        MDC 属性映射
+     * @param key        字段键名
+     * @return 解析后的 Long 值；不存在时返回 null
+     */
     private Long longValue(Map<String, Object> structured, Map<String, String> mdc, String key) {
         return number(structured, mdc, key);
     }
 
+    /**
+     * 提取数值并转换为 Long。
+     *
+     * @param structured 结构化参数映射
+     * @param mdc        MDC 属性映射
+     * @param key        字段键名
+     * @return 解析后的 Long 值；非数值或不存在时返回 null
+     */
     private Long number(Map<String, Object> structured, Map<String, String> mdc, String key) {
         Object structuredValue = structured.get(key);
         if (structuredValue instanceof Number number) return number.longValue();
@@ -185,12 +267,24 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         }
     }
 
+    /**
+     * 校验并提取标准事件编码。
+     *
+     * @param value 原始事件编码值
+     * @return 校验通过的大写编码；非法时返回 UNCLASSIFIED
+     */
     private String eventCode(String value) {
         if (value == null) return UNCLASSIFIED_EVENT;
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         return EVENT_CODE.matcher(normalized).matches() ? normalized : UNCLASSIFIED_EVENT;
     }
 
+    /**
+     * 格式化并截断异常堆栈代码帧，屏蔽异常明细文本。
+     *
+     * @param throwable 异常代理对象
+     * @return 最多 64 帧的安全堆栈行列表
+     */
     private List<String> stackFrames(IThrowableProxy throwable) {
         if (throwable == null || throwable.getStackTraceElementProxyArray() == null) return null;
         StackTraceElementProxy[] frames = throwable.getStackTraceElementProxyArray();
@@ -202,12 +296,24 @@ public final class LeetModelJsonLayout extends LayoutBase<ILoggingEvent> {
         return List.copyOf(safeFrames);
     }
 
+    /**
+     * 构建默认实例标识（主机名加进程 ID）。
+     *
+     * @return 格式为 host:pid 的实例标识
+     */
     private String defaultInstance() {
         String host = System.getenv("HOSTNAME");
         if (host == null || host.isBlank()) host = "localhost";
         return host + ":" + ProcessHandle.current().pid();
     }
 
+    /**
+     * 空值回退辅助函数。
+     *
+     * @param value    首选值
+     * @param fallback 默认回退值
+     * @return 非空时的首选值或回退值
+     */
     private String fallback(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }

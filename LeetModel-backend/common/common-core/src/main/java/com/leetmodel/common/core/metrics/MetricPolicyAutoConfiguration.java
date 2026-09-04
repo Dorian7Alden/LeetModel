@@ -13,9 +13,9 @@ import org.springframework.context.annotation.Bean;
 public class MetricPolicyAutoConfiguration {
 
     /**
-     * 拒绝任何携带高基数业务标识标签的指标。
+     * 注册拒绝高基数业务标签的全局指标过滤器。
      *
-     * @return 全局 MeterFilter
+     * @return 拦截包含高基数标签的 MeterFilter 实例
      */
     @Bean
     public MeterFilter leetModelForbiddenMetricTagFilter() {

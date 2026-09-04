@@ -48,6 +48,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
     private URI endpointUri;
     private Thread worker;
 
+    /**
+     * 启动日志上报器，初始化内部队列、HttpClient 及守护上传线程。
+     */
     @Override
     public void start() {
         if (!enabled) {
@@ -85,6 +88,11 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         super.start();
     }
 
+    /**
+     * 将单条日志事件投递到内存有界缓冲队列中。
+     *
+     * @param event Logback 日志事件对象
+     */
     @Override
     protected void append(ILoggingEvent event) {
         if (!enabled || !running || event == null) return;
@@ -116,6 +124,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         updateDepth();
     }
 
+    /**
+     * 停止日志上报器并等待工作线程退出。
+     */
     @Override
     public void stop() {
         running = false;
@@ -154,6 +165,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
                 isLowPriority(event.getLevel()));
     }
 
+    /**
+     * 执行后台批量日志上报工作循环。
+     */
     private void runWorker() {
         List<Envelope> batch = new ArrayList<>(batchSize);
         while (running || !queue.isEmpty()) {
@@ -178,6 +192,11 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         }
     }
 
+    /**
+     * 构建上报 HTTP 请求负载并执行单次批量网络发送。
+     *
+     * @param batch 待上报的日志信封批次
+     */
     private void report(List<Envelope> batch) {
         String payload;
         try {

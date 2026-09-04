@@ -20,6 +20,13 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(LogRateLimitProperties.class)
 public class LoggingSecurityAutoConfiguration {
 
+    /**
+     * 注册日志重复故障滑动窗口限流器 Bean。
+     *
+     * @param registry   Micrometer 指标注册中心
+     * @param properties 限流参数配置属性
+     * @return FailureLogLimiter 实例
+     */
     @Bean
     @ConditionalOnBean(MeterRegistry.class)
     @ConditionalOnMissingBean
@@ -28,6 +35,11 @@ public class LoggingSecurityAutoConfiguration {
         return new FailureLogLimiter(registry, properties);
     }
 
+    /**
+     * 注册 SkyWalking 日志上报器的监控指标绑定器 Bean。
+     *
+     * @return MeterBinder 实例
+     */
     @Bean
     @ConditionalOnMissingBean(name = "skyWalkingLogReporterMeterBinder")
     public MeterBinder skyWalkingLogReporterMeterBinder() {

@@ -170,10 +170,22 @@ public final class CorrelationContext {
         return TelemetryFieldPolicy.isValidCorrelationId(value, 100);
     }
 
+    /**
+     * 安全写入非空键值对至当前线程 MDC。
+     *
+     * @param key   MDC 键名
+     * @param value 写入的值，为 null 时不执行写入
+     */
     private static void put(String key, String value) {
         if (value != null) MDC.put(key, value);
     }
 
+    /**
+     * 安全解析正整数，解析失败或非正数时返回 null。
+     *
+     * @param value 待解析的字符串
+     * @return 正整数值；解析失败时返回 null
+     */
     private static Integer positiveInteger(String value) {
         if (value == null) return null;
         try {
@@ -193,6 +205,9 @@ public final class CorrelationContext {
             this.previous = previous;
         }
 
+        /**
+         * 关闭当前作用域并恢复上层关联快照。
+         */
         @Override
         public void close() {
             if (closed) return;

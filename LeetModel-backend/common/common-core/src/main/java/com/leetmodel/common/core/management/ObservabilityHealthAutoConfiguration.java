@@ -15,9 +15,11 @@ import org.springframework.context.annotation.Bean;
 public class ObservabilityHealthAutoConfiguration {
 
     /**
-     * 即使服务没有缓存或消息依赖，Degraded 分组也必须是可查询契约。
+     * 注册服务默认降级状态健康指示器。
      *
-     * @return 默认未降级状态
+     * <p>确保所有微服务在未启用缓存或消息时，Degraded 探针分组也具备默认存活指标。</p>
+     *
+     * @return 默认返回 UP 状态的 HealthIndicator 实例
      */
     @Bean(name = "degradedStateHealthIndicator")
     @ConditionalOnMissingBean(name = "degradedStateHealthIndicator")
