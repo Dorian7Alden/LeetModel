@@ -175,3 +175,4 @@ private UserAdminVO.RoleSimpleVO toRoleSimpleVO(Role role) {
 3. 【禁止】简单边界判断写多行花括号。
 4. 【禁止】Builder 属性挤在一行。
 5. 【禁止】方法缺少 Javadoc 或步骤注释。
+6. 【禁止】在代码注释、Javadoc 中出现“面试”、“面试考点”、“考点”等求职元信息。代码注释必须保持严肃、纯粹的生产级工程与架构视角，仅说明职责、设计权衡、技术约束、线程安全与业务规则。
