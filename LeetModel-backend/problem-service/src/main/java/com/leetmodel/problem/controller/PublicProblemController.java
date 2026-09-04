@@ -32,6 +32,12 @@ public class PublicProblemController {
     private final ProblemService problemService;
     private final ProblemPublicCacheService publicCacheService;
 
+    /**
+     * 查询公开题库的年份、难度、赛事与标签筛选项集合（支持 HTTP ETag 协商缓存）。
+     *
+     * @param ifNoneMatch 请求头 ETag 缓存标识，可为空
+     * @return 包含筛选项数据的 HTTP 响应实体
+     */
     @Operation(summary = "查询公开题库筛选项")
     @GetMapping("/filter-options")
     public ResponseEntity<Result<ProblemFilterOptionsVO>> filterOptions(
@@ -42,6 +48,13 @@ public class PublicProblemController {
         return validator.ok(Result.ok(publicCacheService.filterOptions()));
     }
 
+    /**
+     * 客户端免登录分页浏览已发布的题目列表（结合 ETag 协商缓存与多级缓存）。
+     *
+     * @param query       分页与检索条件，不能为 null
+     * @param ifNoneMatch 请求头 ETag 缓存标识，可为空
+     * @return 包含分页题目数据的 HTTP 响应实体
+     */
     @Operation(summary = "分页浏览已发布题目")
     @GetMapping
     public ResponseEntity<Result<PageResult<ProblemVO>>> page(
@@ -57,6 +70,13 @@ public class PublicProblemController {
         return validator.ok(Result.ok(publicCacheService.page(query)));
     }
 
+    /**
+     * 客户端免登录浏览已发布题目的详情信息（含附件下载直链）。
+     *
+     * @param id          目标题目 ID，不能为 null
+     * @param ifNoneMatch 请求头 ETag 缓存标识，可为空
+     * @return 包含题目详情视图的 HTTP 响应实体
+     */
     @Operation(summary = "浏览题目详情")
     @GetMapping("/{id}")
     public ResponseEntity<Result<ProblemVO>> detail(
@@ -68,6 +88,12 @@ public class PublicProblemController {
         return validator.ok(Result.ok(publicCacheService.detail(id)));
     }
 
+    /**
+     * 根据条件在已发布题目库中随机抽取一道题目。
+     *
+     * @param query 随机筛选范围条件，不能为 null
+     * @return 随机题目视图对象
+     */
     @Operation(summary = "随机获取已发布题目")
     @GetMapping("/random")
     public ResponseEntity<Result<ProblemVO>> random(@Valid ProblemPageQuery query) {

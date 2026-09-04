@@ -35,6 +35,11 @@ public class InternalProblemController {
 
     private final ProblemService problemService;
 
+    /**
+     * 统计系统当前题目总数（供 admin-service 概览使用）。
+     *
+     * @return 题目总数
+     */
     @Operation(summary = "获取题目数量")
     @GetMapping("/count")
     public Result<Long> getProblemCount() {
@@ -42,6 +47,12 @@ public class InternalProblemController {
         return Result.ok(count);
     }
 
+    /**
+     * 获取指定题目的实训练习摘要信息（供 team-service 校验题目）。
+     *
+     * @param problemId 目标题目 ID，不能为 null
+     * @return 题目练习摘要 DTO
+     */
     @Operation(summary = "获取练习题目摘要")
     @GetMapping("/{problemId}/practice")
     public Result<ProblemPracticeDTO> getPracticeProblem(@PathVariable Long problemId) {
@@ -50,6 +61,12 @@ public class InternalProblemController {
                 problem.getDurationMinutes(), problem.getStatus()));
     }
 
+    /**
+     * 获取题目的全量文本题面上下文（供 AI 评审、AI 建议跨服务消费）。
+     *
+     * @param problemId 目标题目 ID，不能为 null
+     * @return 包含题面 Markdown 的题目上下文 DTO
+     */
     @Operation(summary = "获取 AI 业务题目上下文")
     @GetMapping("/{problemId}/context")
     public Result<ProblemContextDTO> getProblemContext(@PathVariable Long problemId) {
@@ -59,6 +76,12 @@ public class InternalProblemController {
                 problem.getDurationMinutes(), problem.getStatus()));
     }
 
+    /**
+     * 批量查询多个题目的练习摘要信息。
+     *
+     * @param problemIds 目标题目 ID 列表，可为空
+     * @return 题目练习摘要 DTO 列表
+     */
     @Operation(summary = "批量获取练习题目摘要")
     @GetMapping("/practice-summaries")
     public Result<List<ProblemPracticeDTO>> getPracticeProblems(
@@ -74,6 +97,13 @@ public class InternalProblemController {
         return Result.ok(summaries);
     }
 
+    /**
+     * 供管理端下拉选择已发布的题目简要选项。
+     *
+     * @param keyword 可选的标题关键字检索
+     * @param limit   返回数量上限，默认 20，最大 50
+     * @return 题目选项 DTO 列表
+     */
     @Operation(summary = "查询已发布题目选项")
     @GetMapping("/options")
     public Result<List<ProblemOptionDTO>> getPublishedOptions(
@@ -103,6 +133,12 @@ public class InternalProblemController {
         return Result.ok(options);
     }
 
+    /**
+     * 供 AI 客服助手根据标题、年份或关键词执行题目语义事实匹配查询。
+     *
+     * @param request 包含客服检索条件的请求对象，不能为 null
+     * @return AI 客服所需的题目事实结果 DTO
+     */
     @Operation(summary = "查询 AI 客服题目事实")
     @PostMapping("/assistant-query")
     public Result<AssistantProblemResultDTO> queryForAssistant(

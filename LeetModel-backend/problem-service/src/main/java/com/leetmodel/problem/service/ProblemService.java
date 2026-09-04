@@ -18,12 +18,18 @@ import org.springframework.web.multipart.MultipartFile;
 public interface ProblemService extends IService<Problem> {
 
     /**
-     * 分页查询题目（含标签名称）。
+     * 管理员分页组合条件查询题目列表（含标签与赛事信息）。
+     *
+     * @param query 分页与过滤参数对象，不能为 null
+     * @return 分页包装的题目视图列表
      */
     IPage<ProblemVO> pageProblems(ProblemPageQuery query);
 
     /**
-     * 查询题目详情。
+     * 查询题目详情（含未发布题目与全部附件）。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @return 题目详情视图对象
      */
     ProblemVO getProblemDetail(Long id);
 
@@ -48,6 +54,12 @@ public interface ProblemService extends IService<Problem> {
      */
     ProblemVO materializePublishedProblem(ProblemDetailReadModel readModel);
 
+    /**
+     * 根据条件在已发布的题目中随机获取一道题目。
+     *
+     * @param query 过滤条件，不能为 null
+     * @return 随机匹配的已发布题目详情
+     */
     ProblemVO getRandomPublishedProblem(ProblemPageQuery query);
 
     /**
@@ -58,12 +70,20 @@ public interface ProblemService extends IService<Problem> {
     AssistantProblemResultDTO queryForAssistant(AssistantProblemQueryDTO query);
 
     /**
-     * 创建题目。
+     * 创建新的建模题目并持久化初始标签关联。
+     *
+     * @param request   题目创建参数对象，不能为 null
+     * @param creatorId 创建人用户 ID，不能为 null
+     * @return 创建成功后的题目视图对象
      */
     ProblemVO createProblem(ProblemCreateRequest request, Long creatorId);
 
     /**
-     * 更新题目。
+     * 修改已有题目的基本信息、题面内容或发布状态。
+     *
+     * @param id      目标题目 ID，不能为 null
+     * @param request 包含待修改内容的请求对象，不能为 null
+     * @return 更新后的题目视图对象
      */
     ProblemVO updateProblem(Long id, ProblemUpdateRequest request);
 
@@ -96,7 +116,10 @@ public interface ProblemService extends IService<Problem> {
     void deleteAttachment(Long problemId, Long attachmentId);
 
     /**
-     * 获取标签名称列表。
+     * 查询指定题目关联的所有标签名称集合。
+     *
+     * @param problemId 目标题目 ID，不能为 null
+     * @return 标签名称字符串列表
      */
     java.util.List<String> getTagNames(Long problemId);
 }

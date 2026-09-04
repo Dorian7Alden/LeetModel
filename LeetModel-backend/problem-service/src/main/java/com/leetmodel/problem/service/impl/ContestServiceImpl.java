@@ -26,11 +26,25 @@ public class ContestServiceImpl extends ServiceImpl<ContestMapper, Contest> impl
     private final CacheInvalidator cacheInvalidator;
     private final ProblemAuditEventProducer audit;
 
+    /**
+     * 查询所有赛事字典数据列表（按编码升序排序）。
+     *
+     * @return 赛事字典实体列表
+     */
     @Override
     public List<Contest> list() {
         return list(new LambdaQueryWrapper<Contest>().orderByAsc(Contest::getCode));
     }
 
+    /**
+     * 更新指定赛事的编码与名称，并失效公开缓存与记录审计。
+     *
+     * @param id   目标赛事 ID，不能为 null
+     * @param code 赛事编码，不能为 null
+     * @param name 赛事名称，不能为 null
+     * @return 更新后的赛事实体
+     * @throws BusinessException 若赛事不存在或编码重复
+     */
     @Override
     @Transactional
     public Contest update(Long id, String code, String name) {
