@@ -28,6 +28,12 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /**
+     * 注册新用户并自动分配默认角色。
+     *
+     * @param request 包含用户名、密码与昵称的注册请求对象，不能为 null
+     * @return 注册成功的新增用户唯一标识（userId）
+     */
     @Operation(summary = "用户注册")
     @PostMapping("/register")
     public Result<Long> register(@Valid @RequestBody RegisterRequest request) {
@@ -35,6 +41,12 @@ public class AuthController {
         return Result.ok(userId);
     }
 
+    /**
+     * 用户登录并签发 Sa-Token 访问凭据。
+     *
+     * @param request 包含用户名与密码的登录请求对象，不能为 null
+     * @return 包含 Token、基础资料、角色及权限编码的登录响应对象
+     */
     @Operation(summary = "用户登录")
     @PostMapping("/login")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -42,6 +54,11 @@ public class AuthController {
         return Result.ok(response);
     }
 
+    /**
+     * 当前登录用户登出并清理登录态。
+     *
+     * @return 统一成功空响应
+     */
     @Operation(summary = "用户登出")
     @PostMapping("/logout")
     public Result<Void> logout() {

@@ -39,9 +39,11 @@ public class AuthServiceImpl implements AuthService {
     private static final String DEFAULT_ROLE_CODE = "user";
 
     /**
-     * 注册用户并分配默认角色。
-     * @param request 注册请求
-     * @return 新用户 ID
+     * 注册新用户并分配默认角色。
+     *
+     * @param request 注册请求对象，不能为 null
+     * @return 新建用户唯一 ID
+     * @throws BusinessException 若用户名重复或默认角色不存在
      */
     @Override
     @Transactional
@@ -75,8 +77,10 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 用户登录，校验密码与账号状态后签发 Token。
-     * @param request 登录请求
-     * @return Token 与用户基础信息
+     *
+     * @param request 登录请求对象，不能为 null
+     * @return 包含 Token 与权限信息的登录响应对象
+     * @throws BusinessException 若用户不存在、密码错误或账号被禁用
      */
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -115,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 用户登出。
+     * 用户登出并清除 Sa-Token 当前会话。
      */
     @Override
     public void logout() {

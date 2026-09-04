@@ -5,13 +5,13 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 用户模块错误码 —— BB=02（用户管理模块）。
+ * 用户模块业务错误码：BB=02（用户管理模块）。
  *
  * <p>编码规范：A-BB-CC 五段式
  * <ul>
- *   <li>A=4：客户端错误/业务阻断</li>
- *   <li>BB=02：用户模块</li>
- *   <li>CC：具体错误序号，从 01 递增</li>
+ *   <li>A=4: 客户端错误/业务阻断</li>
+ *   <li>BB=02: 用户模块</li>
+ *   <li>CC: 具体错误序号，从 01 递增</li>
  * </ul>
  * </p>
  */
