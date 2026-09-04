@@ -2,7 +2,7 @@ package com.leetmodel.submission.storage;
 
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
-import com.leetmodel.common.core.storage.MinioProperties;
+import com.leetmodel.common.core.config.MinioProperties;
 import io.minio.BucketExistsArgs;
 import io.minio.ComposeObjectArgs;
 import io.minio.ComposeSource;

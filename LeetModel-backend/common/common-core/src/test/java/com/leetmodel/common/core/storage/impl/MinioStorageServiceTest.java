@@ -1,7 +1,7 @@
 package com.leetmodel.common.core.storage.impl;
 
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.storage.MinioProperties;
+import com.leetmodel.common.core.config.MinioProperties;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
