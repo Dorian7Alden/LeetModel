@@ -1,4 +1,4 @@
-package com.leetmodel.common.core.handler;
+package com.leetmodel.common.core.exception;
 
 import com.leetmodel.common.core.result.Result;
 import jakarta.validation.ConstraintViolation;

@@ -1,7 +1,5 @@
-package com.leetmodel.common.core.handler;
+package com.leetmodel.common.core.exception;
 
-import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.logging.LogEventCodes;
 import com.leetmodel.common.core.logging.LogFieldNames;
 import com.leetmodel.common.core.result.Result;
@@ -108,6 +106,11 @@ public class GlobalExceptionHandler {
         return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
     }
 
+    /**
+     * 记录请求被拒绝的日志。
+     * @param exception 异常对象
+     * @param category 失败类别
+     */
     private void logRequestRejected(Exception exception, String category) {
         log.atWarn()
                 .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.REQUEST_REJECTED)

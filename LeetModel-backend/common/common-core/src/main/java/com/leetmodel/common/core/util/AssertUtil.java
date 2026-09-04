@@ -17,7 +17,7 @@ import com.leetmodel.common.core.exception.ErrorCode;
  * AssertUtil.notNull(user, ErrorCodeEnum.USER_NOT_FOUND);
  * }</pre>
  *
- * <p>所有方法失败时抛出 {@link BusinessException}，由 {@link com.leetmodel.common.core.handler.GlobalExceptionHandler} 统一拦截。</p>
+ * <p>所有方法失败时抛出 {@link BusinessException}，由 {@link com.leetmodel.common.core.exception.GlobalExceptionHandler} 统一拦截。</p>
  * @see BusinessException
  * @see ErrorCode
  */

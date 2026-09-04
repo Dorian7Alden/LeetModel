@@ -6,7 +6,7 @@ import lombok.Getter;
  * 业务异常 —— 所有业务层抛出的异常类型。
  *
  * <p>继承自 {@link RuntimeException}，方便在事务管理中自动回滚。
- * 携带业务错误码和消息，由 {@link com.leetmodel.common.core.handler.GlobalExceptionHandler} 统一拦截转换为标准响应。</p>
+ * 携带业务错误码和消息，由 {@link GlobalExceptionHandler} 统一拦截转换为标准响应。</p>
  *
  * <p>两种构造方式：</p>
  * <ul>
