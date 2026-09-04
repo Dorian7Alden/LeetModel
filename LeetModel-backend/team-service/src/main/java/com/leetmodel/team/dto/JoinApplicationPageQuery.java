@@ -1,6 +1,6 @@
 package com.leetmodel.team.dto;
 
-import com.leetmodel.common.core.dto.BasePageQuery;
+import com.leetmodel.common.core.bean.BasePageQuery;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

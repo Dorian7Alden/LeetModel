@@ -48,6 +48,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
     private URI endpointUri;
     private Thread worker;
 
+    /**
+     * 启动日志上报器，初始化内部队列、HttpClient 及守护上传线程。
+     */
     @Override
     public void start() {
         if (!enabled) {
@@ -85,6 +88,11 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         super.start();
     }
 
+    /**
+     * 将单条日志事件投递到内存有界缓冲队列中。
+     *
+     * @param event Logback 日志事件对象
+     */
     @Override
     protected void append(ILoggingEvent event) {
         if (!enabled || !running || event == null) return;
@@ -116,6 +124,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         updateDepth();
     }
 
+    /**
+     * 停止日志上报器并等待工作线程退出。
+     */
     @Override
     public void stop() {
         running = false;
@@ -138,6 +149,13 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         super.stop();
     }
 
+    /**
+     * 将原始日志事件包装为上报信封，解析路由与事件码。
+     *
+     * @param event Logback 原始日志事件
+     * @param body  格式化后的 JSON 字符串
+     * @return 封装了级别、事件码及时间戳的 Envelope 内部对象
+     */
     private Envelope envelope(ILoggingEvent event, String body) {
         String route = null;
         String eventCode = LogEventCodes.UNCLASSIFIED;
@@ -154,6 +172,9 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
                 isLowPriority(event.getLevel()));
     }
 
+    /**
+     * 执行后台批量日志上报工作循环。
+     */
     private void runWorker() {
         List<Envelope> batch = new ArrayList<>(batchSize);
         while (running || !queue.isEmpty()) {
@@ -178,6 +199,11 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         }
     }
 
+    /**
+     * 构建上报 HTTP 请求负载并执行单次批量网络发送。
+     *
+     * @param batch 待上报的日志信封批次
+     */
     private void report(List<Envelope> batch) {
         String payload;
         try {
@@ -217,6 +243,13 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         SkyWalkingLogReporterMetrics.droppedSend(batch.size());
     }
 
+    /**
+     * 将待上报的信封批次序列化为符合 SkyWalking /v3/logs 格式的 JSON 数组。
+     *
+     * @param batch 待上报的信封列表
+     * @return 符合 SkyWalking OAP 原生协议的 JSON 字符串
+     * @throws Exception 当 JSON 序列化失败时抛出
+     */
     private String payload(List<Envelope> batch) throws Exception {
         ArrayNode array = JSON.createArrayNode();
         for (Envelope envelope : batch) {
@@ -235,21 +268,44 @@ public final class SkyWalkingLogReporterAppender extends AppenderBase<ILoggingEv
         return JSON.writeValueAsString(array);
     }
 
+    /**
+     * 向标签数组添加单条键值对标签。
+     *
+     * @param tags  SkyWalking 标签数组节点
+     * @param key   标签名
+     * @param value 标签值
+     */
     private void tag(ArrayNode tags, String key, String value) {
         ObjectNode tag = tags.addObject();
         tag.put("key", key);
         tag.put("value", value);
     }
 
+    /**
+     * 从 JSON 节点中提取安全非空文本字段。
+     *
+     * @param node  Jackson JSON 树节点
+     * @param field 属性字段名
+     * @return 文本属性值；不存在或非文本时返回 null
+     */
     private String text(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.get(field);
         return value == null || value.isNull() || !value.isTextual() ? null : value.textValue();
     }
 
+    /**
+     * 判断日志级别是否属于低优先级（DEBUG 或 INFO）。
+     *
+     * @param level 日志级别
+     * @return true 表示为低优先级日志，队列满时优先丢弃
+     */
     private boolean isLowPriority(Level level) {
         return level == null || level.toInt() <= Level.INFO_INT;
     }
 
+    /**
+     * 刷新当前内存队列深度指标。
+     */
     private void updateDepth() {
         if (queue != null) SkyWalkingLogReporterMetrics.queueDepth(queue.size());
     }

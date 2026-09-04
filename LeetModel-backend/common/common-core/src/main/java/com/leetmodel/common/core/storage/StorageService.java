@@ -5,51 +5,49 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 
 /**
- * 对象存储服务接口 —— 统一抽象，业务代码不依赖具体存储实现。
+ * 对象存储服务接口。
  *
- * <p>当前实现：MinIO，通过 {@link com.leetmodel.common.core.storage.impl.MinioStorageServiceImpl}。
- * 后续如需切换为 OSS / S3 / 本地文件系统，只需替换实现类，业务代码无需改动。</p>
+ * <p>统一抽象文件上传、流式下载、临时访问预签名 URL 生成与文件删除；隔离具体存储厂商 SDK。</p>
  */
 public interface StorageService {
 
     /**
-     * 上传文件。
+     * 上传文件至默认 files 目录。
      *
-     * @param file 上传的文件（MultipartFile）
-     * @return objectName（对象存储中的唯一标识，UUID + 扩展名格式）
+     * @param file 待上传的文件对象，不能为空
+     * @return 对象在存储桶中的唯一标识路径
      */
     String upload(MultipartFile file);
 
     /**
-     * 上传文件到指定路径前缀。
+     * 上传文件至指定业务目录前缀。
      *
-     * @param file   上传的文件
-     * @param prefix 存储路径前缀，如 "avatars"、"problems"
-     * @return objectName
+     * @param file   待上传的文件对象，不能为空
+     * @param prefix 目标业务目录前缀，如 avatars、problems
+     * @return 格式为 {prefix}/{UUID}.{ext} 的唯一对象路径
      */
     String upload(MultipartFile file, String prefix);
 
     /**
-     * 下载文件。
+     * 流式读取文件内容。
      *
-     * @param objectName 对象名称
-     * @return 文件输入流
+     * @param objectName 存储桶中的对象唯一标识路径，不能为空
+     * @return 目标文件的二进制输入流
      */
     InputStream download(String objectName);
 
     /**
-     * 获取文件访问 URL（预签名 URL）。
-     * 前端可直接通过此 URL 访问文件，不经过业务服务。
+     * 生成带签名的临时文件访问 URL。
      *
-     * @param objectName 对象名称
-     * @return 预签名访问 URL
+     * @param objectName 存储桶中的对象唯一标识路径，不能为空
+     * @return 具备访问时效的预签名 GET 地址
      */
     String getUrl(String objectName);
 
     /**
-     * 删除文件。
+     * 从存储桶中物理删除指定文件。
      *
-     * @param objectName 对象名称
+     * @param objectName 待删除的对象唯一标识路径，不能为空
      */
     void delete(String objectName);
 }

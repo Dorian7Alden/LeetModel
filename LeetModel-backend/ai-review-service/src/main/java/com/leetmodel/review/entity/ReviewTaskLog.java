@@ -1,7 +1,7 @@
 package com.leetmodel.review.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.leetmodel.common.core.entity.BaseEntity;
+import com.leetmodel.common.core.bean.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

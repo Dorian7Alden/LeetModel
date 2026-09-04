@@ -22,19 +22,10 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Servlet TraceId 过滤器 —— 从请求头提取 X-Trace-Id 并写入 MDC。
+ * Servlet 进站请求链路追踪过滤器。
  *
- * <p>职责：从 Gateway 转发的请求中提取 {@code X-Trace-Id} Header，
- * 通过 {@link CorrelationContext} 建立可恢复 MDC 作用域，
- * 请求结束后恢复先前上下文。</p>
- *
- * <p>设计：
- * <ul>
- *   <li>只信任内网 Gateway/Feign 传来的合法标识；直连或非法输入生成本地 traceId</li>
- *   <li>{@code @Order(HIGHEST_PRECEDENCE)} 确保在其他过滤器和拦截器之前执行</li>
- *   <li>可恢复作用域保证 MDC 不覆盖容器原上下文，也不在线程池中泄漏</li>
- *   <li>响应头中也注入 {@code X-Trace-Id}，方便调试时从浏览器/前端日志定位</li>
- * </ul>
+ * <p>从请求头提取 X-Trace-Id（合法保留，缺失或非法则生成新 UUID），绑定线程 MDC；
+ * 响应头回写 X-Trace-Id，请求退出时记录 HTTP_REQUEST_COMPLETED 并彻底清理 MDC 防止线程池复用污染。</p>
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -42,8 +33,18 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(TraceIdServletFilter.class);
 
+    /** 跨服务透传的 HTTP 请求头名称 */
     static final String TRACE_ID_HEADER = CorrelationContext.TRACE_ID_HEADER;
 
+    /**
+     * 拦截 HTTP 请求，绑定全链路追踪 ID 并维护请求上下文生命周期。
+     *
+     * @param request     当前 HTTP 请求对象
+     * @param response    当前 HTTP 响应对象
+     * @param filterChain 过滤器链
+     * @throws ServletException Servlet 处理异常
+     * @throws IOException      I/O 读写异常
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -53,10 +54,12 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
 
         String inboundTraceId = request.getHeader(TRACE_ID_HEADER);
         String traceId = CorrelationContext.isValidHttpId(inboundTraceId)
-                ? inboundTraceId.trim() : CorrelationContext.newId();
+                ? inboundTraceId.trim()
+                : CorrelationContext.newId();
         String inboundOperationId = request.getHeader(CorrelationContext.OPERATION_ID_HEADER);
         String operationId = CorrelationContext.isValidHttpId(inboundOperationId)
-                ? inboundOperationId.trim() : null;
+                ? inboundOperationId.trim()
+                : null;
         CorrelationSnapshot snapshot = SkyWalkingCorrelation.enrich(CorrelationSnapshot.EMPTY
                 .withTraceId(traceId)
                 .withOperationId(operationId));
@@ -79,6 +82,15 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * 记录 HTTP 请求完成或失败的结构化访问日志。
+     *
+     * @param request   当前 HTTP 请求对象
+     * @param response  当前 HTTP 响应对象
+     * @param traceId   全局唯一追踪 ID
+     * @param started   请求开始纳秒时间戳
+     * @param failure   捕获的底层异常，成功时为 null
+     */
     private void writeAccessEvent(HttpServletRequest request, HttpServletResponse response,
                                   String traceId, long started, Throwable failure) {
         int status = failure == null ? response.getStatus() : Math.max(500, response.getStatus());
@@ -87,7 +99,8 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         String routeTemplate = matched == null ? "UNMATCHED" : matched.toString();
         LoggingEventBuilder event = failed ? log.atWarn() : log.atInfo();
         event.addKeyValue(LogFieldNames.EVENT_CODE, failed
-                        ? LogEventCodes.HTTP_REQUEST_FAILED : LogEventCodes.HTTP_REQUEST_COMPLETED)
+                        ? LogEventCodes.HTTP_REQUEST_FAILED
+                        : LogEventCodes.HTTP_REQUEST_COMPLETED)
                 .addKeyValue(LogFieldNames.TRACE_ID, traceId)
                 .addKeyValue(LogFieldNames.HTTP_METHOD, request.getMethod())
                 .addKeyValue(LogFieldNames.ROUTE_TEMPLATE, routeTemplate)
@@ -98,6 +111,12 @@ public class TraceIdServletFilter extends OncePerRequestFilter {
         event.log(failed ? "HTTP request failed" : "HTTP request completed");
     }
 
+    /**
+     * 判断当前请求是否属于 Actuator 运维端点。
+     *
+     * @param request 当前 HTTP 请求对象
+     * @return true 表示属于 /actuator 路径，不输出常规 HTTP 访问日志
+     */
     private boolean isActuatorRequest(HttpServletRequest request) {
         String uri = request.getRequestURI();
         return uri != null && (uri.equals("/actuator") || uri.startsWith("/actuator/"));

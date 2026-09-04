@@ -1,4 +1,4 @@
-package com.leetmodel.common.core.storage;
+package com.leetmodel.common.core.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -6,28 +6,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * MinIO 对象存储配置属性。
  *
- * <p>在 application.yml 中配置：
- * <pre>{@code
- * minio:
- *   enabled: true
- *   endpoint: http://localhost:9000
- *   access-key: minioadmin
- *   secret-key: minioadmin
- *   bucket: leetmodel
- * }</pre>
- * </p>
+ * <p>映射 application.yml 中 minio.* 前缀的存储桶、访问端点与鉴权密钥。</p>
  */
 @Data
 @ConfigurationProperties(prefix = "minio")
 public class MinioProperties {
 
-    /** MinIO 服务地址（含协议和端口），如 http://localhost:9000 */
+    /** MinIO 服务地址（含协议和端口） */
     private String endpoint = "http://localhost:9000";
 
-    /** Access Key */
+    /** 访问标识 Access Key */
     private String accessKey = "minioadmin";
-
-    /** Secret Key */
+    /** 访问密钥 Secret Key */
     private String secretKey = "minioadmin";
 
     /** 默认 Bucket 名称 */

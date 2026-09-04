@@ -1,4 +1,4 @@
-package com.leetmodel.common.core.dto;
+package com.leetmodel.common.core.bean;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -7,27 +7,21 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 通用分页查询基类 —— 所有分页查询 DTO 的父类。
+ * 分页查询入参基类。
  *
- * <p>用法：各模块的 PageQuery DTO 继承此类，添加自己的查询条件即可。</p>
- *
- * <pre>{@code
- * public class ProblemPageQuery extends BasePageQuery {
- *     private String keyword;
- *     private Integer status;
- * }
- * }</pre>
+ * <p>各模块前台列表与管理端检索入参继承此类扩展。页码遵循 1-based 规范（从 1 开始）；
+ * 单页条数默认 20 条，硬约束最大上限 100 条以防御慢 SQL 与 JVM 堆内存 OOM。</p>
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class BasePageQuery {
 
-    /** 当前页码（1-based） */
+    /** 当前页码，从 1 开始 */
     @Min(value = 1, message = "页码最小为1")
     private int page = 1;
 
-    /** 每页条数 */
+    /** 每页记录条数，默认 20 条，最大上限 100 条 */
     @Min(value = 1, message = "每页最少1条")
     @Max(value = 100, message = "每页最多100条")
     private int pageSize = 20;

@@ -16,4 +16,8 @@
 
 | 文档 | 内容摘要 |
 |------|----------|
-| [公共基础能力.md](公共基础能力.md) | 响应、异常、分页、实体基类与基础设施客户端 |
+| [统一响应与数据契约.md](统一响应与数据契约.md) | Result、PageResult、BaseEntity、BasePageQuery、MyBatis-Plus 分页与 Jackson 序列化 |
+| [异常体系与全局拦截.md](异常体系与全局拦截.md) | 错误码分段规范、BusinessException 业务异常与 GlobalExceptionHandler 统一拦截 |
+| [请求拦截与全链路追踪.md](请求拦截与全链路追踪.md) | TraceIdServletFilter 进站过滤、CorrelationContext 上下文快照与线程池 MDC 透传 |
+| [结构化日志与指标上报.md](结构化日志与指标上报.md) | leetmodel.log.v1 白名单 JSON 日志、不可逆脱敏、故障限频与 SkyWalking OAP 异步上报 |
+| [对象存储服务.md](对象存储服务.md) | StorageService 统一存储抽象、MinIO 预签名链接、路径规范与条件自动装配 |

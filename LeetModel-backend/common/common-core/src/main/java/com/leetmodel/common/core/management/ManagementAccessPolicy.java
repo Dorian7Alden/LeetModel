@@ -47,18 +47,35 @@ public final class ManagementAccessPolicy {
         return isLoopback(remoteAddress);
     }
 
-    /** @return 是否是 Actuator 管理路径 */
+    /**
+     * 判定指定请求路径是否属于 Actuator 管理端点路径。
+     *
+     * @param requestPath HTTP 请求路径字符串
+     * @return true 表示属于 /actuator 及其子路径，false 表示普通业务路径
+     */
     public static boolean isManagementPath(String requestPath) {
         return requestPath != null && (requestPath.equals(ACTUATOR_PATH)
                 || requestPath.startsWith(ACTUATOR_PATH + "/"));
     }
 
+    /**
+     * 判定指定请求路径是否为健康检查探针路径。
+     *
+     * @param requestPath HTTP 请求路径字符串
+     * @return true 表示属于 /actuator/health 探针路径，允许无 Token 直接访问
+     */
     private static boolean isHealthPath(String requestPath) {
         String healthPath = ACTUATOR_PATH + "/health";
         return requestPath != null && (requestPath.equals(healthPath)
                 || requestPath.startsWith(healthPath + "/"));
     }
 
+    /**
+     * 判定来源 IP 地址是否为本机环回地址。
+     *
+     * @param remoteAddress 容器接收到的直连来源 IP
+     * @return true 表示为本机 127.0.0.1 或 IPv6 环回地址，允许免 Token 访问指标
+     */
     private static boolean isLoopback(String remoteAddress) {
         return remoteAddress != null && (remoteAddress.startsWith("127.")
                 || "::1".equals(remoteAddress)

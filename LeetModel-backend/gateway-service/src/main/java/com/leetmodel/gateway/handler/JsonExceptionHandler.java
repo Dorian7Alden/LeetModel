@@ -34,7 +34,7 @@ import java.util.concurrent.TimeoutException;
  * </ul>
  * </p>
  *
- * <h3>面试考点</h3>
+ * <h3>核心设计思考与技术要点</h3>
  * <ul>
  *   <li><b>WebFlux vs Servlet 异常处理</b>：Servlet 用 {@code @RestControllerAdvice + @ExceptionHandler}，
  *       WebFlux 用 {@code ErrorWebExceptionHandler}。根本原因是两者的请求处理模型不同

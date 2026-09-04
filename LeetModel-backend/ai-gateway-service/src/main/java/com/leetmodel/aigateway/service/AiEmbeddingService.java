@@ -10,7 +10,7 @@ import com.leetmodel.common.ai.model.AiEmbeddingVector;
 import com.leetmodel.common.ai.model.AiFeatureCode;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.logging.AiCallLogEvents;
+import com.leetmodel.common.ai.logging.AiCallLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

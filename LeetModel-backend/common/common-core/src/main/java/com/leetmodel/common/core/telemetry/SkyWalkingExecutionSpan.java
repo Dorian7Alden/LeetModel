@@ -112,6 +112,13 @@ public final class SkyWalkingExecutionSpan implements AutoCloseable {
         return this;
     }
 
+    /**
+     * 记录低基数标签到当前活动的 SkyWalking Span 中。
+     *
+     * @param key   允许的固定标签键名
+     * @param value 经过低基数正则校验的标签值
+     * @return 当前 Span 包装实例
+     */
     private SkyWalkingExecutionSpan tag(String key, String value) {
         if (!started || span == null || !ALLOWED_TAG_KEYS.contains(key)
                 || !isLowCardinalityValue(value)) return this;
@@ -123,14 +130,29 @@ public final class SkyWalkingExecutionSpan implements AutoCloseable {
         return this;
     }
 
+    /**
+     * 校验标签值是否符合低基数字符集与长度约束。
+     *
+     * @param value 待判定的标签值字符串
+     * @return true 表示符合低基数正则，允许注入 Span
+     */
     static boolean isLowCardinalityValue(String value) {
         return value != null && LOW_CARDINALITY_VALUE.matcher(value).matches();
     }
 
+    /**
+     * 规范化处理标签值，去除空白并转为小写。
+     *
+     * @param value 待规范化的字符串
+     * @return 规范化后的字符串；为 null 时返回 null
+     */
     private static String normalized(String value) {
         return value == null ? null : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 关闭当前本地 Span 并安全恢复上一层业务关联作用域。
+     */
     @Override
     public void close() {
         if (closed) return;

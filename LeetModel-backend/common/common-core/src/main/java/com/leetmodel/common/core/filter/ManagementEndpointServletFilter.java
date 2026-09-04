@@ -14,16 +14,21 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * 保护 Servlet 服务的 Actuator 详情与 Prometheus 端点。
+ * Actuator 与 Prometheus 运维端点安全防护过滤器。
+ *
+ * <p>拦截 /actuator/** 路径，基于 ManagementAccessPolicy 仅允许本机内网访问或携带合法管理 Token 的请求。</p>
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ManagementEndpointServletFilter extends OncePerRequestFilter {
 
+    /** 运维端点访问策略控制类 */
     private final ManagementAccessPolicy accessPolicy;
 
     /**
-     * @param managementToken 由运行环境提供的管理 Token
+     * 构造运维端点防护过滤器。
+     *
+     * @param managementToken 运行环境注入的管理访问令牌
      */
     public ManagementEndpointServletFilter(
             @Value("${leetmodel.management.token:}") String managementToken
@@ -31,11 +36,26 @@ public class ManagementEndpointServletFilter extends OncePerRequestFilter {
         this.accessPolicy = new ManagementAccessPolicy(managementToken);
     }
 
+    /**
+     * 判定当前请求是否需要跳过安全过滤。
+     *
+     * @param request 当前 HTTP 请求对象
+     * @return true 表示非 /actuator 路径，跳过本过滤器
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !ManagementAccessPolicy.isManagementPath(request.getRequestURI());
     }
 
+    /**
+     * 执行运维端点访问白名单与管理 Token 鉴权校验。
+     *
+     * @param request     当前 HTTP 请求对象
+     * @param response    当前 HTTP 响应对象
+     * @param filterChain 过滤器链
+     * @throws ServletException Servlet 处理异常
+     * @throws IOException      I/O 读写异常
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

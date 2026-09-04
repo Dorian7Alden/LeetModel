@@ -17,24 +17,69 @@
 
 ---
 
-### 二、方法注释
+### 二、代码注释分类与格式规范
 
-每个方法必须有 Javadoc，包含一句话说明、`@param` 和 `@return`。
+注释的唯一目标是充当高信噪比的地图速查卡，防止代码长时间未看时遗忘核心逻辑。代码注释不是设计文档，不承载大篇幅架构论证。
+
+#### 2.1 类注释（无固定标签，自由正文）
+
+类注释不规定生硬标签，使用 1~3 句话干练说明：
+1. 核心定位：该类在系统全链路中充当什么角色、提供什么能力。
+2. 关键约束与防坑提示：非显而易见的注意事项（如时区要求、精度丢失转换、防 OOM 上限等）。
+
+#### 2.2 字段与变量注释（轻量单行）
+
+采用标准单行 Javadoc，清晰说明业务含义即可，不增加额外标签：
+
+```java
+/** 业务状态码：0 为成功，非 0 为错误 */
+private int code;
+```
+
+#### 2.3 方法注释（强制固定格式标准）
+
+方法注释具有严格的固定结构，必须标准化声明输入、输出与异常约束：
+
+- **首行**：动宾短语一句话概括方法的核心行为。
+- **输入 `@param`**：明确说明参数业务含义，若有约束须标明（如“是否允许为 null”、“取值范围”）。
+- **输出 `@return`**：明确说明返回值含义，特别须注明异常或空值情况下的返回行为（如“未查到返回 null”、“空结果返回空集合而非 null”）。
+- **异常 `@throws`**：若方法显式抛出特定业务异常，必须说明触发该异常的明确边界条件。
 
 正例：
 
 ```java
 /**
- * 根据用户名查找用户。
- * @param username 用户名
- * @return 用户实体
+ * 将 MyBatis-Plus 的分页结果转换为统一领域分页模型。
+ *
+ * @param page MyBatis-Plus 的 IPage 分页源对象，不能为 null
+ * @param <T>  列表项元素类型
+ * @return 转换后的 PageResult 实例；若原记录集为 null 则自动置为空集合
  */
-public User findByUsername(String username) {
+public static <T> PageResult<T> from(IPage<T> page) {
     ...
 }
 ```
 
-私有方法也要写 Javadoc。
+公有与私有方法均须遵守此格式。方法名已完全自解释且无入参出参的微型方法可适当简略。
+
+#### 2.4 尾随行内注释与对齐规范
+
+1. 【强制】尾随行内注释（`// ...`）必须**垂直对齐**，保证阅读工整。
+2. 【强制】对于内容较长、不易一眼识别或包含特定格式的值（如 MIME 类型、复杂正则表达式、配置键、状态常量等），必须在行末添加对齐的尾随注释说明业务含义。
+
+正例：
+
+```java
+private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+        "text/plain",                                                               // 纯文本
+        "text/markdown",                                                            // Markdown
+        "text/csv",                                                                 // CSV 表格
+        "application/pdf",                                                          // PDF 文档
+        "application/msword",                                                       // Word doc
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // Word docx
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         // Excel xlsx
+);
+```
 
 ---
 
@@ -175,3 +220,44 @@ private UserAdminVO.RoleSimpleVO toRoleSimpleVO(Role role) {
 3. 【禁止】简单边界判断写多行花括号。
 4. 【禁止】Builder 属性挤在一行。
 5. 【禁止】方法缺少 Javadoc 或步骤注释。
+6. 【禁止】在代码注释、Javadoc 中出现“面试”、“面试考点”、“考点”等求职元信息。代码注释必须保持严肃、纯粹的生产级工程与架构视角，仅说明职责、设计权衡、技术约束、线程安全与业务规则。
+7. 【禁止】尾随行内注释参差不齐、不垂直对齐。
+8. 【禁止】多参数换行时第一个参数不换行，或者括号格式错乱。
+9. 【禁止】在 return 语句中嵌套过深的对象构造（如匿名函数 + 深度 Builder + map + filter 等一长串堆叠）。
+10. 【禁止】为了追求代码行数少而使用大量晦涩语法糖、多层匿名嵌套，牺牲代码可读性与可维护性。
+
+---
+
+### 十一、代码可读性与排版规约
+
+代码的最首要目标是**可读性与可维护性**。严禁为了节省行数而写出晦涩隐晦的代码。
+
+#### 11.1 参数换行与对齐规范
+
+1. 单行代码过长时必须换行。
+2. 当方法声明或调用的参数较多需要换行时，**第一个参数必须换行**，每个参数独立成行，结尾括号与修饰单独换行闭合，形成清晰独立的参数块。
+
+正例：
+
+```java
+public PageResult(
+        long total,
+        int page,
+        int size,
+        List<T> rows
+) {
+    ...
+}
+```
+
+反例：
+
+```java
+public PageResult(long total, // ❌ 第一个参数未换行
+        int page, int size, List<T> rows) {
+```
+
+#### 11.2 拒绝隐晦代码与复杂堆叠
+
+1. 不允许一句代码写大量的逻辑堆叠。过于复杂的处理过程必须拆分为多个清晰命名的局部变量和明确的业务步骤。
+2. 严禁出现“俄罗斯套娃式 return”：禁止直接 return 一个高度嵌套构造的对象（如在 return 里内嵌匿名函数、多层 Builder 链式调用、Stream map/filter 转换）。必须先通过清晰的局部变量完成计算或拆解为私有辅助方法，最后平坦地 return。

@@ -57,26 +57,53 @@ public final class LogSanitizer {
     private LogSanitizer() {
     }
 
-    /** 清洗自由文本摘要。 */
+    /**
+     * 清洗自由文本日志消息，执行正则脱敏与字符截断。
+     *
+     * @param value 原始日志文本内容，允许为 null
+     * @return 脱敏并限制最大 1024 字符的安全文本；若为空串则返回 null
+     */
     public static String message(String value) {
         return sanitize(value, MAX_MESSAGE_LENGTH);
     }
 
-    /** 清洗普通枚举、类别、路由模板和资源字段。 */
+    /**
+     * 清洗普通枚举、失败类别、路由模板等结构化字段。
+     *
+     * @param value 原始字段文本值，允许为 null
+     * @return 脱敏并限制最大 256 字符的安全字段值；若为空串则返回 null
+     */
     public static String field(String value) {
         return sanitize(value, MAX_FIELD_LENGTH);
     }
 
-    /** 清洗关联标识，额外使用更小的长度上限。 */
+    /**
+     * 清洗全链路关联标识，施加严格字符与长度限制。
+     *
+     * @param value 原始标识文本，允许为 null
+     * @return 脱敏并限制最大 128 字符的有效标识；若为空串则返回 null
+     */
     public static String identifier(String value) {
         return sanitize(value, MAX_IDENTIFIER_LENGTH);
     }
 
-    /** 清洗不含异常 message 的代码位置。 */
+    /**
+     * 清洗异常堆栈帧位置字符串，屏蔽行内敏感信息。
+     *
+     * @param value 原始堆栈代码位置文本，允许为 null
+     * @return 脱敏并限制最大 512 字符的堆栈行文本；若为空串则返回 null
+     */
     public static String stackFrame(String value) {
         return sanitize(value, MAX_STACK_FRAME_LENGTH);
     }
 
+    /**
+     * 对输入文本执行控制字符清理、敏感模式不可逆脱敏及长度截断。
+     *
+     * @param value     待清洗的文本，允许为 null
+     * @param maxLength 允许保留的最大字符长度
+     * @return 清洗脱敏后的安全字符串；空串或 null 时返回 null
+     */
     private static String sanitize(String value, int maxLength) {
         if (value == null) return null;
         String normalized = stripControls(value);
@@ -89,6 +116,12 @@ public final class LogSanitizer {
         return limit(normalized, maxLength);
     }
 
+    /**
+     * 清理字符串中的不可见控制字符及换行符，防止日志注入伪造。
+     *
+     * @param value 原始文本字符串
+     * @return 消除非法控制符后的安全字符串
+     */
     private static String stripControls(String value) {
         StringBuilder safe = new StringBuilder(value.length());
         boolean lastWasSpace = false;
@@ -108,6 +141,13 @@ public final class LogSanitizer {
         return safe.toString();
     }
 
+    /**
+     * 对超长文本施加硬截断并追加 [TRUNCATED] 标识。
+     *
+     * @param value     待截断的字符串
+     * @param maxLength 最大长度限制
+     * @return 符合长度约束且不截断 UTF-16 代理对的字符串
+     */
     private static String limit(String value, int maxLength) {
         if (value.length() <= maxLength) return value;
         int prefixLength = maxLength - TRUNCATED.length();

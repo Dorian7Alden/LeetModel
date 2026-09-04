@@ -26,7 +26,7 @@ public class LeetModelUserApplication { ... }
 ```
 com.leetmodel
 ├── common          ← 没被扫到 ❌
-│   ├── core.handler.GlobalExceptionHandler
+│   ├── core.exception.GlobalExceptionHandler
 │   └── security.config.SecurityConfig
 ├── user            ← 被扫到 ✅
 │   └── controller.AuthController

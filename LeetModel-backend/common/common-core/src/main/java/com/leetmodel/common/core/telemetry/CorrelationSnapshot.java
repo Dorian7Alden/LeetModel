@@ -42,39 +42,120 @@ public record CorrelationSnapshot(
         aiCallId = TelemetryFieldPolicy.optionalCorrelationId(aiCallId, "aiCallId", 100);
     }
 
-    /** @return 替换 traceId 后的新快照 */
+    /**
+     * 创建替换了业务 traceId 的新快照副本。
+     *
+     * @param value 新的 traceId，传 null 时清空
+     * @return 包含新 traceId 的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withTraceId(String value) {
-        return new CorrelationSnapshot(value, swTraceId, swSpanId, operationId, eventId,
-                domainTaskId, attemptNo, aiCallId);
+        return new CorrelationSnapshot(
+                value,
+                swTraceId,
+                swSpanId,
+                operationId,
+                eventId,
+                domainTaskId,
+                attemptNo,
+                aiCallId
+        );
     }
 
-    /** @return 替换 operationId 后的新快照 */
+    /**
+     * 创建替换了治理 operationId 的新快照副本。
+     *
+     * @param value 新的 operationId，传 null 时清空
+     * @return 包含新 operationId 的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withOperationId(String value) {
-        return new CorrelationSnapshot(traceId, swTraceId, swSpanId, value, eventId,
-                domainTaskId, attemptNo, aiCallId);
+        return new CorrelationSnapshot(
+                traceId,
+                swTraceId,
+                swSpanId,
+                value,
+                eventId,
+                domainTaskId,
+                attemptNo,
+                aiCallId
+        );
     }
 
-    /** @return 替换 SkyWalking 关联字段后的新快照 */
+    /**
+     * 创建替换了 SkyWalking 链路标识的新快照副本。
+     *
+     * @param newSwTraceId 新的 SkyWalking Trace ID
+     * @param newSwSpanId  新的 SkyWalking Span ID
+     * @return 包含新 SkyWalking 标识的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withSkyWalking(String newSwTraceId, String newSwSpanId) {
-        return new CorrelationSnapshot(traceId, newSwTraceId, newSwSpanId, operationId, eventId,
-                domainTaskId, attemptNo, aiCallId);
+        return new CorrelationSnapshot(
+                traceId,
+                newSwTraceId,
+                newSwSpanId,
+                operationId,
+                eventId,
+                domainTaskId,
+                attemptNo,
+                aiCallId
+        );
     }
 
-    /** @return 替换消息关联字段后的新快照 */
+    /**
+     * 创建替换了消息队列事件标识的新快照副本。
+     *
+     * @param newEventId     新的消息事件 ID
+     * @param newOperationId 关联的操作治理 ID
+     * @return 包含新消息标识的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withMessage(String newEventId, String newOperationId) {
-        return new CorrelationSnapshot(traceId, swTraceId, swSpanId, newOperationId, newEventId,
-                domainTaskId, attemptNo, aiCallId);
+        return new CorrelationSnapshot(
+                traceId,
+                swTraceId,
+                swSpanId,
+                newOperationId,
+                newEventId,
+                domainTaskId,
+                attemptNo,
+                aiCallId
+        );
     }
 
-    /** @return 替换领域任务字段后的新快照 */
+    /**
+     * 创建替换了领域任务标识的新快照副本。
+     *
+     * @param taskId       领域任务 ID
+     * @param newAttemptNo 物理重试尝试序号
+     * @return 包含新领域任务标识的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withDomainTask(String taskId, Integer newAttemptNo) {
-        return new CorrelationSnapshot(traceId, swTraceId, swSpanId, operationId, eventId,
-                taskId, newAttemptNo, aiCallId);
+        return new CorrelationSnapshot(
+                traceId,
+                swTraceId,
+                swSpanId,
+                operationId,
+                eventId,
+                taskId,
+                newAttemptNo,
+                aiCallId
+        );
     }
 
-    /** @return 替换 aiCallId 后的新快照 */
+    /**
+     * 创建替换了 AI 调用标识的新快照副本。
+     *
+     * @param value 新的 AI 调用记录 ID
+     * @return 包含新 aiCallId 的 CorrelationSnapshot 新实例
+     */
     public CorrelationSnapshot withAiCallId(String value) {
-        return new CorrelationSnapshot(traceId, swTraceId, swSpanId, operationId, eventId,
-                domainTaskId, attemptNo, value);
+        return new CorrelationSnapshot(
+                traceId,
+                swTraceId,
+                swSpanId,
+                operationId,
+                eventId,
+                domainTaskId,
+                attemptNo,
+                value
+        );
     }
 }
