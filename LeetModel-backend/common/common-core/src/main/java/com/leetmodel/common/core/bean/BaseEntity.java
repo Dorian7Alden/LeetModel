@@ -1,4 +1,4 @@
-package com.leetmodel.common.core.entity;
+package com.leetmodel.common.core.bean;
 
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.AllArgsConstructor;

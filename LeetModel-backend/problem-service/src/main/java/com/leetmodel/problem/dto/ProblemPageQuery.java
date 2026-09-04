@@ -1,6 +1,6 @@
 package com.leetmodel.problem.dto;
 
-import com.leetmodel.common.core.dto.BasePageQuery;
+import com.leetmodel.common.core.bean.BasePageQuery;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

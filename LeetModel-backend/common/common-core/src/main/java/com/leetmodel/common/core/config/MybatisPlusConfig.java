@@ -43,12 +43,14 @@ public class MybatisPlusConfig {
      * </ul>
      * </p>
      *
-     * <p>配合 {@link com.leetmodel.common.core.entity.BaseEntity} 中的字段名使用，
+     * <p>配合 {@link com.leetmodel.common.core.bean.BaseEntity} 中的字段名使用，
      * 也可通过实体字段上的 {@code @TableField(fill = FieldFill.INSERT)} 精确控制。</p>
      */
     @Bean
     public MetaObjectHandler metaObjectHandler() {
         return new MetaObjectHandler() {
+
+            // 插入填充
             @Override
             public void insertFill(MetaObject metaObject) {
                 LocalDateTime now = LocalDateTime.now();
@@ -57,6 +59,7 @@ public class MybatisPlusConfig {
                 this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, now);
             }
 
+            // 更新填充
             @Override
             public void updateFill(MetaObject metaObject) {
                 this.strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());

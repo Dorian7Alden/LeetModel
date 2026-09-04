@@ -1,4 +1,4 @@
-package com.leetmodel.common.core.dto;
+package com.leetmodel.common.core.bean;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
