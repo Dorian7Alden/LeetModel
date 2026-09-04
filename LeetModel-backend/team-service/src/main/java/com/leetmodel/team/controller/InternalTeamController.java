@@ -38,6 +38,12 @@ public class InternalTeamController {
     private final TeamService teamService;
     private final TeamMemberMapper teamMemberMapper;
 
+    /**
+     * 查询指定队伍的跨服务 DTO 实体（供 submission-service、ranking-service 使用）。
+     *
+     * @param teamId 目标队伍唯一 ID，不能为 null
+     * @return 队伍 DTO 对象
+     */
     @Operation(summary = "获取团队信息")
     @GetMapping("/{teamId}")
     public Result<TeamDTO> getTeamInfo(@PathVariable Long teamId) {
@@ -51,6 +57,12 @@ public class InternalTeamController {
                 team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt()));
     }
 
+    /**
+     * 查询指定队伍中所有成员的用户 ID 集合。
+     *
+     * @param teamId 目标队伍唯一 ID，不能为 null
+     * @return 队员用户 ID 列表
+     */
     @Operation(summary = "获取团队成员用户 ID 列表")
     @GetMapping("/{teamId}/members")
     public Result<List<Long>> getMemberIds(@PathVariable Long teamId) {
@@ -62,6 +74,13 @@ public class InternalTeamController {
         return Result.ok(memberIds);
     }
 
+    /**
+     * 校验并获取指定成员在队伍中的作品提交权限及实训状态。
+     *
+     * @param teamId 目标队伍唯一 ID，不能为 null
+     * @param userId 目标用户 ID，不能为 null
+     * @return 包含提交权限与实训状态的校验 DTO
+     */
     @Operation(summary = "获取成员作品提交资格")
     @GetMapping("/{teamId}/members/{userId}/submission-access")
     public Result<TeamSubmissionAccessDTO> getSubmissionAccess(@PathVariable Long teamId,
@@ -69,6 +88,11 @@ public class InternalTeamController {
         return Result.ok(teamService.getSubmissionAccess(teamId, userId));
     }
 
+    /**
+     * 统计当前处于活跃正常状态的队伍总数。
+     *
+     * @return 活跃队伍数量
+     */
     @Operation(summary = "获取活跃团队数量")
     @GetMapping("/count")
     public Result<Long> getActiveTeamCount() {
@@ -78,6 +102,12 @@ public class InternalTeamController {
         return Result.ok(count);
     }
 
+    /**
+     * 按创建时间倒序查询最近创建的队伍记录。
+     *
+     * @param limit 单次拉取数量上限
+     * @return 队伍 DTO 列表
+     */
     @Operation(summary = "查询最近队伍")
     @GetMapping("/recent")
     public Result<List<TeamDTO>> listRecent(
@@ -95,6 +125,11 @@ public class InternalTeamController {
         }).toList());
     }
 
+    /**
+     * 查询已达截止时间但仍处于未归档状态的实训队伍。
+     *
+     * @return 已过期的练习队伍 DTO 列表
+     */
     @Operation(summary = "查询已到截止时间的练习")
     @GetMapping("/practice/expired")
     public Result<List<TeamDTO>> listExpiredPractices() {

@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 团队模块错误码 —— BB=03。
+ * 团队模块业务错误码：BB=03。
  */
 @Getter
 @AllArgsConstructor
