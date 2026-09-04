@@ -40,6 +40,11 @@ public class UserController {
     private final UserService userService;
     private final RoleService roleService;
 
+    /**
+     * 查询当前登录用户的个人资料脱敏信息。
+     *
+     * @return 当前登录用户的脱敏基础信息 VO
+     */
     @Operation(summary = "获取当前用户信息")
     @GetMapping("/me")
     public Result<UserVO> profile() {
@@ -48,6 +53,11 @@ public class UserController {
         return Result.ok(vo);
     }
 
+    /**
+     * 查询当前登录用户的角色编码与权限标识集合。
+     *
+     * @return 包含角色编码列表与权限标识列表的授权响应对象
+     */
     @Operation(summary = "获取当前用户角色和权限")
     @GetMapping("/me/authorization")
     public Result<UserAuthorizationResponse> authorization() {
@@ -60,6 +70,12 @@ public class UserController {
         return Result.ok(response);
     }
 
+    /**
+     * 更新当前登录用户的昵称与邮箱等基本信息。
+     *
+     * @param request 包含待修改昵称或邮箱的更新请求对象，不能为 null
+     * @return 更新后的用户基础信息 VO
+     */
     @Operation(summary = "更新个人信息（昵称、邮箱）")
     @PutMapping("/me")
     public Result<UserVO> updateProfile(@Valid @RequestBody UserUpdateRequest request) {
@@ -68,6 +84,12 @@ public class UserController {
         return Result.ok(vo);
     }
 
+    /**
+     * 修改当前登录用户的登录密码。
+     *
+     * @param request 包含原密码与新密码的修改请求对象，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "修改密码")
     @PutMapping("/me/password")
     public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
@@ -76,6 +98,12 @@ public class UserController {
         return Result.ok();
     }
 
+    /**
+     * 上传并更新当前登录用户的个人头像。
+     *
+     * @param file 头像图片文件对象，不能为 null
+     * @return 包含最新头像访问 URL 的响应对象
+     */
     @Operation(summary = "上传头像")
     @PostMapping("/me/avatar")
     public Result<AvatarUploadResponse> uploadAvatar(@RequestParam("file") MultipartFile file) {

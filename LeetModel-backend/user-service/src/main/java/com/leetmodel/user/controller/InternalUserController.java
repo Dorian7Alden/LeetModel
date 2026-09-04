@@ -36,6 +36,12 @@ public class InternalUserController {
     private final UserService userService;
     private final StorageService storageService;
 
+    /**
+     * 获取指定用户的角色编码与权限列表（供 common-security 鉴权使用）。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 包含用户角色与权限编码的 DTO
+     */
     @Operation(summary = "获取用户角色数据")
     @GetMapping("/{userId}/roles")
     public Result<UserRoleDTO> getUserRoles(@PathVariable Long userId) {
@@ -43,6 +49,12 @@ public class InternalUserController {
         return Result.ok(dto);
     }
 
+    /**
+     * 检查指定用户是否存在且处于正常可用状态（供 team-service 校验成员）。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 若用户存在且状态为正常返回 true，否则返回 false
+     */
     @Operation(summary = "判断用户是否可加入团队")
     @GetMapping("/{userId}/available")
     public Result<Boolean> isUserAvailable(@PathVariable Long userId) {
@@ -51,10 +63,17 @@ public class InternalUserController {
         return Result.ok(available);
     }
 
+    /**
+     * 批量查询指定用户列表的公开名片摘要信息。
+     *
+     * @param userIds 目标用户 ID 列表，可为空
+     * @return 匹配的用户公开摘要列表
+     */
     @Operation(summary = "批量获取用户公开摘要")
     @GetMapping("/public-summaries")
     public Result<List<UserPublicSummaryDTO>> getPublicSummaries(
-            @RequestParam(required = false) List<Long> userIds) {
+            @RequestParam(required = false) List<Long> userIds
+    ) {
         if (userIds == null || userIds.isEmpty()) {
             return Result.ok(List.of());
         }
@@ -70,6 +89,11 @@ public class InternalUserController {
         return Result.ok(summaries);
     }
 
+    /**
+     * 统计系统全量注册用户总数（供 admin-service 看板聚合）。
+     *
+     * @return 系统当前用户总数
+     */
     @Operation(summary = "获取用户数量")
     @GetMapping("/count")
     public Result<Long> getUserCount() {

@@ -30,8 +30,9 @@ public class PermissionServiceImpl implements PermissionService {
     private final RolePermissionMapper rolePermissionMapper;
 
     /**
-     * 获取权限列表。
-     * @return 权限列表
+     * 查询系统中全部权限定义列表。
+     *
+     * @return 权限视图对象列表
      */
     @Override
     public List<PermissionVO> listPermissions() {
@@ -41,9 +42,11 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 获取权限详情。
-     * @param permissionId 权限 ID
-     * @return 权限详情
+     * 根据权限 ID 查询权限详情。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 权限视图对象
+     * @throws BusinessException 若权限不存在
      */
     @Override
     public PermissionVO getPermissionById(Long permissionId) {
@@ -52,9 +55,11 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 创建权限。
-     * @param request 权限信息
-     * @return 创建后的权限
+     * 创建新的系统权限定义。
+     *
+     * @param request 包含权限属性的创建请求对象，不能为 null
+     * @return 创建成功后的权限视图对象
+     * @throws BusinessException 若权限编码重复
      */
     @Override
     @Transactional
@@ -75,10 +80,12 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 更新权限。
-     * @param permissionId 权限 ID
-     * @param request 权限信息
-     * @return 更新后的权限
+     * 更新指定权限的属性定义。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @param request      包含待修改信息的请求对象，不能为 null
+     * @return 更新后的权限视图对象
+     * @throws BusinessException 若权限不存在或修改后的编码重复
      */
     @Override
     @Transactional
@@ -101,8 +108,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 删除未被角色使用的权限。
-     * @param permissionId 权限 ID
+     * 删除指定权限（若权限仍被角色引用则禁止删除）。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @throws BusinessException 若权限不存在或仍被角色使用
      */
     @Override
     @Transactional
@@ -126,9 +135,11 @@ public class PermissionServiceImpl implements PermissionService {
     // ==================== 私有方法 ====================
 
     /**
-     * 获取存在的权限。
-     * @param permissionId 权限 ID
-     * @return 权限实体
+     * 校验并获取已存在的权限实体。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 存在的权限实体
+     * @throws BusinessException 若权限不存在
      */
     private Permission getExistingPermission(Long permissionId) {
         Permission permission = permissionMapper.selectById(permissionId);
@@ -137,8 +148,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 校验权限编码唯一。
-     * @param code 权限编码
+     * 检查权限编码是否全局唯一。
+     *
+     * @param code 待检查的权限编码，不能为 null
+     * @throws BusinessException 若编码已被占用
      */
     private void ensurePermissionCodeUnique(String code) {
         LambdaQueryWrapper<Permission> wrapper = new LambdaQueryWrapper<>();
@@ -150,9 +163,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 使用请求数据更新权限字段。
-     * @param permission 权限实体
-     * @param request 权限请求
+     * 将请求对象的数据映射填充至实体字段。
+     *
+     * @param permission 目标权限实体
+     * @param request    来源请求对象
      */
     private void updatePermissionFields(Permission permission, PermissionRequest request) {
         permission.setCode(request.getCode());
@@ -161,9 +175,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 将权限实体转换为 VO。
+     * 将权限实体转换为视图对象。
+     *
      * @param permission 权限实体
-     * @return 权限 VO
+     * @return 权限视图对象
      */
     private PermissionVO toVO(Permission permission) {
         return PermissionVO.builder()
