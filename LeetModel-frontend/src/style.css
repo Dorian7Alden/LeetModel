@@ -172,3 +172,78 @@ a:hover {
 .bg-gradient-teal {
   background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
 }
+
+/* ===== Code Block & KaTeX Formula Styles ===== */
+.code-block-wrapper {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--lm-border);
+  background: #f8fafc;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--lm-border);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.code-block-header .code-lang {
+  color: var(--lm-text-secondary);
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.code-block-header .copy-code-btn {
+  border: none;
+  background: transparent;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.code-block-header .copy-code-btn:hover {
+  color: var(--lm-primary);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.code-block-header .copy-code-btn.copied {
+  color: var(--lm-success);
+  font-weight: 600;
+}
+
+.code-block-wrapper pre {
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  overflow-x: auto;
+  background: transparent !important;
+}
+
+.code-block-wrapper pre code.hljs {
+  padding: 0 !important;
+  background: transparent !important;
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* KaTeX Display formulas */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+  margin: 6px 0;
+}
+
+.katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}
