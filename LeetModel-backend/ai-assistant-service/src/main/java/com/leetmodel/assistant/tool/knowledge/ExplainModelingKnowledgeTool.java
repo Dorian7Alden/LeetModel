@@ -57,7 +57,7 @@ public class ExplainModelingKnowledgeTool implements AssistantTool<ExplainModeli
                     "专业、简洁地讲解数学建模概念、方法选择、模型假设、求解步骤和常见误区；"
                             + "不用于平台操作、题目事实、正式论文评审或通用百科。",
                     inputSchema()),
-            true, Duration.ofSeconds(120),
+            false, Duration.ofSeconds(120),
             Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1"));
 
     private final AiClient aiClient;
@@ -123,7 +123,17 @@ public class ExplainModelingKnowledgeTool implements AssistantTool<ExplainModeli
                 : truncate(clean(response.content()), MAX_ANSWER_CODE_POINTS);
         AiChatResponse terminal = withContent(response, answer);
         String auditSnapshot = auditSnapshot(answer, outOfScope, ragContext);
-        return new AssistantToolOutput(auditSnapshot, auditSnapshot, terminal);
+        Map<String, Object> modelResult = new LinkedHashMap<>();
+        modelResult.put("topic", input.topic());
+        modelResult.put("explanation", answer);
+        modelResult.put("outOfScope", outOfScope);
+        String modelResultJson;
+        try {
+            modelResultJson = objectMapper.writeValueAsString(modelResult);
+        } catch (Exception e) {
+            modelResultJson = auditSnapshot;
+        }
+        return new AssistantToolOutput(modelResultJson, auditSnapshot, terminal);
     }
 
     /** 根据生产快照读取固定 RAG 上下文。 */
@@ -137,6 +147,11 @@ public class ExplainModelingKnowledgeTool implements AssistantTool<ExplainModeli
                 && context.productionSnapshot().ragIndexVersion() != null) {
             String query = input.topic() + (input.focus() == null ? "" : " " + input.focus());
             return ragContextProvider.retrieveExact(query,
+                    context.productionSnapshot().ragIndexVersion());
+        }
+        if ("RETRIEVAL_SERVICE".equals(ragMode)) {
+            String query = input.topic() + (input.focus() == null ? "" : " " + input.focus());
+            return ragContextProvider.retrieveFromService(query, "HYBRID_RETRIEVAL_V1",
                     context.productionSnapshot().ragIndexVersion());
         }
         throw new AssistantToolException("KNOWLEDGE_RAG_SNAPSHOT_INVALID",

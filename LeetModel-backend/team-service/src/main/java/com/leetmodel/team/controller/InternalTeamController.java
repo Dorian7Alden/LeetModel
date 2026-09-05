@@ -143,4 +143,34 @@ public class InternalTeamController {
                 team.getStatus(), null, team.getProblemId(), team.getPracticeStatus(),
                 team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt())).toList());
     }
+
+    /**
+     * 查询指定用户当前所属的队伍信息。
+     *
+     * @param userId 目标用户 ID
+     * @return 队伍 DTO，未入队返回 null
+     */
+    @Operation(summary = "查询用户所属当前队伍")
+    @GetMapping("/users/{userId}/current")
+    public Result<TeamDTO> getUserCurrentTeam(@PathVariable Long userId) {
+        TeamMember member = teamMemberMapper.selectOne(
+                new LambdaQueryWrapper<TeamMember>()
+                        .eq(TeamMember::getUserId, userId)
+                        .orderByDesc(TeamMember::getCreateTime)
+                        .last("LIMIT 1")
+        );
+        if (member == null) {
+            return Result.ok(null);
+        }
+        Team team = teamService.getById(member.getTeamId());
+        if (team == null) {
+            return Result.ok(null);
+        }
+        long memberCount = teamMemberMapper.selectCount(
+                new LambdaQueryWrapper<TeamMember>().eq(TeamMember::getTeamId, team.getId())
+        );
+        return Result.ok(new TeamDTO(team.getId(), team.getName(), team.getLeaderId(),
+                team.getStatus(), (int) memberCount, team.getProblemId(), team.getPracticeStatus(),
+                team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt()));
+    }
 }

@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.assistant.tool.problem.RecommendProblemTool;
 import com.leetmodel.assistant.tool.problem.SearchProblemTool;
 import com.leetmodel.assistant.tool.knowledge.ExplainModelingKnowledgeTool;
+import com.leetmodel.assistant.tool.domain.QueryUserTeamTool;
+import com.leetmodel.assistant.tool.domain.QuerySubmissionStatusTool;
 import com.leetmodel.common.ai.model.AiToolDefinition;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -37,12 +39,25 @@ public class AssistantToolRegistry {
                                  SearchProblemTool searchProblemTool,
                                  RecommendProblemTool recommendProblemTool,
                                  ExplainModelingKnowledgeTool explainModelingKnowledgeTool) {
+        this(objectMapper, validator, searchProblemTool, recommendProblemTool,
+                explainModelingKnowledgeTool, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AssistantToolRegistry(ObjectMapper objectMapper, Validator validator,
+                                 SearchProblemTool searchProblemTool,
+                                 RecommendProblemTool recommendProblemTool,
+                                 ExplainModelingKnowledgeTool explainModelingKnowledgeTool,
+                                 QueryUserTeamTool queryUserTeamTool,
+                                 QuerySubmissionStatusTool querySubmissionStatusTool) {
         this.objectMapper = objectMapper;
         this.validator = validator;
         Map<String, AssistantTool<?>> v1 = new LinkedHashMap<>();
         register(v1, searchProblemTool);
         register(v1, recommendProblemTool);
         register(v1, explainModelingKnowledgeTool);
+        if (queryUserTeamTool != null) register(v1, queryUserTeamTool);
+        if (querySubmissionStatusTool != null) register(v1, querySubmissionStatusTool);
         this.toolsets = Map.of(TOOLSET_V1, Map.copyOf(v1));
     }
 

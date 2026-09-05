@@ -50,4 +50,7 @@ public interface TeamFeignClient {
 
     @GetMapping("/internal/teams/practice/expired")
     Result<List<TeamDTO>> listExpiredPractices();
+
+    @GetMapping("/internal/teams/users/{userId}/current")
+    Result<TeamDTO> getUserCurrentTeam(@PathVariable Long userId);
 }
