@@ -9,6 +9,9 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.review.entity.PaperParseArtifact;
 import com.leetmodel.review.mapper.PaperParseArtifactMapper;
+import com.leetmodel.review.parse.v2.PaperDocumentV2;
+import com.leetmodel.review.parse.v2.PaperParseV2Parser;
+import com.leetmodel.review.parse.v2.PaperParseV2Properties;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -23,27 +26,39 @@ public class PaperParseService {
     private final SubmissionFeignClient submissionFeignClient;
     private final StorageService storageService;
     private final PaperParseV1Parser parser;
+    private final PaperParseV2Parser v2Parser;
+    private final PaperParseV2Properties v2Properties;
     private final ObjectMapper objectMapper;
 
     public PaperParseService(PaperParseArtifactMapper mapper,
                              SubmissionFeignClient submissionFeignClient,
                              StorageService storageService,
                              PaperParseV1Parser parser,
+                             PaperParseV2Parser v2Parser,
+                             PaperParseV2Properties v2Properties,
                              ObjectMapper objectMapper) {
         this.mapper = mapper;
         this.submissionFeignClient = submissionFeignClient;
         this.storageService = storageService;
         this.parser = parser;
+        this.v2Parser = v2Parser;
+        this.v2Properties = v2Properties;
         this.objectMapper = objectMapper;
     }
 
     public synchronized PaperParseDTO ensure(Long submissionId, String workflowVersion) {
-        if (!PaperParseV1Parser.WORKFLOW_VERSION.equals(workflowVersion)) {
-            throw new IllegalArgumentException("未知 PDF 解析版本: " + workflowVersion);
+        if (PaperParseV1Parser.WORKFLOW_VERSION.equals(workflowVersion)) {
+            return ensureV1(submissionId);
+        } else if (PaperParseV2Parser.WORKFLOW_VERSION.equals(workflowVersion)) {
+            return ensureV2(submissionId);
         }
+        throw new IllegalArgumentException("未知 PDF 解析版本: " + workflowVersion);
+    }
+
+    private PaperParseDTO ensureV1(Long submissionId) {
         PaperParseArtifact reusable = mapper.selectOne(new LambdaQueryWrapper<PaperParseArtifact>()
                 .eq(PaperParseArtifact::getSubmissionId, submissionId)
-                .eq(PaperParseArtifact::getWorkflowVersion, workflowVersion)
+                .eq(PaperParseArtifact::getWorkflowVersion, PaperParseV1Parser.WORKFLOW_VERSION)
                 .eq(PaperParseArtifact::getSchemaVersion, PaperParseV1Parser.SCHEMA_VERSION)
                 .in(PaperParseArtifact::getStatus, "SUCCESS", "PARTIAL_SUCCESS")
                 .orderByDesc(PaperParseArtifact::getCreateTime)
@@ -53,7 +68,7 @@ public class PaperParseService {
         SubmissionReviewDTO submission = requiredSubmission(submissionId);
         PaperParseArtifact artifact = new PaperParseArtifact();
         artifact.setSubmissionId(submissionId);
-        artifact.setWorkflowVersion(workflowVersion);
+        artifact.setWorkflowVersion(PaperParseV1Parser.WORKFLOW_VERSION);
         artifact.setSchemaVersion(PaperParseV1Parser.SCHEMA_VERSION);
         try (InputStream input = storageService.download(submission.getObjectName())) {
             byte[] pdf = input.readAllBytes();
@@ -79,6 +94,46 @@ public class PaperParseService {
         }
     }
 
+    private PaperParseDTO ensureV2(Long submissionId) {
+        PaperParseArtifact reusable = mapper.selectOne(new LambdaQueryWrapper<PaperParseArtifact>()
+                .eq(PaperParseArtifact::getSubmissionId, submissionId)
+                .eq(PaperParseArtifact::getWorkflowVersion, PaperParseV2Parser.WORKFLOW_VERSION)
+                .eq(PaperParseArtifact::getSchemaVersion, PaperParseV2Parser.SCHEMA_VERSION)
+                .in(PaperParseArtifact::getStatus, "SUCCESS", "PARTIAL_SUCCESS")
+                .orderByDesc(PaperParseArtifact::getCreateTime)
+                .last("LIMIT 1"));
+        if (reusable != null) return toDTO(reusable);
+
+        SubmissionReviewDTO submission = requiredSubmission(submissionId);
+        PaperParseArtifact artifact = new PaperParseArtifact();
+        artifact.setSubmissionId(submissionId);
+        artifact.setWorkflowVersion(PaperParseV2Parser.WORKFLOW_VERSION);
+        artifact.setSchemaVersion(PaperParseV2Parser.SCHEMA_VERSION);
+        try (InputStream input = storageService.download(submission.getObjectName())) {
+            byte[] pdf = input.readAllBytes();
+            if (pdf.length == 0) throw new IllegalArgumentException("提交 PDF 为空");
+            String contentSha256 = sha256(pdf);
+            artifact.setContentSha256(contentSha256);
+            PaperDocumentV2 document = v2Parser.parse(submissionId, pdf, contentSha256);
+            artifact.setStatus(document.quality().status());
+            artifact.setPageCount(document.metadata().totalPages());
+            artifact.setTruncated(document.metadata().totalPages() > v2Properties.getMaxPages());
+            artifact.setQualityJson(objectMapper.writeValueAsString(document.quality()));
+            artifact.setDocumentJson(objectMapper.writeValueAsString(document));
+            mapper.insert(artifact);
+            return toDTO(artifact);
+        } catch (Exception exception) {
+            artifact.setContentSha256(artifact.getContentSha256() == null
+                    ? sha256((submissionId + ":unavailable").getBytes(StandardCharsets.UTF_8))
+                    : artifact.getContentSha256());
+            artifact.setStatus("FAILED");
+            artifact.setTruncated(false);
+            artifact.setErrorMessage(truncate(exception.getMessage()));
+            mapper.insert(artifact);
+            throw new IllegalStateException("PAPER_PARSE_V2 解析失败: " + artifact.getErrorMessage(), exception);
+        }
+    }
+
     public PaperParseArtifact requiredArtifact(Long artifactId) {
         PaperParseArtifact artifact = mapper.selectById(artifactId);
         if (artifact == null || !("SUCCESS".equals(artifact.getStatus())
@@ -93,6 +148,14 @@ public class PaperParseService {
             return objectMapper.readValue(artifact.getDocumentJson(), PaperDocumentV1.class);
         } catch (Exception exception) {
             throw new IllegalStateException("PAPER_DOCUMENT_V1 产物无法读取", exception);
+        }
+    }
+
+    public PaperDocumentV2 readDocumentV2(PaperParseArtifact artifact) {
+        try {
+            return objectMapper.readValue(artifact.getDocumentJson(), PaperDocumentV2.class);
+        } catch (Exception exception) {
+            throw new IllegalStateException("PAPER_DOCUMENT_V2 产物无法读取", exception);
         }
     }
 

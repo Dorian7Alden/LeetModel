@@ -54,6 +54,22 @@ class ModelExecutionCatalogContractTest {
                 "PROMPT_AI_DIRECTORY_0001", "AI_DIRECTORY_V1");
     }
 
+    @Test
+    void paperParseV2WorkflowsHaveDedicatedExecutionConfigs() throws Exception {
+        ModelExecutionConfigProperties properties = properties();
+
+        ModelExecutionConfigProperties.Definition visionDef = properties
+                .getExecutionConfigs().get("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001");
+        assertThat(visionDef).isNotNull();
+        assertThat(visionDef.getCallType()).isEqualTo("CHAT");
+        assertThat(visionDef.getModality()).isEqualTo(com.leetmodel.common.ai.model.AiModality.MULTIMODAL);
+        assertThat(visionDef.getPromptVersions()).containsExactly("PROMPT_PAPER_PARSE_V2_0001");
+        assertThat(visionDef.getWorkflowVersions()).containsExactly("PAPER_PARSE_V2");
+
+        assertTextConfig(properties, "MODEL_CFG_PAPER_PARSE_TEXT_0001", 4096, 0.1,
+                "PROMPT_PAPER_PARSE_ARBITER_0001", "PAPER_PARSE_V2");
+    }
+
     private void assertTextConfig(ModelExecutionConfigProperties properties, String version,
                                   int maxTokens, double temperature, String prompt, String workflow) {
         ModelExecutionConfigProperties.Definition definition = properties.getExecutionConfigs().get(version);
