@@ -45,6 +45,21 @@ class AssistantEvaluationRunnerTest {
     }
 
     @Test
+    void minimalQuestionSampleProducesValidDigestWithoutUnspecifiedEvidenceMetrics() {
+        var command = command("ASSISTANT_NO_RAG_V1", null, "{\"question\":\"数模论文排版要求？\"}");
+        when(client.runExperiment(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Result.ok(result(command, "排版要求为页边距2.5cm，标题三号黑体")));
+
+        var outcome = runner.parseResult(command, runner.execute(command));
+
+        assertThat(outcome.status()).isEqualTo("SUCCEEDED");
+        assertThat(outcome.outputSummaryJson()).contains("answerSha256", "answerLength");
+        var metrics = runner.extractMetrics(outcome);
+        assertThat(metrics).containsOnlyKeys("STRUCTURE_VALID_RATE");
+        assertThat(metrics.get("STRUCTURE_VALID_RATE")).isEqualByComparingTo("100");
+    }
+
+    @Test
     void ragRunLocksAndReturnsExactIndexVersionAtP3() {
         var command = command("ASSISTANT_RAG_V1", "rag-v1-abc",
                 "{\"question\":\"如何提交论文？\",\"expectedSources\":[\"docs/submit.md\"],"
