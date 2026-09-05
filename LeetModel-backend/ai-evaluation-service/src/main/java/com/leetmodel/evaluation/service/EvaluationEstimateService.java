@@ -95,6 +95,10 @@ public class EvaluationEstimateService {
             return "MODEL_CFG_REVIEW_MULTIMODAL_0001".equals(
                     candidate.getModelExecutionConfigVersion()) && rag == null;
         }
+        if ("SUGGESTION".equals(featureCode)) {
+            return "MODEL_CFG_SUGGESTION_TEXT_0001".equals(
+                    candidate.getModelExecutionConfigVersion()) && rag == null;
+        }
         if (!"ASSISTANT".equals(featureCode)
                 || !"MODEL_CFG_ASSISTANT_TEXT_0001".equals(candidate.getModelExecutionConfigVersion())) {
             return false;
