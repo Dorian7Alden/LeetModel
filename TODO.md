@@ -15,11 +15,52 @@
 
 ## 当前状态
 
-AI评审V3（DEEP_EVIDENCE_REVIEW_V3）完整功能设计、双阶段流水线、并行切片装配、五维确定性汇聚、数据持久化与端到端自动化测试已全部完成并通过真实验收。
+当前已切入阶段分支 `phase/s9-ai-evaluation-refinement`，推进 S9 AI 评测轻量化与实用化改造。以实用主义为导向，聚焦硬核指标（成功率、响应耗时、Token/费用、评分稳定性方差），做减法消除使用门槛，并打通固定工作流缺失能力。
 
 ## 当前任务
 
-暂无待推进任务。当前阶段所有设计与实现任务已完整交付并验收。
+### [ ] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
+
+**目标**：
+解除创建评测任务时对 `weightSchemeId` 的强制校验，允许在未指定权重方案时正常创建并运行评测任务，完整收集和落库响应时间、成功率、Token 消耗、实际扣费与方差事实，仅将版本选择指数标记为置空/未计算，降低评测使用的初始化门槛。
+
+**入口**：
+- POST `/internal/evaluations/tasks`（创建评测任务接口）
+- `EvaluationTaskCreateDTO.java`
+- `EvaluationService.createTask` 与 `refreshTask`
+
+**主流程**：
+1. 将 `EvaluationTaskCreateDTO.weightSchemeId` 校验注解 `@NotNull` 移除，允许传 `null`。
+2. `EvaluationService.createTask` 中移除强制校验异常，若 `weightSchemeId` 为空，跳过方案快照与绑定逻辑，任务主表 `weight_scheme_id` 和 `weight_scheme_version` 置空。
+3. 槽位执行逻辑不受影响，依然按原逻辑正常执行隔离实验并记录各槽位运行事实。
+4. 槽位全部完成后，`refreshTask` 照常拉取网关真实 Token/费用，计算方差、耗时和成功率等原始指标；若任务未绑定权重方案，跳过版本选择指数合成，直接完成任务并持久化。
+5. 跨服务 DTO 转换与接口响应保证在无权重方案时兼容返回。
+
+**完成标准**：
+1. 调用 POST `/internal/evaluations/tasks` 不传 `weightSchemeId` 能成功创建评测任务，状态流转至 `WAITING`。
+2. 槽位执行完毕后，任务正常进入 `COMPLETED` 终态。
+3. 任务详情中能完整查看原始指标（`rawMetrics`）：包含成功率、平均耗时、Token 用量、费用以及评审打分的方差/极差。
+4. 任务的 `versionSelectionIndex` 正确置空，无空指针异常或未处理异常。
+5. 补充或调整对应单测，`mvn -pl ai-evaluation-service test` 全部通过。
+
+**修改范围**：
+- `LeetModel-backend/common/common-api/src/main/java/com/leetmodel/common/api/dto/EvaluationTaskCreateDTO.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationService.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationScoreResultService.java`
+- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/service/EvaluationServiceTest.java`
+
+**非目标**：
+- 本卡不修改客服指标逻辑（由任务 2 处理）。
+- 本卡不实现 AI 建议隔离实验（由任务 3 处理）。
+- 本卡不修改 Flyway 数据库表结构（主表相关列已允许为 NULL）。
+
+---
+
+## 阶段后续任务规划（S9-Evaluation-Refinement）
+
+- [ ] 任务 2：精简 AI 客服评测样本契约与伪指标（移除强依赖人工标准要点/来源覆盖的假定，收敛至接口可用性、响应延迟与实际 Token/成本）
+- [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（`ai-suggestion-service` 增加隔离实验接口，`ai-evaluation-service` 新增 `SuggestionEvaluationRunner`，补齐固定工作流观测闭环）
+- [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
 
 
 ## 待梳理服务清单（按推荐顺序）
