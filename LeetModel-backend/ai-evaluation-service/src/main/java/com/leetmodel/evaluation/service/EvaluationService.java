@@ -119,7 +119,7 @@ public class EvaluationService {
         String featureCode = request.getFeatureCode() == null || request.getFeatureCode().isBlank()
                 ? "REVIEW" : request.getFeatureCode().trim();
         EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
-        if ("REVIEW".equals(featureCode)) {
+        if ("REVIEW".equals(featureCode) || "SUGGESTION".equals(featureCode)) {
             Set<Long> references = new java.util.HashSet<>();
             for (EvaluationSampleCreateDTO input : request.getSamples()) {
                 Long submissionId = runner.validateSample(requestPayload(featureCode, input)).submissionId();
@@ -132,7 +132,7 @@ public class EvaluationService {
         for (EvaluationSampleCreateDTO input : request.getSamples()) {
             ValidatedSamplePayload payload = runner.validateSample(requestPayload(featureCode, input));
             SubmissionReviewDTO submission = null;
-            if ("REVIEW".equals(featureCode)) {
+            if ("REVIEW".equals(featureCode) || "SUGGESTION".equals(featureCode)) {
                 BusinessException.throwIf(payload.submissionId() == null
                                 || !submissionIds.add(payload.submissionId()),
                         EvaluationErrorCode.DUPLICATE_SAMPLE);
@@ -655,6 +655,7 @@ public class EvaluationService {
 
     private String defaultModelConfig(String featureCode) {
         if ("REVIEW".equals(featureCode)) return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
+        if ("SUGGESTION".equals(featureCode)) return "MODEL_CFG_SUGGESTION_TEXT_0001";
         if ("ASSISTANT".equals(featureCode)) return "MODEL_CFG_ASSISTANT_TEXT_0001";
         throw new IllegalArgumentException("功能没有默认模型执行配置: " + featureCode);
     }
@@ -663,6 +664,7 @@ public class EvaluationService {
         String rag = trimToNull(request.getRagIndexVersion());
         boolean valid = switch (featureCode) {
             case "REVIEW" -> rag == null;
+            case "SUGGESTION" -> rag == null;
             case "ASSISTANT" -> "ASSISTANT_RAG_V1".equals(request.getWorkflowVersion())
                     ? rag != null : "ASSISTANT_NO_RAG_V1".equals(request.getWorkflowVersion()) && rag == null;
             default -> false;

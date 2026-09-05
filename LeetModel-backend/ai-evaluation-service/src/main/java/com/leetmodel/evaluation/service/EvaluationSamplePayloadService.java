@@ -17,10 +17,13 @@ public class EvaluationSamplePayloadService {
 
     public static final String REVIEW_SAMPLE_TYPE = "SUBMISSION_REFERENCE";
     public static final String REVIEW_SCHEMA = "REVIEW_SUBMISSION_V1";
+    public static final String SUGGESTION_SAMPLE_TYPE = "SUBMISSION_REFERENCE";
+    public static final String SUGGESTION_SCHEMA = "SUGGESTION_SUBMISSION_V1";
     public static final String ASSISTANT_SAMPLE_TYPE = "QUESTION";
     public static final String ASSISTANT_SCHEMA = "ASSISTANT_QUESTION_V1";
 
     private static final Set<String> REVIEW_FIELDS = Set.of("submissionId");
+    private static final Set<String> SUGGESTION_FIELDS = Set.of("submissionId");
     private static final Set<String> ASSISTANT_FIELDS = Set.of("question", "tags", "expectedPoints",
             "expectedSources", "formatRules");
     private static final Set<String> ASSISTANT_FORMAT_RULES = Set.of("ANSWER_NON_BLANK",
@@ -33,9 +36,20 @@ public class EvaluationSamplePayloadService {
         JsonNode payload = parseObject(input.getPayloadJson());
         return switch (required(featureCode, "功能编码")) {
             case "REVIEW" -> validateReview(input, payload);
+            case "SUGGESTION" -> validateSuggestion(input, payload);
             case "ASSISTANT" -> validateAssistant(input, payload);
             default -> throw new IllegalArgumentException("不支持的评价功能: " + featureCode);
         };
+    }
+
+    private ValidatedSamplePayload validateSuggestion(EvaluationSamplePayloadDTO input, JsonNode payload) {
+        requireIdentity(input, SUGGESTION_SAMPLE_TYPE, SUGGESTION_SCHEMA);
+        requireOnlyFields(payload, SUGGESTION_FIELDS);
+        JsonNode submissionId = payload.get("submissionId");
+        if (submissionId == null || !submissionId.canConvertToLong() || submissionId.longValue() <= 0) {
+            throw new IllegalArgumentException("SUGGESTION 样本 submissionId 必须为正整数");
+        }
+        return normalized(input, payload, submissionId.longValue());
     }
 
     private ValidatedSamplePayload validateReview(EvaluationSamplePayloadDTO input, JsonNode payload) {

@@ -53,11 +53,12 @@ class EvaluationSamplePayloadServiceTest {
     }
 
     @Test
-    void suggestionCannotEnterDatasetBeforeOwnerContractExists() {
-        assertThatThrownBy(() -> service.validate("SUGGESTION", new EvaluationSamplePayloadDTO(
-                "SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1", "{\"submissionId\":31}")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不支持的评价功能");
+    void suggestionPayloadValidatesSubmissionReference() {
+        var result = service.validate("SUGGESTION", new EvaluationSamplePayloadDTO(
+                "SUBMISSION_REFERENCE", "SUGGESTION_SUBMISSION_V1", "{\"submissionId\":31}"));
+
+        assertThat(result.submissionId()).isEqualTo(31L);
+        assertThat(result.payloadJson()).isEqualTo("{\"submissionId\":31}");
     }
 
     @Test
