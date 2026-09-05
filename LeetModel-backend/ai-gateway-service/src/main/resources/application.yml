@@ -63,7 +63,7 @@ ai:
         thinking-enabled: false
         tools: true
         prompt-versions: [PROMPT_ASSISTANT_TOOLS_0001]
-        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1]
+        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1, ASSISTANT_TOOLS_RETRIEVAL_V1]
       MODEL_CFG_ASSISTANT_KNOWLEDGE_0001:
         call-type: CHAT
         provider: NEW_API
@@ -75,7 +75,7 @@ ai:
         thinking-enabled: false
         tools: false
         prompt-versions: [PROMPT_ASSISTANT_KNOWLEDGE_0001]
-        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1]
+        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1, ASSISTANT_TOOLS_RETRIEVAL_V1]
       MODEL_CFG_REVIEW_MULTIMODAL_0001:
         call-type: CHAT
         provider: NEW_API
