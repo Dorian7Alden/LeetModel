@@ -84,7 +84,17 @@
                   <div class="ai-msg-col">
                     <span class="ai-msg-name">AI 客服</span>
                     <div class="ai-bubble">
-                      <div class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <!-- 工具调用动态状态条 -->
+                      <div v-if="msg.toolStatus" class="ai-tool-badge" :class="msg.toolStatus.status">
+                        <el-icon class="ai-tool-spin" v-if="msg.toolStatus.status === 'RUNNING'"><Loading /></el-icon>
+                        <el-icon v-else><Check /></el-icon>
+                        <span>{{ msg.toolStatus.displayName }}</span>
+                      </div>
+
+                      <div v-if="msg.content" class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <div v-else-if="msg.status === 'RUNNING'" class="ai-typing-inline">
+                        <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
+                      </div>
 
                       <!-- 题目推荐结构化卡片 -->
                       <div v-if="getProblemCards(msg.toolContextJson).length" class="ai-problem-cards">
@@ -144,7 +154,7 @@
                 </template>
               </div>
 
-              <div v-if="sending" class="ai-msg assistant">
+              <div v-if="sending && !messages.some((m) => m.status === 'RUNNING')" class="ai-msg assistant">
                 <div class="ai-msg-avatar support"><img :src="aiAvatarImg" alt="AI 客服" class="ai-msg-avatar-img" /></div>
                 <div class="ai-msg-col">
                   <span class="ai-msg-name">AI 客服</span>
@@ -344,6 +354,18 @@ async function send(text) {
     status: "COMPLETED"
   };
   messages.value.push(optimisticUserMessage);
+
+  const streamAssistantId = `stream-${Date.now()}`;
+  const streamingAssistantMessage = {
+    id: streamAssistantId,
+    role: "assistant",
+    content: "",
+    status: "RUNNING",
+    toolStatus: null,
+    toolContextJson: null,
+    createTime: new Date().toISOString()
+  };
+  messages.value.push(streamingAssistantMessage);
   scrollToBottom();
 
   sending.value = true;
@@ -352,34 +374,120 @@ async function send(text) {
   if (!text) draft.value = "";
 
   const clientRequestId = uuid();
+  let sseHandled = false;
+
   try {
-    const res = await sendMessage(currentId.value, content, clientRequestId);
-    const { userMessage, assistantMessage } = res.data || {};
+    const token = userStore.token;
+    const response = await fetch(`/api/assistant/conversations/${currentId.value}/messages/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ content, clientRequestId })
+    });
 
-    const tempIndex = messages.value.findIndex((m) => m.id === tempId);
-    if (tempIndex >= 0 && userMessage) {
-      messages.value.splice(tempIndex, 1, userMessage);
-    } else if (userMessage && !messages.value.some((m) => String(m.id) === String(userMessage.id))) {
-      messages.value.push(userMessage);
+    if (response.ok && response.body) {
+      sseHandled = true;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() || "";
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataStr += line.slice(5).trim();
+            }
+          }
+          if (!dataStr) continue;
+          try {
+            const payload = JSON.parse(dataStr);
+            if (eventName === "tool_start") {
+              streamingAssistantMessage.toolStatus = {
+                name: payload.tool,
+                displayName: payload.displayName || "正在调用工具...",
+                status: "RUNNING"
+              };
+              scrollToBottom();
+            } else if (eventName === "tool_end") {
+              streamingAssistantMessage.toolStatus = {
+                name: payload.tool,
+                displayName: payload.displayName || "工具执行完成",
+                status: "COMPLETED"
+              };
+              if (payload.toolContextJson) {
+                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+              }
+              scrollToBottom();
+            } else if (eventName === "delta") {
+              if (payload.content) {
+                streamingAssistantMessage.content += payload.content;
+                scrollToBottom();
+              }
+            } else if (eventName === "message_end") {
+              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
+              streamingAssistantMessage.status = payload.status || "COMPLETED";
+              if (payload.fullContent) {
+                streamingAssistantMessage.content = payload.fullContent;
+              }
+              if (payload.toolContextJson) {
+                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+              }
+              streamingAssistantMessage.toolStatus = null;
+              serviceStatus.value = "connected";
+              scrollToBottom();
+            } else if (eventName === "error") {
+              streamingAssistantMessage.status = "FAILED";
+              streamingAssistantMessage.errorMessage = payload.message || "回复失败";
+              streamingAssistantMessage.toolStatus = null;
+              serviceStatus.value = "unavailable";
+            }
+          } catch (e) {
+            console.error("SSE parse error", e);
+          }
+        }
+      }
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
-
-    if (assistantMessage) messages.value.push(assistantMessage);
-    serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
-
+  } catch (err) {
+    if (!sseHandled) {
+      try {
+        const res = await sendMessage(currentId.value, content, clientRequestId);
+        const { assistantMessage } = res.data || {};
+        const idx = messages.value.findIndex((m) => m.id === streamAssistantId);
+        if (idx >= 0 && assistantMessage) {
+          messages.value.splice(idx, 1, assistantMessage);
+        }
+        serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
+      } catch (fallbackErr) {
+        messages.value = messages.value.filter((m) => m.id !== tempId && m.id !== streamAssistantId);
+        if (!text) draft.value = originalDraft;
+        serviceStatus.value = "unavailable";
+        ElMessage.error(fallbackErr.message || "发送失败");
+        return;
+      }
+    }
+  } finally {
+    sending.value = false;
     const currentConv = conversations.value.find((c) => String(c.id) === String(currentId.value));
     if (currentConv && (!currentConv.title || currentConv.title === "新会话" || currentConv.title === "AI 客服咨询")) {
       const derived = content.length <= 30 ? content : content.substring(0, 30) + "…";
       currentConv.title = derived;
     }
     loadConversations();
-    scrollToBottom();
-  } catch (error) {
-    messages.value = messages.value.filter((m) => m.id !== tempId);
-    if (!text) draft.value = originalDraft;
-    serviceStatus.value = "unavailable";
-    ElMessage.error(error.message || "发送失败");
-  } finally {
-    sending.value = false;
     scrollToBottom();
   }
 }
@@ -598,6 +706,14 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-problem-card-tags :deep(.el-tag) { height: 18px; line-height: 18px; padding: 0 4px; font-size: 10px; border-radius: 4px; }
 .ai-problem-card-arrow { color: var(--lm-text-muted); flex-shrink: 0; transition: transform .16s; }
 .ai-problem-card:hover .ai-problem-card-arrow { transform: translateX(2px); color: var(--lm-primary); }
+
+/* Tool Execution Badges & Streaming */
+.ai-tool-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; font-size: 11px; margin-bottom: 6px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); border: 1px solid var(--lm-border-light); }
+.ai-tool-badge.RUNNING { background: var(--lm-primary-bg); color: var(--lm-primary); border-color: #bfdbfe; }
+.ai-tool-badge.COMPLETED { background: var(--lm-success-bg); color: var(--lm-success); border-color: #bbf7d0; }
+.ai-tool-spin { animation: ai-rotate 1s linear infinite; }
+@keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
 
 @media (max-width: 520px) { .ai-widget { right: 12px; bottom: 12px; gap: 10px; } .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; } }
 </style>
