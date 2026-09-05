@@ -166,9 +166,15 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Override
     public ProblemDetailReadModel findPublishedProblemReadModel(Long id) {
         Problem problem = getById(id);
+        if (problem == null && id != null) {
+            problem = getOne(new LambdaQueryWrapper<Problem>()
+                    .eq(Problem::getCode, id)
+                    .eq(Problem::getStatus, 1)
+                    .last("LIMIT 1"));
+        }
         if (problem == null || !Integer.valueOf(1).equals(problem.getStatus())) return null;
-        List<String> tagNames = getTagNames(id);
-        List<ProblemAttachment> attachments = getAttachments(id);
+        List<String> tagNames = getTagNames(problem.getId());
+        List<ProblemAttachment> attachments = getAttachments(problem.getId());
         ProblemVO stableProblem = toVO(problem, tagNames, List.of());
         List<ProblemDetailReadModel.AttachmentReadModel> stableAttachments = attachments.stream()
                 .map(attachment -> new ProblemDetailReadModel.AttachmentReadModel(
