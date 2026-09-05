@@ -15,99 +15,30 @@
 
 ## 当前状态
 
-S9 AI 评测轻量化改造与端到端闭环（后端微服务链路、管理端聚合接口 admin-service 与前端 EvaluationPage.vue）已全部对齐并通过全量编译构建与测试验证。
+当前切入阶段分支 `phase/assistant-refinement`，推进 AI 客服的前端体验修复与后端核心架构（会话管理、上下文修剪、知识库与工具调用）演进。
 
 ## 当前任务
 
 暂无待推进任务。当前阶段所有设计与实现任务已完整交付并验收。
 
-**目标**：
-打通固定工作流中 AI 建议（SUGGESTION）的离线评测链路：在 `ai-suggestion-service` 增加类似 `ai-review-service` 的隔离实验接口（不落生产任务库，接收 `evaluationTaskId` 并透传至网关），在 `ai-evaluation-service` 实现 `SuggestionEvaluationRunner`，并支持样本 Payload 校验、功能目录发现与运行事实提取。
-
-**入口**：
-- `ai-suggestion-service`: `InternalSuggestionController.java`、`SuggestionService.java`
-- `ai-evaluation-service`: `SuggestionEvaluationRunner.java`、`EvaluationRunnerRegistry.java`、`EvaluationSamplePayloadService.java`
-- `common-api`: `SuggestionFeignClient.java`
-
-**主流程**：
-1. 在 `common-api` 中扩展/定义 `SuggestionFeignClient`，包含 `getFeatureDefinition` 与 `runExperiment` 接口。
-2. 在 `ai-suggestion-service` 中实现 `POST /internal/suggestions/experiments`：
-   - 接收 `AiExperimentRequestDTO`；
-   - 解析入参中的 `submissionId`（或依据快照），以无副作用的 transient 模式调用现有的 `SuggestionV1Workflow` 或 `GroundedSuggestionV2Workflow`；
-   - 将 `evaluationTaskId`、`slotKey` 与 P3 优先级透传至 AI Gateway；
-   - 返回 `AiExperimentResultDTO`，包含结构化建议摘要（`outputJson`）、耗时与 `aiCallId`，不写入 `suggestion_task` 业务表。
-3. 在 `ai-evaluation-service` 中：
-   - `EvaluationSamplePayloadService` 支持 `SUGGESTION` 功能，样本 schema 为 `SUGGESTION_SUBMISSION_V1`（引用 `submissionId`，与 REVIEW 一致保持轻量）；
-   - 编写 `SuggestionEvaluationRunner`，实现 `EvaluationExperimentRunner` 契约，注册进 `EvaluationRunnerRegistry`；
-   - `EvaluationMetricRegistry` 与指标计算器支持 `SUGGESTION` 功能的运行指标提取。
-4. 编写对应的单元测试与 Mock 实验测试，确保全套流程可验证。
-
-**完成标准**：
-1. `ai-suggestion-service` 隔离接口在不落库的前提下能够运行建议工作流并返回标准结果。
-2. `ai-evaluation-service` 可以基于 `SUGGESTION` 功能创建测试集与评测任务。
-3. `SuggestionEvaluationRunnerTest` 通过，验证隔离调用、身份断言与结果解析无误。
-4. `ai-suggestion-service` 和 `ai-evaluation-service` 模块测试全部通过。
-
-**修改范围**：
-- `LeetModel-backend/common/common-api/src/main/java/com/leetmodel/common/api/feign/SuggestionFeignClient.java`
-- `LeetModel-backend/ai-suggestion-service/src/main/java/com/leetmodel/suggestion/controller/InternalSuggestionController.java`
-- `LeetModel-backend/ai-suggestion-service/src/main/java/com/leetmodel/suggestion/service/SuggestionService.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationSamplePayloadService.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/runner/SuggestionEvaluationRunner.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationMetricRegistry.java`
-- 对应测试类
-
-**非目标**：
-- 不修改生产建议提交接口行为与数据库结构。
-
 ---
 
-## 阶段后续任务规划（S9-Evaluation-Refinement）
+## 候选阶段规划：AI 客服完善与后端架构演进（Assistant-Refinement）
 
-- [x] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
-- [x] 任务 2：精简 AI 客服评测样本契约与伪指标（移除人工标注假定，收敛至可用性、耗时与Token成本）
-- [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
+### 前端交互与体验修复（轻量高收益）
+- [ ] 任务 1.1：修复会话标题自动归纳失效（前端创建会话时传参对齐默认标题 `"新会话"` 或留空，触发后端题意自动截取）
+- [ ] 任务 1.2：提问乐观更新与输入状态收敛（提问后消息立即上屏并显示思考中占位气泡，消除阻塞等待空白感）
+- [ ] 任务 1.3：题目推荐富交互卡片渲染（解析 `toolContextJson`，将已发布题目渲染为带难度标识、题号徽章并可直达题面的交互卡片）
+- [ ] 任务 1.4：集成 KaTeX 数学公式排版与代码高亮（升级 `renderSafeMarkdown`，解决数学建模 LaTeX 公式与代码块裸文本展示问题）
+  *(注：推荐问题与快捷 Chip 维持前端静态配置，不引入动态接口与额外开销)*
 
-**目标**：
-解除创建评测任务时对 `weightSchemeId` 的强制校验，允许在未指定权重方案时正常创建并运行评测任务，完整收集和落库响应时间、成功率、Token 消耗、实际扣费与方差事实，仅将版本选择指数标记为置空/未计算，降低评测使用的初始化门槛。
-
-**入口**：
-- POST `/internal/evaluations/tasks`（创建评测任务接口）
-- `EvaluationTaskCreateDTO.java`
-- `EvaluationService.createTask` 与 `refreshTask`
-
-**主流程**：
-1. 将 `EvaluationTaskCreateDTO.weightSchemeId` 校验注解 `@NotNull` 移除，允许传 `null`。
-2. `EvaluationService.createTask` 中移除强制校验异常，若 `weightSchemeId` 为空，跳过方案快照与绑定逻辑，任务主表 `weight_scheme_id` 和 `weight_scheme_version` 置空。
-3. 槽位执行逻辑不受影响，依然按原逻辑正常执行隔离实验并记录各槽位运行事实。
-4. 槽位全部完成后，`refreshTask` 照常拉取网关真实 Token/费用，计算方差、耗时和成功率等原始指标；若任务未绑定权重方案，跳过版本选择指数合成，直接完成任务并持久化。
-5. 跨服务 DTO 转换与接口响应保证在无权重方案时兼容返回。
-
-**完成标准**：
-1. 调用 POST `/internal/evaluations/tasks` 不传 `weightSchemeId` 能成功创建评测任务，状态流转至 `WAITING`。
-2. 槽位执行完毕后，任务正常进入 `COMPLETED` 终态。
-3. 任务详情中能完整查看原始指标（`rawMetrics`）：包含成功率、平均耗时、Token 用量、费用以及评审打分的方差/极差。
-4. 任务的 `versionSelectionIndex` 正确置空，无空指针异常或未处理异常。
-5. 补充或调整对应单测，`mvn -pl ai-evaluation-service test` 全部通过。
-
-**修改范围**：
-- `LeetModel-backend/common/common-api/src/main/java/com/leetmodel/common/api/dto/EvaluationTaskCreateDTO.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationService.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationScoreResultService.java`
-- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/service/EvaluationServiceTest.java`
-
-**非目标**：
-- 本卡不修改客服指标逻辑（由任务 2 处理）。
-- 本卡不实现 AI 建议隔离实验（由任务 3 处理）。
-- 本卡不修改 Flyway 数据库表结构（主表相关列已允许为 NULL）。
-
----
-
-## 阶段后续任务规划（S9-Evaluation-Refinement）
-
-- [ ] 任务 2：精简 AI 客服评测样本契约与伪指标（移除强依赖人工标准要点/来源覆盖的假定，收敛至接口可用性、响应延迟与实际 Token/成本）
-- [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（`ai-suggestion-service` 增加隔离实验接口，`ai-evaluation-service` 新增 `SuggestionEvaluationRunner`，补齐固定工作流观测闭环）
-- [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
+### 后端核心架构演进（会话、上下文、知识库与工具调用）
+- [ ] 任务 2.1：会话生命周期与元数据完善（支持会话软删除/清空、用户自定义重命名标题、多端活跃会话数量限制与单会话消息分页拉取）
+- [ ] 任务 2.2：多轮上下文智能修剪与滚动压缩（建立滑动窗口与历史工具事实折叠机制，对过往工具调用完整 JSON 进行摘要收缩，防止 Token 线性膨胀与模型注意力稀释）
+- [ ] 任务 2.3：客服 RAG 迁移至 `knowledge-retrieval-service`（发布 `ASSISTANT_TOOLS_RETRIEVAL_V1` 新工作流，实现跨服务共享检索与别名解耦，保留历史工作流版本）
+- [ ] 任务 2.4：知识库混合检索与建模术语召回增强（引入 BM25 关键词精确匹配 + 稠密向量 KNN 召回与 RRF 融合，提升数学建模算法与专有名词命中率）
+- [ ] 任务 2.5：只读领域工具扩展与多意图复合编排（新增组队状态 `query_user_team` 与提交记录 `query_submission_status` 只读工具；解耦知识工具终止型硬限制，支持“概念讲解+题目推荐”复合意图组合执行）
+- [ ] 任务 2.6：SSE 流式协议与工具执行状态事件透出（支持文本打字机流式推送，并在工具启动/完成时推送 `tool_start`、`tool_end` 结构化事件流）
 
 
 ## 待梳理服务清单（按推荐顺序）
