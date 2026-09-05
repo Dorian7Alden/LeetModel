@@ -1,12 +1,14 @@
 package com.leetmodel.assistant.controller;
 
 import com.leetmodel.assistant.dto.ConversationRenameRequest;
+import com.leetmodel.assistant.dto.MessageSendRequest;
 import com.leetmodel.assistant.service.AssistantService;
 import com.leetmodel.assistant.vo.ConversationVO;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -58,6 +60,20 @@ class AssistantControllerTest {
 
             assertThat(result.getData()).isSameAs(vo);
             verify(assistantService).getConversation(1L, 100L, 50L, 20);
+        }
+    }
+
+    @Test
+    void streamDelegatesToService() {
+        try (MockedStatic<UserContext> userContext = mockStatic(UserContext.class)) {
+            userContext.when(UserContext::getUserId).thenReturn(100L);
+            SseEmitter emitter = new SseEmitter();
+            when(assistantService.streamSend(1L, 100L, "提问", "req-1")).thenReturn(emitter);
+
+            SseEmitter result = controller.stream(1L, new MessageSendRequest("提问", "req-1"));
+
+            assertThat(result).isSameAs(emitter);
+            verify(assistantService).streamSend(1L, 100L, "提问", "req-1");
         }
     }
 }

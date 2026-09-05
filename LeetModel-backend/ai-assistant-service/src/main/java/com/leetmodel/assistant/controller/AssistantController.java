@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -117,6 +119,31 @@ public class AssistantController {
             @Valid @RequestBody MessageSendRequest request) {
         return Result.ok(assistantService.send(conversationId, UserContext.getUserId(),
                 request.getContent(), request.getClientRequestId()));
+    }
+
+    /**
+     * SSE 流式发送提问并实时接收工具执行状态与增量文本事件 (POST 模式)。
+     */
+    @Operation(summary = "SSE 流式发送消息并获取实时工具状态与打字机回复")
+    @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(
+            @PathVariable @Positive(message = "会话标识必须为正整数") Long conversationId,
+            @Valid @RequestBody MessageSendRequest request) {
+        return assistantService.streamSend(conversationId, UserContext.getUserId(),
+                request.getContent(), request.getClientRequestId());
+    }
+
+    /**
+     * SSE 流式接收客服回复 (GET 模式，适配浏览器原生 EventSource)。
+     */
+    @Operation(summary = "SSE 流式接收客服回复")
+    @GetMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamGet(
+            @PathVariable @Positive(message = "会话标识必须为正整数") Long conversationId,
+            @RequestParam String content,
+            @RequestParam String clientRequestId) {
+        return assistantService.streamSend(conversationId, UserContext.getUserId(),
+                content, clientRequestId);
     }
 
     /**
