@@ -19,21 +19,53 @@
 
 ## 当前任务
 
-### 阶段：AI评审V3（DEEP_EVIDENCE_REVIEW_V3）功能设计与全局审查
+### 阶段：AI评审V3（DEEP_EVIDENCE_REVIEW_V3）功能实现与端到端交付
 
 分支：`phase/review-workflow-opt`
 输入基线：`PAPER_DOCUMENT_V2`（第二代高保真结构化解析产物）
-设计原则：固定工作流骨架、动态提示词自适应装配、双阶段解耦评审、小问级别类型框定、全链路严密契约衔接、硬编码权重、严格禁止抢跑实现。
+实现准则：固定工作流骨架、动态提示词安全渲染、双阶段解耦评审、并行消费隔离、五维确定性汇聚、全链路防御解析与算术断言。
 
-- [ ] 任务 9（二次检查与全局冲突审查）：全局一致性审查与反思校对（总体全面复盘）
-  - 目标：所有模块设计完成后，不急于写代码，先重新通盘拉通，排查设计间的冲突与遗漏。
-  - 核心审查项：
-    1. **任务传递链条审查**：派发任务产出的元数据是否 100% 能够指导下游初始化？有无字段缺失？
-    2. **检索与提示词构建审查**：知识检索结果与论文切片是否能顺畅拼入动态 Prompt？对 `knowledge-retrieval-service` 的调用是否合法、是否需要改造？
-    3. **资产对齐审查**：切片抽取算法是否与 `PAPER_DOCUMENT_V2`（`FormulaPayload`、`TablePayload`、`CodePayload`、`blockId`）完全匹配？
-    4. **并行与汇聚审查**：阶段一与阶段二的输出能否无损聚合到终态评价维度？算术和断言是否严密？
-    5. **潜在冲突与过度设计审查**：是否存在模块间互相矛盾、边界越界或逻辑断层？
-  - 产出项：在 `13-全局设计一致性审查与冲突校对报告.md` 中沉淀全局审查结论与优化调整方案。
+- [ ] 实现任务 1：Flyway 数据库迁移、基础实体与 common-api 强类型 DTO 契约
+  - 目标：完成数据库表结构定义与服务间通信强类型契约。
+  - 范围：
+    * 在 `ai-review-service` 创建 Flyway 迁移脚本 `V9__add_deep_evidence_review_v3.sql`（`review_version` 注册与 `review_v3_result` 表）；
+    * 在 `common-api` 新增 V3 全套强类型 DTO：`SubProblemCategoryDTO`、`SubTaskPlanDTO`、`TaskPlanResultDTO`、`TaskAssembledContextDTO`、`SubTaskEvaluationResultDTO`、`DeepEvidenceReviewV3Output`；
+    * 在 `ai-review-service` 创建 `ReviewV3Result` 实体类与 `ReviewV3ResultMapper`。
+
+- [ ] 实现任务 2：小问题型判定器、切片抽取器与双轨装配引擎
+  - 目标：完成论文结构切片精准提取、依赖自动吸附与外部 RAG 检索双轨装配。
+  - 范围：
+    * 实现 `SubProblemClassifier`（基于元数据、正则规则与通用内置字典）；
+    * 实现 `Phase1SliceExtractor`（从 `PAPER_DOCUMENT_V2` 精准抽取摘要、分析、符号与排版元数据）；
+    * 实现 `ContextSlicingEngine`（强吸附模型假设与符号说明表、按 BlockId 闭包抽取目标小问 LaTeX、HTML table、Code 与图表长描述，并调用 `knowledge-retrieval-service` 组装 `TaskAssembledContextDTO`）。
+
+- [ ] 实现任务 3：提示词安全渲染引擎与防御性解析器
+  - 目标：落实 `docs/learning/提示词管理.md` 规范，实现提示词渲染与鲁棒 JSON 解析。
+  - 范围：
+    * 同步 `prompts/` 目录下的 5 个 `.st` 提示词模板至 `ai-review-service/src/main/resources/prompts/`；
+    * 实现 `PromptTemplateRenderer`（支持 `[[ ]]` 自定义占位符安全替换、反斜杠与正则字符安全转义）；
+    * 实现 `V3OutputParser`（代码围栏剥离、首尾大括号提取、非法控制字符与 BOM 清洗、宽容反序列化）。
+
+- [ ] 实现任务 4：阶段一审查算子、阶段二任务规划算子与 Worker 执行算子
+  - 目标：完成各阶段独立模型推理算子。
+  - 范围：
+    * 实现 `Phase1StructuralReviewOperator`（阶段一静态规范模型调用与解析校验）；
+    * 实现 `TaskPlannerOperator`（基于小问与 SectionIndex 的任务规划算子）；
+    * 实现 `SubTaskEvaluationWorker`（分小问模型推演、摘要核验与灵敏度专项推理，支持局部容错与降级）。
+
+- [ ] 实现任务 5：隔离线程池配置与终态维度合成器（Reducer）
+  - 目标：完成子任务并行调度与纯 Java 内存无漂移算术汇聚。
+  - 范围：
+    * 配置专有隔离线程池 `reviewSubTaskExecutor`（容量规划与超时控制）；
+    * 实现 `DeepEvidenceReviewV3Reducer`（将阶段一与阶段二结果映射至五大标准化终态维度，执行 `totalScore == sum(dimensionScore)` 算术断言与 Findings 去重归并）。
+
+- [ ] 实现任务 6：工作流实现（DeepEvidenceReviewV3Workflow）、结果持久化与端到端集成测试验收
+  - 目标：完成工作流闭环组装、结果持久化并跑通全流程测试。
+  - 范围：
+    * 实现 `DeepEvidenceReviewV3Workflow` 并注册进 `ReviewWorkflowRegistry`；
+    * 在 `ReviewResultPersistenceService` 中支持 V3 结果及中间态快照持久化；
+    * 适配 `ReviewService` 支持 V3 结果展示；
+    * 编写完整的单元测试与端到端集成测试用例，执行 Maven 构建并验证全部测试通过。
 
 
 ## 待梳理服务清单（按推荐顺序）
