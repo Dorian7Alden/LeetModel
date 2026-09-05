@@ -98,6 +98,28 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_EVIDENCE_REVIEW_0001]
         workflow-versions: [EVIDENCE_REVIEW_V2]
+      MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash-vision-exp
+        modality: MULTIMODAL
+        max-tokens: 4096
+        temperature: 0.1
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions: [PROMPT_PAPER_PARSE_V2_0001]
+        workflow-versions: [PAPER_PARSE_V2]
+      MODEL_CFG_PAPER_PARSE_TEXT_0001:
+        call-type: CHAT
+        provider: NEW_API
+        model: deepseek-v4-flash
+        modality: TEXT
+        max-tokens: 4096
+        temperature: 0.1
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions: [PROMPT_PAPER_PARSE_ARBITER_0001]
+        workflow-versions: [PAPER_PARSE_V2]
       MODEL_CFG_SUGGESTION_TEXT_0001:
         call-type: CHAT
         provider: NEW_API
