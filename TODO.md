@@ -15,11 +15,38 @@
 
 ## 当前状态
 
-S9 AI 评测轻量化与实用化改造（支持纯基准观测模式、精简客服样本指标、打通 AI 建议隔离评测闭环）已全部完成并通过全服务全量测试验收。
+当前切入阶段分支 `phase/s9-frontend-admin-evaluation`，推进管理端接口（admin-service）与前端界面（EvaluationPage.vue）对 S9 评测新特性的同步对齐。
 
 ## 当前任务
 
-暂无待推进任务。当前阶段所有设计与实现任务已完整交付并验收。
+### [ ] 任务 1：管理端聚合接口与前端评测页面对齐（纯观测模式与建议工作流支持）
+
+**目标**：
+在 `admin-service` 中接入 `SuggestionFeignClient` 聚合功能定义；在前端 `EvaluationPage.vue` 中解除权重方案必选硬拦截，支持纯观测模式，并支持选择与创建 `SUGGESTION` 测试集和评测任务。
+
+**入口**：
+- `LeetModel-backend/admin-service`: `AdminEvaluationController.java`
+- `LeetModel-frontend`: `EvaluationPage.vue`
+
+**主流程**：
+1. 在 `AdminEvaluationController.java` 中注入 `SuggestionFeignClient`，并在 `GET /api/admin/ai/evaluations/features` 中聚合返回 `SUGGESTION` 功能定义与工作流版本。
+2. 在 `EvaluationPage.vue` 中：
+   - 移除 `saveTask` 中的 `if (!taskForm.weightSchemeId) return ElMessage.warning("请选择权重方案");` 强校验；
+   - 表单中“权重方案”改为可选（添加 `clearable`，placeholder 提示“可选：选择后合成版本选择指数，不选为纯观测模式”）；
+   - 创建数据集时，`datasetForm.featureCode === 'SUGGESTION'` 支持与 REVIEW 相同的论文提交样本选择与提交；
+   - 任务详情界面中，未绑定权重方案时，权重方案展示“纯观测模式（未绑定）”，版本选择指数展示“不适用（纯观测）”。
+3. 运行 `admin-service` 单元测试与前端 `npm run build` 验证。
+
+**完成标准**：
+1. `GET /api/admin/ai/evaluations/features` 包含 REVIEW、ASSISTANT、SUGGESTION 三项功能定义。
+2. 前端可不选权重方案直接发起评测任务并顺利提交至后端。
+3. 前端功能下拉框包含“AI 论文建议”，可正常创建 SUGGESTION 测试集与任务。
+4. `admin-service` 测试与前端生产构建（vite build）全部通过。
+
+**修改范围**：
+- `LeetModel-backend/admin-service/src/main/java/com/leetmodel/admin/controller/AdminEvaluationController.java`
+- `LeetModel-backend/admin-service/src/test/java/com/leetmodel/admin/controller/AdminEvaluationControllerTest.java`
+- `LeetModel-frontend/src/views/admin/pages/EvaluationPage.vue`
 
 **目标**：
 打通固定工作流中 AI 建议（SUGGESTION）的离线评测链路：在 `ai-suggestion-service` 增加类似 `ai-review-service` 的隔离实验接口（不落生产任务库，接收 `evaluationTaskId` 并透传至网关），在 `ai-evaluation-service` 实现 `SuggestionEvaluationRunner`，并支持样本 Payload 校验、功能目录发现与运行事实提取。
