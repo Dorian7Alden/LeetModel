@@ -25,12 +25,6 @@
 输入基线：`PAPER_DOCUMENT_V2`（第二代高保真结构化解析产物）
 实现准则：固定工作流骨架、动态提示词安全渲染、双阶段解耦评审、并行消费隔离、五维确定性汇聚、全链路防御解析与算术断言。
 
-- [ ] 实现任务 5：隔离线程池配置与终态维度合成器（Reducer）
-  - 目标：完成子任务并行调度与纯 Java 内存无漂移算术汇聚。
-  - 范围：
-    * 配置专有隔离线程池 `reviewSubTaskExecutor`（容量规划与超时控制）；
-    * 实现 `DeepEvidenceReviewV3Reducer`（将阶段一与阶段二结果映射至五大标准化终态维度，执行 `totalScore == sum(dimensionScore)` 算术断言与 Findings 去重归并）。
-
 - [ ] 实现任务 6：工作流实现（DeepEvidenceReviewV3Workflow）、结果持久化与端到端集成测试验收
   - 目标：完成工作流闭环组装、结果持久化并跑通全流程测试。
   - 范围：
