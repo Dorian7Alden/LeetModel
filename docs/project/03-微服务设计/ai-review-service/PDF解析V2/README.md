@@ -27,6 +27,17 @@ PDF解析V2（工作流版本 `PAPER_PARSE_V2`，产物 Schema `PAPER_DOCUMENT_V
 ---
 
 
+### 提示词与工程参考
+
+| 资源 | 内容说明 |
+|------|---------|
+| [prompts/](prompts/) | V2 解析提示词源文件（含系统提示词、用户提示词模板、重叠仲裁提示词） |
+| [提示词管理.md](/home/dorian/repo/LeetModel/docs/learning/提示词管理.md:1) | Java 后端 AI 应用（LangChain4j）提示词管理、输入/输出转义与 JSON 解析工程指南 |
+
+
+---
+
+
 ### 设计推进路线图
 
 | 编号 | 文档 | 状态 | 内容摘要 |
@@ -38,6 +49,20 @@ PDF解析V2（工作流版本 `PAPER_PARSE_V2`，产物 Schema `PAPER_DOCUMENT_V
 | 05 | [05-执行流程与架构梳理.md](05-执行流程与架构梳理.md) | 已完成 | 组件拓扑、五阶段流水线、滑窗时序、重叠仲裁与异常降级 |
 | 06 | [06-数据契约与产物Schema设计.md](06-数据契约与产物Schema设计.md) | 已完成 | PAPER_DOCUMENT_V2 极简数据模型、元素类型、HTML表格与大致页码映射 |
 | 07 | [07-降级容错与版本兼容设计.md](07-降级容错与版本兼容设计.md) | 已完成 | Schema 结构不可变降级、分块级本地文本兜底与 V1/V2 隔离路由 |
-| 08 | `08-提示词体系与输出规范.md` | 待推进 | 双页输入指令、外框页眉页脚忽略、HTML表格输出与多类型引用抽取指令 |
-| 09 | `09-上下文管理与滑窗调度.md` | 待推进 | 1-2, 2-3 步长推进、前文大纲与尾部参考注入机制 |
-| 10 | `10-重叠冲突检测与仲裁机制.md` | 待推进 | 内容一致性比对、PDFBox 本地文本基准参考与仲裁 AI 决策时序 |
+| 08 | [08-提示词设计与输出规范.md](08-提示词设计与输出规范.md) | 已完成 | 工业级 Prompt 架构、[PLACEHOLDER] 模板、反斜杠防崩转义与标准输出示例 |
+| 09 | [09-上下文管理与滑窗调度.md](09-上下文管理与滑窗调度.md) | 已完成 | 双页滑窗推进模型、全局大纲与尾部切片注入、断点续传与执行算法 |
+| 10 | [10-重叠冲突检测与仲裁机制.md](10-重叠冲突检测与仲裁机制.md) | 已完成 | 插图解耦独立融合、本地客观纯文本参考与单次仲裁决策时序 |
+
+
+---
+
+
+### 提示词资源（独立文档）
+
+提示词正文已从设计说明文档中独立抽取，去除外层代码围栏后单独存放于 `prompts/` 目录：
+
+| 文件 | 对应代码资源 | 说明 |
+|------|-------------|------|
+| [prompts/paper-parse-v2-system.md](prompts/paper-parse-v2-system.md) | `resources/prompts/paper-parse-v2-system.st` | 视觉解析系统提示词（System Prompt） |
+| [prompts/paper-parse-v2-user.md](prompts/paper-parse-v2-user.md) | 运行时动态组装 | 动态用户提示词模板（User Prompt） |
+| [prompts/paper-parse-v2-arbiter.md](prompts/paper-parse-v2-arbiter.md) | `resources/prompts/paper-parse-v2-arbiter.st` | 重叠页文本仲裁提示词 |
