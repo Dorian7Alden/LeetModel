@@ -139,3 +139,5 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 RAG 的当前知识边界、配置、索引、回滚、迁移目标和故障处理统一维护在 [RAG知识库.md](../../02-架构设计/RAG知识库.md)，独立服务契约见 [knowledge-retrieval-service](../knowledge-retrieval-service/README.md)，RAG V2 的受控目录、两阶段流程、固定实验和实施门槛见 [RAG目录导航V2](RAG目录导航V2/README.md)。
 
 生产工作流的配置所有权、安全切换、运行快照和审计统一维护在 [生产工作流版本治理](生产工作流版本治理/README.md)。该能力首先只在 AI 客服落地，不代表已经形成跨服务中央版本平台。
+
+前端浮窗状态机、提问乐观上屏、思考占位与会话标题自动推导机制见 [前端交互与会话标题状态机](前端交互与会话标题状态机.md)。
