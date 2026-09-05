@@ -99,6 +99,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、�
 | 评审结果校验 | V1/V2 均已实现 | V2 服务端汇总六项总分并校验发现、证据、页码和 blockId |
 | 评审结果查询 | 已实现 | 根据版本返回可展示的评分说明和发现，历史 V1 不伪造 V2 字段 |
 | 隔离评审 | REVIEW 实验入口已存在 | V2 已进入版本目录；V2 专属数据集与质量基线仍需后续评价任务 |
+| 深度证据评审V3 | 设计中 | 基于 PAPER_DOCUMENT_V2 的多阶段漏斗式评审与扣分项裁决 |
 | RocketMQ 任务接入 | 已实现 | 消费 `REVIEW_TASK_READY`，Inbox 与 review_task 同事务落库，重复投递只创建一个任务 |
 | 崩溃恢复 | 已实现 | 并发 2 的有界 Worker、逐任务 token heartbeat、过期租约恢复、attempt 分类和 AI UNKNOWN 保护 |
 | 完成事件 | 已实现 | 评审结果、任务完成状态与 `REVIEW_COMPLETED` Outbox 同事务提交 |
@@ -111,6 +112,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、�
 | [评审任务与生命周期/](评审任务与生命周期/) | 所有评审版本共享的任务调度、租约控制、公共控制表与生命周期 |
 | [AI评审V1/](AI评审V1/) | 当前基础评审实现（BASIC_REVIEW_V1）与多模态历史契约 |
 | [AI评审V2/](AI评审V2/) | 当前证据化评审实现（EVIDENCE_REVIEW_V2）、题目覆盖、评分说明与结构化发现 |
+| [AI评审V3/](AI评审V3/) | 第三代深度证据评审（DEEP_EVIDENCE_REVIEW_V3）功能设计推进 |
 | [PDF解析V1/](PDF解析V1/) | 初代 PAPER_PARSE_V1 执行流程、结构化产物与版本规则 |
 | [PDF解析V2/](PDF解析V2/) | 第二代 PAPER_PARSE_V2 版面分析、细粒度分块与全量场景设计 |
 
