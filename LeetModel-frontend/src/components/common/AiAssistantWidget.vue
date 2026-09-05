@@ -85,6 +85,39 @@
                     <span class="ai-msg-name">AI 客服</span>
                     <div class="ai-bubble">
                       <div class="markdown-body ai-md" v-html="md(msg.content)"></div>
+
+                      <!-- 题目推荐结构化卡片 -->
+                      <div v-if="getProblemCards(msg.toolContextJson).length" class="ai-problem-cards">
+                        <div class="ai-problem-cards-head">
+                          <el-icon :size="13"><Document /></el-icon>
+                          <span>推荐题目 ({{ getProblemCards(msg.toolContextJson).length }})</span>
+                        </div>
+                        <div class="ai-problem-cards-list">
+                          <div
+                            v-for="card in getProblemCards(msg.toolContextJson)"
+                            :key="card.code"
+                            class="ai-problem-card"
+                            @click="goToProblem(card.code)"
+                          >
+                            <div class="ai-problem-card-main">
+                              <div class="ai-problem-card-title-row">
+                                <span class="ai-problem-code-badge">P{{ card.code }}</span>
+                                <span class="ai-problem-card-title" :title="card.title">{{ card.title }}</span>
+                              </div>
+                              <div class="ai-problem-card-tags">
+                                <el-tag v-if="card.difficulty" size="small" :type="difficultyType(card.difficulty)" effect="light">
+                                  {{ difficultyLabel(card.difficulty) }}
+                                </el-tag>
+                                <el-tag v-if="card.year" size="small" type="info" effect="plain">{{ card.year }}年</el-tag>
+                                <el-tag v-if="card.contestName" size="small" type="info" effect="plain">{{ card.contestName }}</el-tag>
+                                <el-tag v-for="tag in card.tagNames.slice(0, 2)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+                              </div>
+                            </div>
+                            <el-icon class="ai-problem-card-arrow" :size="14"><ArrowRight /></el-icon>
+                          </div>
+                        </div>
+                      </div>
+
                       <div class="ai-meta">
                         <el-tag v-if="msg.status === 'FAILED'" type="danger" size="small" effect="light">{{ msg.errorMessage || '回复失败' }}</el-tag>
                         <span v-else class="ai-msg-time">{{ shortTime(msg.createTime) }}</span>
@@ -160,11 +193,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
 import { renderSafeMarkdown } from "@/utils/markdown";
 import { listConversations, createConversation, getConversation, sendMessage, retryMessage } from "@/api/assistant";
 
+const router = useRouter();
 const userStore = useUserStore();
 const opened = ref(false);
 const view = ref("chat");
@@ -347,6 +382,52 @@ async function send(text) {
   }
 }
 
+function getProblemCards(toolContextJson) {
+  if (!toolContextJson) return [];
+  try {
+    const data = typeof toolContextJson === "string" ? JSON.parse(toolContextJson) : toolContextJson;
+    if (Array.isArray(data)) {
+      const toolWithProblems = data.find((ctx) => ctx && ctx.result && Array.isArray(ctx.result.items));
+      if (toolWithProblems) {
+        return (toolWithProblems.result.items || []).map(normalizeProblemCard);
+      }
+      if (data.length && (data[0].code !== undefined || data[0].title !== undefined)) {
+        return data.map(normalizeProblemCard);
+      }
+    } else if (data && typeof data === "object" && Array.isArray(data.items)) {
+      return data.items.map(normalizeProblemCard);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeProblemCard(item) {
+  return {
+    code: item.code,
+    title: item.title || "未知题目",
+    contestName: item.contestName || item.contestCode || "",
+    year: item.year || null,
+    difficulty: item.difficulty || null,
+    durationMinutes: item.durationMinutes || null,
+    tagNames: Array.isArray(item.tagNames) ? item.tagNames : []
+  };
+}
+
+function difficultyType(difficulty) {
+  return { 1: "success", 2: "warning", 3: "danger" }[Number(difficulty)] || "info";
+}
+
+function difficultyLabel(difficulty) {
+  return { 1: "简单", 2: "中等", 3: "困难" }[Number(difficulty)] || "未知";
+}
+
+function goToProblem(code) {
+  if (!code) return;
+  router.push(`/problem/${code}`);
+}
+
 async function retry(messageId) {
   try {
     const res = await retryMessage(messageId);
@@ -495,5 +576,21 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .slide-up-enter-from, .slide-up-leave-to { transform: translateY(12px); opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Problem Recommendation Cards */
+.ai-problem-cards { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--lm-border); }
+.ai-problem-cards-head { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--lm-text-secondary); margin-bottom: 6px; }
+.ai-problem-cards-list { display: flex; flex-direction: column; gap: 6px; }
+.ai-problem-card { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--lm-bg-secondary); border: 1px solid var(--lm-border-light); cursor: pointer; transition: all .16s ease; text-decoration: none; }
+.ai-problem-card:hover { border-color: var(--lm-primary); background: var(--lm-primary-bg, #eff6ff); transform: translateY(-1px); box-shadow: var(--lm-shadow-xs, 0 1px 2px rgba(0,0,0,0.05)); }
+.ai-problem-card-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ai-problem-card-title-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ai-problem-code-badge { font-size: 11px; font-weight: 700; color: var(--lm-primary); background: var(--lm-surface); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--lm-border-light); flex-shrink: 0; }
+.ai-problem-card-title { font-size: 12px; font-weight: 600; color: var(--lm-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ai-problem-card-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.ai-problem-card-tags :deep(.el-tag) { height: 18px; line-height: 18px; padding: 0 4px; font-size: 10px; border-radius: 4px; }
+.ai-problem-card-arrow { color: var(--lm-text-muted); flex-shrink: 0; transition: transform .16s; }
+.ai-problem-card:hover .ai-problem-card-arrow { transform: translateX(2px); color: var(--lm-primary); }
+
 @media (max-width: 520px) { .ai-widget { right: 12px; bottom: 12px; gap: 10px; } .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; } }
 </style>
