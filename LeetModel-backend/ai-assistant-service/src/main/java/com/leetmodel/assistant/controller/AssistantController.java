@@ -1,6 +1,7 @@
 package com.leetmodel.assistant.controller;
 
 import com.leetmodel.assistant.dto.ConversationCreateRequest;
+import com.leetmodel.assistant.dto.ConversationRenameRequest;
 import com.leetmodel.assistant.dto.MessageSendRequest;
 import com.leetmodel.assistant.service.AssistantService;
 import com.leetmodel.assistant.vo.AssistantMessageVO;
@@ -14,11 +15,14 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -64,8 +68,39 @@ public class AssistantController {
     @Operation(summary = "查询 AI 客服会话与消息历史")
     @GetMapping("/{conversationId}")
     public Result<ConversationVO> get(
+            @PathVariable @Positive(message = "会话标识必须为正整数") Long conversationId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false, defaultValue = "50") Integer limit) {
+        return Result.ok(assistantService.getConversation(conversationId, UserContext.getUserId(), cursor, limit));
+    }
+
+    /**
+     * 自定义重命名指定会话标题。
+     *
+     * @param conversationId 目标会话 ID
+     * @param request        重命名请求体
+     * @return 更新后的会话视图
+     */
+    @Operation(summary = "重命名 AI 客服会话标题")
+    @PutMapping("/{conversationId}/title")
+    public Result<ConversationVO> rename(
+            @PathVariable @Positive(message = "会话标识必须为正整数") Long conversationId,
+            @Valid @RequestBody ConversationRenameRequest request) {
+        return Result.ok(assistantService.renameConversation(conversationId, UserContext.getUserId(), request.getTitle()));
+    }
+
+    /**
+     * 软删除指定的 AI 客服会话。
+     *
+     * @param conversationId 目标会话 ID
+     * @return 空成功结果
+     */
+    @Operation(summary = "软删除 AI 客服会话")
+    @DeleteMapping("/{conversationId}")
+    public Result<Void> delete(
             @PathVariable @Positive(message = "会话标识必须为正整数") Long conversationId) {
-        return Result.ok(assistantService.getConversation(conversationId, UserContext.getUserId()));
+        assistantService.deleteConversation(conversationId, UserContext.getUserId());
+        return Result.ok();
     }
 
     /**

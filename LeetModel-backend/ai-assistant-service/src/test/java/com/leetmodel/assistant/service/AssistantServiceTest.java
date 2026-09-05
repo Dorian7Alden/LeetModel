@@ -301,6 +301,66 @@ class AssistantServiceTest {
         verify(messageMapper).recoverStaleRetries(any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
+    @Test
+    void createConversationReusesBlankActiveConversation() {
+        AssistantConversation blank = conversation("ACTIVE");
+        when(conversationMapper.selectList(any())).thenReturn(List.of(blank));
+        when(messageMapper.selectCount(any())).thenReturn(0L);
+
+        var result = service.createConversation(USER_ID, "新标题");
+
+        assertThat(result.getId()).isEqualTo(CONVERSATION_ID);
+        assertThat(result.getTitle()).isEqualTo("新标题");
+        verify(conversationMapper).updateById(blank);
+        verify(conversationMapper, never()).insert(any(AssistantConversation.class));
+    }
+
+    @Test
+    void deleteConversationPerformsSoftDeleteAndCascade() {
+        AssistantConversation conversation = conversation("ACTIVE");
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+
+        service.deleteConversation(CONVERSATION_ID, USER_ID);
+
+        verify(conversationMapper).deleteById(CONVERSATION_ID);
+        verify(messageMapper).delete(any(Wrapper.class));
+    }
+
+    @Test
+    void renameConversationUpdatesTitleAndEnforcesNonEmpty() {
+        AssistantConversation conversation = conversation("ACTIVE");
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+
+        var result = service.renameConversation(CONVERSATION_ID, USER_ID, "自定义建模讨论");
+
+        assertThat(result.getTitle()).isEqualTo("自定义建模讨论");
+        verify(conversationMapper).updateById(conversation);
+
+        assertThatThrownBy(() -> service.renameConversation(CONVERSATION_ID, USER_ID, "   "))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void getConversationSupportsCursorPagination() {
+        AssistantConversation conversation = conversation("ACTIVE");
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+
+        AssistantMessage m1 = message(10L, "USER", "COMPLETED", "Q1");
+        AssistantMessage m2 = message(11L, "ASSISTANT", "COMPLETED", "A1");
+        AssistantMessage m3 = message(12L, "USER", "COMPLETED", "Q2");
+        // 模拟返回 limit+1 条（假设 limit=2）
+        when(messageMapper.selectList(any())).thenReturn(List.of(m3, m2, m1));
+
+        var result = service.getConversation(CONVERSATION_ID, USER_ID, null, 2);
+
+        assertThat(result.getHasMore()).isTrue();
+        assertThat(result.getNextCursor()).isEqualTo(11L);
+        assertThat(result.getMessages()).hasSize(2);
+        // 返回消息按时间正序
+        assertThat(result.getMessages().get(0).getId()).isEqualTo(11L);
+        assertThat(result.getMessages().get(1).getId()).isEqualTo(12L);
+    }
+
     private void assignMessageIds() {
         doAnswer(invocation -> {
             AssistantMessage message = invocation.getArgument(0);

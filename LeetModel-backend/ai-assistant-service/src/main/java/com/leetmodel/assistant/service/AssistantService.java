@@ -20,6 +20,7 @@ import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,18 @@ public class AssistantService {
      */
     public ConversationVO createConversation(Long userId, String title) {
         LocalDateTime now = LocalDateTime.now();
+        // 自动复用未发问的空白会话（即未发送任何消息的 ACTIVE 会话）
+        AssistantConversation blank = findBlankConversation(userId);
+        if (blank != null) {
+            String targetTitle = (title == null || title.isBlank()) ? DEFAULT_TITLE : title.trim();
+            if (!targetTitle.equals(blank.getTitle())) {
+                blank.setTitle(targetTitle);
+                blank.setUpdateTime(now);
+                conversationMapper.updateById(blank);
+            }
+            return toConversation(blank, List.of());
+        }
+
         AssistantConversation conversation = new AssistantConversation();
         conversation.setUserId(userId);
         conversation.setTitle(title == null || title.isBlank() ? DEFAULT_TITLE : title.trim());
@@ -81,11 +94,67 @@ public class AssistantService {
     }
 
     /**
-     * 查询会话和完整消息历史。
+     * 查询会话和完整消息历史（兼容老接口，默认拉取最近50条）。
      */
     public ConversationVO getConversation(Long conversationId, Long userId) {
+        return getConversation(conversationId, userId, null, null);
+    }
+
+    /**
+     * 基于游标分页查询会话及历史消息。
+     *
+     * @param conversationId 目标会话 ID
+     * @param userId         当前所属用户 ID
+     * @param cursor         上一页最旧消息 ID，首次拉取传 null
+     * @param limit          单页大小，默认 50，最大 100
+     * @return 包含逆向游标与更多标识的会话视图
+     */
+    public ConversationVO getConversation(Long conversationId, Long userId, Long cursor, Integer limit) {
         AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
-        return toConversation(conversation, listMessages(conversationId));
+        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 100));
+
+        LambdaQueryWrapper<AssistantMessage> wrapper = new LambdaQueryWrapper<AssistantMessage>()
+                .eq(AssistantMessage::getConversationId, conversationId)
+                .orderByDesc(AssistantMessage::getId);
+        if (cursor != null && cursor > 0) {
+            wrapper.lt(AssistantMessage::getId, cursor);
+        }
+        wrapper.last("LIMIT " + (safeLimit + 1));
+
+        List<AssistantMessage> queryList = messageMapper.selectList(wrapper);
+        boolean hasMore = queryList.size() > safeLimit;
+        List<AssistantMessage> paged = hasMore ? queryList.subList(0, safeLimit) : queryList;
+        Long nextCursor = hasMore && !paged.isEmpty() ? paged.get(paged.size() - 1).getId() : null;
+
+        List<AssistantMessage> chronological = new ArrayList<>(paged);
+        Collections.reverse(chronological);
+
+        ConversationVO vo = toConversation(conversation, chronological);
+        vo.setNextCursor(nextCursor);
+        vo.setHasMore(hasMore);
+        return vo;
+    }
+
+    /**
+     * 软删除指定会话及关联的所有历史消息。
+     */
+    public void deleteConversation(Long conversationId, Long userId) {
+        AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
+        conversationMapper.deleteById(conversation.getId());
+        messageMapper.delete(new LambdaQueryWrapper<AssistantMessage>()
+                .eq(AssistantMessage::getConversationId, conversationId));
+    }
+
+    /**
+     * 自定义重命名指定会话标题。
+     */
+    public ConversationVO renameConversation(Long conversationId, Long userId, String title) {
+        AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
+        BusinessException.throwIf(title == null || title.isBlank(), ErrorCodeEnum.PARAM_INVALID);
+        conversation.setTitle(title.trim());
+        conversation.setUpdateTime(LocalDateTime.now());
+        conversationMapper.updateById(conversation);
+        return toConversation(conversation, List.of());
     }
 
     /**
@@ -326,6 +395,23 @@ public class AssistantService {
                         .last("LIMIT 1"));
         BusinessException.throwIf(conversation == null, AssistantErrorCode.CONVERSATION_NOT_FOUND);
         return conversation;
+    }
+
+    private AssistantConversation findBlankConversation(Long userId) {
+        List<AssistantConversation> activeConvs = conversationMapper.selectList(
+                new LambdaQueryWrapper<AssistantConversation>()
+                        .eq(AssistantConversation::getUserId, userId)
+                        .eq(AssistantConversation::getStatus, "ACTIVE")
+                        .orderByDesc(AssistantConversation::getCreateTime));
+        for (AssistantConversation conv : activeConvs) {
+            Long count = messageMapper.selectCount(
+                    new LambdaQueryWrapper<AssistantMessage>()
+                            .eq(AssistantMessage::getConversationId, conv.getId()));
+            if (count == null || count == 0) {
+                return conv;
+            }
+        }
+        return null;
     }
 
     private AssistantMessage findUserRequest(Long conversationId, String clientRequestId) {
