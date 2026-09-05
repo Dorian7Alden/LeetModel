@@ -19,7 +19,45 @@
 
 ## 当前任务
 
-### [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（补齐固定工作流观测闭环）
+### [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
+
+**目标**：
+对 S9 阶段完成的全部改造进行端到端全链路回归验证：包括无权重方案的纯基准观测任务创建与完成、AI 客服纯问题轻量评测、AI 建议隔离评测闭环；更新 `docs/project/03-微服务设计/ai-evaluation-service/` 对应设计文档，保证文档与实现行为高度一致。
+
+**入口**：
+- `LeetModel-backend/` 全量构建与测试
+- `docs/project/03-微服务设计/ai-evaluation-service/README.md`
+- `docs/project/03-微服务设计/ai-evaluation-service/评价指标与版本选择指数.md`
+- `docs/project/03-微服务设计/ai-evaluation-service/通用评价/领域模型与兼容迁移.md`
+
+**主流程**：
+1. 在 `ai-evaluation-service` 中编写端到端评测任务综合测试用例，覆盖：
+   - SUGGESTION 评测任务创建、槽位展开与执行结果解析；
+   - 无权重方案的任务终态收敛，确认原始指标（rawMetrics）完整落库，versionSelectionIndex 为 null。
+2. 运行相关模块测试与全量构建，确保零故障、零编译告警遗留。
+3. 同步更新 `ai-evaluation-service` 设计文档：
+   - 记录可选权重方案（纯观测模式支持）；
+   - 记录 SUGGESTION 功能接入与隔离实验契约；
+   - 记录客服轻量评测指标口径。
+
+**完成标准**：
+1. 评测模块与建议模块全部单元测试与集成测试通过。
+2. 相关设计文档已准确记录 S9 架构改造决策。
+3. Git 状态干净，具备原子提交。
+
+**修改范围**：
+- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/service/EvaluationServiceTest.java`
+- `docs/project/03-微服务设计/ai-evaluation-service/README.md`
+- `docs/project/03-微服务设计/ai-evaluation-service/评价指标与版本选择指数.md`
+- `docs/project/03-微服务设计/ai-evaluation-service/通用评价/领域模型与兼容迁移.md`
+
+---
+
+## 阶段后续任务规划（S9-Evaluation-Refinement）
+
+- [x] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
+- [x] 任务 2：精简 AI 客服评测样本契约与伪指标（移除人工标注假定，收敛至可用性、耗时与Token成本）
+- [x] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（`ai-suggestion-service` 增加隔离实验接口，`ai-evaluation-service` 新增 `SuggestionEvaluationRunner`，补齐固定工作流观测闭环）
 
 **目标**：
 打通固定工作流中 AI 建议（SUGGESTION）的离线评测链路：在 `ai-suggestion-service` 增加类似 `ai-review-service` 的隔离实验接口（不落生产任务库，接收 `evaluationTaskId` 并透传至网关），在 `ai-evaluation-service` 实现 `SuggestionEvaluationRunner`，并支持样本 Payload 校验、功能目录发现与运行事实提取。
