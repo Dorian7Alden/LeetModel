@@ -5,10 +5,43 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ModelExecutionCatalogContractTest {
+
+    @Test
+    void textRouteAndAssistantConfigsUseGemini38FlashHigh() throws Exception {
+        StandardEnvironment environment = environment();
+        AiRoutingProperties routingProperties = Binder.get(environment)
+                .bind("ai.gateway", AiRoutingProperties.class)
+                .orElseThrow(() -> new IllegalStateException("AI 路由配置未绑定"));
+        AiRoutingProperties.Route textRoute = routingProperties.getRoutes().get(AiModality.TEXT);
+        assertThat(textRoute).isNotNull();
+        assertThat(textRoute.getProvider()).isEqualTo(AiProvider.NEW_API);
+        assertThat(textRoute.getModel()).isEqualTo("gemini-3.8-flash-high");
+
+        AiModelCatalogProperties catalogProperties = Binder.get(environment)
+                .bind("ai.gateway", AiModelCatalogProperties.class)
+                .orElseThrow(() -> new IllegalStateException("AI 模型目录未绑定"));
+        AiModelCatalogProperties.ModelProfile profile = catalogProperties.getModels().get("NEW_API/gemini-3.8-flash-high");
+        assertThat(profile).isNotNull();
+        assertThat(profile.isEnabled()).isTrue();
+        assertThat(profile.isTools()).isTrue();
+        assertThat(profile.isJsonOutput()).isTrue();
+        assertThat(profile.isThinking()).isTrue();
+        assertThat(profile.getProtocol()).isEqualTo(AiApiProtocol.OPENAI_COMPLETIONS);
+        assertThat(profile.getContextTokens()).isEqualTo(1000000);
+        assertThat(profile.getMaxOutputTokens()).isEqualTo(65536);
+
+        ModelExecutionConfigProperties executionProperties = properties();
+        assertThat(executionProperties.getExecutionConfigs().get("MODEL_CFG_ASSISTANT_TEXT_0001").getModel())
+                .isEqualTo("gemini-3.8-flash-high");
+        assertThat(executionProperties.getExecutionConfigs().get("MODEL_CFG_ASSISTANT_TOOLS_0001").getModel())
+                .isEqualTo("gemini-3.8-flash-high");
+    }
 
     @Test
     void outerAssistantToolWorkflowUsesToolsEnabledExecutionConfig() throws Exception {
@@ -81,11 +114,16 @@ class ModelExecutionCatalogContractTest {
         assertThat(definition.getWorkflowVersions()).containsExactly(workflow);
     }
 
-    private ModelExecutionConfigProperties properties() throws Exception {
+    private StandardEnvironment environment() throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         new YamlPropertySourceLoader().load("application",
                         new ClassPathResource("application.yml"))
                 .forEach(environment.getPropertySources()::addLast);
+        return environment;
+    }
+
+    private ModelExecutionConfigProperties properties() throws Exception {
+        StandardEnvironment environment = environment();
         return Binder.get(environment)
                 .bind("ai.gateway", ModelExecutionConfigProperties.class)
                 .orElseThrow(() -> new IllegalStateException("AI 网关执行配置未绑定"));

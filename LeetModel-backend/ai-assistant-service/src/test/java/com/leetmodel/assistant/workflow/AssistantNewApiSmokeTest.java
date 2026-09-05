@@ -34,7 +34,7 @@ class AssistantNewApiSmokeTest {
 
         assertThat(response.callId()).isNotBlank();
         assertThat(response.providerResponseId()).isNotBlank();
-        assertThat(response.model()).isEqualTo("deepseek-v4-flash");
+        assertThat(response.model()).startsWith("gemini-3.8");
         assertThat(response.content()).isNotBlank();
         System.out.printf("assistant-smoke callId=%s providerResponseIdPresent=true model=%s usagePresent=%s%n",
                 response.callId(), response.model(), response.usage() != null);
