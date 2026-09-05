@@ -95,14 +95,97 @@ public class KnowledgeRetrievalService {
     }
 
     private RetrievalSnapshot hybrid(String runId, String query, String requiredIndexVersion, int topK) {
-        RetrievalSnapshot vector = vector(runId + ":vector", query, requiredIndexVersion, topK);
-        RetrievalSnapshot directory = directory(runId + ":directory", query, topK);
-        Map<String, KnowledgeCitationDTO> combined = new LinkedHashMap<>();
-        vector.citations().forEach(item -> combined.put(item.getDocumentId() + ":" + item.getChunkId(), item));
-        directory.citations().forEach(item -> combined.putIfAbsent(
-                item.getDocumentId() + ":" + item.getChunkId(), item));
-        return new RetrievalSnapshot("VECTOR+DIRECTORY", vector.indexVersion(),
-                directory.manifestVersion(), directory.sourceVersion(), List.copyOf(combined.values()));
+        int candidateK = Math.max(topK * 2, 10);
+        RetrievalSnapshot vectorSnap;
+        try {
+            vectorSnap = vector(runId + ":vector", query, requiredIndexVersion, candidateK);
+        } catch (Exception e) {
+            log.warn("混合检索向量分支异常，降级为空: {}", e.getMessage());
+            vectorSnap = new RetrievalSnapshot("VECTOR", requiredIndexVersion, null, null, List.of());
+        }
+        RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, requiredIndexVersion, candidateK);
+
+        Map<String, KnowledgeCitationDTO> candidates = new LinkedHashMap<>();
+        Map<String, Double> rrfScores = new LinkedHashMap<>();
+        double k = 60.0;
+
+        List<KnowledgeCitationDTO> vectorHits = vectorSnap.citations();
+        for (int rank = 0; rank < vectorHits.size(); rank++) {
+            KnowledgeCitationDTO hit = vectorHits.get(rank);
+            String key = hit.getDocumentId() + ":" + hit.getChunkId();
+            candidates.put(key, hit);
+            rrfScores.put(key, rrfScores.getOrDefault(key, 0.0) + (1.0 / (k + rank + 1)));
+        }
+
+        List<KnowledgeCitationDTO> bm25Hits = bm25Snap.citations();
+        for (int rank = 0; rank < bm25Hits.size(); rank++) {
+            KnowledgeCitationDTO hit = bm25Hits.get(rank);
+            String key = hit.getDocumentId() + ":" + hit.getChunkId();
+            candidates.putIfAbsent(key, hit);
+            rrfScores.put(key, rrfScores.getOrDefault(key, 0.0) + (1.0 / (k + rank + 1)));
+        }
+
+        List<KnowledgeCitationDTO> fused = candidates.entrySet().stream()
+                .sorted(Comparator.comparingDouble((Map.Entry<String, KnowledgeCitationDTO> e) -> rrfScores.getOrDefault(e.getKey(), 0.0)).reversed())
+                .limit(topK)
+                .map(e -> {
+                    KnowledgeCitationDTO item = e.getValue();
+                    double fusedScore = rrfScores.getOrDefault(e.getKey(), 0.0);
+                    return new KnowledgeCitationDTO(item.getCitationId(), item.getDocumentId(), item.getChunkId(),
+                            item.getTitle(), item.getSourcePath(), item.getSection(), item.getContentHash(),
+                            item.getAuthorityLevel(), item.getApplicability(), fusedScore, item.getContent());
+                })
+                .toList();
+
+        String indexVersion = vectorSnap.indexVersion() != null ? vectorSnap.indexVersion() : bm25Snap.indexVersion();
+        return new RetrievalSnapshot("VECTOR+BM25_RRF", indexVersion, null, null, fused);
+    }
+
+    private RetrievalSnapshot bm25(String runId, String query, String requiredIndexVersion, int topK) {
+        String indexName = requiredIndexVersion == null || requiredIndexVersion.isBlank()
+                ? properties.getIndexAlias() : physicalIndexName(requiredIndexVersion);
+        Map<String, Object> body = Map.of(
+                "size", topK,
+                "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
+                        "ragIndexVersion", "estimatedTokens", "contentHash"),
+                "query", Map.of("multi_match", Map.of(
+                        "query", query,
+                        "fields", List.of("title^3", "content^1")
+                ))
+        );
+        Request request = new Request("POST", "/" + indexName + "/_search");
+        try {
+            request.setJsonEntity(objectMapper.writeValueAsString(body));
+            int timeout = Math.toIntExact(properties.getRequestTimeout().toMillis());
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setRequestConfig(RequestConfig.custom()
+                    .setConnectTimeout(timeout).setSocketTimeout(timeout)
+                    .setConnectionRequestTimeout(timeout).build()));
+            Response response = restClient.performRequest(request);
+            JsonNode hits = objectMapper.readTree(EntityUtils.toString(response.getEntity()))
+                    .path("hits").path("hits");
+            List<KnowledgeCitationDTO> citations = new ArrayList<>();
+            String actualVersion = requiredIndexVersion;
+            for (JsonNode hit : hits) {
+                double score = hit.path("_score").asDouble();
+                JsonNode source = hit.path("_source");
+                String hitVersion = source.path("ragIndexVersion").asText();
+                if (requiredIndexVersion != null && !requiredIndexVersion.equals(hitVersion)) {
+                    throw new IllegalStateException("检索结果不属于请求锁定的知识索引");
+                }
+                if (actualVersion == null) actualVersion = hitVersion;
+                String sourcePath = source.path("sourcePath").asText();
+                if (isUnsupportedProblemSpecific(sourcePath)) continue;
+                String documentId = source.path("documentId").asText();
+                String chunkId = source.path("chunkId").asText();
+                citations.add(citation(documentId, chunkId, source.path("title").asText(),
+                        sourcePath, source.path("contentHash").asText(), score,
+                        source.path("content").asText()));
+            }
+            return new RetrievalSnapshot("BM25", actualVersion, null, null, citations);
+        } catch (Exception exception) {
+            log.warn("Elasticsearch BM25 检索异常，降级为空: {}", exception.getMessage());
+            return new RetrievalSnapshot("BM25", requiredIndexVersion, null, null, List.of());
+        }
     }
 
     private RetrievalSnapshot vector(String runId, String query, String requiredIndexVersion, int topK) {

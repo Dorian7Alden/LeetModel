@@ -3,6 +3,8 @@ package com.leetmodel.knowledge.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiEmbeddingResponse;
+import com.leetmodel.common.ai.model.AiEmbeddingVector;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
 import com.leetmodel.knowledge.config.KnowledgeRetrievalProperties;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,5 +76,56 @@ class KnowledgeRetrievalServiceTest {
 
         assertThat(result.getStatus()).isEqualTo("NO_CONTEXT");
         assertThat(result.getCitations()).isEmpty();
+    }
+
+    @Test
+    void hybridRetrievalCombinesVectorAndBm25WithRrfRanking() throws Exception {
+        KnowledgeRetrievalProperties properties = new KnowledgeRetrievalProperties();
+        properties.setEmbeddingDimension(1024);
+        AiClient aiClient = mock(AiClient.class);
+        List<Float> dummyVector = java.util.Collections.nCopies(1024, 0.1f);
+        when(aiClient.embed(any())).thenReturn(new AiEmbeddingResponse("call",
+                "RAG_V1", "qwen3.7-text-embedding", 1024,
+                List.of(new AiEmbeddingVector(0, dummyVector)), null, null));
+
+        RestClient restClient = mock(RestClient.class);
+        org.apache.http.HttpEntity entity = mock(org.apache.http.HttpEntity.class);
+        org.elasticsearch.client.Response response = mock(org.elasticsearch.client.Response.class);
+        when(response.getEntity()).thenReturn(entity);
+        when(entity.getContent()).thenReturn(new java.io.ByteArrayInputStream("""
+                {
+                  "hits": {
+                    "hits": [
+                      {
+                        "_score": 1.5,
+                        "_source": {
+                          "chunkId": "chunk-ahp",
+                          "documentId": "doc-ahp",
+                          "title": "层次分析法AHP",
+                          "sourcePath": "题型方法/AHP.md",
+                          "ragIndexVersion": "leetmodel-rag-v1",
+                          "contentHash": "hash1",
+                          "content": "AHP 层次分析法常用于权重计算"
+                        }
+                      }
+                    ]
+                  }
+                }
+                """.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        when(restClient.performRequest(any())).thenReturn(response);
+
+        KnowledgeRetrievalService service = new KnowledgeRetrievalService(properties, aiClient,
+                restClient, new ObjectMapper());
+        KnowledgeRetrievalRequestDTO request = new KnowledgeRetrievalRequestDTO();
+        request.setWorkflowVersion("HYBRID_RETRIEVAL_V1");
+        request.setQuery("AHP 层次分析法");
+        request.setTopK(5);
+
+        var result = service.retrieve(request);
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getExecutionBranch()).isEqualTo("VECTOR+BM25_RRF");
+        assertThat(result.getCitations()).hasSize(1);
+        assertThat(result.getCitations().get(0).getTitle()).contains("AHP");
     }
 }

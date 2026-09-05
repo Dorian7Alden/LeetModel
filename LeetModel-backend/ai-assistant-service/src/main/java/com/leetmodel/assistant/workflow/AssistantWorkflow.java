@@ -212,6 +212,9 @@ public class AssistantWorkflow {
                 && snapshot.ragIndexVersion() != null) {
             return ragContextProvider.retrieveExact(question, snapshot.ragIndexVersion());
         }
+        if ("RETRIEVAL_SERVICE".equals(snapshot.ragMode())) {
+            return ragContextProvider.retrieveFromService(question, "HYBRID_RETRIEVAL_V1", snapshot.ragIndexVersion());
+        }
         throw new IllegalArgumentException("AI 客服生产 RAG 快照不合法");
     }
 

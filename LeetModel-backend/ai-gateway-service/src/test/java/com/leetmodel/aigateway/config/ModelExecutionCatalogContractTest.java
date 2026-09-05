@@ -55,7 +55,7 @@ class ModelExecutionCatalogContractTest {
                 .containsExactly("PROMPT_ASSISTANT_TOOLS_0001");
         assertThat(definition.getWorkflowVersions())
                 .containsExactlyInAnyOrder("ASSISTANT_TOOLS_NO_RAG_V1",
-                        "ASSISTANT_TOOLS_RAG_V1");
+                        "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1");
     }
 
     @Test
@@ -72,7 +72,7 @@ class ModelExecutionCatalogContractTest {
                 .containsExactly("PROMPT_ASSISTANT_KNOWLEDGE_0001");
         assertThat(definition.getWorkflowVersions())
                 .containsExactlyInAnyOrder("ASSISTANT_TOOLS_NO_RAG_V1",
-                        "ASSISTANT_TOOLS_RAG_V1");
+                        "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1");
     }
 
     @Test

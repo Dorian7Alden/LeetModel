@@ -58,7 +58,7 @@ public class ExplainModelingKnowledgeTool implements AssistantTool<ExplainModeli
                             + "不用于平台操作、题目事实、正式论文评审或通用百科。",
                     inputSchema()),
             true, Duration.ofSeconds(120),
-            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1"));
+            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1"));
 
     private final AiClient aiClient;
     private final RagWorkflowContextProvider ragContextProvider;
