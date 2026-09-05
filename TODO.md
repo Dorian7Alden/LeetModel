@@ -19,44 +19,53 @@
 
 ## 当前任务
 
-### [ ] 任务 2：精简 AI 客服评测样本契约与伪指标（移除人工标注假定，收敛至可用性、耗时与Token成本）
+### [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（补齐固定工作流观测闭环）
 
 **目标**：
-降低客服评测测试集门槛，消除样本对人工标准要点（`expectedPoints`）、标准参考来源（`expectedSources`）和格式规则（`formatRules`）的隐式依赖；使客服样本仅需包含基础提问 `{ "question": "..." }` 即可零负担发起评测，并优雅呈现不可用/未评估指标，将客服评测的核心观测点收敛至：接口成功率、响应耗时（平均/排队/推理）与实际 Token/费用。
+打通固定工作流中 AI 建议（SUGGESTION）的离线评测链路：在 `ai-suggestion-service` 增加类似 `ai-review-service` 的隔离实验接口（不落生产任务库，接收 `evaluationTaskId` 并透传至网关），在 `ai-evaluation-service` 实现 `SuggestionEvaluationRunner`，并支持样本 Payload 校验、功能目录发现与运行事实提取。
 
 **入口**：
-- `EvaluationSamplePayloadService.java`
-- `AssistantEvaluationRunner.java`
-- `EvaluationMetricsCalculator.java`
+- `ai-suggestion-service`: `InternalSuggestionController.java`、`SuggestionService.java`
+- `ai-evaluation-service`: `SuggestionEvaluationRunner.java`、`EvaluationRunnerRegistry.java`、`EvaluationSamplePayloadService.java`
+- `common-api`: `SuggestionFeignClient.java`
 
 **主流程**：
-1. 确保 `EvaluationSamplePayloadService` 验证时，客服样本只要求必须存在有效的 `question` 字段，其余标注字段（`tags`、`expectedPoints`、`expectedSources`、`formatRules`）完全作为可选。
-2. `AssistantEvaluationRunner.verifiableMetrics` 针对缺少 `expectedSources`、`expectedPoints`、`formatRules` 的样本，不再产出假的未命中，而是优雅跳过或置空。
-3. `EvaluationMetricsCalculator.assistantMetrics` 中，对于样本未提供对应配置的指标，状态标记为 `NOT_EVALUATED`，明确说明“样本未配置该标注，仅观测运行性能与成本”，不将其作为失败或降低成功率。
-4. 补充测试用例：使用仅包含 `question` 的纯净样本创建数据集与评测任务，验证能够顺利执行、无报错且生成可信的运行与成本指标。
+1. 在 `common-api` 中扩展/定义 `SuggestionFeignClient`，包含 `getFeatureDefinition` 与 `runExperiment` 接口。
+2. 在 `ai-suggestion-service` 中实现 `POST /internal/suggestions/experiments`：
+   - 接收 `AiExperimentRequestDTO`；
+   - 解析入参中的 `submissionId`（或依据快照），以无副作用的 transient 模式调用现有的 `SuggestionV1Workflow` 或 `GroundedSuggestionV2Workflow`；
+   - 将 `evaluationTaskId`、`slotKey` 与 P3 优先级透传至 AI Gateway；
+   - 返回 `AiExperimentResultDTO`，包含结构化建议摘要（`outputJson`）、耗时与 `aiCallId`，不写入 `suggestion_task` 业务表。
+3. 在 `ai-evaluation-service` 中：
+   - `EvaluationSamplePayloadService` 支持 `SUGGESTION` 功能，样本 schema 为 `SUGGESTION_SUBMISSION_V1`（引用 `submissionId`，与 REVIEW 一致保持轻量）；
+   - 编写 `SuggestionEvaluationRunner`，实现 `EvaluationExperimentRunner` 契约，注册进 `EvaluationRunnerRegistry`；
+   - `EvaluationMetricRegistry` 与指标计算器支持 `SUGGESTION` 功能的运行指标提取。
+4. 编写对应的单元测试与 Mock 实验测试，确保全套流程可验证。
 
 **完成标准**：
-1. 创建仅包含 `{ "question": "数模竞赛流程是什么？" }` 的样本集，校验与保存成功。
-2. 发起客服评测任务，Runner 正常调度执行并返回，指标快照中 `RUN_SUCCESS_RATE`、`TOTAL_DURATION_MS`、`INPUT_TOKENS` 等正常统计。
-3. 未标注指标友好标记 `NOT_EVALUATED`，不影响整体成功率。
-4. `AssistantEvaluationRunnerTest` 与 `EvaluationSamplePayloadServiceTest` 绿灯通过。
+1. `ai-suggestion-service` 隔离接口在不落库的前提下能够运行建议工作流并返回标准结果。
+2. `ai-evaluation-service` 可以基于 `SUGGESTION` 功能创建测试集与评测任务。
+3. `SuggestionEvaluationRunnerTest` 通过，验证隔离调用、身份断言与结果解析无误。
+4. `ai-suggestion-service` 和 `ai-evaluation-service` 模块测试全部通过。
 
 **修改范围**：
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/runner/AssistantEvaluationRunner.java`
-- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationMetricsCalculator.java`
-- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/runner/AssistantEvaluationRunnerTest.java`
-- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/service/EvaluationSamplePayloadServiceTest.java`
+- `LeetModel-backend/common/common-api/src/main/java/com/leetmodel/common/api/feign/SuggestionFeignClient.java`
+- `LeetModel-backend/ai-suggestion-service/src/main/java/com/leetmodel/suggestion/controller/InternalSuggestionController.java`
+- `LeetModel-backend/ai-suggestion-service/src/main/java/com/leetmodel/suggestion/service/SuggestionService.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationSamplePayloadService.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/runner/SuggestionEvaluationRunner.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationMetricRegistry.java`
+- 对应测试类
 
 **非目标**：
-- 本卡不实现复杂 RAG 三元组语义模型裁判（按既定决策做减法）。
-- 本卡不实现 AI 建议隔离实验（由任务 3 处理）。
+- 不修改生产建议提交接口行为与数据库结构。
 
 ---
 
 ## 阶段后续任务规划（S9-Evaluation-Refinement）
 
 - [x] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
-- [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（`ai-suggestion-service` 增加隔离实验接口，`ai-evaluation-service` 新增 `SuggestionEvaluationRunner`，补齐固定工作流观测闭环）
+- [x] 任务 2：精简 AI 客服评测样本契约与伪指标（移除人工标注假定，收敛至可用性、耗时与Token成本）
 - [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
 
 **目标**：
