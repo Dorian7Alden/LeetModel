@@ -17,6 +17,7 @@ import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
+import com.leetmodel.common.api.feign.SuggestionFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.evaluation.entity.EvaluationDataset;
@@ -31,6 +32,7 @@ import com.leetmodel.evaluation.config.EvaluationScaleProperties;
 import com.leetmodel.evaluation.runner.EvaluationRunnerRegistry;
 import com.leetmodel.evaluation.runner.AssistantEvaluationRunner;
 import com.leetmodel.evaluation.runner.ReviewEvaluationRunner;
+import com.leetmodel.evaluation.runner.SuggestionEvaluationRunner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +64,7 @@ class EvaluationServiceTest {
     @Mock SubmissionFeignClient submissionFeignClient;
     @Mock ReviewFeignClient reviewFeignClient;
     @Mock AssistantFeignClient assistantFeignClient;
+    @Mock SuggestionFeignClient suggestionFeignClient;
     @Mock AiGatewayFeignClient aiGatewayFeignClient;
     @Mock EvaluationPersistenceService persistenceService;
     @Mock EvaluationMetricsCalculator metricsCalculator;
@@ -77,7 +81,9 @@ class EvaluationServiceTest {
                 new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
         var assistantRunner = new AssistantEvaluationRunner(assistantFeignClient,
                 new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
-        var registry = new EvaluationRunnerRegistry(List.of(runner, assistantRunner));
+        var suggestionRunner = new SuggestionEvaluationRunner(suggestionFeignClient,
+                new EvaluationSamplePayloadService(mapper), new EvaluationMetricRegistry(), mapper);
+        var registry = new EvaluationRunnerRegistry(List.of(runner, assistantRunner, suggestionRunner));
         var estimateService = new EvaluationEstimateService(
                 datasetMapper, registry, new EvaluationScaleProperties());
         service = new EvaluationService(datasetMapper, sampleMapper, taskMapper, runMapper,
@@ -176,6 +182,75 @@ class EvaluationServiceTest {
         assertThat(runsCaptor.getValue()).hasSize(6)
                 .allMatch(run -> "WAITING".equals(run.getStatus()) && run.getAttemptNo() == 1);
         assertThat(result.getRuns()).hasSize(6);
+    }
+
+    @Test
+    void taskCreationSucceedsWithoutWeightSchemeInPureObservationMode() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
+        List<EvaluationSample> samples = List.of(sample(101L, 31L), sample(102L, 32L));
+        when(sampleMapper.selectList(any())).thenReturn(samples);
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("ENABLED")));
+
+        var result = service.createTask(new EvaluationTaskCreateDTO(
+                10L, "BASIC_REVIEW_V1", 2, "request_no_scheme", null, null, null));
+
+        ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
+        ArgumentCaptor<List<EvaluationRunAttempt>> runsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(persistenceService).createTask(taskCaptor.capture(), runsCaptor.capture());
+        assertThat(taskCaptor.getValue().getTotalSlots()).isEqualTo(4);
+        assertThat(taskCaptor.getValue().getWeightSchemeId()).isNull();
+        assertThat(taskCaptor.getValue().getWeightSchemeVersion()).isNull();
+        assertThat(taskCaptor.getValue().getWeightSchemeSnapshotJson()).isNull();
+        assertThat(result.getWeightSchemeId()).isNull();
+        assertThat(result.getVersionSelectionIndex()).isNull();
+    }
+
+    @Test
+    void suggestionTaskCreatesAndExecutesSlotWithoutWeightScheme() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        EvaluationDataset dataset = dataset(10L);
+        dataset.setFeatureCode("SUGGESTION");
+        when(datasetMapper.selectById(10L)).thenReturn(dataset);
+        when(sampleMapper.selectList(any())).thenReturn(List.of(sample(101L, 31L)));
+        when(suggestionFeignClient.getFeatureDefinition()).thenReturn(Result.ok(new com.leetmodel.common.api.dto.AiFeatureDefinitionDTO(
+                "SUGGESTION", "论文建议", "ai-suggestion-service", List.of(), List.of(),
+                List.of(new com.leetmodel.common.api.dto.AiWorkflowVersionDTO(
+                        "IMPROVEMENT_V1", "V1", "ENABLED", null, null, null)))));
+
+        var taskResult = service.createTask(new EvaluationTaskCreateDTO(
+                10L, "IMPROVEMENT_V1", 1, "sugg_request_001", null, null, null));
+
+        assertThat(taskResult.getTotalSlots()).isEqualTo(1);
+        assertThat(taskResult.getFeatureCode()).isEqualTo("SUGGESTION");
+        assertThat(taskResult.getWeightSchemeId()).isNull();
+
+        EvaluationRunAttempt waiting = run(301L, 20L, 101L, "RUNNING", null);
+        waiting.setLeaseToken("token-301");
+        EvaluationTask task = task(20L, "WAITING", 1);
+        task.setFeatureCode("SUGGESTION");
+        task.setWorkflowVersion("IMPROVEMENT_V1");
+        task.setModelExecutionConfigVersion("MODEL_CFG_SUGGESTION_TEXT_0001");
+        EvaluationSample sample = sample(101L, 31L);
+        sample.setSampleType("SUBMISSION_REFERENCE");
+        sample.setPayloadSchemaVersion("SUGGESTION_SUBMISSION_V1");
+        sample.setPayloadJson("{\"submissionId\":31}");
+        when(runMapper.selectById(301L)).thenReturn(waiting);
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(sampleMapper.selectById(101L)).thenReturn(sample);
+        when(suggestionFeignClient.runExperiment(any())).thenReturn(Result.ok(new com.leetmodel.common.api.dto.AiExperimentResultDTO(
+                "suggestion-eval:20:101:1", "SUGGESTION", "IMPROVEMENT_V1",
+                "MODEL_CFG_SUGGESTION_TEXT_0001", null, "SUCCEEDED", null,
+                "SUGGESTION_RESULT_V1", "{\"summary\":\"改善建议\"}", "SUGGESTION_RUN_METRICS_V1", "{}",
+                "model-sugg", "call-sugg-301", 1500L, null)));
+
+        service.executeClaimed(301L, "token-301");
+
+        verify(runMapper).succeed(eq(301L), eq("token-301"), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.contains("改善建议"),
+                org.mockito.ArgumentMatchers.contains("STRUCTURE_VALID_RATE"),
+                eq("model-sugg"), eq("MODEL_CFG_SUGGESTION_TEXT_0001"), org.mockito.ArgumentMatchers.isNull(),
+                eq("call-sugg-301"), eq(1500L), any());
     }
 
     @Test

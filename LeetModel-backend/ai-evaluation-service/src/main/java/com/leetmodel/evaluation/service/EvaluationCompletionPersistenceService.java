@@ -43,10 +43,14 @@ public class EvaluationCompletionPersistenceService {
                 metrics.stabilityScore(), metrics.successRate(), metrics.latencyScore(),
                 metrics.overallScore(), metrics.averageDurationMs(), rawMetricsJson, now);
         if (updated == 0) return false;
-        resultMapper.insert(scoreBundle.result());
-        for (EvaluationScoreResultItem item : scoreBundle.items()) {
-            item.setScoreResultId(scoreBundle.result().getId());
-            itemMapper.insert(item);
+        if (scoreBundle != null && scoreBundle.result() != null) {
+            resultMapper.insert(scoreBundle.result());
+            if (scoreBundle.items() != null) {
+                for (EvaluationScoreResultItem item : scoreBundle.items()) {
+                    item.setScoreResultId(scoreBundle.result().getId());
+                    itemMapper.insert(item);
+                }
+            }
         }
         return true;
     }

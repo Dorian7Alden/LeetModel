@@ -35,6 +35,15 @@ class EvaluationSamplePayloadServiceTest {
     }
 
     @Test
+    void assistantPayloadAllowsMinimalQuestionOnly() {
+        var result = service.validate("ASSISTANT", new EvaluationSamplePayloadDTO(
+                "QUESTION", "ASSISTANT_QUESTION_V1", "{\"question\":\"数模竞赛流程是什么？\"}"));
+
+        assertThat(result.submissionId()).isNull();
+        assertThat(result.payloadJson()).isEqualTo("{\"question\":\"数模竞赛流程是什么？\"}");
+    }
+
+    @Test
     void unknownFieldsCannotSmuggleLocalPathsOrPdfContent() {
         assertThatThrownBy(() -> service.validate("REVIEW", new EvaluationSamplePayloadDTO(
                 "SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1",
@@ -44,11 +53,12 @@ class EvaluationSamplePayloadServiceTest {
     }
 
     @Test
-    void suggestionCannotEnterDatasetBeforeOwnerContractExists() {
-        assertThatThrownBy(() -> service.validate("SUGGESTION", new EvaluationSamplePayloadDTO(
-                "SUBMISSION_REFERENCE", "REVIEW_SUBMISSION_V1", "{\"submissionId\":31}")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不支持的评价功能");
+    void suggestionPayloadValidatesSubmissionReference() {
+        var result = service.validate("SUGGESTION", new EvaluationSamplePayloadDTO(
+                "SUBMISSION_REFERENCE", "SUGGESTION_SUBMISSION_V1", "{\"submissionId\":31}"));
+
+        assertThat(result.submissionId()).isEqualTo(31L);
+        assertThat(result.payloadJson()).isEqualTo("{\"submissionId\":31}");
     }
 
     @Test

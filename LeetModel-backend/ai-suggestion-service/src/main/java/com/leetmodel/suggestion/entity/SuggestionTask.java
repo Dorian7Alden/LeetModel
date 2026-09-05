@@ -1,5 +1,6 @@
 package com.leetmodel.suggestion.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.leetmodel.common.core.bean.BaseEntity;
 import lombok.Data;
@@ -51,4 +52,9 @@ public class SuggestionTask extends BaseEntity {
     private String resultJson;
     private String modelName;
     private String aiCallId;
+    @TableField(exist = false) private String experimentRunId;
+    @TableField(exist = false) private String evaluationTaskId;
+    @TableField(exist = false) private String experimentIdempotencyKey;
+    @TableField(exist = false) private String modelExecutionConfigVersion;
+    @TableField(exist = false) private String priority;
 }

@@ -13,7 +13,7 @@ import java.util.Set;
 public class EvaluationMetricRegistry {
 
     public static final String REGISTRY_VERSION = "METRIC_SET_V2";
-    private static final Set<String> ALL = Set.of("REVIEW", "ASSISTANT");
+    private static final Set<String> ALL = Set.of("REVIEW", "ASSISTANT", "SUGGESTION");
     private static final Map<String, EvaluationMetricDefinition> DEFINITIONS = definitions();
 
     public EvaluationMetricDefinition require(String metricCode) {

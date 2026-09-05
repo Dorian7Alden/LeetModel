@@ -119,7 +119,7 @@ public class EvaluationService {
         String featureCode = request.getFeatureCode() == null || request.getFeatureCode().isBlank()
                 ? "REVIEW" : request.getFeatureCode().trim();
         EvaluationExperimentRunner runner = runnerRegistry.require(featureCode);
-        if ("REVIEW".equals(featureCode)) {
+        if ("REVIEW".equals(featureCode) || "SUGGESTION".equals(featureCode)) {
             Set<Long> references = new java.util.HashSet<>();
             for (EvaluationSampleCreateDTO input : request.getSamples()) {
                 Long submissionId = runner.validateSample(requestPayload(featureCode, input)).submissionId();
@@ -132,7 +132,7 @@ public class EvaluationService {
         for (EvaluationSampleCreateDTO input : request.getSamples()) {
             ValidatedSamplePayload payload = runner.validateSample(requestPayload(featureCode, input));
             SubmissionReviewDTO submission = null;
-            if ("REVIEW".equals(featureCode)) {
+            if ("REVIEW".equals(featureCode) || "SUGGESTION".equals(featureCode)) {
                 BusinessException.throwIf(payload.submissionId() == null
                                 || !submissionIds.add(payload.submissionId()),
                         EvaluationErrorCode.DUPLICATE_SAMPLE);
@@ -208,10 +208,11 @@ public class EvaluationService {
                         trimToNull(request.getRagIndexVersion()))), request.getRepeatCount()));
         var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
         validateExecutionSelection(featureCode, request);
-        BusinessException.throwIf(request.getWeightSchemeId() == null,
-                EvaluationErrorCode.WEIGHT_SCHEME_INVALID);
-        EvaluationWeightSchemeDTO weightScheme = weightSchemeService.requireActiveForTask(
-                request.getWeightSchemeId(), featureCode, EvaluationMetricRegistry.REGISTRY_VERSION);
+        EvaluationWeightSchemeDTO weightScheme = null;
+        if (request.getWeightSchemeId() != null) {
+            weightScheme = weightSchemeService.requireActiveForTask(
+                    request.getWeightSchemeId(), featureCode, EvaluationMetricRegistry.REGISTRY_VERSION);
+        }
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
@@ -222,13 +223,17 @@ public class EvaluationService {
         task.setModelExecutionConfigVersion(modelConfig);
         task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
         task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
-        task.setWeightSchemeId(weightScheme.getSchemeId());
-        task.setWeightSchemeVersion(weightScheme.getSchemeVersion());
+        if (weightScheme != null) {
+            task.setWeightSchemeId(weightScheme.getSchemeId());
+            task.setWeightSchemeVersion(weightScheme.getSchemeVersion());
+        }
         try {
             task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
             task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
                     metricRegistry.snapshot(featureCode)));
-            task.setWeightSchemeSnapshotJson(objectMapper.writeValueAsString(weightScheme));
+            if (weightScheme != null) {
+                task.setWeightSchemeSnapshotJson(objectMapper.writeValueAsString(weightScheme));
+            }
         } catch (Exception exception) {
             throw new IllegalStateException("评价任务快照序列化失败", exception);
         }
@@ -650,6 +655,7 @@ public class EvaluationService {
 
     private String defaultModelConfig(String featureCode) {
         if ("REVIEW".equals(featureCode)) return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
+        if ("SUGGESTION".equals(featureCode)) return "MODEL_CFG_SUGGESTION_TEXT_0001";
         if ("ASSISTANT".equals(featureCode)) return "MODEL_CFG_ASSISTANT_TEXT_0001";
         throw new IllegalArgumentException("功能没有默认模型执行配置: " + featureCode);
     }
@@ -658,6 +664,7 @@ public class EvaluationService {
         String rag = trimToNull(request.getRagIndexVersion());
         boolean valid = switch (featureCode) {
             case "REVIEW" -> rag == null;
+            case "SUGGESTION" -> rag == null;
             case "ASSISTANT" -> "ASSISTANT_RAG_V1".equals(request.getWorkflowVersion())
                     ? rag != null : "ASSISTANT_NO_RAG_V1".equals(request.getWorkflowVersion()) && rag == null;
             default -> false;

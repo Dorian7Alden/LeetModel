@@ -66,13 +66,19 @@ public class GroundedSuggestionV2Workflow {
                 + "\n\n锁定评审依据：\n" + reviewEvidence.snapshotJson()
                 + "\n\n本次知识检索运行：\n" + objectMapper.writeValueAsString(knowledge);
         String taskId = "task:" + task.getId();
+        String modelConfig = task.getModelExecutionConfigVersion() != null
+                && !task.getModelExecutionConfigVersion().isBlank()
+                ? task.getModelExecutionConfigVersion() : "MODEL_CFG_SUGGESTION_TEXT_0002";
+        AiCallPriority priority = task.getPriority() != null && "P3".equals(task.getPriority())
+                ? AiCallPriority.P3 : AiCallPriority.P1;
+        String idempotencyKey = task.getAiIdempotencyKey() == null
+                ? "suggestion:task:" + task.getId() + ":attempt:" + task.getAttemptNo()
+                : task.getAiIdempotencyKey();
         AiCallContext context = new AiCallContext("ai-suggestion-service",
                 AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                 taskId, VERSION, "PROMPT_GROUNDED_SUGGESTION_0001",
-                "MODEL_CFG_SUGGESTION_TEXT_0002", null, AiCallPriority.P1,
-                task.getAiIdempotencyKey() == null
-                        ? "suggestion:task:" + task.getId() + ":attempt:" + task.getAttemptNo()
-                        : task.getAiIdempotencyKey(),
+                modelConfig, task.getEvaluationTaskId(), priority,
+                idempotencyKey,
                 Instant.now().plusSeconds(360));
         AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                 List.of(message(AiRole.SYSTEM, task.getPromptSnapshot()),
