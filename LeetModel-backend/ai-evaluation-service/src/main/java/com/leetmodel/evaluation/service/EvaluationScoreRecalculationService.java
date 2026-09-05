@@ -35,7 +35,8 @@ public class EvaluationScoreRecalculationService {
         BusinessException.throwIf(task == null, EvaluationErrorCode.TASK_NOT_FOUND);
         BusinessException.throwIf(!isComparableForRecalculation(task),
                 EvaluationErrorCode.SCORE_RECALCULATION_NOT_ALLOWED);
-        BusinessException.throwIf(request.getWeightSchemeId().equals(task.getWeightSchemeId()),
+        BusinessException.throwIf(task.getWeightSchemeId() != null
+                        && request.getWeightSchemeId().equals(task.getWeightSchemeId()),
                 EvaluationErrorCode.SCORE_RECALCULATION_NOT_ALLOWED);
 
         // 新方案必须仍可用于同功能和同指标集的新决策
@@ -58,7 +59,7 @@ public class EvaluationScoreRecalculationService {
      * @return 是否允许重算
      */
     private boolean isComparableForRecalculation(EvaluationTask task) {
-        return "COMPLETED".equals(task.getStatus())
+        boolean baseValid = "COMPLETED".equals(task.getStatus())
                 && task.getDatasetId() != null
                 && hasText(task.getFeatureCode())
                 && hasText(task.getDatasetVersion())
@@ -68,11 +69,12 @@ public class EvaluationScoreRecalculationService {
                 "metricSetVersion", task.getMetricSetVersion())
                 && validJson(task.getWorkflowSnapshotJson())
                 && hasText(task.getModelExecutionConfigVersion())
-                && task.getWeightSchemeId() != null
-                && hasText(task.getWeightSchemeVersion())
-                && validSnapshotValue(task.getWeightSchemeSnapshotJson(),
-                "schemeVersion", task.getWeightSchemeVersion())
                 && hasText(task.getRawMetricsJson());
+        if (!baseValid) return false;
+        if (task.getWeightSchemeId() == null) return true;
+        return hasText(task.getWeightSchemeVersion())
+                && validSnapshotValue(task.getWeightSchemeSnapshotJson(),
+                "schemeVersion", task.getWeightSchemeVersion());
     }
 
     /**

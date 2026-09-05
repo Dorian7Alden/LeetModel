@@ -208,10 +208,11 @@ public class EvaluationService {
                         trimToNull(request.getRagIndexVersion()))), request.getRepeatCount()));
         var feature = requireEnabledVersion(runner, request.getWorkflowVersion());
         validateExecutionSelection(featureCode, request);
-        BusinessException.throwIf(request.getWeightSchemeId() == null,
-                EvaluationErrorCode.WEIGHT_SCHEME_INVALID);
-        EvaluationWeightSchemeDTO weightScheme = weightSchemeService.requireActiveForTask(
-                request.getWeightSchemeId(), featureCode, EvaluationMetricRegistry.REGISTRY_VERSION);
+        EvaluationWeightSchemeDTO weightScheme = null;
+        if (request.getWeightSchemeId() != null) {
+            weightScheme = weightSchemeService.requireActiveForTask(
+                    request.getWeightSchemeId(), featureCode, EvaluationMetricRegistry.REGISTRY_VERSION);
+        }
 
         LocalDateTime now = LocalDateTime.now();
         EvaluationTask task = new EvaluationTask();
@@ -222,13 +223,17 @@ public class EvaluationService {
         task.setModelExecutionConfigVersion(modelConfig);
         task.setRagIndexVersion(trimToNull(request.getRagIndexVersion()));
         task.setMetricSetVersion(EvaluationMetricRegistry.REGISTRY_VERSION);
-        task.setWeightSchemeId(weightScheme.getSchemeId());
-        task.setWeightSchemeVersion(weightScheme.getSchemeVersion());
+        if (weightScheme != null) {
+            task.setWeightSchemeId(weightScheme.getSchemeId());
+            task.setWeightSchemeVersion(weightScheme.getSchemeVersion());
+        }
         try {
             task.setWorkflowSnapshotJson(objectMapper.writeValueAsString(feature));
             task.setMetricDefinitionSnapshotJson(objectMapper.writeValueAsString(
                     metricRegistry.snapshot(featureCode)));
-            task.setWeightSchemeSnapshotJson(objectMapper.writeValueAsString(weightScheme));
+            if (weightScheme != null) {
+                task.setWeightSchemeSnapshotJson(objectMapper.writeValueAsString(weightScheme));
+            }
         } catch (Exception exception) {
             throw new IllegalStateException("评价任务快照序列化失败", exception);
         }

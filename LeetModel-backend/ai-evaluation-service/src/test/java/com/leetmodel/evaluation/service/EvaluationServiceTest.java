@@ -179,6 +179,28 @@ class EvaluationServiceTest {
     }
 
     @Test
+    void taskCreationSucceedsWithoutWeightSchemeInPureObservationMode() {
+        when(taskMapper.selectOne(any())).thenReturn(null);
+        when(datasetMapper.selectById(10L)).thenReturn(dataset(10L));
+        List<EvaluationSample> samples = List.of(sample(101L, 31L), sample(102L, 32L));
+        when(sampleMapper.selectList(any())).thenReturn(samples);
+        when(reviewFeignClient.getFeatureDefinition()).thenReturn(Result.ok(feature("ENABLED")));
+
+        var result = service.createTask(new EvaluationTaskCreateDTO(
+                10L, "BASIC_REVIEW_V1", 2, "request_no_scheme", null, null, null));
+
+        ArgumentCaptor<EvaluationTask> taskCaptor = ArgumentCaptor.forClass(EvaluationTask.class);
+        ArgumentCaptor<List<EvaluationRunAttempt>> runsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(persistenceService).createTask(taskCaptor.capture(), runsCaptor.capture());
+        assertThat(taskCaptor.getValue().getTotalSlots()).isEqualTo(4);
+        assertThat(taskCaptor.getValue().getWeightSchemeId()).isNull();
+        assertThat(taskCaptor.getValue().getWeightSchemeVersion()).isNull();
+        assertThat(taskCaptor.getValue().getWeightSchemeSnapshotJson()).isNull();
+        assertThat(result.getWeightSchemeId()).isNull();
+        assertThat(result.getVersionSelectionIndex()).isNull();
+    }
+
+    @Test
     void reusedClientRequestMustDescribeSameTask() {
         EvaluationTask existing = task(20L, "WAITING", 2);
         existing.setDatasetId(10L);

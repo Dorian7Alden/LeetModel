@@ -56,6 +56,9 @@ public class EvaluationScoreResultService {
     public ScoreBundle calculateInitial(EvaluationTask task,
                                         EvaluationRawMetricsDTO rawMetrics,
                                         String rawMetricsJson) {
+        if (task.getWeightSchemeSnapshotJson() == null || task.getWeightSchemeSnapshotJson().isBlank()) {
+            return null;
+        }
         // 只读取任务启动时的方案快照，不回查可能已停用的当前方案
         EvaluationWeightSchemeDTO scheme = readSchemeSnapshot(task.getWeightSchemeSnapshotJson());
         return calculate(task, rawMetrics, rawMetricsJson, scheme,
