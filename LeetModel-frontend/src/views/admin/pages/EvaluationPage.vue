@@ -109,7 +109,7 @@
             <el-option v-for="feature in features" :key="feature.featureCode" :label="feature.name" :value="feature.featureCode" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="datasetForm.featureCode === 'REVIEW'" label="样本" required>
+        <el-form-item v-if="datasetForm.featureCode === 'REVIEW' || datasetForm.featureCode === 'SUGGESTION'" label="样本" required>
           <el-table :data="submissions" height="260" @selection-change="onSampleSelect">
             <el-table-column type="selection" width="48" />
             <el-table-column prop="id" label="提交 ID" width="130" />
@@ -159,8 +159,14 @@
         <el-form-item v-if="requiresRagIndex" label="RAG 索引版本" required>
           <el-input v-model="taskForm.ragIndexVersion" placeholder="填写已经构建并固定的 ragIndexVersion" @input="taskEstimate = null" />
         </el-form-item>
-        <el-form-item label="权重方案" required>
-          <el-select v-model="taskForm.weightSchemeId" placeholder="请选择活动权重方案" style="width: 100%" @change="taskEstimate = null">
+        <el-form-item label="权重方案">
+          <el-select
+            v-model="taskForm.weightSchemeId"
+            clearable
+            placeholder="可选：选择后合成版本选择指数，不选为纯观测模式"
+            style="width: 100%"
+            @change="taskEstimate = null"
+          >
             <el-option
               v-for="scheme in availableWeightSchemes"
               :key="scheme.schemeId"
@@ -201,10 +207,10 @@
         <el-descriptions-item label="工作流版本">{{ taskDetail.workflowVersion }}</el-descriptions-item>
         <el-descriptions-item label="执行配置">{{ taskDetail.modelExecutionConfigVersion || '历史默认配置' }}</el-descriptions-item>
         <el-descriptions-item label="RAG 索引">{{ taskDetail.ragIndexVersion || '不适用' }}</el-descriptions-item>
-        <el-descriptions-item label="权重方案">{{ taskDetail.weightSchemeVersion || '历史任务未锁定' }}</el-descriptions-item>
+        <el-descriptions-item label="权重方案">{{ taskDetail.weightSchemeVersion || '纯观测模式（未绑定）' }}</el-descriptions-item>
         <el-descriptions-item label="进度">{{ taskDetail.terminalSlots ?? 0 }}/{{ taskDetail.totalSlots ?? 0 }}</el-descriptions-item>
         <el-descriptions-item label="重试次数">{{ taskDetail.retryCount ?? 0 }}</el-descriptions-item>
-        <el-descriptions-item label="版本选择指数">{{ taskDetail.versionSelectionIndex ?? '不可用' }}</el-descriptions-item>
+        <el-descriptions-item label="版本选择指数">{{ taskDetail.versionSelectionIndex ?? '不适用（纯观测）' }}</el-descriptions-item>
         <el-descriptions-item label="成功率">{{ taskDetail.successRate ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="平均耗时">{{ taskDetail.avgDurationMs != null ? `${taskDetail.avgDurationMs}ms` : '-' }}</el-descriptions-item>
         <el-descriptions-item label="最近操作">{{ taskDetail.lastOperation || '-' }}</el-descriptions-item>
@@ -581,8 +587,9 @@ function onSampleSelect(rows) {
 
 async function saveDataset() {
   if (!datasetForm.name.trim()) return ElMessage.warning("请输入测试集名称");
+  const isSubmissionBased = datasetForm.featureCode === "REVIEW" || datasetForm.featureCode === "SUGGESTION";
   const questions = datasetForm.assistantQuestions.split("\n").map((item) => item.trim()).filter(Boolean);
-  if (datasetForm.featureCode === "REVIEW" && selectedSampleSubmissions.value.length === 0) {
+  if (isSubmissionBased && selectedSampleSubmissions.value.length === 0) {
     return ElMessage.warning("请至少选择一个测试样本");
   }
   if (datasetForm.featureCode === "ASSISTANT" && questions.length === 0) {
@@ -590,7 +597,7 @@ async function saveDataset() {
   }
   savingDataset.value = true;
   try {
-    const samples = datasetForm.featureCode === "REVIEW"
+    const samples = isSubmissionBased
       ? selectedSampleSubmissions.value.map((item) => ({ submissionId: item.id, note: "" }))
       : questions.map((question) => ({
         note: "",
@@ -658,7 +665,6 @@ function validateTaskForm() {
   if (!taskForm.datasetId) return ElMessage.warning("请选择测试集");
   if (!taskForm.workflowVersion) return ElMessage.warning("请选择工作流版本");
   if (requiresRagIndex.value && !taskForm.ragIndexVersion.trim()) return ElMessage.warning("请填写固定的 RAG 索引版本");
-  if (!taskForm.weightSchemeId) return ElMessage.warning("请选择权重方案");
   return true;
 }
 
