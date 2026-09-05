@@ -10,6 +10,7 @@
 - 任务完成至少同步受影响的正式文档并运行目标模块测试；公共模块变化时验证直接消费者。
 - 不在配置、日志、测试夹具或文档中保存真实密钥、Relay Token、Prompt、回答正文、知识片段或论文内容。
 - new-api Relay Token 由 `ai-gateway-service` 的运行环境提供；具体脱敏和模型复核规则见 [AI 网关测试与验收](docs/project/03-微服务设计/ai-gateway-service/22-测试与验收.md)。
+- 测试与联调 AI 功能时，优先使用 New-API 提供的 `gemini-3.8-flash-high` 模型进行验证。
 - `cli-proxy-api` 是长期运行且不属于本项目的本地 Docker 服务，固定占用宿主机 `8085`；不得停止、重启、改端口或修改其配置。LeetModel 本地 submission-service 使用 `8092`，启动与验收必须避开该容器。
 - 可以自主创建本地阶段分支、执行任务卡原子 commit 和阶段 merge；未经用户明确授权，不执行 push、force push、rebase、破坏性 reset、改写历史、远端分支操作或删除用户文件。
 
@@ -24,6 +25,8 @@
 ---
 
 ## 候选阶段规划：AI 客服完善与后端架构演进（Assistant-Refinement）
+
+> 测试说明：测试功能与联调验证时，优先使用 New-API 提供的 `gemini-3.8-flash-high` 模型。
 
 ### 前端交互与体验修复（轻量高收益）
 - [ ] 任务 1.1：修复会话标题自动归纳失效（前端创建会话时传参对齐默认标题 `"新会话"` 或留空，触发后端题意自动截取）
