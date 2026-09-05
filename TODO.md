@@ -19,7 +19,45 @@
 
 ## 当前任务
 
-### [ ] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
+### [ ] 任务 2：精简 AI 客服评测样本契约与伪指标（移除人工标注假定，收敛至可用性、耗时与Token成本）
+
+**目标**：
+降低客服评测测试集门槛，消除样本对人工标准要点（`expectedPoints`）、标准参考来源（`expectedSources`）和格式规则（`formatRules`）的隐式依赖；使客服样本仅需包含基础提问 `{ "question": "..." }` 即可零负担发起评测，并优雅呈现不可用/未评估指标，将客服评测的核心观测点收敛至：接口成功率、响应耗时（平均/排队/推理）与实际 Token/费用。
+
+**入口**：
+- `EvaluationSamplePayloadService.java`
+- `AssistantEvaluationRunner.java`
+- `EvaluationMetricsCalculator.java`
+
+**主流程**：
+1. 确保 `EvaluationSamplePayloadService` 验证时，客服样本只要求必须存在有效的 `question` 字段，其余标注字段（`tags`、`expectedPoints`、`expectedSources`、`formatRules`）完全作为可选。
+2. `AssistantEvaluationRunner.verifiableMetrics` 针对缺少 `expectedSources`、`expectedPoints`、`formatRules` 的样本，不再产出假的未命中，而是优雅跳过或置空。
+3. `EvaluationMetricsCalculator.assistantMetrics` 中，对于样本未提供对应配置的指标，状态标记为 `NOT_EVALUATED`，明确说明“样本未配置该标注，仅观测运行性能与成本”，不将其作为失败或降低成功率。
+4. 补充测试用例：使用仅包含 `question` 的纯净样本创建数据集与评测任务，验证能够顺利执行、无报错且生成可信的运行与成本指标。
+
+**完成标准**：
+1. 创建仅包含 `{ "question": "数模竞赛流程是什么？" }` 的样本集，校验与保存成功。
+2. 发起客服评测任务，Runner 正常调度执行并返回，指标快照中 `RUN_SUCCESS_RATE`、`TOTAL_DURATION_MS`、`INPUT_TOKENS` 等正常统计。
+3. 未标注指标友好标记 `NOT_EVALUATED`，不影响整体成功率。
+4. `AssistantEvaluationRunnerTest` 与 `EvaluationSamplePayloadServiceTest` 绿灯通过。
+
+**修改范围**：
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/runner/AssistantEvaluationRunner.java`
+- `LeetModel-backend/ai-evaluation-service/src/main/java/com/leetmodel/evaluation/service/EvaluationMetricsCalculator.java`
+- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/runner/AssistantEvaluationRunnerTest.java`
+- `LeetModel-backend/ai-evaluation-service/src/test/java/com/leetmodel/evaluation/service/EvaluationSamplePayloadServiceTest.java`
+
+**非目标**：
+- 本卡不实现复杂 RAG 三元组语义模型裁判（按既定决策做减法）。
+- 本卡不实现 AI 建议隔离实验（由任务 3 处理）。
+
+---
+
+## 阶段后续任务规划（S9-Evaluation-Refinement）
+
+- [x] 任务 1：评测任务解除权重方案强制绑定（支持纯基准观测模式）
+- [ ] 任务 3：打通 AI 建议（SUGGESTION）隔离实验与评测 Runner（`ai-suggestion-service` 增加隔离实验接口，`ai-evaluation-service` 新增 `SuggestionEvaluationRunner`，补齐固定工作流观测闭环）
+- [ ] 任务 4：端到端评测闭环验证与文档同步（验证无权重方案创建、建议与客服评测主链，同步更新相关设计文档）
 
 **目标**：
 解除创建评测任务时对 `weightSchemeId` 的强制校验，允许在未指定权重方案时正常创建并运行评测任务，完整收集和落库响应时间、成功率、Token 消耗、实际扣费与方差事实，仅将版本选择指数标记为置空/未计算，降低评测使用的初始化门槛。
