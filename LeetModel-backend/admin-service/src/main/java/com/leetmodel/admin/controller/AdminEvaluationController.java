@@ -19,6 +19,7 @@ import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
+import com.leetmodel.common.api.feign.SuggestionFeignClient;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,6 +51,7 @@ public class AdminEvaluationController {
     private final EvaluationFeignClient evaluationClient;
     private final ReviewFeignClient reviewClient;
     private final AssistantFeignClient assistantClient;
+    private final SuggestionFeignClient suggestionClient;
     private final AdminFeignExecutor executor;
 
     @Operation(summary = "查询可评价的AI功能与版本")
@@ -65,7 +67,12 @@ public class AdminEvaluationController {
         if (!assistant.isSuccess()) {
             return Result.fail(assistant.getCode(), assistant.getMessage());
         }
-        return Result.ok(List.of(feature.getData(), assistant.getData()));
+        Result<AiFeatureDefinitionDTO> suggestion = executor.forward(
+                "AI 建议服务", suggestionClient::getFeatureDefinition);
+        if (!suggestion.isSuccess()) {
+            return Result.fail(suggestion.getCode(), suggestion.getMessage());
+        }
+        return Result.ok(List.of(feature.getData(), assistant.getData(), suggestion.getData()));
     }
 
     @Operation(summary = "创建固定评价数据集")

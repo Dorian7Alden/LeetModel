@@ -9,6 +9,7 @@ import com.leetmodel.common.api.dto.EvaluationWeightSchemeCreateDTO;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
+import com.leetmodel.common.api.feign.SuggestionFeignClient;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.security.context.UserContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,13 +34,30 @@ class AdminEvaluationControllerTest {
     @Mock private EvaluationFeignClient evaluationClient;
     @Mock private ReviewFeignClient reviewClient;
     @Mock private AssistantFeignClient assistantClient;
+    @Mock private SuggestionFeignClient suggestionClient;
 
     private AdminEvaluationController controller;
 
     @BeforeEach
     void setUp() {
         controller = new AdminEvaluationController(evaluationClient, reviewClient, assistantClient,
-                new AdminFeignExecutor());
+                suggestionClient, new AdminFeignExecutor());
+    }
+
+    @Test
+    void featuresReturnsReviewAssistantAndSuggestionDefinitions() {
+        when(reviewClient.getFeatureDefinition()).thenReturn(Result.ok(new com.leetmodel.common.api.dto.AiFeatureDefinitionDTO(
+                "REVIEW", "评审", "review", List.of(), List.of(), List.of())));
+        when(assistantClient.getFeatureDefinition()).thenReturn(Result.ok(new com.leetmodel.common.api.dto.AiFeatureDefinitionDTO(
+                "ASSISTANT", "客服", "assistant", List.of(), List.of(), List.of())));
+        when(suggestionClient.getFeatureDefinition()).thenReturn(Result.ok(new com.leetmodel.common.api.dto.AiFeatureDefinitionDTO(
+                "SUGGESTION", "建议", "suggestion", List.of(), List.of(), List.of())));
+
+        var result = controller.features();
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getData()).extracting("featureCode")
+                .containsExactly("REVIEW", "ASSISTANT", "SUGGESTION");
     }
 
     @Test
