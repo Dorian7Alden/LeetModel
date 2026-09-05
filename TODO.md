@@ -15,23 +15,11 @@
 
 ## 当前状态
 
-后端系统全部微服务（包括 common 基础层及 13 个业务微服务）的代码注释契约与排版规范化已全部完成并合入 dev。
+AI评审V3（DEEP_EVIDENCE_REVIEW_V3）完整功能设计、双阶段流水线、并行切片装配、五维确定性汇聚、数据持久化与端到端自动化测试已全部完成并通过真实验收。
 
 ## 当前任务
 
-### 阶段：AI评审V3（DEEP_EVIDENCE_REVIEW_V3）功能实现与端到端交付
-
-分支：`phase/review-workflow-opt`
-输入基线：`PAPER_DOCUMENT_V2`（第二代高保真结构化解析产物）
-实现准则：固定工作流骨架、动态提示词安全渲染、双阶段解耦评审、并行消费隔离、五维确定性汇聚、全链路防御解析与算术断言。
-
-- [ ] 实现任务 6：工作流实现（DeepEvidenceReviewV3Workflow）、结果持久化与端到端集成测试验收
-  - 目标：完成工作流闭环组装、结果持久化并跑通全流程测试。
-  - 范围：
-    * 实现 `DeepEvidenceReviewV3Workflow` 并注册进 `ReviewWorkflowRegistry`；
-    * 在 `ReviewResultPersistenceService` 中支持 V3 结果及中间态快照持久化；
-    * 适配 `ReviewService` 支持 V3 结果展示；
-    * 编写完整的单元测试与端到端集成测试用例，执行 Maven 构建并验证全部测试通过。
+暂无待推进任务。当前阶段所有设计与实现任务已完整交付并验收。
 
 
 ## 待梳理服务清单（按推荐顺序）
