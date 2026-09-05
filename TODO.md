@@ -25,13 +25,6 @@
 输入基线：`PAPER_DOCUMENT_V2`（第二代高保真结构化解析产物）
 实现准则：固定工作流骨架、动态提示词安全渲染、双阶段解耦评审、并行消费隔离、五维确定性汇聚、全链路防御解析与算术断言。
 
-- [ ] 实现任务 1：Flyway 数据库迁移、基础实体与 common-api 强类型 DTO 契约
-  - 目标：完成数据库表结构定义与服务间通信强类型契约。
-  - 范围：
-    * 在 `ai-review-service` 创建 Flyway 迁移脚本 `V9__add_deep_evidence_review_v3.sql`（`review_version` 注册与 `review_v3_result` 表）；
-    * 在 `common-api` 新增 V3 全套强类型 DTO：`SubProblemCategoryDTO`、`SubTaskPlanDTO`、`TaskPlanResultDTO`、`TaskAssembledContextDTO`、`SubTaskEvaluationResultDTO`、`DeepEvidenceReviewV3Output`；
-    * 在 `ai-review-service` 创建 `ReviewV3Result` 实体类与 `ReviewV3ResultMapper`。
-
 - [ ] 实现任务 2：小问题型判定器、切片抽取器与双轨装配引擎
   - 目标：完成论文结构切片精准提取、依赖自动吸附与外部 RAG 检索双轨装配。
   - 范围：
