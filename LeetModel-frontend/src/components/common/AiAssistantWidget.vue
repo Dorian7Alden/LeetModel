@@ -283,7 +283,7 @@ async function selectConversation(id) {
 async function newConversation() {
   creating.value = true;
   try {
-    const res = await createConversation("AI 客服咨询");
+    const res = await createConversation("新会话");
     conversations.value.unshift(res.data);
     currentId.value = res.data.id;
     messages.value = [];
@@ -297,21 +297,50 @@ async function send(text) {
   const content = (text || draft.value).trim();
   if (!content || sending.value) return;
   if (!currentId.value) { ElMessage.warning("请先创建会话"); return; }
+
+  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const optimisticUserMessage = {
+    id: tempId,
+    role: "user",
+    content,
+    createTime: new Date().toISOString(),
+    status: "COMPLETED"
+  };
+  messages.value.push(optimisticUserMessage);
+  scrollToBottom();
+
   sending.value = true;
   suggestOpen.value = false;
+  const originalDraft = draft.value;
   if (!text) draft.value = "";
+
+  const clientRequestId = uuid();
   try {
-    const res = await sendMessage(currentId.value, content, uuid());
+    const res = await sendMessage(currentId.value, content, clientRequestId);
     const { userMessage, assistantMessage } = res.data || {};
-    if (userMessage) messages.value.push(userMessage);
+
+    const tempIndex = messages.value.findIndex((m) => m.id === tempId);
+    if (tempIndex >= 0 && userMessage) {
+      messages.value.splice(tempIndex, 1, userMessage);
+    } else if (userMessage && !messages.value.some((m) => String(m.id) === String(userMessage.id))) {
+      messages.value.push(userMessage);
+    }
+
     if (assistantMessage) messages.value.push(assistantMessage);
     serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
-    await loadConversations();
+
+    const currentConv = conversations.value.find((c) => String(c.id) === String(currentId.value));
+    if (currentConv && (!currentConv.title || currentConv.title === "新会话" || currentConv.title === "AI 客服咨询")) {
+      const derived = content.length <= 30 ? content : content.substring(0, 30) + "…";
+      currentConv.title = derived;
+    }
+    loadConversations();
     scrollToBottom();
   } catch (error) {
+    messages.value = messages.value.filter((m) => m.id !== tempId);
+    if (!text) draft.value = originalDraft;
     serviceStatus.value = "unavailable";
     ElMessage.error(error.message || "发送失败");
-    if (!text) draft.value = content;
   } finally {
     sending.value = false;
     scrollToBottom();
