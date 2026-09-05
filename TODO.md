@@ -25,13 +25,6 @@
 输入基线：`PAPER_DOCUMENT_V2`（第二代高保真结构化解析产物）
 实现准则：固定工作流骨架、动态提示词安全渲染、双阶段解耦评审、并行消费隔离、五维确定性汇聚、全链路防御解析与算术断言。
 
-- [ ] 实现任务 2：小问题型判定器、切片抽取器与双轨装配引擎
-  - 目标：完成论文结构切片精准提取、依赖自动吸附与外部 RAG 检索双轨装配。
-  - 范围：
-    * 实现 `SubProblemClassifier`（基于元数据、正则规则与通用内置字典）；
-    * 实现 `Phase1SliceExtractor`（从 `PAPER_DOCUMENT_V2` 精准抽取摘要、分析、符号与排版元数据）；
-    * 实现 `ContextSlicingEngine`（强吸附模型假设与符号说明表、按 BlockId 闭包抽取目标小问 LaTeX、HTML table、Code 与图表长描述，并调用 `knowledge-retrieval-service` 组装 `TaskAssembledContextDTO`）。
-
 - [ ] 实现任务 3：提示词安全渲染引擎与防御性解析器
   - 目标：落实 `docs/learning/提示词管理.md` 规范，实现提示词渲染与鲁棒 JSON 解析。
   - 范围：
