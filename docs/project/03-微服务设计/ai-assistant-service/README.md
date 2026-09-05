@@ -2,21 +2,21 @@
 
 ai-assistant-service 负责与用户进行受控文本对话，帮助用户理解平台功能、获取基础数学建模学习建议，并在需要时基于已发布题目候选做选题辅助。
 
-> 分层定位：AI 业务能力层。MVP 会话、关键词题目预取和常规向量 RAG V1 已落地；标准受控工具协议、执行循环、题目查询/推荐、终止式知识讲解、独立调用审计和可独立激活的生产工具工作流也已实现。长期记忆、开放式 Agent、自主写操作、语音和多模态会话仍不在当前范围。
+> 分层定位：AI 业务能力层。首选大模型统一切换为 `gemini-3.8-flash-high`；已完成会话完整生命周期（软删除、自定义重命名、空白复用、游标分页）、多轮上下文智能修剪与工具事实折叠；客服 RAG 已解耦迁移至 `knowledge-retrieval-service`（发布 `ASSISTANT_TOOLS_RETRIEVAL_V1` 工作流并支持向量+BM25 RRF 混合检索）；领域只读工具链已扩展组队与提交状态查询，解耦知识工具终止型限制支持多意图复合编排；提供标准 SSE 流式通信与工具执行状态实时透出。
 
-> 演进方向：因论文建议已成为第二个知识消费者，S12 已建立 knowledge-retrieval-service。当前客服 RAG V1 与索引构建仍在本服务运行；调用方迁移必须通过新 assistant 工作流完成，不改写历史版本。
+> 演进方向：历史 `ASSISTANT_NO_RAG_V1` 与 `ASSISTANT_RAG_V1` 保持不可变兼容；新生产默认推荐采用 `ASSISTANT_TOOLS_RETRIEVAL_V1`。长期记忆、开放式自主 Agent、主动写操作及多模态会话仍不在当前范围。
 
 评价侧已发布无 RAG 与 RAG V1 两个单轮工作流版本。隔离入口不创建正式会话或消息；RAG 版本必须指定物理 `ragIndexVersion`，不会读取当前别名后静默漂移。
 
 
 ### MVP 当前实现
 
-- 服务端口为 `8089`，独占 `lm_ai_assistant` 数据库，Flyway 管理会话、消息、工具调用、生产配置与变更审计事实。
-- 用户可以创建、列出、恢复和结束自己的会话，发送消息时必须提供 `clientRequestId`；相同请求只保存一条用户消息和一条助手回复。
-- 旧 `ASSISTANT_NO_RAG_V1` / `ASSISTANT_RAG_V1` 工作流继续使用固定关键词预取，保证历史语义不变；独立的 `ASSISTANT_TOOLS_*` 工作流通过标准 `tool_calls` 按需查询最多 5 个已发布题目或调用知识讲解工具。
-- AI 或题目工具失败时保留用户消息和失败回复，前端可对失败回复显式重试；生成或重试中断超过 5 分钟会转为可恢复失败。
-- 对用户返回可操作的失败说明，连接地址等内部异常细节只写服务日志。
-- 管理端通过内部接口查询会话总数和最近会话摘要，不读取模型供应商密钥或修改用户对话。
+- 服务端口为 `8089`，独占 `lm_ai_assistant` 数据库，Flyway (V1~V8) 管理会话、消息、工具调用、生产配置与变更审计事实。
+- 用户可以创建（未发问空白会话自动复用）、列出、重命名、软删除、游标分页拉取和结束自己的会话，发送消息时必须提供 `clientRequestId` 保障幂等性。
+- 支持同步 `POST /messages` 与 SSE 流式 `POST/GET /messages/stream` 端点，向前端实时推送 `tool_start`、`tool_end`、`delta` 及 `message_end` 结构化事件。
+- 工具链涵盖题目检索 (`search_problem`)、条件推荐 (`recommend_problem`)、知识讲解 (`explain_modeling_knowledge`)、队伍状态 (`query_user_team`) 和提交评测状态 (`query_submission_status`)，支持单轮复合意图调度。
+- 多轮上下文集成 `AssistantContextPruner`：自动对过往轮次的工具原始 JSON 折叠为单行轻量事实标记，并按 Token 预算（默认 3,000 Tokens）滑动窗口成对淘汰远期历史。
+- 知识检索全面委托中央 `knowledge-retrieval-service`，由其执行向量 + BM25 混合检索与 RRF 融合重排；服务不可用时优雅降级。
 
 
 ### 整体结构与工作流程
@@ -29,34 +29,32 @@ flowchart LR
     end
 
     subgraph assistant["ai-assistant-service 对话与推荐"]
-        conversationApi["会话与消息 API"]
-        sessionContext["会话状态与上下文"]
+        conversationApi["会话、消息与 SSE API"]
+        sessionContext["会话状态与上下文修剪"]
         productionGovernance["生产工作流版本治理"]
         intent["意图与选题条件理解"]
-        toolQuery["旧工作流关键词题目预取"]
-        controlledTools["工具版工作流受控编排"]
+        controlledTools["五大受控领域工具编排"]
         assistantWorkflow["助手模型工作流"]
-        ragRetriever["RAG V1 向量检索"]
+        ragDelegate["跨服务检索委托客户端"]
         response["回答、推荐与解释"]
 
         conversationApi --> sessionContext
         productionGovernance --> sessionContext
         sessionContext --> intent
-        intent --> toolQuery
         intent --> controlledTools
         intent --> assistantWorkflow
-        toolQuery --> assistantWorkflow
         controlledTools --> assistantWorkflow
-        ragRetriever --> assistantWorkflow
+        ragDelegate --> assistantWorkflow
         assistantWorkflow --> response
     end
 
     subgraph dependencies["平台与模型依赖"]
         problemService["problem-service"]
+        teamService["team-service"]
+        submissionService["submission-service"]
+        retrievalService["knowledge-retrieval-service"]
         commonAi["common-ai 客户端 Jar"]
         aiGateway["ai-gateway-service"]
-        elasticsearch["Elasticsearch 8.14.3"]
-        ragKnowledge["rag_kb/数学建模 内容知识源"]
     end
 
     subgraph data["助手事实"]
@@ -66,23 +64,15 @@ flowchart LR
     apiGateway --> conversationApi
     adminService -->|"查询运行结果"| conversationApi
     adminService -->|"查询与变更生产版本"| productionGovernance
-    toolQuery --> problemService
     controlledTools --> problemService
+    controlledTools --> teamService
+    controlledTools --> submissionService
+    ragDelegate --> retrievalService
     assistantWorkflow --> commonAi
-    ragRetriever --> commonAi
-    ragRetriever --> elasticsearch
-    ragKnowledge --> ragRetriever
     commonAi --> aiGateway
     sessionContext --> assistantDatabase
     response --> assistantDatabase
 ```
-
-当前流程从用户会话开始，保存最近 20 条已完成消息作为短期上下文。回复创建时锁定生产配置快照：旧工作流按固定关键词预取候选，工具版工作流则把固定三工具集交给模型规划并由服务端受控执行。题目事实仍由 problem-service 拥有；MVP 当前不调用 user-service 获取额外用户摘要。
-
-工具版工作流由模型返回结构化 `toolCalls`，ai-assistant-service 使用白名单执行题目查询、题目推荐或知识点讲解。`ASSISTANT_TOOLS_NO_RAG_V1` 与 `ASSISTANT_TOOLS_RAG_V1` 已绑定 `ASSISTANT_TOOLSET_0001` 和独立模型配置发布，可沿用现有预览、二次确认、条件激活和回滚协议；默认旧工作流未被迁移自动切换。详细设计见 [受控工具调用](受控工具调用/README.md)。
-
-RAG V1 默认关闭。启用后，用户问题先经 Query Embedding 和 Elasticsearch 召回，命中片段在阈值与 Token 预算内作为带来源、明确标记为不可信的参考上下文注入现有工作流。检索失败或无命中时保持当前无 RAG 回答；Chat 失败仍沿用现有失败回复。Embedding 只能通过 `common-ai → ai-gateway-service → new-api` 调用。
-
 
 ### 职责边界
 
@@ -113,18 +103,16 @@ ai-assistant-service 独占 `lm_ai_assistant` 数据库，拥有会话、消息�
 
 ### 功能清单
 
-| 功能 | MVP 状态 | 功能说明 |
-|------|----------|----------|
-| 会话管理 | 已实现 | 创建、查询、继续和幂等结束当前用户会话 |
-| 消息管理 | 已实现 | 保存用户问题、AI 回复、最近上下文和调用标识 |
-| 平台使用问答 | 已实现 | 通过版本化 Prompt 回答平台流程和基本规则问题 |
-| 关键词选题辅助 | 已实现 | 固定关键词命中后预取 problem-service 返回的已发布候选，属于工具版上线前的临时方案 |
-| 受控工具调用 | 已实现 | 标准协议、固定三工具集、受控循环、生产快照、调用审计和真实激活/回滚均已完成 |
-| 客服 RAG V1 | 已实现 | LangChain4j、统一 Embedding、Elasticsearch 基础向量召回、版本审计和安全降级 |
-| AI 目录导航 RAG V2 | 独立服务已实现、客服未激活 | `AI_DIRECTORY_V1` 已供论文建议显式使用；客服仍需固定对比实验和新工作流 |
-| 独立知识检索迁移 | 服务已建立、调用方未迁移 | 通过新 assistant 工作流调用 knowledge-retrieval-service，保留旧 RAG 工作流历史语义 |
-| 对话安全与失败处理 | 已实现 | 限定能力范围，保存失败、支持抢占重试和中断恢复 |
-| 条件化题目筛选 | 已实现 | 题目工具支持题号/关键词查询，以及赛事、年份、难度、语言和时长的确定性只读筛选 |
+| 功能 | 状态 | 功能说明 |
+|------|------|----------|
+| 会话管理 | 已完善 | 创建（空白复用）、列表、重命名、软删除、游标分页及幂等关闭 |
+| 消息管理 | 已完善 | 保存提问与回复，支持同步与 SSE 流式输出，提供打字机与工具状态事件 |
+| 平台使用问答 | 已实现 | 通过版本化 Prompt 回答平台流程、操作指引与建模赛题规则 |
+| 受控工具调用 | 已完善 | 涵盖题目查询、题目筛选、知识讲解、队伍状态、提交评测五大工具，解耦终止型约束支持复合意图编排 |
+| 跨服务混合检索 | 已实现 | 迁移至 `knowledge-retrieval-service`，采用向量+BM25 RRF 融合重排，发布 `ASSISTANT_TOOLS_RETRIEVAL_V1` |
+| 多轮上下文工程 | 已实现 | `AssistantContextPruner` 执行过往工具事实紧凑折叠与 Token 预算滑动窗口裁剪 |
+| 对话安全与容灾降级 | 已实现 | 限定只读能力范围，检索与工具异常平滑降级，支持中断恢复与重试 |
+| 前端交互与品牌 | 已落地 | 提问乐观上屏、题意自动提取、题目推荐卡片、KaTeX 数学公式排版、代码块高亮及一键复制、全套卡通吉祥物形象 |
 | 助手质量评价 | 独立服务负责 | 由 ai-evaluation-service 建立测试集和版本评价，不归本服务所有 |
 | 客服隔离实验 | 已实现 | 提供版本目录及无正式会话副作用的单轮通用实验入口 |
 | 生产工作流版本治理 | 已实现 | 提供不可变配置、条件激活、运行快照、审计和同协议回滚；管理端完成强鉴权、服务端预览、二次确认和真实回滚闭环 |
