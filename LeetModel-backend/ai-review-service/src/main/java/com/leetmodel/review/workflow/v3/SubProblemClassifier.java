@@ -116,6 +116,15 @@ public class SubProblemClassifier {
             )
     );
 
+    private static final List<String> CATEGORY_PRIORITY = List.of(
+            "OPTIMIZATION",
+            "EVALUATION",
+            "MECHANISM",
+            "GRAPH_NETWORK",
+            "DATA_MINING_STATISTICS",
+            "PREDICTION"
+    );
+
     private static final Pattern QUESTION_HEADER_PATTERN = Pattern.compile(
             "(?:^|\\n)(?:#{1,4}\\s*)?(?:问题\\s*([一二三四五六七八九十0-9]+)|(?:Question|Task)\\s*([0-9]+)|\\(([0-9]+)\\)|([0-9]+)[、.．])\\s*([^\n]*)",
             Pattern.CASE_INSENSITIVE
@@ -180,10 +189,13 @@ public class SubProblemClassifier {
 
     private String matchCategoryCode(String text) {
         if (text == null || text.isBlank()) return "GENERAL_MODELING";
-        for (Map.Entry<String, List<Pattern>> entry : TYPE_KEYWORD_PATTERNS.entrySet()) {
-            for (Pattern pattern : entry.getValue()) {
-                if (pattern.matcher(text).find()) {
-                    return entry.getKey();
+        for (String code : CATEGORY_PRIORITY) {
+            List<Pattern> patterns = TYPE_KEYWORD_PATTERNS.get(code);
+            if (patterns != null) {
+                for (Pattern pattern : patterns) {
+                    if (pattern.matcher(text).find()) {
+                        return code;
+                    }
                 }
             }
         }
