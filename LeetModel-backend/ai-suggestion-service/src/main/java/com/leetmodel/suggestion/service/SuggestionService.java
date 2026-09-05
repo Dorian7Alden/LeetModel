@@ -3,6 +3,10 @@ package com.leetmodel.suggestion.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClientException;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalResultDTO;
 import com.leetmodel.common.api.dto.PaperParseDTO;
@@ -709,5 +713,83 @@ public class SuggestionService {
     }
 
     private static final class LeaseLostException extends RuntimeException {
+    }
+
+    /**
+     * 查询建议功能定义与可用工作流版本目录。
+     *
+     * @return 业务功能定义 DTO
+     */
+    public AiFeatureDefinitionDTO getFeatureDefinition() {
+        List<AiWorkflowVersionDTO> versions = List.of(
+                new AiWorkflowVersionDTO(
+                        SuggestionV1Workflow.VERSION, "首版结构化改善建议", "ENABLED",
+                        "SUGGESTION_SUBMISSION_V1", "SUGGESTION_RESULT_V1",
+                        "输入为 submission-service 的不可变提交与评审结果；输出分模块结构化改善建议"),
+                new AiWorkflowVersionDTO(
+                        GroundedSuggestionV2Workflow.VERSION, "三段依据链论文改善建议V2", "ENABLED",
+                        "SUGGESTION_SUBMISSION_V1", "GROUNDED_SUGGESTION_V2",
+                        "输入结合题目、PDF解析、评审依据与知识检索；输出严格三段依据链建议"));
+        return new AiFeatureDefinitionDTO(
+                "SUGGESTION", "AI 论文建议", "ai-suggestion-service",
+                List.of("SUBMISSION_REFERENCE"),
+                List.of("RUN_SUCCESS_RATE", "STRUCTURE_VALID_RATE", "TOTAL_DURATION_MS"),
+                versions);
+    }
+
+    /**
+     * 执行一次不写入正式建议任务表的隔离实验，供质量评价平台使用。
+     *
+     * @param request 隔离实验请求
+     * @return 隔离实验结果 DTO
+     */
+    public AiExperimentResultDTO runExperiment(AiExperimentRequestDTO request) {
+        LocalDateTime startedAt = LocalDateTime.now();
+        try {
+            if (!"SUGGESTION".equals(request.getFeatureCode())
+                    || !"SUBMISSION_REFERENCE".equals(request.getSample().getSampleType())
+                    || !"SUGGESTION_SUBMISSION_V1".equals(request.getSample().getSchemaVersion())
+                    || !"P3".equals(request.getPriority())) {
+                throw new IllegalArgumentException("建议实验配置与 SUGGESTION 契约不匹配");
+            }
+            Long submissionId = objectMapper.readTree(request.getSample().getPayloadJson())
+                    .path("submissionId").asLong();
+            if (submissionId <= 0) throw new IllegalArgumentException("submissionId 必须为正整数");
+
+            SubmissionReviewDTO submission = requiredSubmission(submissionId);
+            ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(submission.getProblemId()));
+            ReviewSummaryDTO review = requiredCompletedReviewBySubmission(submissionId);
+
+            SuggestionTask transientTask = new SuggestionTask();
+            transientTask.setSubmissionId(submissionId);
+            transientTask.setProblemId(submission.getProblemId());
+            transientTask.setTeamId(submission.getTeamId());
+            transientTask.setWorkflowVersion(request.getWorkflowVersion());
+            transientTask.setAttemptNo(request.getAttemptNo() == null ? 1 : request.getAttemptNo());
+            transientTask.setExperimentRunId(request.getExperimentRunId());
+            transientTask.setEvaluationTaskId(request.getEvaluationTaskId());
+            transientTask.setExperimentIdempotencyKey(request.getIdempotencyKey());
+            transientTask.setModelExecutionConfigVersion(request.getModelExecutionConfigVersion());
+            transientTask.setPriority(request.getPriority());
+            transientTask.setPromptSnapshot(v1Workflow.currentPrompt());
+
+            SuggestionWorkflowResult result = v1Workflow.execute(transientTask, submission, problem, review);
+            long durationMs = Duration.between(startedAt, LocalDateTime.now()).toMillis();
+            return new AiExperimentResultDTO(
+                    request.getExperimentRunId(), "SUGGESTION",
+                    request.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
+                    "SUCCEEDED", null, "SUGGESTION_RESULT_V1", result.resultJson(),
+                    "SUGGESTION_RUN_METRICS_V1", "{}",
+                    result.modelName(), result.aiCallId(), durationMs, null);
+        } catch (Exception exception) {
+            log.warn("隔离建议实验失败 experimentRunId={}, workflowVersion={}, type={}",
+                    request.getExperimentRunId(), request.getWorkflowVersion(), exception.getClass().getSimpleName());
+            long durationMs = Duration.between(startedAt, LocalDateTime.now()).toMillis();
+            return new AiExperimentResultDTO(
+                    request.getExperimentRunId(), "SUGGESTION",
+                    request.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
+                    "FAILED", "ENVIRONMENT", null, null, null, null, null, null,
+                    durationMs, exception.getMessage() == null ? "建议实验执行失败" : exception.getMessage());
+        }
     }
 }

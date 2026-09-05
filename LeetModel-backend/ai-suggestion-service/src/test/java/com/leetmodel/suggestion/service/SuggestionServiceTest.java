@@ -283,6 +283,44 @@ class SuggestionServiceTest {
                 anyString(), anyString());
     }
 
+    @Test
+    void featureDefinitionDeclaresSuggestionCapabilities() {
+        var feature = service.getFeatureDefinition();
+        assertThat(feature.getFeatureCode()).isEqualTo("SUGGESTION");
+        assertThat(feature.getWorkflowVersions()).extracting("workflowVersion")
+                .contains("IMPROVEMENT_V1", "GROUNDED_SUGGESTION_V2");
+    }
+
+    @Test
+    void runExperimentExecutesTransientSuggestionWithoutDatabasePersistence() throws Exception {
+        when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(submission()));
+        when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));
+        ProblemContextDTO problem = new ProblemContextDTO(PROBLEM_ID, "调度题", "题面", 60, 1);
+        when(problemFeignClient.getProblemContext(PROBLEM_ID)).thenReturn(Result.ok(problem));
+        when(workflow.execute(any(), any(), any(), any()))
+                .thenReturn(new SuggestionWorkflowResult(
+                        "{\"summary\":\"优先补验证\",\"items\":[]}", "model-suggestion", "call-sugg-1"));
+
+        var request = new com.leetmodel.common.api.dto.AiExperimentRequestDTO(
+                "sugg-eval:1:2:1", "SUGGESTION",
+                new com.leetmodel.common.api.dto.AiExperimentSampleDTO(
+                        "SUBMISSION_REFERENCE", "SUGGESTION_SUBMISSION_V1", "{\"submissionId\":101}"),
+                "IMPROVEMENT_V1", "MODEL_CFG_SUGGESTION_TEXT_0001", null, "P3",
+                "eval-task-1", "slot-1", 1, "idem-1");
+
+        var outcome = service.runExperiment(request);
+
+        assertThat(outcome.getStatus()).isEqualTo("SUCCEEDED");
+        assertThat(outcome.getFeatureCode()).isEqualTo("SUGGESTION");
+        assertThat(outcome.getWorkflowVersion()).isEqualTo("IMPROVEMENT_V1");
+        assertThat(outcome.getAiCallId()).isEqualTo("call-sugg-1");
+        assertThat(outcome.getModelName()).isEqualTo("model-suggestion");
+        assertThat(outcome.getOutputJson()).contains("优先补验证");
+        verify(taskMapper, never()).insert(any(SuggestionTask.class));
+        verify(taskMapper, never()).complete(anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(LocalDateTime.class));
+    }
+
     private void prepareValidCreationFacts() {
         prepareSubmissionAndPermission();
         when(reviewFeignClient.getBySubmission(SUBMISSION_ID)).thenReturn(Result.ok(review()));

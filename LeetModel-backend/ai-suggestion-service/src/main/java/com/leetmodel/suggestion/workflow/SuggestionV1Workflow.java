@@ -89,11 +89,16 @@ public class SuggestionV1Workflow {
         String attempt = task.getAttemptNo() == null ? "1" : task.getAttemptNo().toString();
         String idempotencyKey = task.getAiIdempotencyKey() == null
                 ? "suggestion:" + taskId + ":attempt:" + attempt : task.getAiIdempotencyKey();
+        String modelConfig = task.getModelExecutionConfigVersion() != null
+                && !task.getModelExecutionConfigVersion().isBlank()
+                ? task.getModelExecutionConfigVersion() : "MODEL_CFG_SUGGESTION_TEXT_0001";
+        AiCallPriority priority = task.getPriority() != null && "P3".equals(task.getPriority())
+                ? AiCallPriority.P3 : AiCallPriority.P1;
         AiCallContext context = new AiCallContext(
                 "ai-suggestion-service", AiFeatureCode.PAPER_SUGGESTION,
                 AiOperationCode.GENERATE_SUGGESTION, taskId, task.getWorkflowVersion(),
-                "PROMPT_PAPER_SUGGESTION_0001", "MODEL_CFG_SUGGESTION_TEXT_0001", null,
-                AiCallPriority.P1, idempotencyKey,
+                "PROMPT_PAPER_SUGGESTION_0001", modelConfig, task.getEvaluationTaskId(),
+                priority, idempotencyKey,
                 Instant.now().plusSeconds(270));
         AiChatRequest request = new AiChatRequest(
                 AiModality.TEXT,
