@@ -46,6 +46,7 @@ public class AssistantWorkflow {
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final RagWorkflowContextProvider ragContextProvider;
+    private final AssistantContextPruner contextPruner;
     private final String legacySystemPrompt;
     private final String toolSystemPrompt;
 
@@ -53,12 +54,19 @@ public class AssistantWorkflow {
         this(aiClient, objectMapper, RagWorkflowContextProvider.disabled());
     }
 
-    @Autowired
     public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper,
                              RagWorkflowContextProvider ragContextProvider) throws Exception {
+        this(aiClient, objectMapper, ragContextProvider, new AssistantContextPruner(objectMapper));
+    }
+
+    @Autowired
+    public AssistantWorkflow(AiClient aiClient, ObjectMapper objectMapper,
+                             RagWorkflowContextProvider ragContextProvider,
+                             AssistantContextPruner contextPruner) throws Exception {
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
         this.ragContextProvider = ragContextProvider;
+        this.contextPruner = contextPruner != null ? contextPruner : new AssistantContextPruner(objectMapper);
         this.legacySystemPrompt = new ClassPathResource("prompts/assistant-v1.st")
                 .getContentAsString(StandardCharsets.UTF_8);
         this.toolSystemPrompt = new ClassPathResource("prompts/assistant-tools-v1.st")
@@ -171,14 +179,19 @@ public class AssistantWorkflow {
         if (ragContext.present()) {
             messages.add(message(AiRole.SYSTEM, ragContext.text()));
         }
-        for (AssistantMessage item : history) {
-            AiRole role = "ASSISTANT".equals(item.getRole()) ? AiRole.ASSISTANT : AiRole.USER;
-            String content = item.getContent();
-            if (Objects.equals(item.getId(), currentUserMessage.getId()) && candidates != null) {
-                content += "\n\n系统只读题目候选（只能依据这些数据推荐）：\n"
+        List<AiMessage> prunedHistory = contextPruner.pruneAndFoldHistory(
+                history, currentUserMessage, AssistantContextPruner.DEFAULT_HISTORY_TOKEN_BUDGET);
+        for (AiMessage item : prunedHistory) {
+            messages.add(item);
+        }
+        if (candidates != null && !messages.isEmpty()) {
+            AiMessage last = messages.get(messages.size() - 1);
+            if (last.role() == AiRole.USER) {
+                String text = last.content().get(0).text()
+                        + "\n\n系统只读题目候选（只能依据这些数据推荐）：\n"
                         + objectMapper.writeValueAsString(candidates);
+                messages.set(messages.size() - 1, message(AiRole.USER, text));
             }
-            messages.add(message(role, content));
         }
         return messages;
     }
