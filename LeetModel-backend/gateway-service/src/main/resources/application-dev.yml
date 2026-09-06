@@ -16,6 +16,12 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
 
+    # Sentinel 流量防刷与控制台通信（本地 Dashboard 运行于 8858）
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD_ADDR:127.0.0.1:8858}
+        port: ${SENTINEL_CLIENT_PORT:8719}
+
     # === 路由规则 ===
     # lb:// 前缀 = 从 Nacos 按服务名拉取实例列表 + 负载均衡
     gateway:

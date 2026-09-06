@@ -221,6 +221,18 @@ services:
       rocketmq-broker:
         condition: service_healthy
 
+  # 可选观察工具：Sentinel Dashboard 控制台 (Web 端口 8858，默认账号密码 sentinel/sentinel)
+  # 使用方式：docker compose --profile tools up -d sentinel-dashboard
+  sentinel-dashboard:
+    image: bladex/sentinel-dashboard:1.8.6
+    container_name: leetmodel-sentinel-dashboard
+    restart: unless-stopped
+    profiles: ["tools"]
+    # 与宿主机微服务通信（微服务以 host 启动在 8719；Dashboard 通过 host 网络直接拉取 metric）
+    network_mode: host
+    environment:
+      TZ: Asia/Shanghai
+
 volumes:
   mysql-data:
   redis-data:
