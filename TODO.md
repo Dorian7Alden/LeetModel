@@ -16,42 +16,15 @@
 
 ## 当前状态
 
-阶段开发分支 `phase/sentinel-service-protection`：任务卡 1（gateway-service Sentinel 网关流控、统一 429 降级信封与 TraceId 继承）已完成端到端自动化验收与设计沉淀，等待任务卡 2 启动。
+无进行中或未启动的任务卡。
 
 ## 当前任务
 
-### [ ] 任务卡 2：微服务 Feign 同步调用 Sentinel 熔断降级（common-api 与核心业务服务容错，防御慢调用级联雪崩）
+无
 
-目标：在 `common-api` 开启 OpenFeign 对 Sentinel 断路器的原生支持，为跨微服务同步调用注入慢调用比例与异常比例熔断策略，确保下游故障时通过 FallbackFactory 快速失败，阻断级联雪崩。
+## 候选任务
 
-入口：`common-api` 中的 Feign 客户端（如 `ProblemFeignClient`、`UserFeignClient`、`TeamFeignClient` 等）。
-
-主流程：
-1. 在 `common-api` 或服务调用端开启 `feign.sentinel.enabled=true` 并注入 `SentinelInvocationHandler` / CircuitBreaker 契约。
-2. 配置基于慢调用 RT（如 >500ms 且比例超标）与异常比例（如 >50%）的熔断规则（`DegradeRule`）。
-3. 审查核心微服务（如 `team-service`、`admin-service` 等）的 FallbackFactory 兜底逻辑，区分安全只读降级与阻断型写降级。
-4. 编写自动化集成测试模拟下游长耗时与异常，验证断路器状态机切换（Closed -> Open -> Half-Open）及 Fallback 触发。
-
-完成标准：
-1. 下游服务模拟延迟超过 RT 阈值且达到最小请求数时，断路器进入 Open 状态，后续调用直接由本地 Fallback 返回，不再发出真实 HTTP 请求。
-2. 熔断窗口期过后，断路器进入 Half-Open 状态进行探测，调用恢复后自动闭合。
-3. 全链路 `traceId` 在熔断及 Fallback 期间保持透传与有效性。
-
-修改范围：
-- `LeetModel-backend/common/common-api/`
-- `LeetModel-backend/team-service/` 等 Feign 消费方配置与测试用例
-
-非目标：
-- 不侵入 `ai-gateway-service` 内部的大模型原子任务调度。
-- 不影响 RocketMQ 异步可靠传输。
-
- ---
-
-## 候选任务（Sentinel 阶段演进路线）
-
-- [ ] 任务卡 3：Sentinel 规则动态持久化（Nacos 动态数据源与配置中心联动，实现生产级规则热更新）
-
-全平台微服务（common、user、team、problem、submission、ranking、gateway、admin、audit、knowledge-retrieval、ai-gateway、ai-suggestion、ai-review、ai-assistant、ai-evaluation）代码注释已全量对齐项目级工程规范。
+无
 
 ## 已确认的系统边界
 
