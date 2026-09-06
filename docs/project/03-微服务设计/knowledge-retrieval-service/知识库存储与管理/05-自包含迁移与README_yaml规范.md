@@ -66,6 +66,58 @@ documents:
     estimated_tokens: 1500
 ```
 
+### 详细 Schema 字段规范与校验规则
+
+整个 `README.yaml` 文档必须遵循确定性的 Schema 规范，解析器在加载阶段执行强类型校验：
+
+#### 1. 根级字段定义
+
+| 字段名 | 类型 | 必填 | 约束说明 | 缺省行为 |
+|:---|:---|:---:|:---|:---|
+| `schema_version` | String | 是 | 固定格式 `vX.Y`，当前必须为 `"v1.0"` | 缺失或版本不支持直接抛出解析异常 |
+| `directory_name` | String | 是 | 必须与当前所在物理文件夹名称完全一致 | 校验不一致时抛出 `DirectoryMismatchException` |
+| `path` | String | 否 | 知识库根目录起的标准化相对路径（斜杠分隔） | 缺省时由解析器通过物理文件树相对路径自动推导 |
+| `title` | String | 是 | 当前目录的中文业务名称，长度限制 2~64 字符 | 必填，为空时阻断加载 |
+| `description` | String | 否 | 业务范畴与知识定位说明，长度限制 0~500 字符 | 缺省为空字符串 |
+| `tags` | Object | 否 | 目录级继承标签结构体（详见下表） | 缺省为空对象，下属文档按默认基准处理 |
+| `documents` | List | 否 | 当前目录下属原子文档列表（若有 Markdown 则必填） | 若无 Markdown 文档可为空数组 |
+
+#### 2. 目录级标签（`tags`）字段规范
+
+目录级标签是挂载在目录节点上的通用特征，供目录下所有原子文档自动继承与级联：
+
+| 字段名 | 类型 | 示例值 | 语义说明 |
+|:---|:---|:---|:---|
+| `contest` | String | `"国赛"`, `"美赛"`, `"研赛"` | 竞赛分类，用于按竞赛体系筛选 |
+| `year` | Integer | `2024` | 赛事年份，用于年份权重与时效性排序 |
+| `problem` | String | `"A题"`, `"B题"`, `"C题"` | 赛题编号，用于赛题专属规则匹配与跨题隔离 |
+| `prize` | String | `"一等奖"`, `"特等奖(O奖)"` | 论文获奖级别，决定知识权威度基础打分 |
+| `problem_type` | String | `"运筹与机理"`, `"数据挖掘与统计"` | 赛题数学大类（优化/评价/预测/机理/统计） |
+| `methods` | List&lt;String&gt; | `["非线性规划", "机理微分"]` | 该目录下沉淀的核心算法与模型族清单 |
+| `authority_level` | String | `"L3"`, `"L4"`, `"L5"` | 目录基准权威层级，默认为 `"L4"`（优秀论文目录为 `"L3"`） |
+
+#### 3. 文档清单（`documents`）字段规范
+
+明确当前目录包含的原子 Markdown 及其专有属性：
+
+| 字段名 | 类型 | 必填 | 约束说明 | 缺省行为 |
+|:---|:---|:---:|:---|:---|
+| `file` | String | 是 | Markdown 文件名（如 `"01-摘要.md"`），必须存在于当前目录 | 物理文件不存在时抛出 `FileNotFoundException` |
+| `title` | String | 是 | 原子文档标题，长度 2~64 字符 | 必填，为空时阻断加载 |
+| `summary` | String | 是 | 一句话核心摘要（10~300 字符），供 AI 智能选拔阅读 | 必填，严禁空字符串 |
+| `doc_tags` | List&lt;String&gt; | 否 | 针对该单篇文档的细粒度属性标签 | 缺省为空列表 |
+| `methods` | List&lt;String&gt; | 否 | 针对该文档涉及的专有算法清单 | 缺省继承目录级 `tags.methods` |
+| `authority_level` | String | 否 | 允许覆盖目录级的权威级别（如 `"L3"`） | 缺省继承目录级 `tags.authority_level` |
+| `estimated_tokens` | Integer | 否 | 预估 Token 数，供 Token 预算裁剪预判 | 缺省由分块器按字数自动估算 |
+
+### 目录级联与标签继承覆盖矩阵
+
+在加载解析时，系统依据以下确定性规则将目录元数据下沉到每一篇原子文档，生成最终的内存 Manifest 实体：
+1. **权威级别（Authority Level）覆盖逻辑**：`文档级 authority_level` &gt; `目录级 tags.authority_level` &gt; 默认值 `"L4"`；
+2. **算法模型（Methods）合并逻辑**：最终算法集合为 `目录级 tags.methods` 与 `文档级 methods` 的去重并集（Union）；
+3. **全局检索多维标签（All Tags）聚拢**：文档在数据库与 ES 中的多维标签数组自动汇总整合为：`[contest, String.valueOf(year), problem, prize, problem_type] + methods + doc_tags`，自动清洗去重并剔除空值；
+4. **路径强约束校验**：`file` 指向的文件必须位于当前目录下，严禁包含 `..` 或跨目录路径穿透符。
+
 ### 导入与导出完整工程闭环
 
 ```mermaid
