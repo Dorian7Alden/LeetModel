@@ -31,10 +31,14 @@ public final class V3OutputParser {
         }
         String text = PromptTemplateRenderer.sanitize(rawOutput);
 
-        // 1. 尝试剥离 ```json ... ``` 代码围栏
-        Matcher matcher = CODE_FENCE_PATTERN.matcher(text);
-        if (matcher.find()) {
-            text = matcher.group(1).trim();
+        // 1. 尝试剥离外层 ```json ... ``` 代码围栏 (仅当文本以 ``` 开头时剥离，避免误伤 JSON 字符串内部嵌套的 Markdown 代码块)
+        String trimmed = text.strip();
+        if (trimmed.startsWith("```")) {
+            int firstNewline = trimmed.indexOf('\n');
+            int lastFence = trimmed.lastIndexOf("```");
+            if (firstNewline > 0 && lastFence > firstNewline) {
+                text = trimmed.substring(firstNewline + 1, lastFence).trim();
+            }
         }
 
         // 2. 截取首个 '{' 或 '[' 闭包
