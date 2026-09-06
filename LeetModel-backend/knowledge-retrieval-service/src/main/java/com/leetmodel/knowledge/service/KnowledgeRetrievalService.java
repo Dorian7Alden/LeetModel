@@ -78,6 +78,7 @@ public class KnowledgeRetrievalService {
     private final YamlKnowledgeManifestLoader manifestLoader;
     private final CatalogSelectionDefenseEngine defenseEngine;
     private final RetrievalCacheService cacheService;
+    private volatile String currentManifestVersion;
 
     public KnowledgeRetrievalService(KnowledgeRetrievalProperties properties, AiClient aiClient,
                                      RestClient restClient, ObjectMapper objectMapper) {
@@ -116,14 +117,20 @@ public class KnowledgeRetrievalService {
         int budget = request.getTokenBudget() == null
                 ? properties.getTokenBudget() : request.getTokenBudget();
 
+        String versionNs = request.getRequiredIndexVersion();
+        if (versionNs == null && (AI_DIRECTORY_V1.equals(request.getWorkflowVersion())
+                || AI_CATALOG_TAG_V1.equals(request.getWorkflowVersion()))) {
+            versionNs = getCurrentManifestVersion();
+        }
+
         // L1 缓存拦截：精确参数命中直接返回
         String category = request.getCategory() != null ? request.getCategory() : "通用";
         List<KnowledgeCitationDTO> l1Cached = cacheService.getL1Exact(
-                request.getWorkflowVersion(), category, request.getQuery(), topK, request.getRequiredIndexVersion());
+                request.getWorkflowVersion(), category, request.getQuery(), topK, versionNs);
         if (l1Cached != null) {
             log.info("L1 精确结果缓存命中: runId={}, workflow={}", runId, request.getWorkflowVersion());
             return new KnowledgeRetrievalResultDTO(runId, request.getWorkflowVersion(), "CACHE_L1",
-                    request.getRequiredIndexVersion(), null, null, "COMPLETED", l1Cached);
+                    request.getRequiredIndexVersion(), versionNs, null, "COMPLETED", l1Cached);
         }
 
         RetrievalSnapshot snapshot = switch (request.getWorkflowVersion()) {
@@ -139,7 +146,7 @@ public class KnowledgeRetrievalService {
         // 写入 L1 缓存
         if (!citations.isEmpty()) {
             cacheService.putL1Exact(request.getWorkflowVersion(), category, request.getQuery(),
-                    topK, snapshot.manifestVersion(), citations);
+                    topK, versionNs != null ? versionNs : snapshot.manifestVersion(), citations);
         }
 
         log.info("knowledge-retrieval status={} runId={} workflow={} branch={} citations={}",
@@ -333,6 +340,7 @@ public class KnowledgeRetrievalService {
         Path root = Path.of(properties.getKnowledgeBasePath()).toAbsolutePath().normalize();
         KnowledgeManifest manifest = manifestLoader.loadRoot(root);
         Set<String> validPaths = manifest.getValidRelativePaths();
+        this.currentManifestVersion = manifest.getManifestVersion();
 
         String category = request.getCategory() != null ? request.getCategory() : "通用";
         String userQuery = request.getQuery() != null ? request.getQuery() : "";
@@ -481,6 +489,22 @@ public class KnowledgeRetrievalService {
                 || normalized.contains("论文评审/官方规范与讲评/")) return "L3";
         if (normalized.contains("题型方法/") || normalized.contains("模型方法/")) return "L4";
         return "L5";
+    }
+
+    private String getCurrentManifestVersion() {
+        if (currentManifestVersion == null) {
+            synchronized (this) {
+                if (currentManifestVersion == null) {
+                    try {
+                        Path root = Path.of(properties.getKnowledgeBasePath()).toAbsolutePath().normalize();
+                        currentManifestVersion = manifestLoader.loadRoot(root).getManifestVersion();
+                    } catch (Exception e) {
+                        return "DEFAULT";
+                    }
+                }
+            }
+        }
+        return currentManifestVersion;
     }
 
     /** 缺少赛事、年份和题号元数据时，题目专属细则不得进入跨题检索结果。 */
