@@ -54,6 +54,8 @@ public class GroundedSuggestionV3Workflow {
     public static final String VERSION = "GROUNDED_SUGGESTION_V3";
     public static final String RESULT_SCHEMA_VERSION = "GROUNDED_SUGGESTION_V3";
     private static final Map<String, Integer> PRIORITIES = Map.of("P0", 0, "P1", 1, "P2", 2, "P3", 3);
+    private static final Set<String> CATEGORIES = Set.of("PROBLEM", "ASSUMPTION", "DATA", "MODEL",
+            "SOLUTION", "RESULT", "VALIDATION", "SENSITIVITY", "WRITING", "FIGURE", "CITATION", "APPENDIX");
 
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
@@ -129,6 +131,9 @@ public class GroundedSuggestionV3Workflow {
 
         // 4. 排序与自增 ID 规范化
         finalOutput = normalizeAndSort(finalOutput, summaries);
+
+        // 5. 服务端确定性强校验
+        validate(finalOutput, parse, reviewEvidence);
 
         String resultJson = objectMapper.writeValueAsString(finalOutput);
         return new SuggestionWorkflowResult(resultJson, "gemini-3.8-flash-high", "call-sug-v3-" + task.getId());
@@ -407,4 +412,101 @@ public class GroundedSuggestionV3Workflow {
             GroundedSuggestionV3Output.SubTaskSummary summary,
             List<GroundedSuggestionV3Output.Item> items
     ) {}
+
+    private void validate(GroundedSuggestionV3Output output, PaperParseDTO parse, ReviewEvidenceSnapshot reviewEvidence) throws Exception {
+        requireText(output == null ? null : output.overallStrategy(), "overallStrategy");
+        if (output.topPriorities() == null || output.topPriorities().isEmpty() || output.topPriorities().size() > 3) {
+            throw new IllegalArgumentException("topPriorities 必须包含 1 到 3 项");
+        }
+        if (output.items() == null || output.items().isEmpty() || output.items().size() > 16) {
+            throw new IllegalArgumentException("items 必须包含 1 到 16 项");
+        }
+
+        Map<String, Integer> paperBlocks = new HashMap<>();
+        if (parse != null && parse.getDocumentJson() != null && !parse.getDocumentJson().isBlank()) {
+            JsonNode doc = objectMapper.readTree(parse.getDocumentJson());
+            for (JsonNode block : doc.path("blocks")) {
+                String id = block.path("blockId").asText();
+                if (!id.isBlank()) {
+                    paperBlocks.put(id, block.path("physicalPage").asInt(1));
+                }
+            }
+            if (paperBlocks.isEmpty()) {
+                for (JsonNode page : doc.path("pages")) {
+                    String id = page.path("blockId").asText();
+                    if (!id.isBlank()) {
+                        paperBlocks.put(id, page.path("physicalPage").asInt(1));
+                    }
+                }
+            }
+        }
+
+        Set<String> findingIds = reviewEvidence != null && reviewEvidence.findings() != null
+                ? reviewEvidence.findings().stream().map(ReviewEvidenceSnapshot.Finding::findingId).collect(java.util.stream.Collectors.toSet())
+                : Collections.emptySet();
+
+        Set<String> suggestionIds = new HashSet<>();
+        Set<String> duplicateKeys = new HashSet<>();
+        int previousPriority = -1;
+        int expectedId = 1;
+
+        for (var item : output.items()) {
+            if (!suggestionIds.add(item.suggestionId()) || !item.suggestionId().equals("S-" + expectedId++)) {
+                throw new IllegalArgumentException("suggestionId 必须从 S-1 稳定递增且不能重复: " + item.suggestionId());
+            }
+            Integer priority = PRIORITIES.get(item.priority());
+            if (priority == null || priority < previousPriority) {
+                throw new IllegalArgumentException("建议优先级非法或未按降序排列: " + item.priority());
+            }
+            previousPriority = priority;
+            if (!CATEGORIES.contains(item.category())) {
+                throw new IllegalArgumentException("建议类别非法: " + item.category());
+            }
+            requireText(item.title(), "title");
+            requireText(item.problemOrGap(), "problemOrGap");
+            requireText(item.actionPlanMarkdown(), "actionPlanMarkdown");
+            requireTexts(item.acceptanceCriteria(), "acceptanceCriteria");
+
+            var evidence = item.evidenceChain();
+            if (evidence == null) {
+                throw new IllegalArgumentException("建议项缺少依据链契约 (evidenceChain)");
+            }
+            if (evidence.paperEvidenceIds() == null || evidence.paperEvidenceIds().isEmpty()) {
+                throw new IllegalArgumentException("paperEvidenceIds 不能为空");
+            }
+            if (!paperBlocks.isEmpty()) {
+                for (String blockId : evidence.paperEvidenceIds()) {
+                    if (!paperBlocks.containsKey(blockId)) {
+                        throw new IllegalArgumentException("paperEvidenceIds 必须引用真实存在的论文 blockId: " + blockId);
+                    }
+                }
+            }
+
+            if ("CORRECTION".equals(item.type())) {
+                if (evidence.reviewFindingIds() == null || evidence.reviewFindingIds().isEmpty()) {
+                    throw new IllegalArgumentException("CORRECTION 修复类建议必须引用评审发现 reviewFindingIds");
+                }
+            }
+            if (evidence.knowledgeCitationIds() == null || evidence.knowledgeCitationIds().isEmpty()) {
+                throw new IllegalArgumentException("knowledgeCitationIds 不能为空");
+            }
+
+            String duplicateKey = item.title().strip().toLowerCase() + "\0" + item.problemOrGap().strip().toLowerCase();
+            if (!duplicateKeys.add(duplicateKey)) {
+                throw new IllegalArgumentException("存在实质重复的建议项: " + item.title());
+            }
+        }
+    }
+
+    private void requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " 不能为空");
+        }
+    }
+
+    private void requireTexts(List<String> values, String field) {
+        if (values == null || values.isEmpty() || values.stream().anyMatch(v -> v == null || v.isBlank())) {
+            throw new IllegalArgumentException(field + " 必须是非空文本数组");
+        }
+    }
 }

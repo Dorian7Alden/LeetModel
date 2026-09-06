@@ -302,6 +302,89 @@ class GroundedSuggestionV3WorkflowTest {
                 .contains("SUCCESS", "DEGRADED");
     }
 
+    @Test
+    void shouldAcceptAdvancementSuggestionWithoutReviewFindingId() throws Exception {
+        String plannerJson = "{\"tasks\":[{\"taskId\":\"T1\",\"taskType\":\"SUB_PROBLEM_SUGGESTION\",\"taskName\":\"升华\",\"targetQuestionNo\":1,\"categoryCode\":\"MODEL\",\"suggestedSectionIds\":[],\"suggestionObjectives\":[\"升华\"]}]}";
+        String subTaskJson = """
+                {
+                  "taskId": "T1",
+                  "executionStatus": "SUCCESS",
+                  "suggestions": [
+                    {
+                      "suggestionId": "S-1",
+                      "priority": "P2",
+                      "type": "ADVANCEMENT",
+                      "category": "MODEL",
+                      "subProblemNo": 1,
+                      "title": "补充对比基准模型",
+                      "problemOrGap": "虽无逻辑错误但模型过于基础",
+                      "diagnosis": "增加对比基准提升说服力",
+                      "targetLocation": {
+                        "physicalPages": [3],
+                        "section": "3 模型",
+                        "anchorBlockIds": ["B001"]
+                      },
+                      "actionPlanMarkdown": "引入线性回归作为基准",
+                      "acceptanceCriteria": ["给出对比表格"],
+                      "evidenceChain": {
+                        "paperEvidenceIds": ["B001"],
+                        "reviewFindingIds": [],
+                        "knowledgeCitationIds": ["KC-001"]
+                      }
+                    }
+                  ]
+                }
+                """;
+        String synthJson = """
+                {
+                  "workflowVersion": "GROUNDED_SUGGESTION_V3",
+                  "overallStrategy": "升华战略",
+                  "topPriorities": ["补充基准"],
+                  "subTaskSummaries": [],
+                  "items": [
+                    {
+                      "suggestionId": "S-1",
+                      "priority": "P2",
+                      "type": "ADVANCEMENT",
+                      "category": "MODEL",
+                      "subProblemNo": 1,
+                      "title": "补充对比基准模型",
+                      "problemOrGap": "虽无逻辑错误但模型过于基础",
+                      "diagnosis": "增加对比基准提升说服力",
+                      "targetLocation": {
+                        "physicalPages": [3],
+                        "section": "3 模型",
+                        "anchorBlockIds": ["B001"]
+                      },
+                      "actionPlanMarkdown": "引入线性回归作为基准",
+                      "acceptanceCriteria": ["给出对比表格"],
+                      "evidenceChain": {
+                        "paperEvidenceIds": ["B001"],
+                        "reviewFindingIds": [],
+                        "knowledgeCitationIds": ["KC-001"]
+                      }
+                    }
+                  ]
+                }
+                """;
+        when(aiClient.chat(any())).thenReturn(resp(plannerJson), resp(subTaskJson), resp(synthJson));
+        SuggestionTask task = new SuggestionTask();
+        task.setId(9003L);
+        ProblemContextDTO problem = new ProblemContextDTO();
+        problem.setId(51L); problem.setTitle("题"); problem.setContentMarkdown("内容");
+        PaperParseDTO parse = new PaperParseDTO();
+        parse.setSubmissionId(103L); parse.setArtifactId(203L); parse.setWorkflowVersion("PAPER_PARSE_V2"); parse.setStatus("SUCCESS"); parse.setPageCount(10);
+        parse.setDocumentJson("{\"sections\":[],\"blocks\":[{\"blockId\":\"B001\",\"physicalPage\":3,\"text\":\"正文\"}]}");
+        ReviewEvidenceSnapshot reviewEvidence = new ReviewEvidenceSnapshot(503L, 503L, "DEEP_EVIDENCE_REVIEW_V3", null, List.of(), "{}");
+
+        SuggestionWorkflowResult result = workflow.execute(task, problem, parse, reviewEvidence);
+
+        assertThat(result).isNotNull();
+        GroundedSuggestionV3Output output = objectMapper.readValue(result.resultJson(), GroundedSuggestionV3Output.class);
+        assertThat(output.items().get(0).type()).isEqualTo("ADVANCEMENT");
+        assertThat(output.items().get(0).evidenceChain().reviewFindingIds()).isEmpty();
+    }
+
     private AiChatResponse resp(String json) {
         return new AiChatResponse("call-id", AiProvider.NEW_API, "model", "resp-id", json, null, "stop", null);
     }
