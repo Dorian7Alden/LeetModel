@@ -84,6 +84,12 @@ spring:
           predicates:
             - Path=/api/assistant/**
 
+        # ---- 知识库管理与检索服务 ----
+        - id: knowledge-retrieval-service
+          uri: lb://knowledge-retrieval-service
+          predicates:
+            - Path=/api/admin/knowledge/**
+
         # ---- 管理后台 ----
         - id: admin-service
           uri: lb://admin-service

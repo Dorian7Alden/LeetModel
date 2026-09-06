@@ -21,6 +21,9 @@ public class KnowledgeRetrievalRequestDTO {
     private String scene;
 
     @Size(max = 100)
+    private String category;
+
+    @Size(max = 100)
     private String requiredIndexVersion;
 
     @Min(1)

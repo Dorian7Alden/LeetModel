@@ -2,18 +2,23 @@ package com.leetmodel.assistant.rag.chunk;
 
 import com.leetmodel.assistant.rag.config.RagProperties;
 import com.leetmodel.assistant.rag.source.CleanKnowledgeDocument;
+import com.leetmodel.assistant.rag.source.KnowledgeDocument;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 先按 Markdown 结构和中文句界切分，再按 Token 上限生成带重叠片段。 */
+/** 先按 Markdown 结构和中文句界切分，注入标准面包屑前缀，再按 Token 上限生成带重叠片段。 */
 @Component
 public class ChineseKnowledgeChunker {
 
     private static final Pattern PARAGRAPH_BOUNDARY = Pattern.compile("\\n\\s*\\n");
     private static final Pattern SENTENCE_BOUNDARY = Pattern.compile("(?<=[。！？；!?;])|(?=【[^】]+】)");
+    private static final Pattern HEADING_PATTERN = Pattern.compile("^\\s*(?:#{1,6}\\s+([^\\n]+)|【([^】]+)】)");
+    private static final String DELIMITER_LINE = "----------------------------------------";
+    private static final String DEFAULT_SECTION = "全局总览";
 
     private final RagProperties properties;
     private final ChineseTokenEstimator estimator;
@@ -24,87 +29,151 @@ public class ChineseKnowledgeChunker {
     }
 
     public List<KnowledgeChunk> chunk(CleanKnowledgeDocument document) {
-        List<String> units = structuralUnits(document.content());
-        List<String> baseChunks = pack(units);
+        List<SectionUnit> units = structuralUnits(document.content());
+        List<SectionChunk> baseChunks = pack(units);
         mergeSmallTail(baseChunks);
         List<KnowledgeChunk> result = new ArrayList<>();
         String previous = null;
         for (int index = 0; index < baseChunks.size(); index++) {
-            String content = baseChunks.get(index);
+            SectionChunk base = baseChunks.get(index);
+            String body = base.text();
             if (previous != null && properties.getChunkOverlapTokens() > 0) {
                 String overlap = suffixWithin(previous, properties.getChunkOverlapTokens());
-                content = fit(overlap + "\n\n" + content, properties.getChunkMaxTokens());
+                body = fit(overlap + "\n\n" + body, properties.getChunkMaxTokens());
             }
-            content = fitChars(content, properties.getMaxEmbeddingInputChars()).strip();
-            result.add(new KnowledgeChunk(document.source(), index, content, estimator.estimate(content)));
-            previous = baseChunks.get(index);
+            String breadcrumb = buildBreadcrumb(document.source(), base.section());
+            String fullContent = breadcrumb + "\n" + body;
+            fullContent = fitChars(fullContent, properties.getMaxEmbeddingInputChars()).strip();
+            fullContent = fit(fullContent, properties.getChunkMaxTokens());
+            result.add(new KnowledgeChunk(document.source(), index, fullContent, estimator.estimate(fullContent)));
+            previous = base.text();
         }
         return List.copyOf(result);
     }
 
-    private List<String> structuralUnits(String content) {
-        List<String> units = new ArrayList<>();
+    private List<SectionUnit> structuralUnits(String content) {
+        List<SectionUnit> units = new ArrayList<>();
+        String currentSection = DEFAULT_SECTION;
         for (String paragraph : PARAGRAPH_BOUNDARY.split(content)) {
             String value = paragraph.strip();
             if (value.isEmpty()) {
                 continue;
             }
+            Matcher headingMatcher = HEADING_PATTERN.matcher(value);
+            if (headingMatcher.find()) {
+                String matched = headingMatcher.group(1) != null ? headingMatcher.group(1) : headingMatcher.group(2);
+                String sanitized = sanitizeBreadcrumbField(matched);
+                if (!sanitized.isBlank()) {
+                    currentSection = sanitized;
+                }
+            }
             if (estimator.estimate(value) <= properties.getChunkTargetTokens()
                     && value.length() <= properties.getMaxEmbeddingInputChars()) {
-                units.add(value);
+                units.add(new SectionUnit(value, currentSection));
                 continue;
             }
             for (String sentence : SENTENCE_BOUNDARY.split(value)) {
-                splitHard(sentence.strip(), units);
+                splitHard(sentence.strip(), currentSection, units);
             }
         }
         return units;
     }
 
-    private void splitHard(String text, List<String> output) {
+    private void splitHard(String text, String section, List<SectionUnit> output) {
         String remaining = text;
         while (!remaining.isBlank()) {
             String part = prefixWithin(remaining, properties.getChunkTargetTokens(),
                     properties.getMaxEmbeddingInputChars());
-            output.add(part.strip());
+            output.add(new SectionUnit(part.strip(), section));
             remaining = remaining.substring(part.length()).stripLeading();
         }
     }
 
-    private List<String> pack(List<String> units) {
-        List<String> chunks = new ArrayList<>();
+    private List<SectionChunk> pack(List<SectionUnit> units) {
+        List<SectionChunk> chunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        for (String unit : units) {
-            String candidate = current.isEmpty() ? unit : current + "\n\n" + unit;
+        String chunkSection = DEFAULT_SECTION;
+        for (SectionUnit unit : units) {
+            if (current.isEmpty()) {
+                chunkSection = unit.section();
+            }
+            String candidate = current.isEmpty() ? unit.text() : current + "\n\n" + unit.text();
             if (!current.isEmpty() && estimator.estimate(candidate) > properties.getChunkTargetTokens()) {
-                chunks.add(current.toString());
+                chunks.add(new SectionChunk(current.toString(), chunkSection));
                 current.setLength(0);
+                chunkSection = unit.section();
             }
             if (!current.isEmpty()) {
                 current.append("\n\n");
             }
-            current.append(unit);
+            current.append(unit.text());
         }
         if (!current.isEmpty()) {
-            chunks.add(current.toString());
+            chunks.add(new SectionChunk(current.toString(), chunkSection));
         }
         return chunks;
     }
 
-    private void mergeSmallTail(List<String> chunks) {
+    private void mergeSmallTail(List<SectionChunk> chunks) {
         if (chunks.size() < 2) {
             return;
         }
         int last = chunks.size() - 1;
-        if (estimator.estimate(chunks.get(last)) >= properties.getChunkMinTokens()) {
+        if (estimator.estimate(chunks.get(last).text()) >= properties.getChunkMinTokens()) {
             return;
         }
-        String merged = chunks.get(last - 1) + "\n\n" + chunks.get(last);
+        String merged = chunks.get(last - 1).text() + "\n\n" + chunks.get(last).text();
         if (estimator.estimate(merged) <= properties.getChunkMaxTokens()
                 && merged.length() <= properties.getMaxEmbeddingInputChars()) {
-            chunks.set(last - 1, merged);
+            chunks.set(last - 1, new SectionChunk(merged, chunks.get(last - 1).section()));
             chunks.remove(last);
         }
+    }
+
+    private String buildBreadcrumb(KnowledgeDocument source, String section) {
+        List<String> hierarchy = source.hierarchy();
+        String dirStr;
+        if (hierarchy != null && !hierarchy.isEmpty()) {
+            dirStr = String.join(" > ", hierarchy);
+        } else if (source.relativePath() != null && source.relativePath().contains("/")) {
+            int lastSlash = source.relativePath().lastIndexOf('/');
+            dirStr = source.relativePath().substring(0, lastSlash).replace("/", " > ");
+        } else {
+            dirStr = "数学建模";
+        }
+        dirStr = sanitizeBreadcrumbField(dirStr);
+
+        String title = source.title();
+        if (title == null || title.isBlank()) {
+            if (source.relativePath() != null) {
+                String name = source.relativePath().substring(source.relativePath().lastIndexOf('/') + 1);
+                title = name.replaceFirst("\\.md$", "");
+            } else {
+                title = "知识文档";
+            }
+        }
+        title = sanitizeBreadcrumbField(title);
+
+        String sec = (section != null && !section.isBlank()) ? sanitizeBreadcrumbField(section) : DEFAULT_SECTION;
+        if (sec.isBlank()) {
+            sec = DEFAULT_SECTION;
+        }
+
+        return "[目录: " + dirStr + "]\n"
+                + "[文档: " + title + "]\n"
+                + "[小节: " + sec + "]\n"
+                + DELIMITER_LINE;
+    }
+
+    private String sanitizeBreadcrumbField(String text) {
+        if (text == null) return "";
+        return text.replace("[", "（")
+                .replace("]", "）")
+                .replace("【", "（")
+                .replace("】", "）")
+                .replaceAll("[#*$~`]", "")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private String fit(String text, int maxTokens) {
@@ -153,4 +222,8 @@ public class ChineseKnowledgeChunker {
         }
         return text.substring(0, end);
     }
+
+    private record SectionUnit(String text, String section) {}
+
+    private record SectionChunk(String text, String section) {}
 }

@@ -8,6 +8,7 @@
       </div>
       <div class="domain-actions">
         <el-button class="hero-button" @click="openTool('contests')"><el-icon><Trophy /></el-icon>赛事数据</el-button>
+        <el-button class="hero-button" @click="openTool('knowledge')"><el-icon><Notebook /></el-icon>知识库管理</el-button>
         <el-button type="primary" class="hero-primary emerald" @click="openTool('tags')"><el-icon><CollectionTag /></el-icon>维护标签</el-button>
       </div>
     </section>
@@ -47,6 +48,8 @@ import { useRoute, useRouter } from "vue-router";
 import ProblemListPage from "./ProblemListPage.vue";
 import TagListPage from "./TagListPage.vue";
 import ContestListPage from "./ContestListPage.vue";
+import KnowledgeManagerPage from "./KnowledgeManagerPage.vue";
+import { Notebook } from "@element-plus/icons-vue";
 import { getAdminContentContests, getAdminContentProblems, getAdminContentTags } from "@/api/problem";
 
 const route = useRoute();
@@ -57,6 +60,7 @@ const activeTool = ref("");
 const tools = {
   tags: { title: "标签体系", description: "维护题目使用的领域、题型与算法标签。", icon: "CollectionTag", component: TagListPage },
   contests: { title: "赛事基础数据", description: "查看题目可归属的赛事来源。", icon: "Trophy", component: ContestListPage },
+  knowledge: { title: "知识库管理", description: "浏览目录与多维标签树、一键导出自包含 ZIP、导入知识包与监控物理索引。", icon: "Notebook", component: KnowledgeManagerPage },
 };
 const toolVisible = computed({ get: () => !!activeTool.value, set: (value) => { if (!value) closeTool(); } });
 const activeToolMeta = computed(() => tools[activeTool.value] || { title: "", description: "", icon: "Setting" });

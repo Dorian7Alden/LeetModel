@@ -1,7 +1,7 @@
 package com.leetmodel.knowledge.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCallPriority;
@@ -21,6 +21,18 @@ import com.leetmodel.common.api.dto.KnowledgeCitationDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalResultDTO;
 import com.leetmodel.knowledge.config.KnowledgeRetrievalProperties;
+import com.leetmodel.knowledge.cache.RetrievalCacheProperties;
+import com.leetmodel.knowledge.cache.RetrievalCacheService;
+import com.leetmodel.knowledge.defense.CatalogSelectionDefenseEngine;
+import com.leetmodel.knowledge.defense.DefensiveCatalogOutputParser;
+import com.leetmodel.knowledge.defense.GracefulFallbackProvider;
+import com.leetmodel.knowledge.defense.PathWhitelistValidator;
+import com.leetmodel.knowledge.defense.SelectionCountTruncator;
+import com.leetmodel.knowledge.defense.dto.DefenseResult;
+import com.leetmodel.knowledge.manifest.YamlKnowledgeManifestLoader;
+import com.leetmodel.knowledge.manifest.model.KnowledgeManifest;
+import com.leetmodel.knowledge.manifest.model.ManifestDocument;
+import com.leetmodel.knowledge.prompt.PromptTemplateRenderer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
@@ -53,22 +65,47 @@ import java.util.UUID;
 public class KnowledgeRetrievalService {
     public static final String VECTOR_RAG_V1 = "VECTOR_RAG_V1";
     public static final String AI_DIRECTORY_V1 = "AI_DIRECTORY_V1";
+    public static final String AI_CATALOG_TAG_V1 = "AI_CATALOG_TAG_V1";
     public static final String HYBRID_RETRIEVAL_V1 = "HYBRID_RETRIEVAL_V1";
     public static final String SUGGESTION_DEEP_RETRIEVAL_V1 = "SUGGESTION_DEEP_RETRIEVAL_V1";
     private static final Set<String> SUPPORTED = Set.of(
-            VECTOR_RAG_V1, AI_DIRECTORY_V1, HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1);
+            VECTOR_RAG_V1, AI_DIRECTORY_V1, AI_CATALOG_TAG_V1, HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1);
 
     private final KnowledgeRetrievalProperties properties;
     private final AiClient aiClient;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final YamlKnowledgeManifestLoader manifestLoader;
+    private final CatalogSelectionDefenseEngine defenseEngine;
+    private final RetrievalCacheService cacheService;
+    private volatile String currentManifestVersion;
 
     public KnowledgeRetrievalService(KnowledgeRetrievalProperties properties, AiClient aiClient,
                                      RestClient restClient, ObjectMapper objectMapper) {
+        this(properties, aiClient, restClient, objectMapper,
+                new YamlKnowledgeManifestLoader(),
+                new CatalogSelectionDefenseEngine(
+                        new DefensiveCatalogOutputParser(),
+                        new PathWhitelistValidator(),
+                        new SelectionCountTruncator(),
+                        new GracefulFallbackProvider()
+                ),
+                new RetrievalCacheService(new RetrievalCacheProperties(), objectMapper, null));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public KnowledgeRetrievalService(KnowledgeRetrievalProperties properties, AiClient aiClient,
+                                     RestClient restClient, ObjectMapper objectMapper,
+                                     YamlKnowledgeManifestLoader manifestLoader,
+                                     CatalogSelectionDefenseEngine defenseEngine,
+                                     RetrievalCacheService cacheService) {
         this.properties = properties;
         this.aiClient = aiClient;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
+        this.manifestLoader = manifestLoader;
+        this.defenseEngine = defenseEngine;
+        this.cacheService = cacheService;
     }
 
     public KnowledgeRetrievalResultDTO retrieve(KnowledgeRetrievalRequestDTO request) {
@@ -79,15 +116,39 @@ public class KnowledgeRetrievalService {
         int topK = request.getTopK() == null ? properties.getTopK() : request.getTopK();
         int budget = request.getTokenBudget() == null
                 ? properties.getTokenBudget() : request.getTokenBudget();
+
+        String versionNs = request.getRequiredIndexVersion();
+        if (versionNs == null && (AI_DIRECTORY_V1.equals(request.getWorkflowVersion())
+                || AI_CATALOG_TAG_V1.equals(request.getWorkflowVersion()))) {
+            versionNs = getCurrentManifestVersion();
+        }
+
+        // L1 缓存拦截：精确参数命中直接返回
+        String category = request.getCategory() != null ? request.getCategory() : "通用";
+        List<KnowledgeCitationDTO> l1Cached = cacheService.getL1Exact(
+                request.getWorkflowVersion(), category, request.getQuery(), topK, versionNs);
+        if (l1Cached != null) {
+            log.info("L1 精确结果缓存命中: runId={}, workflow={}", runId, request.getWorkflowVersion());
+            return new KnowledgeRetrievalResultDTO(runId, request.getWorkflowVersion(), "CACHE_L1",
+                    request.getRequiredIndexVersion(), versionNs, null, "COMPLETED", l1Cached);
+        }
+
         RetrievalSnapshot snapshot = switch (request.getWorkflowVersion()) {
-            case VECTOR_RAG_V1 -> vector(runId, request.getQuery(), request.getRequiredIndexVersion(), topK);
-            case AI_DIRECTORY_V1 -> directory(runId, request.getQuery(), topK);
-            case HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(),
+            case VECTOR_RAG_V1 -> vector(runId, request.getQuery(), category, request.getRequiredIndexVersion(), topK);
+            case AI_DIRECTORY_V1, AI_CATALOG_TAG_V1 -> directory(runId, request, topK);
+            case HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(), category,
                     request.getRequiredIndexVersion(), topK);
             default -> throw new IllegalStateException("未实现的知识检索版本");
         };
         List<KnowledgeCitationDTO> citations = applyBudget(snapshot.citations(), budget, topK);
         String status = citations.isEmpty() ? "NO_CONTEXT" : "COMPLETED";
+
+        // 写入 L1 缓存
+        if (!citations.isEmpty()) {
+            cacheService.putL1Exact(request.getWorkflowVersion(), category, request.getQuery(),
+                    topK, versionNs != null ? versionNs : snapshot.manifestVersion(), citations);
+        }
+
         log.info("knowledge-retrieval status={} runId={} workflow={} branch={} citations={}",
                 status, runId, request.getWorkflowVersion(), snapshot.branch(), citations.size());
         return new KnowledgeRetrievalResultDTO(runId, request.getWorkflowVersion(), snapshot.branch(),
@@ -95,16 +156,16 @@ public class KnowledgeRetrievalService {
                 status, citations);
     }
 
-    private RetrievalSnapshot hybrid(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot hybrid(String runId, String query, String category, String requiredIndexVersion, int topK) {
         int candidateK = Math.max(topK * 2, 10);
         RetrievalSnapshot vectorSnap;
         try {
-            vectorSnap = vector(runId + ":vector", query, requiredIndexVersion, candidateK);
+            vectorSnap = vector(runId + ":vector", query, category, requiredIndexVersion, candidateK);
         } catch (Exception e) {
             log.warn("混合检索向量分支异常，降级为空: {}", e.getMessage());
             vectorSnap = new RetrievalSnapshot("VECTOR", requiredIndexVersion, null, null, List.of());
         }
-        RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, requiredIndexVersion, candidateK);
+        RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, category, requiredIndexVersion, candidateK);
 
         Map<String, KnowledgeCitationDTO> candidates = new LinkedHashMap<>();
         Map<String, Double> rrfScores = new LinkedHashMap<>();
@@ -142,17 +203,36 @@ public class KnowledgeRetrievalService {
         return new RetrievalSnapshot("VECTOR+BM25_RRF", indexVersion, null, null, fused);
     }
 
-    private RetrievalSnapshot bm25(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot bm25(String runId, String query, String category, String requiredIndexVersion, int topK) {
         String indexName = requiredIndexVersion == null || requiredIndexVersion.isBlank()
                 ? properties.getIndexAlias() : physicalIndexName(requiredIndexVersion);
+
+        Map<String, Object> queryMap;
+        if (category != null && !category.isBlank() && !"通用".equals(category)) {
+            queryMap = Map.of("bool", Map.of(
+                    "must", List.of(Map.of("multi_match", Map.of(
+                            "query", query,
+                            "fields", List.of("title^3", "content^1")
+                    ))),
+                    "filter", List.of(Map.of("bool", Map.of(
+                            "should", List.of(
+                                    Map.of("term", Map.of("category", category)),
+                                    Map.of("wildcard", Map.of("sourcePath", "*" + category + "*"))
+                            )
+                    )))
+            ));
+        } else {
+            queryMap = Map.of("multi_match", Map.of(
+                    "query", query,
+                    "fields", List.of("title^3", "content^1")
+            ));
+        }
+
         Map<String, Object> body = Map.of(
                 "size", topK,
                 "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
                         "ragIndexVersion", "estimatedTokens", "contentHash"),
-                "query", Map.of("multi_match", Map.of(
-                        "query", query,
-                        "fields", List.of("title^3", "content^1")
-                ))
+                "query", queryMap
         );
         Request request = new Request("POST", "/" + indexName + "/_search");
         try {
@@ -189,7 +269,7 @@ public class KnowledgeRetrievalService {
         }
     }
 
-    private RetrievalSnapshot vector(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot vector(String runId, String query, String category, String requiredIndexVersion, int topK) {
         AiCallContext context = context(runId, VECTOR_RAG_V1, "PROMPT_NONE",
                 "MODEL_CFG_RAG_V1");
         AiEmbeddingResponse embedding = aiClient.embed(AiEmbeddingRequest.single(
@@ -201,12 +281,26 @@ public class KnowledgeRetrievalService {
         List<Float> vector = embedding.vectors().get(0).values();
         String indexName = requiredIndexVersion == null || requiredIndexVersion.isBlank()
                 ? properties.getIndexAlias() : physicalIndexName(requiredIndexVersion);
+
+        Map<String, Object> knnMap = new LinkedHashMap<>();
+        knnMap.put("field", "embedding");
+        knnMap.put("query_vector", vector);
+        knnMap.put("k", topK);
+        knnMap.put("num_candidates", Math.max(100, topK * 10));
+        if (category != null && !category.isBlank() && !"通用".equals(category)) {
+            knnMap.put("filter", Map.of("bool", Map.of(
+                    "should", List.of(
+                            Map.of("term", Map.of("category", category)),
+                            Map.of("wildcard", Map.of("sourcePath", "*" + category + "*"))
+                    )
+            )));
+        }
+
         Map<String, Object> body = Map.of(
                 "size", topK,
                 "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
                         "ragIndexVersion", "estimatedTokens", "contentHash"),
-                "knn", Map.of("field", "embedding", "query_vector", vector,
-                        "k", topK, "num_candidates", Math.max(100, topK * 10)));
+                "knn", knnMap);
         Request request = new Request("POST", "/" + indexName + "/_search");
         try {
             request.setJsonEntity(objectMapper.writeValueAsString(body));
@@ -242,82 +336,120 @@ public class KnowledgeRetrievalService {
         }
     }
 
-    private RetrievalSnapshot directory(String runId, String query, int topK) {
+    private RetrievalSnapshot directory(String runId, KnowledgeRetrievalRequestDTO request, int topK) {
         Path root = Path.of(properties.getKnowledgeBasePath()).toAbsolutePath().normalize();
-        Path contentRoot = root.resolve("数学建模").normalize();
-        if (!contentRoot.startsWith(root) || !Files.isDirectory(contentRoot)) {
-            throw new IllegalStateException("受控知识库目录不可用");
-        }
-        List<DirectoryCandidate> candidates = loadCandidates(root, contentRoot);
-        String manifestVersion = "MANIFEST_" + hash(candidates.stream()
-                .map(item -> item.path() + "\n" + item.summary()).reduce("", String::concat));
-        String manifest = candidates.stream().limit(properties.getDirectoryCandidateLimit())
-                .map(item -> item.path() + " | " + item.title() + " | " + item.summary())
+        KnowledgeManifest manifest = manifestLoader.loadRoot(root);
+        Set<String> validPaths = manifest.getValidRelativePaths();
+        this.currentManifestVersion = manifest.getManifestVersion();
+
+        String category = request.getCategory() != null ? request.getCategory() : "通用";
+        String userQuery = request.getQuery() != null ? request.getQuery() : "";
+        int maxSelection = Math.min(topK, properties.getDirectorySelectionLimit());
+
+        // 1. 组装候选文档清单文本 (按分类相关度前置排序)
+        List<ManifestDocument> allDocs = manifest.getAllDocuments();
+        List<ManifestDocument> sortedDocs = sortDocumentsByCategory(allDocs, category);
+        String manifestText = sortedDocs.stream()
+                .limit(properties.getDirectoryCandidateLimit())
+                .filter(doc -> !isUnsupportedProblemSpecific(doc.relativePath()))
+                .map(doc -> doc.relativePath() + " | " + doc.title() + " | " + doc.summary())
                 .reduce("", (left, right) -> left + right + "\n");
-        String prompt = """
-                你是数学建模知识目录选择器。只能从给定清单选择与查询直接相关的文档。
-                返回 JSON：{"paths":["受控相对路径"]}。最多选择 %d 项，不得编造路径。
-                查询：%s
-                文档清单：
-                %s
-                """.formatted(Math.min(topK, properties.getDirectorySelectionLimit()), query, manifest);
-        AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT,
-                context(runId, AI_DIRECTORY_V1, "PROMPT_AI_DIRECTORY_0001",
-                        "MODEL_CFG_KNOWLEDGE_DIRECTORY_0001"),
-                List.of(message(AiRole.USER, prompt)), 1200, 0.0,
-                AiResponseFormat.JSON_OBJECT, false));
-        if (response == null || response.content() == null || response.content().isBlank()) {
-            throw new IllegalStateException("目录检索没有返回选择结果");
-        }
+
+        // 2. 渲染 System 与 User 提示词模板
+        String systemTemplate = PromptTemplateRenderer.loadClasspathPrompt("prompts/catalog-selection-system.st");
+        String userTemplate = PromptTemplateRenderer.loadClasspathPrompt("prompts/catalog-selection-user.st");
+
+        Map<String, String> sysVars = Map.of(
+                "minSelection", "2",
+                "maxSelection", String.valueOf(maxSelection)
+        );
+        Map<String, String> userVars = Map.of(
+                "userQuery", userQuery,
+                "category", category,
+                "maxSelection", String.valueOf(maxSelection),
+                "minSelection", "2",
+                "catalogManifest", manifestText
+        );
+
+        String systemPrompt = PromptTemplateRenderer.render(systemTemplate, sysVars);
+        String userPrompt = PromptTemplateRenderer.render(userTemplate, userVars);
+
+        // 3. 调度模型并执行 4 道防线安全过滤
+        DefenseResult defenseResult;
         try {
-            JsonNode selected = objectMapper.readTree(response.content()).path("paths");
-            Map<String, DirectoryCandidate> byPath = new LinkedHashMap<>();
-            candidates.forEach(item -> byPath.put(item.path(), item));
-            List<KnowledgeCitationDTO> citations = new ArrayList<>();
-            for (JsonNode pathNode : selected) {
-                DirectoryCandidate candidate = byPath.get(pathNode.asText());
-                if (candidate == null || citations.size() >= topK) continue;
-                Path file = root.resolve(candidate.path()).normalize();
-                if (!file.startsWith(contentRoot) || !Files.isRegularFile(file)) continue;
-                String content = Files.readString(file, StandardCharsets.UTF_8);
-                String documentId = hash(candidate.path());
-                citations.add(citation(documentId, documentId + "-document", candidate.title(),
-                        candidate.path(), hash(content), 1.0, content));
+            AiChatRequest chatRequest = new AiChatRequest(
+                    AiModality.TEXT,
+                    context(runId, request.getWorkflowVersion(), "PROMPT_CATALOG_SELECT_V1",
+                            "MODEL_CFG_KNOWLEDGE_DIRECTORY_0001"),
+                    List.of(
+                            message(AiRole.SYSTEM, systemPrompt),
+                            message(AiRole.USER, userPrompt)
+                    ),
+                    1200,
+                    0.0,
+                    AiResponseFormat.JSON_OBJECT,
+                    false
+            );
+            AiChatResponse chatResponse = aiClient.chat(chatRequest);
+            if (chatResponse == null || chatResponse.content() == null || chatResponse.content().isBlank()) {
+                defenseResult = defenseEngine.fallbackOnly(category, validPaths, "模型返回空响应");
+            } else {
+                defenseResult = defenseEngine.defend(chatResponse.content(), category, maxSelection, validPaths);
             }
-            String sourceVersion = "SOURCE_" + hash(citations.stream()
-                    .map(KnowledgeCitationDTO::getContentHash).reduce("", String::concat));
-            return new RetrievalSnapshot("DIRECTORY", null, manifestVersion, sourceVersion, citations);
-        } catch (IOException exception) {
-            throw new IllegalStateException("目录检索输出无法读取", exception);
+        } catch (Exception e) {
+            log.warn("选拔模型调用异常，直接转入防线4降级: runId={}, error={}", runId, e.getMessage());
+            defenseResult = defenseEngine.fallbackOnly(category, validPaths, e.getMessage());
         }
+
+        // 4. 整篇原子文档全量装配 (Document-as-a-Chunk) 与不可信边界包装
+        List<KnowledgeCitationDTO> citations = new ArrayList<>();
+        for (String selectedPath : defenseResult.selectedPaths()) {
+            if (isUnsupportedProblemSpecific(selectedPath)) continue;
+            Path filePath = root.resolve(selectedPath).normalize();
+            if (!Files.isRegularFile(filePath)) {
+                log.warn("选中的文档不存在于磁盘: {}", selectedPath);
+                continue;
+            }
+            try {
+                String rawContent = Files.readString(filePath, StandardCharsets.UTF_8);
+                ManifestDocument doc = manifest.findByPath(selectedPath);
+                String title = doc != null ? doc.title() : filePath.getFileName().toString().replaceFirst("\\.md$", "");
+                String level = doc != null ? doc.authorityLevel() : authorityLevel(selectedPath);
+                String wrappedContent = wrapUntrustedBoundary(rawContent, selectedPath, level);
+                String documentId = hash(selectedPath);
+                String contentHash = hash(rawContent);
+                citations.add(citation(documentId, documentId + "-document", title,
+                        selectedPath, contentHash, 1.0, wrappedContent));
+            } catch (IOException e) {
+                log.error("读取选中知识文档失败: path={}, error={}", selectedPath, e.getMessage());
+            }
+        }
+
+        String sourceVersion = "SOURCE_" + hash(citations.stream()
+                .map(KnowledgeCitationDTO::getContentHash).reduce("", String::concat));
+
+        return new RetrievalSnapshot("DIRECTORY", null, manifest.getManifestVersion(), sourceVersion, citations);
     }
 
-    private List<DirectoryCandidate> loadCandidates(Path root, Path contentRoot) {
-        try (var paths = Files.walk(contentRoot)) {
-            return paths.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".md"))
-                    .filter(path -> !"README.md".equals(path.getFileName().toString()))
-                    .filter(path -> !isUnsupportedProblemSpecific(
-                            root.relativize(path).toString().replace('\\', '/')))
-                    .sorted(Comparator.comparing(Path::toString))
-                    .map(path -> candidate(root, path))
-                    .toList();
-        } catch (IOException exception) {
-            throw new IllegalStateException("知识目录清单读取失败", exception);
+    private List<ManifestDocument> sortDocumentsByCategory(List<ManifestDocument> docs, String category) {
+        if (category == null || category.isBlank() || "通用".equals(category)) {
+            return docs;
         }
+        String normCat = category.toLowerCase(Locale.ROOT);
+        return docs.stream()
+                .sorted(Comparator.comparingInt(doc -> {
+                    boolean match = doc.compositeTags().stream()
+                            .anyMatch(t -> t.toLowerCase(Locale.ROOT).contains(normCat))
+                            || doc.directoryName().toLowerCase(Locale.ROOT).contains(normCat);
+                    return match ? 0 : 1;
+                }))
+                .toList();
     }
 
-    private DirectoryCandidate candidate(Path root, Path path) {
-        try {
-            String text = Files.readString(path, StandardCharsets.UTF_8);
-            String title = path.getFileName().toString().replaceFirst("\\.md$", "");
-            String summary = frontMatter(text, "summary");
-            if (summary == null) summary = firstMeaningfulLine(text);
-            return new DirectoryCandidate(root.relativize(path).toString().replace('\\', '/'),
-                    title, limit(summary, 260));
-        } catch (IOException exception) {
-            throw new IllegalStateException("知识目录元数据读取失败", exception);
-        }
+    private String wrapUntrustedBoundary(String content, String sourcePath, String level) {
+        return "<参考知识事实 来源=\"" + sourcePath + "\" 权威等级=\"" + level + "\">\n"
+                + content + "\n"
+                + "</参考知识事实>";
     }
 
     private KnowledgeCitationDTO citation(String documentId, String chunkId, String title,
@@ -357,6 +489,22 @@ public class KnowledgeRetrievalService {
                 || normalized.contains("论文评审/官方规范与讲评/")) return "L3";
         if (normalized.contains("题型方法/") || normalized.contains("模型方法/")) return "L4";
         return "L5";
+    }
+
+    private String getCurrentManifestVersion() {
+        if (currentManifestVersion == null) {
+            synchronized (this) {
+                if (currentManifestVersion == null) {
+                    try {
+                        Path root = Path.of(properties.getKnowledgeBasePath()).toAbsolutePath().normalize();
+                        currentManifestVersion = manifestLoader.loadRoot(root).getManifestVersion();
+                    } catch (Exception e) {
+                        return "DEFAULT";
+                    }
+                }
+            }
+        }
+        return currentManifestVersion;
     }
 
     /** 缺少赛事、年份和题号元数据时，题目专属细则不得进入跨题检索结果。 */
