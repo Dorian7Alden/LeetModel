@@ -33,4 +33,10 @@ public interface SubmissionFeignClient {
 
     @GetMapping("/internal/submissions/{submissionId}/preview")
     Result<SubmissionPreviewDTO> getPreview(@PathVariable Long submissionId);
+
+    @GetMapping("/internal/submissions/{submissionId}/snapshot")
+    Result<SubmissionSnapshotDTO> getSubmissionSnapshot(@PathVariable Long submissionId);
+
+    @GetMapping("/internal/submissions/teams/{teamId}/latest")
+    Result<SubmissionSnapshotDTO> getLatestTeamSubmission(@PathVariable Long teamId);
 }

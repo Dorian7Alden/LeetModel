@@ -28,7 +28,7 @@ public class RecommendProblemTool implements AssistantTool<RecommendProblemInput
                     "按用户明确给出的关键词、赛事、年份、难度、语言和时长条件筛选已发布题目；不代表个性化最优推荐。",
                     ProblemToolSchemas.recommend()),
             false, Duration.ofSeconds(3),
-            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1"));
+            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1"));
 
     private final ProblemFeignClient problemFeignClient;
     private final ProblemToolResultFactory resultFactory;

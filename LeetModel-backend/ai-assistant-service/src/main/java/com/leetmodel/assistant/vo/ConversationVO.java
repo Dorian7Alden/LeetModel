@@ -18,4 +18,7 @@ public class ConversationVO {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private List<AssistantMessageVO> messages;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long nextCursor;
+    private Boolean hasMore;
 }

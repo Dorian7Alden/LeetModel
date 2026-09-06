@@ -19,6 +19,7 @@
 | 10 | [10-exception-handling-spec.md](10-exception-handling-spec.md) | 统一项目异常处理规范：BusinessException、throwIf、全局异常处理器、Feign 降级 | 编写 Service 或 Controller 异常逻辑时 |
 | 11 | [11-code-style-spec.md](11-code-style-spec.md) | 后端 Java 代码风格规范：小方法、步骤注释、早返回、Stream 与集合组装 | 编写或调整 Java 代码时 |
 | 12 | [12-microservice-design-document-spec.md](12-microservice-design-document-spec.md) | 微服务设计文档规范：服务 README 整体图、服务归属、功能目录和跨服务边界 | 新增、拆分或更新微服务设计时 |
+| 13 | [13-rich-text-and-formula-spec.md](13-rich-text-and-formula-spec.md) | 富文本与数学公式渲染规范：KaTeX 数学建模公式、代码块语法高亮与防 XSS 策略 | 涉及 Markdown、LaTeX 与代码渲染时 |
 
 ---
 

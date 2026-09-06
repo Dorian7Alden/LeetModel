@@ -44,7 +44,7 @@ ai:
       MODEL_CFG_ASSISTANT_TEXT_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 1500
         temperature: 0.2
@@ -55,7 +55,7 @@ ai:
       MODEL_CFG_ASSISTANT_TOOLS_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 1500
         temperature: 0.2
@@ -63,11 +63,11 @@ ai:
         thinking-enabled: false
         tools: true
         prompt-versions: [PROMPT_ASSISTANT_TOOLS_0001]
-        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1]
+        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1, ASSISTANT_TOOLS_RETRIEVAL_V1]
       MODEL_CFG_ASSISTANT_KNOWLEDGE_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 500
         temperature: 0.1
@@ -75,7 +75,7 @@ ai:
         thinking-enabled: false
         tools: false
         prompt-versions: [PROMPT_ASSISTANT_KNOWLEDGE_0001]
-        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1]
+        workflow-versions: [ASSISTANT_TOOLS_NO_RAG_V1, ASSISTANT_TOOLS_RAG_V1, ASSISTANT_TOOLS_RETRIEVAL_V1]
       MODEL_CFG_REVIEW_MULTIMODAL_0001:
         call-type: CHAT
         provider: NEW_API
@@ -90,7 +90,7 @@ ai:
       MODEL_CFG_REVIEW_TEXT_0002:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 8192
         temperature: 0.1
@@ -112,7 +112,7 @@ ai:
       MODEL_CFG_PAPER_PARSE_TEXT_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 4096
         temperature: 0.1
@@ -123,7 +123,7 @@ ai:
       MODEL_CFG_SUGGESTION_TEXT_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 4096
         temperature: 0.1
@@ -134,7 +134,7 @@ ai:
       MODEL_CFG_SUGGESTION_TEXT_0002:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 8192
         temperature: 0.15
@@ -145,7 +145,7 @@ ai:
       MODEL_CFG_KNOWLEDGE_DIRECTORY_0001:
         call-type: CHAT
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
         modality: TEXT
         max-tokens: 1200
         temperature: 0.0
@@ -173,11 +173,21 @@ ai:
     routes:
       TEXT:
         provider: NEW_API
-        model: deepseek-v4-flash
+        model: gemini-3.8-flash-high
       MULTIMODAL:
         provider: NEW_API
         model: deepseek-v4-flash-vision-exp
     models:
+      "[NEW_API/gemini-3.8-flash-high]":
+        display-name: Gemini 3.8 Flash High via new-api
+        enabled: true
+        protocol: OPENAI_COMPLETIONS
+        input-types: [TEXT]
+        json-output: true
+        thinking: true
+        tools: true
+        context-tokens: 1000000
+        max-output-tokens: 65536
       "[NEW_API/gemini-3.7-flash-high]":
         display-name: Gemini 3.7 Flash High via new-api
         enabled: true

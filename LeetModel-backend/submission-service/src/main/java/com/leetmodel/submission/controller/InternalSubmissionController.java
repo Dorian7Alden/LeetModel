@@ -5,7 +5,10 @@ import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.submission.entity.Submission;
+import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.service.SubmissionService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.constraints.Max;
@@ -26,6 +29,7 @@ import java.util.List;
 public class InternalSubmissionController {
 
     private final SubmissionService submissionService;
+    private final SubmissionMapper submissionMapper;
 
     /**
      * 获取指定提交的评审元数据与对象存储路径（供 ai-review-service 使用）。
@@ -100,5 +104,47 @@ public class InternalSubmissionController {
     @GetMapping("/{submissionId}/preview")
     public Result<SubmissionPreviewDTO> preview(@PathVariable Long submissionId) {
         return Result.ok(submissionService.getPreview(submissionId));
+    }
+
+    /**
+     * 查询指定提交记录的快照信息。
+     *
+     * @param submissionId 提交 ID
+     * @return 提交快照 DTO
+     */
+    @Operation(summary = "查询指定提交快照")
+    @GetMapping("/{submissionId}/snapshot")
+    public Result<SubmissionSnapshotDTO> getSubmissionSnapshot(@PathVariable Long submissionId) {
+        Submission submission = submissionMapper.selectById(submissionId);
+        if (submission == null) return Result.ok(null);
+        return Result.ok(new SubmissionSnapshotDTO(
+                submission.getId(), submission.getTeamId(), submission.getProblemId(),
+                submission.getSubmitterId(), submission.getVersion(),
+                submission.getOriginalFilename(), submission.getObjectName(),
+                submission.getStatus(), null, submission.getCreateTime()
+        ));
+    }
+
+    /**
+     * 查询队伍最新提交记录快照。
+     *
+     * @param teamId 队伍 ID
+     * @return 提交快照 DTO
+     */
+    @Operation(summary = "查询队伍最新提交快照")
+    @GetMapping("/teams/{teamId}/latest")
+    public Result<SubmissionSnapshotDTO> getLatestTeamSubmission(@PathVariable Long teamId) {
+        Submission submission = submissionMapper.selectOne(new LambdaQueryWrapper<Submission>()
+                .eq(Submission::getTeamId, teamId)
+                .orderByDesc(Submission::getVersion)
+                .orderByDesc(Submission::getId)
+                .last("LIMIT 1"));
+        if (submission == null) return Result.ok(null);
+        return Result.ok(new SubmissionSnapshotDTO(
+                submission.getId(), submission.getTeamId(), submission.getProblemId(),
+                submission.getSubmitterId(), submission.getVersion(),
+                submission.getOriginalFilename(), submission.getObjectName(),
+                submission.getStatus(), null, submission.getCreateTime()
+        ));
     }
 }

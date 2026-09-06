@@ -28,7 +28,7 @@ public class SearchProblemTool implements AssistantTool<SearchProblemInput> {
                     "查询指定题号或标题关键词对应的已发布题目。询问题面、难度、年份、赛事、语言或建议时长时使用。",
                     ProblemToolSchemas.search()),
             false, Duration.ofSeconds(3),
-            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1"));
+            Set.of("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1", "ASSISTANT_TOOLS_RETRIEVAL_V1"));
 
     private final ProblemFeignClient problemFeignClient;
     private final ProblemToolResultFactory resultFactory;

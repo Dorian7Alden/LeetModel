@@ -67,10 +67,10 @@ class AiMeteringIntegrationTest {
         registry.add("ai.new-api.relay-token", () -> "integration-test-token");
         registry.add("ai.cost-enrichment.max-attempts", () -> "2");
         registry.add("ai.cost-enrichment.retry-delay", () -> "1ms");
-        registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].version", () -> "PRICE_TEST_0001");
-        registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].currency", () -> "CNY");
-        registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].input-per-million-tokens", () -> "2.00");
-        registry.add("ai.cost-enrichment.snapshots[deepseek-v4-flash].output-per-million-tokens", () -> "4.00");
+        registry.add("ai.cost-enrichment.snapshots[gemini-3.8-flash-high].version", () -> "PRICE_TEST_0001");
+        registry.add("ai.cost-enrichment.snapshots[gemini-3.8-flash-high].currency", () -> "CNY");
+        registry.add("ai.cost-enrichment.snapshots[gemini-3.8-flash-high].input-per-million-tokens", () -> "2.00");
+        registry.add("ai.cost-enrichment.snapshots[gemini-3.8-flash-high].output-per-million-tokens", () -> "4.00");
         registry.add("ai.gateway.embedding-models[RAG_V1].provider", () -> "NEW_API");
         registry.add("ai.gateway.embedding-models[RAG_V1].model", () -> "embedding-model");
         registry.add("ai.gateway.embedding-models[RAG_V1].dimension", () -> "2");
@@ -84,14 +84,14 @@ class AiMeteringIntegrationTest {
     @Test
     void shouldMeterMockNewApiFailuresDelayedCostAndFilteredAggregation() throws Exception {
         RESPONSE.set(new MockResponse(200, """
-                {"id":"relay-complete","model":"deepseek-v4-flash",
+                {"id":"relay-complete","model":"gemini-3.8-flash-high",
                  "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
                  "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
                 """));
         var complete = chatService.chat(request("task:1", "evaluation:1"));
 
         RESPONSE.set(new MockResponse(200, """
-                {"id":"relay-no-usage","model":"deepseek-v4-flash",
+                {"id":"relay-no-usage","model":"gemini-3.8-flash-high",
                  "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}
                 """));
         chatService.chat(request("task:2", "evaluation:2"));
@@ -168,7 +168,7 @@ class AiMeteringIntegrationTest {
         assertThat(auditService.modelStats(new AiCallQueryDTO()))
                 .anySatisfy(item -> {
                     assertThat(item.getCallType()).isEqualTo("CHAT");
-                    assertThat(item.getModel()).isEqualTo("deepseek-v4-flash");
+                    assertThat(item.getModel()).isEqualTo("gemini-3.8-flash-high");
                     assertThat(item.getTotalCount()).isEqualTo(3L);
                 })
                 .anySatisfy(item -> {
@@ -181,7 +181,7 @@ class AiMeteringIntegrationTest {
         assertThat(filterOptions.getFeatureCodes()).contains("PAPER_REVIEW", "RAG");
         assertThat(filterOptions.getOperationCodes()).contains("EXPERIMENT_REVIEW", "INDEX_DOCUMENTS");
         assertThat(filterOptions.getEvaluationTaskIds()).contains("evaluation:1", "evaluation:2", "evaluation:3");
-        assertThat(filterOptions.getModels()).contains("deepseek-v4-flash", "embedding-model");
+        assertThat(filterOptions.getModels()).contains("gemini-3.8-flash-high", "embedding-model");
     }
 
     private AiChatRequest request(String businessTaskId, String evaluationTaskId) {

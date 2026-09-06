@@ -20,18 +20,22 @@ import com.leetmodel.common.api.dto.AssistantConversationSummaryDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 管理 AI 客服会话归属、消息幂等、只读题目工具和失败重试。
@@ -60,6 +64,18 @@ public class AssistantService {
      */
     public ConversationVO createConversation(Long userId, String title) {
         LocalDateTime now = LocalDateTime.now();
+        // 自动复用未发问的空白会话（即未发送任何消息的 ACTIVE 会话）
+        AssistantConversation blank = findBlankConversation(userId);
+        if (blank != null) {
+            String targetTitle = (title == null || title.isBlank()) ? DEFAULT_TITLE : title.trim();
+            if (!targetTitle.equals(blank.getTitle())) {
+                blank.setTitle(targetTitle);
+                blank.setUpdateTime(now);
+                conversationMapper.updateById(blank);
+            }
+            return toConversation(blank, List.of());
+        }
+
         AssistantConversation conversation = new AssistantConversation();
         conversation.setUserId(userId);
         conversation.setTitle(title == null || title.isBlank() ? DEFAULT_TITLE : title.trim());
@@ -81,11 +97,67 @@ public class AssistantService {
     }
 
     /**
-     * 查询会话和完整消息历史。
+     * 查询会话和完整消息历史（兼容老接口，默认拉取最近50条）。
      */
     public ConversationVO getConversation(Long conversationId, Long userId) {
+        return getConversation(conversationId, userId, null, null);
+    }
+
+    /**
+     * 基于游标分页查询会话及历史消息。
+     *
+     * @param conversationId 目标会话 ID
+     * @param userId         当前所属用户 ID
+     * @param cursor         上一页最旧消息 ID，首次拉取传 null
+     * @param limit          单页大小，默认 50，最大 100
+     * @return 包含逆向游标与更多标识的会话视图
+     */
+    public ConversationVO getConversation(Long conversationId, Long userId, Long cursor, Integer limit) {
         AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
-        return toConversation(conversation, listMessages(conversationId));
+        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 100));
+
+        LambdaQueryWrapper<AssistantMessage> wrapper = new LambdaQueryWrapper<AssistantMessage>()
+                .eq(AssistantMessage::getConversationId, conversationId)
+                .orderByDesc(AssistantMessage::getId);
+        if (cursor != null && cursor > 0) {
+            wrapper.lt(AssistantMessage::getId, cursor);
+        }
+        wrapper.last("LIMIT " + (safeLimit + 1));
+
+        List<AssistantMessage> queryList = messageMapper.selectList(wrapper);
+        boolean hasMore = queryList.size() > safeLimit;
+        List<AssistantMessage> paged = hasMore ? queryList.subList(0, safeLimit) : queryList;
+        Long nextCursor = hasMore && !paged.isEmpty() ? paged.get(paged.size() - 1).getId() : null;
+
+        List<AssistantMessage> chronological = new ArrayList<>(paged);
+        Collections.reverse(chronological);
+
+        ConversationVO vo = toConversation(conversation, chronological);
+        vo.setNextCursor(nextCursor);
+        vo.setHasMore(hasMore);
+        return vo;
+    }
+
+    /**
+     * 软删除指定会话及关联的所有历史消息。
+     */
+    public void deleteConversation(Long conversationId, Long userId) {
+        AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
+        conversationMapper.deleteById(conversation.getId());
+        messageMapper.delete(new LambdaQueryWrapper<AssistantMessage>()
+                .eq(AssistantMessage::getConversationId, conversationId));
+    }
+
+    /**
+     * 自定义重命名指定会话标题。
+     */
+    public ConversationVO renameConversation(Long conversationId, Long userId, String title) {
+        AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
+        BusinessException.throwIf(title == null || title.isBlank(), ErrorCodeEnum.PARAM_INVALID);
+        conversation.setTitle(title.trim());
+        conversation.setUpdateTime(LocalDateTime.now());
+        conversationMapper.updateById(conversation);
+        return toConversation(conversation, List.of());
     }
 
     /**
@@ -129,6 +201,156 @@ public class AssistantService {
                 .userMessage(toMessage(userMessage))
                 .assistantMessage(toMessage(reply))
                 .build();
+    }
+
+    /**
+     * 通过 SSE 流式协议发送用户提问并实时推送工具状态与增量文本事件。
+     */
+    public SseEmitter streamSend(Long conversationId, Long userId, String content, String clientRequestId) {
+        SseEmitter emitter = new SseEmitter(180_000L);
+        AssistantConversation conversation = requiredOwnedConversation(conversationId, userId);
+        BusinessException.throwIf(!"ACTIVE".equals(conversation.getStatus()),
+                AssistantErrorCode.CONVERSATION_CLOSED);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                AssistantMessage userMessage = findUserRequest(conversationId, clientRequestId);
+                if (userMessage == null) {
+                    userMessage = new AssistantMessage();
+                    userMessage.setConversationId(conversationId);
+                    userMessage.setUserId(userId);
+                    userMessage.setClientRequestId(clientRequestId);
+                    userMessage.setRole("USER");
+                    userMessage.setStatus("COMPLETED");
+                    userMessage.setContent(content.trim());
+                    LocalDateTime now = LocalDateTime.now();
+                    userMessage.setCreateTime(now);
+                    userMessage.setUpdateTime(now);
+                    try {
+                        messageMapper.insert(userMessage);
+                    } catch (DuplicateKeyException exception) {
+                        userMessage = findUserRequest(conversationId, clientRequestId);
+                        if (userMessage == null) throw exception;
+                    }
+                    updateDerivedTitle(conversation, userMessage.getContent());
+                }
+
+                AssistantMessage reply = findReply(userMessage.getId());
+                if (reply == null) {
+                    AssistantProductionSnapshot snapshot = productionConfigService.currentSnapshot();
+                    ReplyClaim claim = createProcessingReply(conversation, userMessage, snapshot);
+                    reply = claim.reply();
+                    if (claim.claimed()) {
+                        generateStreamingReply(conversation, userMessage, reply, emitter);
+                    }
+                } else if ("COMPLETED".equals(reply.getStatus())) {
+                    try {
+                        emitter.send(SseEmitter.event().name("message_end")
+                                .data(Map.of("messageId", reply.getId(),
+                                        "status", reply.getStatus(),
+                                        "fullContent", reply.getContent(),
+                                        "toolContextJson", reply.getToolContextJson() == null ? "" : reply.getToolContextJson())));
+                        emitter.complete();
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception e) {
+                log.warn("SSE 异步调度异常: {}", e.getMessage());
+                try {
+                    emitter.send(SseEmitter.event().name("error")
+                            .data(Map.of("code", 500, "message", userFacingError(e))));
+                    emitter.complete();
+                } catch (Exception ignored) {}
+            }
+        });
+
+        return emitter;
+    }
+
+    private AssistantMessage generateStreamingReply(AssistantConversation conversation,
+                                                    AssistantMessage userMessage,
+                                                    AssistantMessage existingReply,
+                                                    SseEmitter emitter) {
+        List<ProblemOptionDTO> candidates = null;
+        String toolContextJson = null;
+        try {
+            int attemptNo = beginAttempt(existingReply);
+            AssistantProductionSnapshot snapshot = snapshot(existingReply);
+            AiChatResponse response;
+            if (snapshot.toolsetVersion() != null) {
+                try {
+                    emitter.send(SseEmitter.event().name("tool_start")
+                            .data(Map.of("tool", "assistant_tools", "displayName", "正在调用受控领域工具...", "status", "RUNNING")));
+                } catch (Exception ignored) {}
+                AssistantToolRunResult toolResult = toolOrchestrator.run(
+                        recentCompletedMessages(conversation.getId()), userMessage,
+                        existingReply, snapshot, snapshot.toolsetVersion(), attemptNo,
+                        Instant.now().plusSeconds(240));
+                response = toolResult.response();
+                toolContextJson = toolResult.toolContextJson();
+                try {
+                    emitter.send(SseEmitter.event().name("tool_end")
+                            .data(Map.of("tool", "assistant_tools", "displayName", "工具执行完成", "status", "COMPLETED",
+                                    "toolContextJson", toolContextJson == null ? "" : toolContextJson)));
+                } catch (Exception ignored) {}
+                streamDeltaEvents(emitter, response.content());
+            } else {
+                if (workflow.needsProblemTool(userMessage.getContent())) {
+                    try {
+                        emitter.send(SseEmitter.event().name("tool_start")
+                                .data(Map.of("tool", "search_problem", "displayName", "正在检索题目事实...", "status", "RUNNING")));
+                    } catch (Exception ignored) {}
+                    Result<List<ProblemOptionDTO>> candidateResponse =
+                            problemFeignClient.getPublishedOptions(null, 8);
+                    candidates = candidateResponse != null ? candidateResponse.getData() : List.of();
+                    toolContextJson = objectMapper.writeValueAsString(candidates);
+                    try {
+                        emitter.send(SseEmitter.event().name("tool_end")
+                                .data(Map.of("tool", "search_problem", "displayName", "已获取相关题目候选", "status", "COMPLETED",
+                                        "toolContextJson", toolContextJson)));
+                    } catch (Exception ignored) {}
+                }
+                response = workflow.reply(recentCompletedMessages(conversation.getId()),
+                        userMessage, candidates, snapshot);
+                streamDeltaEvents(emitter, response.content());
+            }
+
+            AssistantMessage completed = persistReply(existingReply, conversation, userMessage, "COMPLETED",
+                    response.content(), null, toolContextJson, response.model(), response.callId());
+            try {
+                emitter.send(SseEmitter.event().name("message_end")
+                        .data(Map.of("messageId", completed.getId(),
+                                "status", "COMPLETED",
+                                "fullContent", completed.getContent() == null ? "" : completed.getContent(),
+                                "toolContextJson", completed.getToolContextJson() == null ? "" : completed.getToolContextJson())));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return completed;
+        } catch (Exception exception) {
+            log.warn("assistant-chat stream status=FAILED conversationId={} errorType={}",
+                    conversation.getId(), exception.getClass().getSimpleName());
+            AssistantMessage failed = persistReply(existingReply, conversation, userMessage, "FAILED",
+                    null, userFacingError(exception), toolContextJson, null, null);
+            try {
+                emitter.send(SseEmitter.event().name("error")
+                        .data(Map.of("code", 500, "message", userFacingError(exception))));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return failed;
+        }
+    }
+
+    private void streamDeltaEvents(SseEmitter emitter, String content) {
+        if (content == null || content.isEmpty()) return;
+        int chunkSize = 25;
+        for (int i = 0; i < content.length(); i += chunkSize) {
+            String chunk = content.substring(i, Math.min(i + chunkSize, content.length()));
+            try {
+                emitter.send(SseEmitter.event().name("delta").data(Map.of("content", chunk)));
+                Thread.sleep(15);
+            } catch (Exception ignored) {
+                break;
+            }
+        }
     }
 
     /**
@@ -326,6 +548,23 @@ public class AssistantService {
                         .last("LIMIT 1"));
         BusinessException.throwIf(conversation == null, AssistantErrorCode.CONVERSATION_NOT_FOUND);
         return conversation;
+    }
+
+    private AssistantConversation findBlankConversation(Long userId) {
+        List<AssistantConversation> activeConvs = conversationMapper.selectList(
+                new LambdaQueryWrapper<AssistantConversation>()
+                        .eq(AssistantConversation::getUserId, userId)
+                        .eq(AssistantConversation::getStatus, "ACTIVE")
+                        .orderByDesc(AssistantConversation::getCreateTime));
+        for (AssistantConversation conv : activeConvs) {
+            Long count = messageMapper.selectCount(
+                    new LambdaQueryWrapper<AssistantMessage>()
+                            .eq(AssistantMessage::getConversationId, conv.getId()));
+            if (count == null || count == 0) {
+                return conv;
+            }
+        }
+        return null;
     }
 
     private AssistantMessage findUserRequest(Long conversationId, String clientRequestId) {

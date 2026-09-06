@@ -85,4 +85,21 @@ class AssistantProductionMigrationContractTest {
                 .contains("ASSISTANT_TOOLS_NO_RAG_V1", "ASSISTANT_TOOLS_RAG_V1");
         assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
     }
+
+    @Test
+    void v8PublishesAssistantToolsRetrievalWorkflowWithoutDestructiveStatements() throws Exception {
+        String sql;
+        try (var stream = getClass().getResourceAsStream(
+                "/db/migration/V8__publish_assistant_tools_retrieval_workflow.sql")) {
+            assertThat(stream).isNotNull();
+            sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(sql)
+                .contains("ASSISTANT_TOOLS_RETRIEVAL_V1")
+                .contains("PROMPT_ASSISTANT_TOOLS_0001")
+                .contains("MODEL_CFG_ASSISTANT_TOOLS_0001")
+                .contains("ASSISTANT_TOOLSET_0001")
+                .contains("RETRIEVAL_SERVICE");
+        assertThat(sql.toUpperCase()).doesNotContain("DROP ", "DELETE ", "TRUNCATE");
+    }
 }

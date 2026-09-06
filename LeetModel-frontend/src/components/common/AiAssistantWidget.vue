@@ -8,7 +8,7 @@
             <button v-if="view === 'history'" type="button" class="ai-icon-btn" title="返回对话" @click="view = 'chat'">
               <el-icon :size="17"><ArrowLeft /></el-icon>
             </button>
-            <div class="ai-avatar"><el-icon :size="17"><ChatDotRound /></el-icon></div>
+            <div class="ai-avatar"><img :src="aiAvatarImg" alt="AI 客服" class="ai-avatar-img" /></div>
             <div class="ai-title-wrap">
               <div class="ai-title-row"><strong class="ai-title">AI 客服</strong><span class="ai-online" :class="serviceStatus"><i></i>{{ serviceStatusLabel }}</span></div>
               <span class="ai-subtitle">{{ view === 'history' ? '历史记录' : '平台操作与选题辅助' }}</span>
@@ -44,7 +44,7 @@
                   :class="{ active: String(conv.id) === String(currentId) }"
                   @click="selectConversation(conv.id)"
                 >
-                  <div class="ai-history-avatar"><el-icon :size="16"><ChatDotRound /></el-icon></div>
+                  <div class="ai-history-avatar"><img :src="aiAvatarImg" alt="AI 客服" class="ai-history-avatar-img" /></div>
                   <div class="ai-history-text">
                     <span class="ai-history-name">{{ conv.title || '未命名对话' }}</span>
                     <span class="ai-history-meta">{{ shortTime(conv.updateTime) }}<template v-if="conv.messageCount"> · {{ conv.messageCount }} 条</template></span>
@@ -63,7 +63,7 @@
           <template v-else>
             <div ref="messagesRef" class="ai-messages">
               <div v-if="messages.length === 0 && !sending" class="ai-welcome">
-                <div class="ai-welcome-avatar"><el-icon :size="24"><ChatDotRound /></el-icon></div>
+                <div class="ai-welcome-avatar"><img :src="aiSmileImg" alt="AI 客服" class="ai-welcome-avatar-img" /></div>
                 <p class="ai-welcome-title">你好，我是 LeetModel 客服</p>
                 <p class="ai-welcome-desc">可以问我平台操作、组队、提交或评审相关问题。</p>
                 <div class="ai-rec-head">
@@ -80,11 +80,54 @@
 
               <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
                 <template v-if="msg.role === 'assistant'">
-                  <div class="ai-msg-avatar support"><el-icon :size="15"><Service /></el-icon></div>
+                  <div class="ai-msg-avatar support"><img :src="aiAvatarImg" alt="AI 客服" class="ai-msg-avatar-img" /></div>
                   <div class="ai-msg-col">
                     <span class="ai-msg-name">AI 客服</span>
                     <div class="ai-bubble">
-                      <div class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <!-- 工具调用动态状态条 -->
+                      <div v-if="msg.toolStatus" class="ai-tool-badge" :class="msg.toolStatus.status">
+                        <el-icon class="ai-tool-spin" v-if="msg.toolStatus.status === 'RUNNING'"><Loading /></el-icon>
+                        <el-icon v-else><Check /></el-icon>
+                        <span>{{ msg.toolStatus.displayName }}</span>
+                      </div>
+
+                      <div v-if="msg.content" class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <div v-else-if="msg.status === 'RUNNING'" class="ai-typing-inline">
+                        <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
+                      </div>
+
+                      <!-- 题目推荐结构化卡片 -->
+                      <div v-if="getProblemCards(msg.toolContextJson).length" class="ai-problem-cards">
+                        <div class="ai-problem-cards-head">
+                          <el-icon :size="13"><Document /></el-icon>
+                          <span>推荐题目 ({{ getProblemCards(msg.toolContextJson).length }})</span>
+                        </div>
+                        <div class="ai-problem-cards-list">
+                          <div
+                            v-for="card in getProblemCards(msg.toolContextJson)"
+                            :key="card.code"
+                            class="ai-problem-card"
+                            @click="goToProblem(card.code)"
+                          >
+                            <div class="ai-problem-card-main">
+                              <div class="ai-problem-card-title-row">
+                                <span class="ai-problem-code-badge">P{{ card.code }}</span>
+                                <span class="ai-problem-card-title" :title="card.title">{{ card.title }}</span>
+                              </div>
+                              <div class="ai-problem-card-tags">
+                                <el-tag v-if="card.difficulty" size="small" :type="difficultyType(card.difficulty)" effect="light">
+                                  {{ difficultyLabel(card.difficulty) }}
+                                </el-tag>
+                                <el-tag v-if="card.year" size="small" type="info" effect="plain">{{ card.year }}年</el-tag>
+                                <el-tag v-if="card.contestName" size="small" type="info" effect="plain">{{ card.contestName }}</el-tag>
+                                <el-tag v-for="tag in card.tagNames.slice(0, 2)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+                              </div>
+                            </div>
+                            <el-icon class="ai-problem-card-arrow" :size="14"><ArrowRight /></el-icon>
+                          </div>
+                        </div>
+                      </div>
+
                       <div class="ai-meta">
                         <el-tag v-if="msg.status === 'FAILED'" type="danger" size="small" effect="light">{{ msg.errorMessage || '回复失败' }}</el-tag>
                         <span v-else class="ai-msg-time">{{ shortTime(msg.createTime) }}</span>
@@ -111,8 +154,8 @@
                 </template>
               </div>
 
-              <div v-if="sending" class="ai-msg assistant">
-                <div class="ai-msg-avatar support"><el-icon :size="15"><Service /></el-icon></div>
+              <div v-if="sending && !messages.some((m) => m.status === 'RUNNING')" class="ai-msg assistant">
+                <div class="ai-msg-avatar support"><img :src="aiAvatarImg" alt="AI 客服" class="ai-msg-avatar-img" /></div>
                 <div class="ai-msg-col">
                   <span class="ai-msg-name">AI 客服</span>
                   <div class="ai-bubble typing"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>
@@ -151,7 +194,7 @@
       </transition>
 
       <button type="button" class="ai-bubble-btn" @click="toggleOpen" :aria-label="opened ? '收起 AI 客服' : '打开 AI 客服'">
-        <el-icon :size="20"><ChatDotRound /></el-icon>
+        <img :src="aiAvatarImg" alt="AI 客服" class="ai-bubble-avatar-img" />
         <span v-if="!opened" class="ai-bubble-label">AI 客服</span>
       </button>
     </div>
@@ -160,11 +203,15 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
 import { renderSafeMarkdown } from "@/utils/markdown";
 import { listConversations, createConversation, getConversation, sendMessage, retryMessage } from "@/api/assistant";
+import aiAvatarImg from "@/assets/images/AI客服-avatar.png";
+import aiSmileImg from "@/assets/images/AI客服-smile.png";
 
+const router = useRouter();
 const userStore = useUserStore();
 const opened = ref(false);
 const view = ref("chat");
@@ -283,7 +330,7 @@ async function selectConversation(id) {
 async function newConversation() {
   creating.value = true;
   try {
-    const res = await createConversation("AI 客服咨询");
+    const res = await createConversation("新会话");
     conversations.value.unshift(res.data);
     currentId.value = res.data.id;
     messages.value = [];
@@ -297,25 +344,198 @@ async function send(text) {
   const content = (text || draft.value).trim();
   if (!content || sending.value) return;
   if (!currentId.value) { ElMessage.warning("请先创建会话"); return; }
+
+  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const optimisticUserMessage = {
+    id: tempId,
+    role: "user",
+    content,
+    createTime: new Date().toISOString(),
+    status: "COMPLETED"
+  };
+  messages.value.push(optimisticUserMessage);
+
+  const streamAssistantId = `stream-${Date.now()}`;
+  const streamingAssistantMessage = {
+    id: streamAssistantId,
+    role: "assistant",
+    content: "",
+    status: "RUNNING",
+    toolStatus: null,
+    toolContextJson: null,
+    createTime: new Date().toISOString()
+  };
+  messages.value.push(streamingAssistantMessage);
+  scrollToBottom();
+
   sending.value = true;
   suggestOpen.value = false;
+  const originalDraft = draft.value;
   if (!text) draft.value = "";
+
+  const clientRequestId = uuid();
+  let sseHandled = false;
+
   try {
-    const res = await sendMessage(currentId.value, content, uuid());
-    const { userMessage, assistantMessage } = res.data || {};
-    if (userMessage) messages.value.push(userMessage);
-    if (assistantMessage) messages.value.push(assistantMessage);
-    serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
-    await loadConversations();
-    scrollToBottom();
-  } catch (error) {
-    serviceStatus.value = "unavailable";
-    ElMessage.error(error.message || "发送失败");
-    if (!text) draft.value = content;
+    const token = userStore.token;
+    const response = await fetch(`/api/assistant/conversations/${currentId.value}/messages/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ content, clientRequestId })
+    });
+
+    if (response.ok && response.body) {
+      sseHandled = true;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() || "";
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataStr += line.slice(5).trim();
+            }
+          }
+          if (!dataStr) continue;
+          try {
+            const payload = JSON.parse(dataStr);
+            if (eventName === "tool_start") {
+              streamingAssistantMessage.toolStatus = {
+                name: payload.tool,
+                displayName: payload.displayName || "正在调用工具...",
+                status: "RUNNING"
+              };
+              scrollToBottom();
+            } else if (eventName === "tool_end") {
+              streamingAssistantMessage.toolStatus = {
+                name: payload.tool,
+                displayName: payload.displayName || "工具执行完成",
+                status: "COMPLETED"
+              };
+              if (payload.toolContextJson) {
+                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+              }
+              scrollToBottom();
+            } else if (eventName === "delta") {
+              if (payload.content) {
+                streamingAssistantMessage.content += payload.content;
+                scrollToBottom();
+              }
+            } else if (eventName === "message_end") {
+              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
+              streamingAssistantMessage.status = payload.status || "COMPLETED";
+              if (payload.fullContent) {
+                streamingAssistantMessage.content = payload.fullContent;
+              }
+              if (payload.toolContextJson) {
+                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+              }
+              streamingAssistantMessage.toolStatus = null;
+              serviceStatus.value = "connected";
+              scrollToBottom();
+            } else if (eventName === "error") {
+              streamingAssistantMessage.status = "FAILED";
+              streamingAssistantMessage.errorMessage = payload.message || "回复失败";
+              streamingAssistantMessage.toolStatus = null;
+              serviceStatus.value = "unavailable";
+            }
+          } catch (e) {
+            console.error("SSE parse error", e);
+          }
+        }
+      }
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (err) {
+    if (!sseHandled) {
+      try {
+        const res = await sendMessage(currentId.value, content, clientRequestId);
+        const { assistantMessage } = res.data || {};
+        const idx = messages.value.findIndex((m) => m.id === streamAssistantId);
+        if (idx >= 0 && assistantMessage) {
+          messages.value.splice(idx, 1, assistantMessage);
+        }
+        serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
+      } catch (fallbackErr) {
+        messages.value = messages.value.filter((m) => m.id !== tempId && m.id !== streamAssistantId);
+        if (!text) draft.value = originalDraft;
+        serviceStatus.value = "unavailable";
+        ElMessage.error(fallbackErr.message || "发送失败");
+        return;
+      }
+    }
   } finally {
     sending.value = false;
+    const currentConv = conversations.value.find((c) => String(c.id) === String(currentId.value));
+    if (currentConv && (!currentConv.title || currentConv.title === "新会话" || currentConv.title === "AI 客服咨询")) {
+      const derived = content.length <= 30 ? content : content.substring(0, 30) + "…";
+      currentConv.title = derived;
+    }
+    loadConversations();
     scrollToBottom();
   }
+}
+
+function getProblemCards(toolContextJson) {
+  if (!toolContextJson) return [];
+  try {
+    const data = typeof toolContextJson === "string" ? JSON.parse(toolContextJson) : toolContextJson;
+    if (Array.isArray(data)) {
+      const toolWithProblems = data.find((ctx) => ctx && ctx.result && Array.isArray(ctx.result.items));
+      if (toolWithProblems) {
+        return (toolWithProblems.result.items || []).map(normalizeProblemCard);
+      }
+      if (data.length && (data[0].code !== undefined || data[0].title !== undefined)) {
+        return data.map(normalizeProblemCard);
+      }
+    } else if (data && typeof data === "object" && Array.isArray(data.items)) {
+      return data.items.map(normalizeProblemCard);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeProblemCard(item) {
+  return {
+    code: item.code,
+    title: item.title || "未知题目",
+    contestName: item.contestName || item.contestCode || "",
+    year: item.year || null,
+    difficulty: item.difficulty || null,
+    durationMinutes: item.durationMinutes || null,
+    tagNames: Array.isArray(item.tagNames) ? item.tagNames : []
+  };
+}
+
+function difficultyType(difficulty) {
+  return { 1: "success", 2: "warning", 3: "danger" }[Number(difficulty)] || "info";
+}
+
+function difficultyLabel(difficulty) {
+  return { 1: "简单", 2: "中等", 3: "困难" }[Number(difficulty)] || "未知";
+}
+
+function goToProblem(code) {
+  if (!code) return;
+  router.push(`/problem/${code}`);
 }
 
 async function retry(messageId) {
@@ -350,13 +570,15 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 
 <style scoped>
 .ai-widget { position: fixed; right: 22px; bottom: 22px; z-index: 4000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.ai-bubble-btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 18px; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.34); transition: transform .2s, box-shadow .2s; }
+.ai-bubble-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px 8px 10px; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.34); transition: transform .2s, box-shadow .2s; }
 .ai-bubble-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(37, 99, 235, 0.42); }
+.ai-bubble-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-shrink: 0; }
 .ai-panel { display: flex; width: 400px; max-width: calc(100vw - 24px); height: 560px; max-height: calc(100vh - 130px); flex-direction: column; overflow: hidden; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 16px; box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18); }
 
 /* Header */
 .ai-header { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--lm-border-light); }
-.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
+.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: var(--lm-bg-secondary); }
+.ai-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-title-wrap { min-width: 0; flex: 1; }
 .ai-title-row { display: flex; align-items: center; gap: 7px; }
 .ai-title { font-size: 14px; color: var(--lm-text-primary); }
@@ -385,7 +607,8 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-history-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px; text-align: left; border: 1px solid transparent; border-radius: 12px; background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
 .ai-history-item:hover { background: var(--lm-bg-secondary); }
 .ai-history-item.active { border-color: var(--lm-primary); background: var(--lm-primary-bg); }
-.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
+.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; overflow: hidden; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
+.ai-history-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-history-item.active .ai-history-avatar { background: var(--lm-surface); color: var(--lm-primary); box-shadow: var(--lm-shadow-xs); }
 .ai-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .ai-history-name { overflow: hidden; color: var(--lm-text-primary); font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -398,7 +621,8 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 /* Welcome */
 .ai-messages { display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 10px; overflow: auto; flex: 1; background: var(--lm-bg); }
 .ai-welcome { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.ai-welcome-avatar { display: inline-flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 16px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
+.ai-welcome-avatar { display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 18px; overflow: hidden; background: var(--lm-primary-bg); border: 2px solid var(--lm-border-light); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14); }
+.ai-welcome-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-welcome-title { margin: 6px 0 0; color: var(--lm-text-primary); font-size: 17px; font-weight: 700; }
 .ai-welcome-desc { margin: 0; color: var(--lm-text-muted); font-size: 13px; line-height: 1.6; }
 .ai-rec-head { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 14px 0 8px; }
@@ -422,7 +646,8 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg-name { color: var(--lm-text-muted); font-size: 11px; line-height: 1; }
 .ai-msg.user .ai-msg-name { text-align: right; }
 .ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
-.ai-msg-avatar.support { background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; }
+.ai-msg-avatar.support { background: transparent; overflow: hidden; border: 1px solid var(--lm-border-light); }
+.ai-msg-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
 .ai-msg-avatar.user { overflow: hidden; }
 .ai-msg-avatar.user img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -466,5 +691,29 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .slide-up-enter-from, .slide-up-leave-to { transform: translateY(12px); opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Problem Recommendation Cards */
+.ai-problem-cards { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--lm-border); }
+.ai-problem-cards-head { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--lm-text-secondary); margin-bottom: 6px; }
+.ai-problem-cards-list { display: flex; flex-direction: column; gap: 6px; }
+.ai-problem-card { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--lm-bg-secondary); border: 1px solid var(--lm-border-light); cursor: pointer; transition: all .16s ease; text-decoration: none; }
+.ai-problem-card:hover { border-color: var(--lm-primary); background: var(--lm-primary-bg, #eff6ff); transform: translateY(-1px); box-shadow: var(--lm-shadow-xs, 0 1px 2px rgba(0,0,0,0.05)); }
+.ai-problem-card-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ai-problem-card-title-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ai-problem-code-badge { font-size: 11px; font-weight: 700; color: var(--lm-primary); background: var(--lm-surface); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--lm-border-light); flex-shrink: 0; }
+.ai-problem-card-title { font-size: 12px; font-weight: 600; color: var(--lm-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ai-problem-card-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.ai-problem-card-tags :deep(.el-tag) { height: 18px; line-height: 18px; padding: 0 4px; font-size: 10px; border-radius: 4px; }
+.ai-problem-card-arrow { color: var(--lm-text-muted); flex-shrink: 0; transition: transform .16s; }
+.ai-problem-card:hover .ai-problem-card-arrow { transform: translateX(2px); color: var(--lm-primary); }
+
+/* Tool Execution Badges & Streaming */
+.ai-tool-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; font-size: 11px; margin-bottom: 6px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); border: 1px solid var(--lm-border-light); }
+.ai-tool-badge.RUNNING { background: var(--lm-primary-bg); color: var(--lm-primary); border-color: #bfdbfe; }
+.ai-tool-badge.COMPLETED { background: var(--lm-success-bg); color: var(--lm-success); border-color: #bbf7d0; }
+.ai-tool-spin { animation: ai-rotate 1s linear infinite; }
+@keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
+
 @media (max-width: 520px) { .ai-widget { right: 12px; bottom: 12px; gap: 10px; } .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; } }
 </style>

@@ -185,6 +185,27 @@ class AssistantWorkflowTest {
         assertThat(messages.get(1).content().get(0).text()).isEqualTo("什么是层次分析法");
     }
 
+    @Test
+    void toolWorkflowWithRetrievalServiceDelegatesToKnowledgeService() throws Exception {
+        RagWorkflowContextProvider provider = mock(RagWorkflowContextProvider.class);
+        when(provider.retrieveFromService("AHP怎么用", "HYBRID_RETRIEVAL_V1", null))
+                .thenReturn(new RagWorkflowContext("跨服务知识: AHP用法", null));
+        AssistantWorkflow retrievalWorkflow = new AssistantWorkflow(aiClient, new ObjectMapper(), provider);
+        AssistantMessage current = message(2L, "USER", "AHP怎么用");
+
+        AssistantProductionSnapshot retrievalSnapshot = new AssistantProductionSnapshot(
+                "ASSISTANT_PROD_CFG_RETRIEVAL", 3,
+                "ASSISTANT_TOOLS_RETRIEVAL_V1", "PROMPT_ASSISTANT_TOOLS_0001",
+                "MODEL_CFG_ASSISTANT_TOOLS_0001", "ASSISTANT_TOOLSET_0001",
+                "RETRIEVAL_SERVICE", null);
+
+        var messages = retrievalWorkflow.toolConversationMessages(List.of(current), current, retrievalSnapshot);
+
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(1).content().get(0).text()).contains("跨服务知识: AHP用法");
+        verify(provider).retrieveFromService("AHP怎么用", "HYBRID_RETRIEVAL_V1", null);
+    }
+
     private AssistantMessage message(Long id, String role, String content) {
         AssistantMessage message = new AssistantMessage();
         message.setId(id);
