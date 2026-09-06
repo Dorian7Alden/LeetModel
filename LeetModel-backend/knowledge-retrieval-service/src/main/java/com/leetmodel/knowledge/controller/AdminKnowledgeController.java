@@ -34,7 +34,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/admin/knowledge")
+@RequestMapping({"/admin/knowledge", "/api/admin/knowledge"})
 @RequiredArgsConstructor
 public class AdminKnowledgeController {
 
