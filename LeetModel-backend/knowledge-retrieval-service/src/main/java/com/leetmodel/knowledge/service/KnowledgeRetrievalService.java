@@ -21,6 +21,8 @@ import com.leetmodel.common.api.dto.KnowledgeCitationDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
 import com.leetmodel.common.api.dto.KnowledgeRetrievalResultDTO;
 import com.leetmodel.knowledge.config.KnowledgeRetrievalProperties;
+import com.leetmodel.knowledge.cache.RetrievalCacheProperties;
+import com.leetmodel.knowledge.cache.RetrievalCacheService;
 import com.leetmodel.knowledge.defense.CatalogSelectionDefenseEngine;
 import com.leetmodel.knowledge.defense.DefensiveCatalogOutputParser;
 import com.leetmodel.knowledge.defense.GracefulFallbackProvider;
@@ -75,6 +77,7 @@ public class KnowledgeRetrievalService {
     private final ObjectMapper objectMapper;
     private final YamlKnowledgeManifestLoader manifestLoader;
     private final CatalogSelectionDefenseEngine defenseEngine;
+    private final RetrievalCacheService cacheService;
 
     public KnowledgeRetrievalService(KnowledgeRetrievalProperties properties, AiClient aiClient,
                                      RestClient restClient, ObjectMapper objectMapper) {
@@ -85,20 +88,23 @@ public class KnowledgeRetrievalService {
                         new PathWhitelistValidator(),
                         new SelectionCountTruncator(),
                         new GracefulFallbackProvider()
-                ));
+                ),
+                new RetrievalCacheService(new RetrievalCacheProperties(), objectMapper, null));
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public KnowledgeRetrievalService(KnowledgeRetrievalProperties properties, AiClient aiClient,
                                      RestClient restClient, ObjectMapper objectMapper,
                                      YamlKnowledgeManifestLoader manifestLoader,
-                                     CatalogSelectionDefenseEngine defenseEngine) {
+                                     CatalogSelectionDefenseEngine defenseEngine,
+                                     RetrievalCacheService cacheService) {
         this.properties = properties;
         this.aiClient = aiClient;
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.manifestLoader = manifestLoader;
         this.defenseEngine = defenseEngine;
+        this.cacheService = cacheService;
     }
 
     public KnowledgeRetrievalResultDTO retrieve(KnowledgeRetrievalRequestDTO request) {
@@ -109,15 +115,33 @@ public class KnowledgeRetrievalService {
         int topK = request.getTopK() == null ? properties.getTopK() : request.getTopK();
         int budget = request.getTokenBudget() == null
                 ? properties.getTokenBudget() : request.getTokenBudget();
+
+        // L1 缓存拦截：精确参数命中直接返回
+        String category = request.getCategory() != null ? request.getCategory() : "通用";
+        List<KnowledgeCitationDTO> l1Cached = cacheService.getL1Exact(
+                request.getWorkflowVersion(), category, request.getQuery(), topK, request.getRequiredIndexVersion());
+        if (l1Cached != null) {
+            log.info("L1 精确结果缓存命中: runId={}, workflow={}", runId, request.getWorkflowVersion());
+            return new KnowledgeRetrievalResultDTO(runId, request.getWorkflowVersion(), "CACHE_L1",
+                    request.getRequiredIndexVersion(), null, null, "COMPLETED", l1Cached);
+        }
+
         RetrievalSnapshot snapshot = switch (request.getWorkflowVersion()) {
-            case VECTOR_RAG_V1 -> vector(runId, request.getQuery(), request.getRequiredIndexVersion(), topK);
+            case VECTOR_RAG_V1 -> vector(runId, request.getQuery(), category, request.getRequiredIndexVersion(), topK);
             case AI_DIRECTORY_V1, AI_CATALOG_TAG_V1 -> directory(runId, request, topK);
-            case HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(),
+            case HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(), category,
                     request.getRequiredIndexVersion(), topK);
             default -> throw new IllegalStateException("未实现的知识检索版本");
         };
         List<KnowledgeCitationDTO> citations = applyBudget(snapshot.citations(), budget, topK);
         String status = citations.isEmpty() ? "NO_CONTEXT" : "COMPLETED";
+
+        // 写入 L1 缓存
+        if (!citations.isEmpty()) {
+            cacheService.putL1Exact(request.getWorkflowVersion(), category, request.getQuery(),
+                    topK, snapshot.manifestVersion(), citations);
+        }
+
         log.info("knowledge-retrieval status={} runId={} workflow={} branch={} citations={}",
                 status, runId, request.getWorkflowVersion(), snapshot.branch(), citations.size());
         return new KnowledgeRetrievalResultDTO(runId, request.getWorkflowVersion(), snapshot.branch(),
@@ -125,16 +149,16 @@ public class KnowledgeRetrievalService {
                 status, citations);
     }
 
-    private RetrievalSnapshot hybrid(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot hybrid(String runId, String query, String category, String requiredIndexVersion, int topK) {
         int candidateK = Math.max(topK * 2, 10);
         RetrievalSnapshot vectorSnap;
         try {
-            vectorSnap = vector(runId + ":vector", query, requiredIndexVersion, candidateK);
+            vectorSnap = vector(runId + ":vector", query, category, requiredIndexVersion, candidateK);
         } catch (Exception e) {
             log.warn("混合检索向量分支异常，降级为空: {}", e.getMessage());
             vectorSnap = new RetrievalSnapshot("VECTOR", requiredIndexVersion, null, null, List.of());
         }
-        RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, requiredIndexVersion, candidateK);
+        RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, category, requiredIndexVersion, candidateK);
 
         Map<String, KnowledgeCitationDTO> candidates = new LinkedHashMap<>();
         Map<String, Double> rrfScores = new LinkedHashMap<>();
@@ -172,17 +196,36 @@ public class KnowledgeRetrievalService {
         return new RetrievalSnapshot("VECTOR+BM25_RRF", indexVersion, null, null, fused);
     }
 
-    private RetrievalSnapshot bm25(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot bm25(String runId, String query, String category, String requiredIndexVersion, int topK) {
         String indexName = requiredIndexVersion == null || requiredIndexVersion.isBlank()
                 ? properties.getIndexAlias() : physicalIndexName(requiredIndexVersion);
+
+        Map<String, Object> queryMap;
+        if (category != null && !category.isBlank() && !"通用".equals(category)) {
+            queryMap = Map.of("bool", Map.of(
+                    "must", List.of(Map.of("multi_match", Map.of(
+                            "query", query,
+                            "fields", List.of("title^3", "content^1")
+                    ))),
+                    "filter", List.of(Map.of("bool", Map.of(
+                            "should", List.of(
+                                    Map.of("term", Map.of("category", category)),
+                                    Map.of("wildcard", Map.of("sourcePath", "*" + category + "*"))
+                            )
+                    )))
+            ));
+        } else {
+            queryMap = Map.of("multi_match", Map.of(
+                    "query", query,
+                    "fields", List.of("title^3", "content^1")
+            ));
+        }
+
         Map<String, Object> body = Map.of(
                 "size", topK,
                 "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
                         "ragIndexVersion", "estimatedTokens", "contentHash"),
-                "query", Map.of("multi_match", Map.of(
-                        "query", query,
-                        "fields", List.of("title^3", "content^1")
-                ))
+                "query", queryMap
         );
         Request request = new Request("POST", "/" + indexName + "/_search");
         try {
@@ -219,7 +262,7 @@ public class KnowledgeRetrievalService {
         }
     }
 
-    private RetrievalSnapshot vector(String runId, String query, String requiredIndexVersion, int topK) {
+    private RetrievalSnapshot vector(String runId, String query, String category, String requiredIndexVersion, int topK) {
         AiCallContext context = context(runId, VECTOR_RAG_V1, "PROMPT_NONE",
                 "MODEL_CFG_RAG_V1");
         AiEmbeddingResponse embedding = aiClient.embed(AiEmbeddingRequest.single(
@@ -231,12 +274,26 @@ public class KnowledgeRetrievalService {
         List<Float> vector = embedding.vectors().get(0).values();
         String indexName = requiredIndexVersion == null || requiredIndexVersion.isBlank()
                 ? properties.getIndexAlias() : physicalIndexName(requiredIndexVersion);
+
+        Map<String, Object> knnMap = new LinkedHashMap<>();
+        knnMap.put("field", "embedding");
+        knnMap.put("query_vector", vector);
+        knnMap.put("k", topK);
+        knnMap.put("num_candidates", Math.max(100, topK * 10));
+        if (category != null && !category.isBlank() && !"通用".equals(category)) {
+            knnMap.put("filter", Map.of("bool", Map.of(
+                    "should", List.of(
+                            Map.of("term", Map.of("category", category)),
+                            Map.of("wildcard", Map.of("sourcePath", "*" + category + "*"))
+                    )
+            )));
+        }
+
         Map<String, Object> body = Map.of(
                 "size", topK,
                 "_source", List.of("chunkId", "documentId", "content", "sourcePath", "title",
                         "ragIndexVersion", "estimatedTokens", "contentHash"),
-                "knn", Map.of("field", "embedding", "query_vector", vector,
-                        "k", topK, "num_candidates", Math.max(100, topK * 10)));
+                "knn", knnMap);
         Request request = new Request("POST", "/" + indexName + "/_search");
         try {
             request.setJsonEntity(objectMapper.writeValueAsString(body));

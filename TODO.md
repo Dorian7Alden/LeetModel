@@ -20,12 +20,8 @@
 
 ## 当前任务
 
-### 阶段三：性能与成本优化（两级缓存与分类前置过滤）
-- [~] 任务 3.2【实现与验证】：Redis 两级缓存与分类前置过滤落地
-  - 目标：编码实现缓存层与 ES `category` 过滤减枝，编写相似任务命中（0ms/0 Token）与穿透的单测与性能压测。
-
 ### 阶段四：自包含存储与管理端可视化闭环
-- [ ] 任务 4.1【精细设计】：Flyway 数据库 DDL 与前后端 Admin API 契约设计
+- [~] 任务 4.1【精细设计】：Flyway 数据库 DDL 与前后端 Admin API 契约设计
   - 目标：制定 `knowledge_document` 表结构、后端 Admin API 接口契约与前端组件交互规范。
 - [ ] 任务 4.2【后端实现与验证】：ZIP 自包含打包导出与无损解析导入服务
   - 目标：实现 `KnowledgeExportService` 与 `KnowledgeImportService`，编写端到端导入导出数据一致性集成测试。
