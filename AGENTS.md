@@ -86,6 +86,7 @@ README 只负责导航，不能代替任务相关文档和当前实现。
 | AI 提示词管理、输入输出转义与 JSON 解析实践 | `docs/learning/提示词管理.md` |
 | 跨服务架构与数据边界 | `docs/project/02-架构设计/README.md` |
 | 微服务职责、数据所有权与功能设计 | `docs/project/03-微服务设计/README.md` |
+| 前端架构、信息流与 UI/UX 设计规范 | `docs/project/04-前端设计/README.md` |
 | 技术栈与版本选择 | `docs/project/02-架构设计/技术栈选型.md` |
 | AI 评审测试题目与论文数据 | `data/README.md` |
 | RAG 知识内容与维护入口 | `rag_kb/CONTEXT.md` |
