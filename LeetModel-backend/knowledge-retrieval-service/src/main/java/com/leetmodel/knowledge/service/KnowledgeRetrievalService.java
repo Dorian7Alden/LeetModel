@@ -54,8 +54,9 @@ public class KnowledgeRetrievalService {
     public static final String VECTOR_RAG_V1 = "VECTOR_RAG_V1";
     public static final String AI_DIRECTORY_V1 = "AI_DIRECTORY_V1";
     public static final String HYBRID_RETRIEVAL_V1 = "HYBRID_RETRIEVAL_V1";
+    public static final String SUGGESTION_DEEP_RETRIEVAL_V1 = "SUGGESTION_DEEP_RETRIEVAL_V1";
     private static final Set<String> SUPPORTED = Set.of(
-            VECTOR_RAG_V1, AI_DIRECTORY_V1, HYBRID_RETRIEVAL_V1);
+            VECTOR_RAG_V1, AI_DIRECTORY_V1, HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1);
 
     private final KnowledgeRetrievalProperties properties;
     private final AiClient aiClient;
@@ -81,7 +82,7 @@ public class KnowledgeRetrievalService {
         RetrievalSnapshot snapshot = switch (request.getWorkflowVersion()) {
             case VECTOR_RAG_V1 -> vector(runId, request.getQuery(), request.getRequiredIndexVersion(), topK);
             case AI_DIRECTORY_V1 -> directory(runId, request.getQuery(), topK);
-            case HYBRID_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(),
+            case HYBRID_RETRIEVAL_V1, SUGGESTION_DEEP_RETRIEVAL_V1 -> hybrid(runId, request.getQuery(),
                     request.getRequiredIndexVersion(), topK);
             default -> throw new IllegalStateException("未实现的知识检索版本");
         };
@@ -161,7 +162,7 @@ public class KnowledgeRetrievalService {
                     .setConnectTimeout(timeout).setSocketTimeout(timeout)
                     .setConnectionRequestTimeout(timeout).build()));
             Response response = restClient.performRequest(request);
-            JsonNode hits = objectMapper.readTree(EntityUtils.toString(response.getEntity()))
+            JsonNode hits = objectMapper.readTree(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8))
                     .path("hits").path("hits");
             List<KnowledgeCitationDTO> citations = new ArrayList<>();
             String actualVersion = requiredIndexVersion;
@@ -214,7 +215,7 @@ public class KnowledgeRetrievalService {
                     .setConnectTimeout(timeout).setSocketTimeout(timeout)
                     .setConnectionRequestTimeout(timeout).build()));
             Response response = restClient.performRequest(request);
-            JsonNode hits = objectMapper.readTree(EntityUtils.toString(response.getEntity()))
+            JsonNode hits = objectMapper.readTree(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8))
                     .path("hits").path("hits");
             List<KnowledgeCitationDTO> citations = new ArrayList<>();
             String actualVersion = requiredIndexVersion;
