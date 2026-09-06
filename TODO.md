@@ -16,24 +16,65 @@
 
 ## 当前状态
 
-当前分支 `phase/knowledge-retrieval-optimization`，开启知识库检索精准度优化、成本控制与微服务解耦演进阶段。
+当前分支 `phase/knowledge-retrieval-optimization`，开启知识库管理与智能检索架构落地（物理目录与多维标签解耦、`README.yaml` 自包含迁移、低价 Flash 模型智能选拔与服务端 4 道防线、语义缓存加速与全链路验收）。
 
 ## 当前任务
 
-- [ ] 任务卡 1: 切片结构化与面包屑上下文增强（Breadcrumbs Injection）
-  - 业务流程与职责：在分块处理类（`ChineseKnowledgeChunker` / `MarkdownKnowledgeLoader`）中，解析原子 Markdown 相对路径与 Frontmatter 标题，在每个切片正文前置插入标准化面包屑（如 `[目录: 数学建模 > 题型方法 > 优化模型] [文档: 线性规划]`），以零模型成本增强向量与 BM25 在短文本上的语义空间坐标。
-  - 实施步骤：修改分块逻辑注入前缀；更新 `RagIdentityFactory` 保持哈希自洽；编写单测验证前缀生成与全量构建。
+- [ ] 任务卡 1: 知识库 README.yaml 规范落地、Manifest 动态解析与切片面包屑增强
+  - 业务流程与职责：在知识库中规范落盘各层级 `README.yaml`（抽取标签与文档清单）；在 `knowledge-retrieval-service` 与 `ai-assistant-service` 实现 `README.yaml` 解析器与内存 Manifest 构建；在 `ChineseKnowledgeChunker` 中注入标准化目录层级与文档标题面包屑（`[目录: ...] [文档: ...] [小节: ...]`），零模型成本赋予短切片全局语义坐标。
+  - 数据归属与接口：扩展切片元数据并保证哈希计算幂等自洽，对外接口契约保持平滑兼容。
+  - 实施步骤：
+    1. 在 `rag_kb/` 典型目录创建 `README.yaml` 样本并建立标准格式；
+    2. 实现 `YamlKnowledgeManifestLoader` 解析 YAML 提取目录标签与文档属性；
+    3. 增强 `ChineseKnowledgeChunker` / `MarkdownKnowledgeLoader` 支持动态拼装面包屑前缀；
+    4. 同步更新 `RagIdentityFactory` 确保版本指纹一致；
+    5. 编写针对 YAML 解析、切片前缀生成与全量构建的单元测试；
+    6. 执行全量构建冒烟测试，验证切片首行面包屑。
+  - 验证标准：单测 100% 覆盖 YAML 格式解析、标签继承与面包屑注入；全量分块结果携带清晰层级信息且不引入格式破坏。
+  - 非目标：本卡聚焦基础数据层与分块，不改动在线检索控制器。
 
 - [ ] 任务卡 2: 目录与标签 AI 智能选拔（`AI_DIRECTORY_V1`）落地与服务端 4 道防线
-  - 业务流程与职责：以低价 Flash 级模型调度轻量 Manifest 执行代表性选拔，在服务端构筑绝对白名单校验、数量硬截断、防御性 JSON 解析与优雅降级 4 道防线，实现 2~4 篇原子文档整篇装配。
+  - 业务流程与职责：在 `knowledge-retrieval-service` 落地开放性探索任务的核心工作流：以低价 Flash 级模型（`gemini-3.8-flash-high`）调度轻量 Manifest 执行代表性选拔，在服务端构筑绝对白名单校验、数量硬截断、防御性 JSON 解析与优雅降级 4 道防线，实现 2~4 篇原子文档整篇装配（Document-as-a-Chunk）返回。
+  - 实施步骤：
+    1. 编写面向 Flash 模型的低成本选拔提示词模板（注入强相关性、同类优秀论文只选 1 篇代表性去重、互补搭配与数量上限规则）；
+    2. 实现服务端白名单绝对校验器（`Path Whitelist Validator`）；
+    3. 实现数量与 Token 预算硬截断逻辑（`Hard Count & Token Truncator`）；
+    4. 实现防御性 JSON 解析器（剥离代码围栏、闭包提取、LaTeX 反斜杠容错反序列化）；
+    5. 实现模型超时或被完全过滤时的优雅降级规则（回退提取所属分类默认基准文档）；
+    6. 实现整篇原子 Markdown 流式读取装配与 `BEGIN_UNTRUSTED_RAG_KNOWLEDGE` 边界包装；
+    7. 编写单元测试与端到端测试，覆盖正常选拔、同类去重、非法路径拦截、代码围栏兼容与降级兜底。
+  - 验证标准：输入开放性数模任务，准确挑选 2~4 篇互补文档；多篇同类论文场景仅选 1 篇代表；注入伪造路径被 100% 拦截；超时或解析异常时平滑降级，零 500 报错。
+  - 非目标：暂不引入 Redis 缓存（在任务卡 3 推进）。
 
-- [ ] 任务卡 3: 任务级语义缓存（Redis Semantic Cache）与分类前置过滤
-  - 业务流程与职责：在 `knowledge-retrieval-service` 引入 Redis 任务向量相似度匹配（$\ge 0.95$ 直接复用选文结果，0ms 极速返回）与 `category` 前置过滤减枝。
+- [ ] 任务卡 3: 任务级语义缓存（Redis Semantic Cache）与多维分类前置过滤
+  - 业务流程与职责：在 `knowledge-retrieval-service` 构建两级缓存防线：L1 精确结果缓存（Hash 键，TTL 2小时）与 L2 任务级语义缓存（向量余弦相似度 $\ge 0.95$ 时直接复用历史选文结果，0ms / 0 Token 极速返回）；在 ES 混合检索中落地 `category` 目录元数据前置过滤（Pre-filtering），减枝 80% 无关搜索空间。
+  - 实施步骤：
+    1. 配置 Redis 缓存模版与连接池；
+    2. 实现 L1 精确结果哈希缓存；
+    3. 实现 L2 任务向量余弦相似度计算与语义缓存复用器；
+    4. 在 ES 检索构建器中增加 `category` 目录前置过滤子句；
+    5. 编写单测验证精确缓存命中、语义相似度判定（$\ge 0.95$ 命中与 $<0.95$ 穿透）及过滤减枝有效性。
+  - 验证标准：相似任务命中率 $\ge 0.95$ 时直接返回历史选拔快照，无需请求外部大模型，响应耗时 $<10\text{ms}$；分类过滤精准排除其他目录噪声。
 
-- [ ] 任务卡 4: 知识库自包含迁移与存储解耦（`README.yaml` 解析器 + MinIO/MySQL 导入导出）
-  - 业务流程与职责：实现 `README.yaml` 标准解析器，将 Markdown 事实源同步至 MinIO，建立 `lm_knowledge` 元数据表与 ZIP 一键导入导出闭环。
+- [ ] 任务卡 4: 知识库自包含打包、导出与无损导入服务闭环（MinIO + MySQL 存储解耦）
+  - 业务流程与职责：实现知识库脱离外部数据库的自包含可移植机制：支持一键将知识库打包导出为包含 `README.yaml` 的 ZIP 归档包；支持上传 ZIP 包解压后递归解析 `README.yaml`，流式将正文同步至 MinIO，无损还原 MySQL `knowledge_document` 元数据与标签，并自动触发 ES 索引同步。
+  - 实施步骤：
+    1. 设计 Flyway 迁移脚本创建 `knowledge_document` 表（含 tags JSON 字段）；
+    2. 实现 `KnowledgeExportService`，支持流式打包 Markdown 与生成的 `README.yaml` 为 ZIP；
+    3. 实现 `KnowledgeImportService`，支持解压 ZIP、解析 `README.yaml`、上传 MinIO 与元数据批量落盘；
+    4. 编写集成测试验证“导出 -> 解压导入 -> 还原元数据与标签 -> 索引构建”全链路无损一致性。
+  - 验证标准：导入导出的 ZIP 归档包具备完整自描述性，在新环境中解压导入能 100% 还原文档、目录树、标签体系与检索能力。
 
----
+- [ ] 任务卡 5: 全链路业务联动与真实数模场景验收（建议V3与客服联调验收）
+  - 业务流程与职责：将重构升级后的知识检索服务与 `ai-suggestion-service`（建议 V3 子任务精准检索）及 `ai-assistant-service`（客服问答）进行端到端全链路联调验收，验证真实数模赛题下的选拔质量、成本开销与降级表现。
+  - 实施步骤：
+    1. 在建议 V3 中调用新选拔接口，验证优化类、预测类、规范类子任务的选文表现；
+    2. 验证多小题并发检索下的稳定性与吞吐量；
+    3. 执行真实赛题端到端冒烟测试，统计单次检索调用费用（核验是否控制在半分钱以内）；
+    4. 同步更新跨服务设计文档与架构拓扑记录。
+  - 验证标准：端到端建议生成流程稳定通畅；知识引用依据链完整绑定真实 citationId；单次检索调用开销压制在 0.005 元以内。
+
+ ---
 
 ## 待梳理服务清单（按推荐顺序）
 
