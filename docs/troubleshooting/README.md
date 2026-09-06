@@ -25,3 +25,4 @@
 | [admin服务看板返回系统内部错误.md](admin服务看板返回系统内部错误.md) | 管理端首页概览报“系统内部错误”，指标显示暂不可用 | admin 排除 MyBatis-Plus 但 `PageResult` 仍引用 `IPage` 导致链接失败 + 前端看板漏掉 `/stats` 端点 |
 | [user服务启动报Flyway迁移校验和不一致.md](user服务启动报Flyway迁移校验和不一致.md) | user-service 启动报 migration version 6 checksum mismatch | 演示数据生成器每次产生新的 BCrypt 随机盐，重写了已应用的 V6 迁移 |
 | [admin服务查询审计报403导致中央审计暂不可用.md](admin服务查询审计报403导致中央审计暂不可用.md) | 管理端审计板块提示“中央审计暂不可用”，请求报 50001 / FeignException$Forbidden | Nacos 局域网 IP 导致 loopback 判定失败 + 本地缺失 AUDIT_INTERNAL_TOKEN 默认值 |
+| [review服务启动报Flyway迁移V9超长失败.md](review服务启动报Flyway迁移V9超长失败.md) | ai-review-service 启动报 Flyway 异常与 sqlSessionTemplate 依赖失败 | V9 脚本向 review_version 插入 23 位版本契约值，超出 VARCHAR(20) 限制导致迁移失败并残留阻断记录 |
