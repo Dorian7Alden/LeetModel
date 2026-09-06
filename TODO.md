@@ -21,9 +21,7 @@
 ## 当前任务
 
 ### 阶段一：数据底座与分块切片工程（README.yaml 规范与面包屑注入）
-- [~] 任务 1.2【数据落盘】：`rag_kb/` 核心典型目录 `README.yaml` 实地编写与样本校验
-  - 目标：在模型方法、论文评审等核心目录下实地创建自描述 `README.yaml` 样本数据并进行格式校验。
-- [ ] 任务 1.3【实现与验证】：`YamlKnowledgeManifestLoader` 解析器与 Manifest 动态构建
+- [~] 任务 1.3【实现与验证】：`YamlKnowledgeManifestLoader` 解析器与 Manifest 动态构建
   - 目标：编写 Java 解析器读取 YAML、校验 Schema、处理标签继承并输出内存 Manifest，单元测试覆盖缺字段、非法格式等边界用例。
 - [ ] 任务 1.4【实现与验证】：`ChineseKnowledgeChunker` 面包屑前缀注入与切片回归
   - 目标：在分块生成逻辑中注入目录层级与文档标题前缀，更新哈希工厂保持版本幂等，通过全量构建单测验证分块正确性。

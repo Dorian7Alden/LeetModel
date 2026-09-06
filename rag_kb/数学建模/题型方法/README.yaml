@@ -1,0 +1,93 @@
+schema_version: "v1.0"
+directory_name: "题型方法"
+path: "数学建模/题型方法"
+title: "数学建模竞赛题型分类与应对方法"
+description: "从赛题形态出发解析六大题型特征、识别关键词、解题路线、评审偏好与常见失分陷阱"
+
+tags:
+  contest: "通用"
+  problem_type: "题型方法"
+  methods:
+    - "题型分类"
+    - "解题范式"
+  authority_level: "L4"
+
+documents:
+  - file: "题型分类总览.md"
+    title: "数学建模竞赛六大题型分类总览"
+    summary: "数学建模竞赛题型六大分类框架：预测、评价、优化、机理分析、数据挖掘、图论网络的问题形态、主力模型族与选题判断方法。"
+    doc_tags:
+      - "题型总览"
+      - "选题决策"
+      - "解题框架"
+    authority_level: "L4"
+    estimated_tokens: 1900
+
+  - file: "优化类题型特征.md"
+    title: "优化类题型特征与应对范式"
+    summary: "优化类题型特征：三要素建模（目标/约束/变量），求解器选用、标准数学形式表达与结果灵敏度分析要点。"
+    doc_tags:
+      - "优化题型"
+      - "三要素建模"
+      - "灵敏度分析"
+    methods:
+      - "运筹规划"
+      - "启发式算法"
+    authority_level: "L4"
+    estimated_tokens: 1800
+
+  - file: "预测类题型特征.md"
+    title: "预测类题型特征与应对范式"
+    summary: "预测类题型特征：根据数据长度与特征选用时间序列、回归或灰色预测，强调训练测试切分与误差指标对比验证。"
+    doc_tags:
+      - "预测题型"
+      - "误差验证"
+      - "模型选型"
+    methods:
+      - "时间序列"
+      - "灰色预测"
+      - "回归分析"
+    authority_level: "L4"
+    estimated_tokens: 1700
+
+  - file: "评价类题型特征.md"
+    title: "评价类题型特征与应对范式"
+    summary: "评价类题型特征：指标体系建立、主客观赋权与综合评分三步路线，结果稳健性与敏感性检验分析。"
+    doc_tags:
+      - "评价题型"
+      - "指标体系"
+      - "主客观赋权"
+    methods:
+      - "层次分析法"
+      - "熵权法"
+      - "TOPSIS"
+    authority_level: "L4"
+    estimated_tokens: 1600
+
+  - file: "机理分析类题型特征.md"
+    title: "机理分析类题型特征与应对范式"
+    summary: "机理分析类题型特征：从物理/生化规律出发建立微分方程，物理意义推导、假设合理性辩护与参数标定要点。"
+    doc_tags:
+      - "机理分析"
+      - "微分方程"
+      - "国赛A题"
+    methods:
+      - "机理推导"
+      - "微分方程"
+      - "参数估计"
+    authority_level: "L4"
+    estimated_tokens: 1700
+
+  - file: "数据挖掘与统计类题型特征.md"
+    title: "数据挖掘与统计类题型特征与应对范式"
+    summary: "数据挖掘类题型特征：探索性数据分析（EDA）、特征工程、模型交叉验证与可视化表达的完整科学流程。"
+    doc_tags:
+      - "数据挖掘"
+      - "特征工程"
+      - "国赛C题"
+    methods:
+      - "机器学习"
+      - "统计分析"
+      - "聚类分类"
+    authority_level: "L4"
+    estimated_tokens: 1700
