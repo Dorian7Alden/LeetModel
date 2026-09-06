@@ -21,9 +21,7 @@
 ## 当前任务
 
 ### 阶段四：自包含存储与管理端可视化闭环
-- [~] 任务 4.1【精细设计】：Flyway 数据库 DDL 与前后端 Admin API 契约设计
-  - 目标：制定 `knowledge_document` 表结构、后端 Admin API 接口契约与前端组件交互规范。
-- [ ] 任务 4.2【后端实现与验证】：ZIP 自包含打包导出与无损解析导入服务
+- [~] 任务 4.2【后端实现与验证】：ZIP 自包含打包导出与无损解析导入服务
   - 目标：实现 `KnowledgeExportService` 与 `KnowledgeImportService`，编写端到端导入导出数据一致性集成测试。
 - [ ] 任务 4.3【前端实现与验证】：管理端【内容中心】知识库管理可视化组件集成
   - 目标：在 `LeetModel-frontend/` 的 `ContentHubPage.vue` 中集成【知识库管理】抽屉，支持目录与标签树浏览、一键导出 ZIP、上传 ZIP 导入与索引状态查看。
