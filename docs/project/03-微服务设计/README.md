@@ -13,7 +13,7 @@
 | [ai-evaluation-service/](ai-evaluation-service/) | AI 评审固定样本重复实验、评分稳定性统计和运行诊断 |
 | [ai-assistant-service/](ai-assistant-service/) | AI 对话助手、平台问答和题目推荐 |
 | [ai-suggestion-service/](ai-suggestion-service/) | AI 论文改善建议、建议任务和建议结果 |
-| [knowledge-retrieval-service/](knowledge-retrieval-service/) | 独立知识检索服务；版本化 RAG、受控 AI 选文、来源适用性与检索快照 |
+| [knowledge-retrieval-service/](knowledge-retrieval-service/) | 独立知识检索服务；知识库存储与元数据管理、版本化多工作流、混合多路召回与来源适用性校验 |
 | [user-service/](user-service/) | 用户信息、登录和 RBAC 权限数据 |
 | [team-service/](team-service/) | 队伍生命周期、成员和团队角色 |
 | [problem-service/](problem-service/) | 预置赛事、题目、Markdown 题面、附件、标签和题库查询 |
