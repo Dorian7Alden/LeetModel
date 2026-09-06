@@ -54,17 +54,37 @@ public class YamlKnowledgeManifestLoader {
         }
         Path normalizedRoot = rootPath.toAbsolutePath().normalize();
         List<ManifestDirectory> directories = new ArrayList<>();
+        java.util.Set<Path> managedDirs = new java.util.HashSet<>();
 
         try (Stream<Path> walk = Files.walk(normalizedRoot)) {
-            List<Path> yamlFiles = walk.filter(Files::isRegularFile)
-                    .filter(path -> README_YAML_NAME.equals(path.getFileName().toString()))
+            List<Path> allFiles = walk.filter(Files::isRegularFile)
                     .sorted(Comparator.comparing(Path::toString))
                     .toList();
 
-            for (Path yamlFile : yamlFiles) {
-                Path dirPath = yamlFile.getParent();
-                ManifestDirectory directory = loadDirectory(dirPath, normalizedRoot);
-                directories.add(directory);
+            // 1. 优先装载包含 README.yaml 的自描述目录
+            for (Path file : allFiles) {
+                if (README_YAML_NAME.equals(file.getFileName().toString())) {
+                    Path dirPath = file.getParent();
+                    ManifestDirectory directory = loadDirectory(dirPath, normalizedRoot);
+                    directories.add(directory);
+                    managedDirs.add(dirPath);
+                }
+            }
+
+            // 2. 兜底自动发现未配置 README.yaml 但包含 .md 的目录
+            java.util.Map<Path, List<Path>> unmanaged = new java.util.LinkedHashMap<>();
+            for (Path file : allFiles) {
+                String name = file.getFileName().toString();
+                if (name.endsWith(".md") && !"README.md".equals(name)) {
+                    Path dir = file.getParent();
+                    if (!managedDirs.contains(dir)) {
+                        unmanaged.computeIfAbsent(dir, k -> new ArrayList<>()).add(file);
+                    }
+                }
+            }
+
+            for (java.util.Map.Entry<Path, List<Path>> entry : unmanaged.entrySet()) {
+                directories.add(autoDiscoverDirectory(entry.getKey(), entry.getValue(), normalizedRoot));
             }
         } catch (IOException e) {
             throw new ManifestValidationException("扫描知识库目录失败: " + e.getMessage(), e);
@@ -77,6 +97,67 @@ public class YamlKnowledgeManifestLoader {
                 manifestVersion);
 
         return new KnowledgeManifest(manifestVersion, directories);
+    }
+
+    private ManifestDirectory autoDiscoverDirectory(Path dirPath, List<Path> mdFiles, Path rootPath) {
+        String dirName = dirPath.getFileName().toString();
+        String relDirPath = rootPath.relativize(dirPath).toString().replace('\\', '/');
+        List<ManifestDocument> docs = new ArrayList<>();
+
+        for (Path mdFile : mdFiles) {
+            String fileName = mdFile.getFileName().toString();
+            String docRelPath = relDirPath.isEmpty() ? fileName : relDirPath + "/" + fileName;
+            String content = "";
+            try {
+                content = Files.readString(mdFile, StandardCharsets.UTF_8);
+            } catch (IOException ignored) {}
+            String title = fileName.replaceFirst("\\.md$", "");
+            String summary = extractSummaryFromContent(content);
+            String authLevel = determineAuthorityLevel(docRelPath);
+
+            docs.add(new ManifestDocument(
+                    docRelPath,
+                    fileName,
+                    title,
+                    summary,
+                    List.of(),
+                    List.of(),
+                    List.of(dirName),
+                    authLevel,
+                    Math.max(1, content.length() / 2),
+                    dirName,
+                    relDirPath
+            ));
+        }
+        return new ManifestDirectory(dirName, relDirPath, dirName, "", new DirectoryTagsYaml(), docs);
+    }
+
+    private String extractSummaryFromContent(String text) {
+        if (text == null || text.isBlank()) return "数学建模知识文档";
+        if (text.startsWith("---")) {
+            int end = text.indexOf("\n---", 3);
+            if (end > 0) {
+                for (String line : text.substring(3, end).split("\\R")) {
+                    int colon = line.indexOf(':');
+                    if (colon > 0 && "summary".equals(line.substring(0, colon).trim())) {
+                        return line.substring(colon + 1).trim();
+                    }
+                }
+            }
+        }
+        for (String line : text.split("\\R")) {
+            String trimmed = line.replaceFirst("^#+\\s*", "").trim();
+            if (!trimmed.isBlank() && !"---".equals(trimmed) && !trimmed.contains(":")) {
+                return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
+            }
+        }
+        return "数学建模知识文档";
+    }
+
+    private String determineAuthorityLevel(String path) {
+        if (path.contains("论文评审/评审板块/") || path.contains("论文评审/评审视角/")) return "L3";
+        if (path.contains("题型方法/") || path.contains("模型方法/")) return "L4";
+        return "L5";
     }
 
     /**

@@ -79,6 +79,84 @@ class KnowledgeRetrievalServiceTest {
     }
 
     @Test
+    void aiDirectoryWorkflowWithFullMarkdownAssemblyAndSecurityBoundaries() throws Exception {
+        KnowledgeRetrievalProperties properties = new KnowledgeRetrievalProperties();
+        Path kbRoot = Path.of("../../rag_kb").toAbsolutePath().normalize();
+        if (!Files.isDirectory(kbRoot)) {
+            kbRoot = Path.of("rag_kb").toAbsolutePath().normalize();
+        }
+        properties.setKnowledgeBasePath(kbRoot.toString());
+
+        AiClient aiClient = mock(AiClient.class);
+        String modelJson = """
+                {
+                  "reasoning": "根据优化建模需求挑选模型分类与算法速查",
+                  "selectedPaths": [
+                    "数学建模/模型方法/优化模型与算法分类.md",
+                    "数学建模/模型方法/常用模型速查-优化类.md"
+                  ]
+                }
+                """;
+        when(aiClient.chat(any())).thenReturn(new AiChatResponse("call-ai", AiProvider.NEW_API,
+                "gemini-3.8-flash-high", null, modelJson, null, "stop", null));
+
+        KnowledgeRetrievalService service = new KnowledgeRetrievalService(properties, aiClient,
+                mock(RestClient.class), new ObjectMapper());
+
+        KnowledgeRetrievalRequestDTO request = new KnowledgeRetrievalRequestDTO();
+        request.setWorkflowVersion("AI_DIRECTORY_V1");
+        request.setQuery("复杂螺栓非线性优化求解");
+        request.setCategory("优化");
+        request.setTopK(4);
+        request.setTokenBudget(5000);
+
+        var result = service.retrieve(request);
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getExecutionBranch()).isEqualTo("DIRECTORY");
+        assertThat(result.getCitations()).hasSize(2);
+
+        var firstCitation = result.getCitations().get(0);
+        assertThat(firstCitation.getContent())
+                .startsWith("<参考知识事实 来源=\"数学建模/模型方法/优化模型与算法分类.md\" 权威等级=\"L4\">")
+                .endsWith("</参考知识事实>");
+        assertThat(firstCitation.getContent()).contains("优化模型与算法");
+        assertThat(firstCitation.getAuthorityLevel()).isEqualTo("L4");
+    }
+
+    @Test
+    void aiCatalogTagWorkflowGracefullyFallsBackOnGatewayException() {
+        KnowledgeRetrievalProperties properties = new KnowledgeRetrievalProperties();
+        Path kbRoot = Path.of("../../rag_kb").toAbsolutePath().normalize();
+        if (!Files.isDirectory(kbRoot)) {
+            kbRoot = Path.of("rag_kb").toAbsolutePath().normalize();
+        }
+        properties.setKnowledgeBasePath(kbRoot.toString());
+
+        AiClient aiClient = mock(AiClient.class);
+        when(aiClient.chat(any())).thenThrow(new RuntimeException("New-API Gateway Timeout 504"));
+
+        KnowledgeRetrievalService service = new KnowledgeRetrievalService(properties, aiClient,
+                mock(RestClient.class), new ObjectMapper());
+
+        KnowledgeRetrievalRequestDTO request = new KnowledgeRetrievalRequestDTO();
+        request.setWorkflowVersion("AI_CATALOG_TAG_V1");
+        request.setQuery("预测未来30天趋势");
+        request.setCategory("预测");
+        request.setTopK(3);
+        request.setTokenBudget(4000);
+
+        var result = service.retrieve(request);
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getCitations()).isNotEmpty();
+        assertThat(result.getCitations().get(0).getContent())
+                .startsWith("<参考知识事实 来源=\"")
+                .endsWith("</参考知识事实>");
+        assertThat(result.getCitations().get(0).getSourcePath()).contains("预测");
+    }
+
+    @Test
     void hybridRetrievalCombinesVectorAndBm25WithRrfRanking() throws Exception {
         KnowledgeRetrievalProperties properties = new KnowledgeRetrievalProperties();
         properties.setEmbeddingDimension(1024);
