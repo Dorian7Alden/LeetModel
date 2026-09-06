@@ -21,10 +21,17 @@
 ## 当前任务
 
 - [ ] 任务卡 1: 切片结构化与面包屑上下文增强（Breadcrumbs Injection）
+  - 业务流程与职责：在分块处理类（`ChineseKnowledgeChunker` / `MarkdownKnowledgeLoader`）中，解析原子 Markdown 相对路径与 Frontmatter 标题，在每个切片正文前置插入标准化面包屑（如 `[目录: 数学建模 > 题型方法 > 优化模型] [文档: 线性规划]`），以零模型成本增强向量与 BM25 在短文本上的语义空间坐标。
+  - 实施步骤：修改分块逻辑注入前缀；更新 `RagIdentityFactory` 保持哈希自洽；编写单测验证前缀生成与全量构建。
 
-- [ ] 任务卡 2: 知识检索两级缓存与元数据前置过滤（降低调用成本与响应延迟）
-- [ ] 任务卡 3: 知识检索结果精排与动态 Token 裁剪增强（Cross-Encoder / 上下文压缩）
-- [ ] 任务卡 4: 知识库存储与微服务解耦（MinIO 对象存储 + MySQL 元数据 + RocketMQ 增量更新）
+- [ ] 任务卡 2: 目录与标签 AI 智能选拔（`AI_DIRECTORY_V1`）落地与服务端 4 道防线
+  - 业务流程与职责：以低价 Flash 级模型调度轻量 Manifest 执行代表性选拔，在服务端构筑绝对白名单校验、数量硬截断、防御性 JSON 解析与优雅降级 4 道防线，实现 2~4 篇原子文档整篇装配。
+
+- [ ] 任务卡 3: 任务级语义缓存（Redis Semantic Cache）与分类前置过滤
+  - 业务流程与职责：在 `knowledge-retrieval-service` 引入 Redis 任务向量相似度匹配（$\ge 0.95$ 直接复用选文结果，0ms 极速返回）与 `category` 前置过滤减枝。
+
+- [ ] 任务卡 4: 知识库自包含迁移与存储解耦（`README.yaml` 解析器 + MinIO/MySQL 导入导出）
+  - 业务流程与职责：实现 `README.yaml` 标准解析器，将 Markdown 事实源同步至 MinIO，建立 `lm_knowledge` 元数据表与 ZIP 一键导入导出闭环。
 
 ---
 
