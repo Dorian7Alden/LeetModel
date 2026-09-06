@@ -20,6 +20,10 @@ public class ReviewEvidenceProjector {
         this.objectMapper = objectMapper;
     }
 
+    public boolean isNativeV3(ReviewSummaryDTO review) {
+        return "DEEP_EVIDENCE_REVIEW_V3".equals(review.getWorkflowVersion());
+    }
+
     public boolean isNativeV2(ReviewSummaryDTO review) {
         return "EVIDENCE_REVIEW_V2".equals(review.getWorkflowVersion());
     }
@@ -30,6 +34,31 @@ public class ReviewEvidenceProjector {
             return nonEmpty(root.path("weaknesses")) || nonEmpty(root.path("suggestions"));
         } catch (Exception exception) {
             return false;
+        }
+    }
+
+    public ReviewEvidenceSnapshot nativeV3(ReviewSummaryDTO eligibility,
+                                           ReviewSummaryDTO evidenceReview) {
+        try {
+            JsonNode root = objectMapper.readTree(evidenceReview.getResultJson());
+            List<ReviewEvidenceSnapshot.Finding> findings = new ArrayList<>();
+            for (JsonNode finding : root.path("findings")) {
+                String blockId = finding.path("blockId").asText(null);
+                List<String> blocks = (blockId != null && !blockId.isBlank()) ? List.of(blockId) : List.of();
+                findings.add(new ReviewEvidenceSnapshot.Finding(
+                        finding.path("findingId").asText(),
+                        finding.path("type").asText(),
+                        finding.path("dimensionCode").asText(finding.path("category").asText("GENERAL")),
+                        finding.path("severity").asText("MEDIUM"),
+                        finding.path("statement").asText(),
+                        finding.path("scoreImpact").asText("0.0"),
+                        "$.findings[?(@.findingId=='" + finding.path("findingId").asText() + "')]",
+                        blocks));
+            }
+            if (findings.isEmpty()) throw new IllegalArgumentException("V3 评审没有结构化发现");
+            return snapshot(eligibility, evidenceReview, null, findings);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("DEEP_EVIDENCE_REVIEW_V3 结果无法形成建议依据", exception);
         }
     }
 

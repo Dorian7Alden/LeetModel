@@ -57,7 +57,13 @@ import java.util.function.Supplier;
 @Service
 public class SuggestionService {
     private static final String PAPER_PARSE_VERSION = "PAPER_PARSE_V1";
+    public static final String SUGGESTION_V3_VERSION = "GROUNDED_SUGGESTION_V3";
+    public static final String PAPER_PARSE_V2_VERSION = "PAPER_PARSE_V2";
+    public static final String DEEP_EVIDENCE_REVIEW_V3_VERSION = "DEEP_EVIDENCE_REVIEW_V3";
+    public static final String SUGGESTION_DEEP_RETRIEVAL_V1 = "SUGGESTION_DEEP_RETRIEVAL_V1";
     private static final String DEFAULT_RETRIEVAL_VERSION = "VECTOR_RAG_V1";
+    private static final java.util.Set<String> ALLOWED_RETRIEVAL_VERSIONS = java.util.Set.of(
+            DEFAULT_RETRIEVAL_VERSION, SUGGESTION_DEEP_RETRIEVAL_V1);
 
     private final SuggestionTaskMapper taskMapper;
     private final SubmissionFeignClient submissionFeignClient;
@@ -136,8 +142,8 @@ public class SuggestionService {
         validateSource(submission, review);
         validateClientRequestId(request.getClientRequestId());
         if (request.getRetrievalWorkflowVersion() != null
-                && !DEFAULT_RETRIEVAL_VERSION.equals(request.getRetrievalWorkflowVersion())) {
-            throw new IllegalArgumentException("正式论文建议当前只允许 VECTOR_RAG_V1");
+                && !ALLOWED_RETRIEVAL_VERSIONS.contains(request.getRetrievalWorkflowVersion())) {
+            throw new IllegalArgumentException("正式论文建议当前只允许 VECTOR_RAG_V1 或 SUGGESTION_DEEP_RETRIEVAL_V1");
         }
 
         SuggestionTask existing = findByClientRequest(userId, request.getClientRequestId());
@@ -355,9 +361,34 @@ public class SuggestionService {
         complete(task, result, leaseToken);
     }
 
-    private ReviewEvidenceSnapshot resolveReviewEvidence(SuggestionTask task,
+    ReviewEvidenceSnapshot resolveReviewEvidence(SuggestionTask task,
                                                          ReviewSummaryDTO eligibility,
                                                          String leaseToken) {
+        if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+            if (evidenceProjector.isNativeV3(eligibility)) {
+                return evidenceProjector.nativeV3(eligibility, eligibility);
+            }
+            Long evidenceTaskId = task.getEvidenceReviewTaskId();
+            if (evidenceTaskId == null || Objects.equals(evidenceTaskId, eligibility.getTaskId())) {
+                Result<Long> created = reviewFeignClient.createVersionedTask(task.getSubmissionId(),
+                        task.getTeamId(), task.getProblemId(), DEEP_EVIDENCE_REVIEW_V3_VERSION);
+                if (created == null || !created.isSuccess() || created.getData() == null) {
+                    throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
+                }
+                evidenceTaskId = created.getData();
+                task.setEvidenceReviewTaskId(evidenceTaskId);
+                requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
+            }
+            ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
+            if ("FAILED".equals(evidenceReview.getStatus())) {
+                throw new IllegalStateException("为历史论文自动晋级补建的 V3 深度评审失败");
+            }
+            if (!"COMPLETED".equals(evidenceReview.getStatus())
+                    || evidenceReview.getResultJson() == null || evidenceReview.getResultJson().isBlank()) {
+                throw new PendingEvidenceReview();
+            }
+            return evidenceProjector.nativeV3(eligibility, evidenceReview);
+        }
         if (evidenceProjector.isNativeV2(eligibility)) {
             return evidenceProjector.nativeV2(eligibility, eligibility);
         }

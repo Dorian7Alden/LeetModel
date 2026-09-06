@@ -14,6 +14,7 @@ import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.suggestion.entity.SuggestionTask;
+import com.leetmodel.suggestion.service.evidence.ReviewEvidenceProjector;
 import com.leetmodel.suggestion.enums.SuggestionErrorCode;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
 import com.leetmodel.suggestion.vo.SuggestionVO;
@@ -219,6 +220,39 @@ class SuggestionServiceTest {
         verify(submissionFeignClient, never()).getForReview(anyLong());
         verify(taskMapper, never()).complete(anyLong(), anyString(), anyString(), anyString(),
                 anyString(), any(LocalDateTime.class));
+    }
+
+    @Test
+    void autoUpgradeCreatesV3ReviewTaskWhenEligibilityIsV2() {
+        SuggestionService v3Service = new SuggestionService(
+                taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient,
+                teamFeignClient, null, workflow, null, new ReviewEvidenceProjector(new ObjectMapper()),
+                new ObjectMapper());
+
+        SuggestionTask task = task("RUNNING");
+        task.setWorkflowVersion(SuggestionService.SUGGESTION_V3_VERSION);
+        task.setEligibilityReviewTaskId(5001L);
+        task.setEvidenceReviewTaskId(5001L);
+
+        ReviewSummaryDTO eligibility = new ReviewSummaryDTO(
+                5001L, SUBMISSION_ID, TEAM_ID, PROBLEM_ID, "COMPLETED", "EVIDENCE_REVIEW_V2",
+                BigDecimal.valueOf(88), "{\"summary\":\"V2评审\"}", "model-r", "call-r",
+                null, LocalDateTime.now());
+
+        when(reviewFeignClient.createVersionedTask(SUBMISSION_ID, TEAM_ID, PROBLEM_ID, "DEEP_EVIDENCE_REVIEW_V3"))
+                .thenReturn(Result.ok(6001L));
+        when(taskMapper.saveEvidenceTask(eq(task.getId()), anyString(), eq(6001L))).thenReturn(1);
+        when(reviewFeignClient.getByTask(6001L)).thenReturn(Result.ok(new ReviewSummaryDTO(
+                6001L, SUBMISSION_ID, TEAM_ID, PROBLEM_ID, "COMPLETED", "DEEP_EVIDENCE_REVIEW_V3",
+                BigDecimal.valueOf(90), "{\"findings\":[{\"findingId\":\"F_Q1_001\",\"statement\":\"问题\",\"blockId\":\"P1-B1\"}]}", "model-v3", "call-v3",
+                null, LocalDateTime.now())));
+
+        var snapshot = v3Service.resolveReviewEvidence(task, eligibility, "token-1");
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.evidenceReviewTaskId()).isEqualTo(6001L);
+        assertThat(snapshot.reviewWorkflowVersion()).isEqualTo("DEEP_EVIDENCE_REVIEW_V3");
+        assertThat(snapshot.findings()).hasSize(1);
+        assertThat(snapshot.findings().get(0).findingId()).isEqualTo("F_Q1_001");
     }
 
     @Test
