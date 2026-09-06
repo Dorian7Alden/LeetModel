@@ -128,4 +128,59 @@ class KnowledgeRetrievalServiceTest {
         assertThat(result.getCitations()).hasSize(1);
         assertThat(result.getCitations().get(0).getTitle()).contains("AHP");
     }
+
+    @Test
+    void suggestionDeepRetrievalCombinesHybridRrfForSubProblem() throws Exception {
+        KnowledgeRetrievalProperties properties = new KnowledgeRetrievalProperties();
+        properties.setEmbeddingDimension(1024);
+        AiClient aiClient = mock(AiClient.class);
+        List<Float> dummyVector = java.util.Collections.nCopies(1024, 0.2f);
+        when(aiClient.embed(any())).thenReturn(new AiEmbeddingResponse("call-sug",
+                "RAG_V1", "qwen3.7-text-embedding", 1024,
+                List.of(new AiEmbeddingVector(0, dummyVector)), null, null));
+
+        RestClient restClient = mock(RestClient.class);
+        org.apache.http.HttpEntity entity = mock(org.apache.http.HttpEntity.class);
+        org.elasticsearch.client.Response response = mock(org.elasticsearch.client.Response.class);
+        when(response.getEntity()).thenReturn(entity);
+        when(entity.getContent()).thenReturn(new java.io.ByteArrayInputStream("""
+                {
+                  "hits": {
+                    "hits": [
+                      {
+                        "_score": 2.8,
+                        "_source": {
+                          "chunkId": "chunk-opt-01",
+                          "documentId": "doc-opt",
+                          "title": "常用模型速查-优化类",
+                          "sourcePath": "模型方法/常用模型速查-优化类.md",
+                          "ragIndexVersion": "leetmodel-rag-v1",
+                          "contentHash": "hash-opt",
+                          "content": "非线性整数规划松弛与分支定界求解"
+                        }
+                      }
+                    ]
+                  }
+                }
+                """.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        when(restClient.performRequest(any())).thenReturn(response);
+
+        KnowledgeRetrievalService service = new KnowledgeRetrievalService(properties, aiClient,
+                restClient, new ObjectMapper());
+        KnowledgeRetrievalRequestDTO request = new KnowledgeRetrievalRequestDTO();
+        request.setWorkflowVersion("SUGGESTION_DEEP_RETRIEVAL_V1");
+        request.setScene("PAPER_SUGGESTION_DEEP");
+        request.setQuery("OPTIMIZATION: 非线性整数规划 求解器收敛");
+        request.setTopK(6);
+        request.setTokenBudget(4000);
+
+        var result = service.retrieve(request);
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getWorkflowVersion()).isEqualTo("SUGGESTION_DEEP_RETRIEVAL_V1");
+        assertThat(result.getExecutionBranch()).isEqualTo("VECTOR+BM25_RRF");
+        assertThat(result.getCitations()).hasSize(1);
+        assertThat(result.getCitations().get(0).getTitle()).contains("优化类");
+        assertThat(result.getCitations().get(0).getAuthorityLevel()).isEqualTo("L4");
+    }
 }

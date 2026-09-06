@@ -30,8 +30,8 @@
 
 ### SUGGESTION
 
-- 父工程包含 `ai-suggestion-service`；模块具备公开与内部 Controller、任务 Service、V1/V2 工作流、增量 Flyway、前端建议历史和管理端列表。
-- `GROUNDED_SUGGESTION_V2` 锁定论文解析、解锁评审、实际评审依据、知识检索和生成版本；每项建议校验论文、评审、知识三段引用。
+- 父工程包含 `ai-suggestion-service`；模块具备公开与内部 Controller、任务 Service、V1/V2/V3 工作流、增量 Flyway、前端建议历史和管理端列表。
+- `GROUNDED_SUGGESTION_V3` 采用双阶段动态任务规划、按需精准 RAG（`SUGGESTION_DEEP_RETRIEVAL_V1`）、多小问并发推演与汇总 AI 排序，支持改错（CORRECTION）与升华（ADVANCEMENT）双轨建议并输出结构化 Markdown 富文本。
 - 内部 Feign 仍只提供任务计数和最近任务；虽然已有版本表，但没有隔离实验接口，故 SUGGESTION 暂无可评价版本。
 
 ## 可评价版本准入规则

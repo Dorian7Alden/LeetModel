@@ -56,6 +56,19 @@ class ReviewEvidenceProjectorTest {
         assertThat(snapshot.projectionVersion()).isNull();
     }
 
+    @Test
+    void mapsNativeV3EvidenceDirectlyWithBlockId() {
+        String json = "{\"findings\":[{\"findingId\":\"F_Q1_001\",\"type\":\"ISSUE\","
+                + "\"dimensionCode\":\"FORMULATION\",\"severity\":\"HIGH\","
+                + "\"statement\":\"目标函数遗漏非线性约束\",\"scoreImpact\":\"-2.0 分\",\"blockId\":\"P5-B3\"}]}";
+        ReviewSummaryDTO review = review("DEEP_EVIDENCE_REVIEW_V3", json);
+
+        assertThat(projector.isNativeV3(review)).isTrue();
+        ReviewEvidenceSnapshot snapshot = projector.nativeV3(review, review);
+        assertThat(snapshot.findings().get(0).findingId()).isEqualTo("F_Q1_001");
+        assertThat(snapshot.findings().get(0).paperEvidenceIds()).containsExactly("P5-B3");
+    }
+
     private ReviewSummaryDTO review(String workflow, String json) {
         return new ReviewSummaryDTO(9L, 101L, 11L, 51L, "COMPLETED", workflow,
                 BigDecimal.valueOf(80), json, "model", "call", null, null);

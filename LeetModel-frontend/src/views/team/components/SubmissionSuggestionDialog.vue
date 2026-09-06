@@ -63,7 +63,59 @@
           />
 
           <template v-if="task.status === 'COMPLETED' && result">
-            <template v-if="isV2">
+            <template v-if="isV3">
+              <el-alert
+                title="每项建议均经过专家思维双阶段推演、按需精准 RAG 与高保真证据链校验"
+                type="success"
+                :closable="false"
+                show-icon
+              />
+              <div v-if="result.overallStrategy" class="summary v3-markdown" v-html="renderSafeMarkdown(result.overallStrategy)" />
+              <div v-if="result.topPriorities?.length" class="top-priorities">
+                <strong>本轮关键优先事项</strong>
+                <ol><li v-for="item in result.topPriorities" :key="item">{{ item }}</li></ol>
+              </div>
+              <div class="items">
+                <div v-for="item in result.items" :key="item.suggestionId" class="item">
+                  <div class="item-head">
+                    <el-tag size="small" :type="item.type === 'CORRECTION' ? 'danger' : 'success'" effect="dark">
+                      {{ item.type === 'CORRECTION' ? '改错修复' : '高分升华' }}
+                    </el-tag>
+                    <el-tag size="small" effect="plain">{{ categoryLabel(item.category) }}</el-tag>
+                    <el-tag size="small" type="warning" effect="light">{{ item.priority }}</el-tag>
+                    <strong>{{ item.suggestionId }} · {{ item.title || item.problemOrGap }}</strong>
+                  </div>
+                  <p v-if="item.problemOrGap" class="impact">现状/问题：{{ item.problemOrGap }}</p>
+                  <p v-if="item.diagnosis" class="diagnosis-text">诊断分析：{{ item.diagnosis }}</p>
+                  <div v-if="item.actionPlanMarkdown" class="detail-section">
+                    <b>详细修改指导方案 (含公式/算法)</b>
+                    <div class="v3-markdown action-plan" v-html="renderSafeMarkdown(item.actionPlanMarkdown)" />
+                  </div>
+                  <div v-if="item.acceptanceCriteria?.length" class="detail-section">
+                    <b>验收标准</b>
+                    <ul><li v-for="criterion in item.acceptanceCriteria" :key="criterion">{{ criterion }}</li></ul>
+                  </div>
+                  <div class="evidence-chain">
+                    <span v-if="item.targetLocation?.physicalPages?.length">
+                      论文：第 {{ item.targetLocation.physicalPages.join('、') }} 页 ({{ item.targetLocation.section || '目标章节' }})
+                    </span>
+                    <span>评审：{{ item.evidenceChain?.reviewFindingIds?.length ? item.evidenceChain.reviewFindingIds.join('、') : '自主标准升华' }}</span>
+                    <span v-if="item.evidenceChain?.knowledgeCitationIds?.length">
+                      资料：{{ item.evidenceChain.knowledgeCitationIds.join('；') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="version-snapshot">
+                <span>工作流 {{ task.workflowVersion }}</span>
+                <span>评审 {{ task.reviewWorkflowVersion }}</span>
+                <span>解析 {{ task.paperParsingWorkflowVersion }}</span>
+                <span>检索 {{ task.retrievalWorkflowVersion }}</span>
+                <span v-if="task.modelName">模型 {{ task.modelName }}</span>
+              </div>
+            </template>
+
+            <template v-else-if="isV2">
               <el-alert
                 title="每项建议均经过论文页码、评审发现和知识来源三段依据校验"
                 type="success"
@@ -134,6 +186,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
+import { renderSafeMarkdown } from "@/utils/markdown";
 import { getSuggestionBySubmission, createSuggestion, retrySuggestion } from "@/api/suggestion";
 
 const props = defineProps({
@@ -150,6 +203,7 @@ const selectedTaskId = ref("");
 let timer = null;
 
 const result = computed(() => task.value?.result || null);
+const isV3 = computed(() => task.value?.workflowVersion === "GROUNDED_SUGGESTION_V3");
 const isV2 = computed(() => task.value?.workflowVersion === "GROUNDED_SUGGESTION_V2");
 
 function formatDate(value) {
@@ -234,7 +288,7 @@ async function create() {
       submissionId: props.submission.id,
       reviewTaskId: props.submission.review.taskId,
       clientRequestId: requestId(),
-      retrievalWorkflowVersion: "VECTOR_RAG_V1",
+      retrievalWorkflowVersion: "SUGGESTION_DEEP_RETRIEVAL_V1",
     })).data;
     history.value = [task.value, ...history.value];
     selectedTaskId.value = String(task.value.taskId);
@@ -288,6 +342,11 @@ onBeforeUnmount(stopPolling);
 .item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .item-head strong { color: var(--lm-text-primary); }
 .action, .impact { margin: 8px 0 0; color: var(--lm-text-secondary); line-height: 1.7; }
+.diagnosis-text { margin: 6px 0 0; color: var(--el-color-danger); font-size: 13px; line-height: 1.6; }
+.v3-markdown { margin-top: 6px; font-size: 13.5px; line-height: 1.7; color: var(--lm-text-primary); }
+.v3-markdown :deep(pre) { background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 12.5px; margin: 8px 0; }
+.v3-markdown :deep(code) { font-family: monospace; font-size: 12.5px; }
+.v3-markdown :deep(h4) { margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: var(--lm-text-primary); }
 .detail-section { margin-top: 10px; color: var(--lm-text-secondary); }
 .detail-section ul { margin: 6px 0 0; padding-left: 22px; line-height: 1.7; }
 .evidence, .page { color: var(--lm-text-muted); font-size: 13px; }

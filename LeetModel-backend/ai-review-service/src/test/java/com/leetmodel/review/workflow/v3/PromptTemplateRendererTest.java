@@ -30,11 +30,17 @@ class PromptTemplateRendererTest {
     void shouldLoadClasspathPromptsWithoutError() {
         String p1 = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase1-structural-review.st");
         assertThat(p1).contains("ABSTRACT_STRUCTURE");
+        assertThat(p1).contains("初筛 30 秒法则");
+        assertThat(p1).contains("T7 摘要空洞无数值");
 
         String p2Planner = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-task-planner.st");
         assertThat(p2Planner).contains("ABSTRACT_VERIFICATION");
+        assertThat(p2Planner).contains("专家评审规划心智模型");
+        assertThat(p2Planner).contains("严防漏问底线");
 
         String p2Sub = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-subtask-evaluation.st");
         assertThat(p2Sub).contains("[[taskName]]");
+        assertThat(p2Sub).contains("专家评审心智模型与思考维度");
+        assertThat(p2Sub).contains("调包侠");
     }
 }

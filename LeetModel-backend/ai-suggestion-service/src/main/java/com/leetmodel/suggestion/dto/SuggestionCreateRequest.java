@@ -21,6 +21,6 @@ public class SuggestionCreateRequest {
     @Size(max = 64, message = "客户端请求标识不能超过64个字符")
     private String clientRequestId;
 
-    @Pattern(regexp = "VECTOR_RAG_V1", message = "正式论文建议当前只允许 VECTOR_RAG_V1")
+    @Pattern(regexp = "VECTOR_RAG_V1|SUGGESTION_DEEP_RETRIEVAL_V1", message = "正式论文建议当前只允许 VECTOR_RAG_V1 或 SUGGESTION_DEEP_RETRIEVAL_V1")
     private String retrievalWorkflowVersion;
 }

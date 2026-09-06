@@ -21,4 +21,18 @@ public class SuggestionWorkerConfiguration {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "suggestionSubTaskExecutor")
+    public ThreadPoolTaskExecutor suggestionSubTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(64);
+        executor.setThreadNamePrefix("suggestion-subtask-");
+        executor.setTaskDecorator(CorrelationTaskDecorator.INSTANCE);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
 }
