@@ -28,6 +28,7 @@ public class SuggestionTask extends BaseEntity {
     private String retrievalRunId;
     private String retrievalWorkflowVersion;
     private String knowledgeSnapshotJson;
+    private String subTaskSummariesJson;
     private String resultSchemaVersion;
     private String status;
     private String currentStage;
