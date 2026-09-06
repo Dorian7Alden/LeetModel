@@ -49,7 +49,7 @@ class RagIdentityFactoryTest {
 
         assertThat(versions.contentVersion()).matches("content-[0-9a-f]{16}");
         assertThat(versions.embeddingModelVersion()).isEqualTo("qwen3.7-text-embedding@1024");
-        assertThat(versions.chunkPolicyVersion()).isEqualTo("zh-structure-v1-80-320-480-48");
+        assertThat(versions.chunkPolicyVersion()).isEqualTo("zh-structure-v2-breadcrumb-80-320-480-48");
         assertThat(versions.ragIndexVersion()).matches("rag-v1-[0-9a-f]{16}");
     }
 

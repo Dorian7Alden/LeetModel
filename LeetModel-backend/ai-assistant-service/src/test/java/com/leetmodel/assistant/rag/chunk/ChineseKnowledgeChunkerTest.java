@@ -23,19 +23,23 @@ class ChineseKnowledgeChunkerTest {
 
     @Test
     void keepsShortDocumentAsSingleChunk() {
-        ChineseKnowledgeChunker chunker = chunker(8, 20, 30, 4, 200);
+        ChineseKnowledgeChunker chunker = chunker(70, 120, 200, 20, 1000);
 
         List<KnowledgeChunk> chunks = chunker.chunk(document("【标题】\n\n这是一个短段落。"));
 
         assertThat(chunks).singleElement().satisfies(chunk -> {
             assertThat(chunk.ordinal()).isZero();
+            assertThat(chunk.content()).contains("[目录: 数学建模]");
+            assertThat(chunk.content()).contains("[文档: 测试]");
+            assertThat(chunk.content()).contains("[小节: 标题]");
+            assertThat(chunk.content()).contains("----------------------------------------");
             assertThat(chunk.content()).contains("【标题】", "短段落");
         });
     }
 
     @Test
     void splitsLongChineseAtStructureAndPunctuationWithOverlap() {
-        ChineseKnowledgeChunker chunker = chunker(8, 20, 30, 4, 200);
+        ChineseKnowledgeChunker chunker = chunker(10, 25, 120, 10, 1000);
         String content = "【方法】\n\n第一步建立变量并明确约束。第二步构造目标函数并求解！"
                 + "第三步进行敏感性分析；第四步检查结果并解释。\n\n【结论】\n\n模型可以复现。";
 
@@ -43,8 +47,8 @@ class ChineseKnowledgeChunkerTest {
 
         assertThat(chunks).hasSizeGreaterThan(1);
         assertThat(chunks).allSatisfy(chunk -> {
-            assertThat(chunk.estimatedTokens()).isLessThanOrEqualTo(30);
-            assertThat(chunk.content().length()).isLessThanOrEqualTo(200);
+            assertThat(chunk.estimatedTokens()).isLessThanOrEqualTo(120);
+            assertThat(chunk.content().length()).isLessThanOrEqualTo(1000);
         });
         assertThat(chunks.get(1).content()).contains("步");
         assertThat(chunks.stream().map(KnowledgeChunk::content)).anyMatch(text -> text.contains("模型可以复现"));
@@ -52,7 +56,7 @@ class ChineseKnowledgeChunkerTest {
 
     @Test
     void preservesTablesAndCodeWhileRespectingEmbeddingLimit() {
-        ChineseKnowledgeChunker chunker = chunker(6, 16, 24, 3, 80);
+        ChineseKnowledgeChunker chunker = chunker(60, 100, 150, 15, 1000);
         String content = """
                 【对比表】
 
@@ -70,11 +74,29 @@ class ChineseKnowledgeChunkerTest {
         List<KnowledgeChunk> chunks = chunker.chunk(document(content));
 
         assertThat(chunks).allSatisfy(chunk -> {
-            assertThat(chunk.estimatedTokens()).isLessThanOrEqualTo(24);
-            assertThat(chunk.content().length()).isLessThanOrEqualTo(80);
+            assertThat(chunk.estimatedTokens()).isLessThanOrEqualTo(150);
+            assertThat(chunk.content().length()).isLessThanOrEqualTo(1000);
         });
         String joined = chunks.stream().map(KnowledgeChunk::content).reduce("", (left, right) -> left + right);
         assertThat(joined).contains("| 模型 | 用途 |", "solver.optimize", "最后验证结果");
+    }
+
+    @Test
+    void injectsBreadcrumbHierarchyAndSectionCorrectly() {
+        ChineseKnowledgeChunker chunker = new ChineseKnowledgeChunker(new RagProperties(), estimator);
+        String content = """
+                ## 核心结论
+                
+                这是正文第一段。
+                """;
+
+        List<KnowledgeChunk> chunks = chunker.chunk(document(content));
+
+        assertThat(chunks).singleElement().satisfies(chunk -> {
+            assertThat(chunk.content()).startsWith(
+                    "[目录: 数学建模]\n[文档: 测试]\n[小节: 核心结论]\n----------------------------------------\n");
+            assertThat(chunk.content()).contains("这是正文第一段。");
+        });
     }
 
     @Test

@@ -18,7 +18,7 @@ import java.util.Map;
 public class RagIdentityFactory {
 
     private static final String SCHEMA_VERSION = "rag-es-v1";
-    private static final String CHUNK_ALGORITHM_VERSION = "zh-structure-v1";
+    private static final String CHUNK_ALGORITHM_VERSION = "zh-structure-v2-breadcrumb";
 
     private final RagProperties properties;
 
