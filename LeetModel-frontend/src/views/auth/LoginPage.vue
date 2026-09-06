@@ -135,7 +135,7 @@ async function handleLogin() {
       }
 
       ElMessage.success("登录成功");
-      router.push("/");
+      router.push("/home");
     } else {
       ElMessage.error(res.message || "登录失败");
     }

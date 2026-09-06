@@ -6,7 +6,7 @@
         <!-- 左侧：系统名 + 导航 -->
         <div class="left-area">
           <nav class="navbar">
-            <router-link to="/" class="nav-item home-icon">
+            <router-link to="/home" class="nav-item home-icon">
               <img src="@/assets/images/logo-with-en.png" alt="home" />
             </router-link>
 
@@ -119,7 +119,7 @@
     <el-drawer v-model="mobileMenuOpen" title="导航菜单" direction="ltr" size="280px" class="mobile-nav-drawer">
       <el-input v-model="keyword" placeholder="搜索题目" clearable class="mobile-search" @keyup.enter="submitMobileSearch" />
       <nav class="mobile-nav" aria-label="移动端主导航">
-        <router-link to="/" :class="{ active: route.path === '/' }" @click="mobileMenuOpen = false">首页</router-link>
+        <router-link to="/home" :class="{ active: route.path === '/home' }" @click="mobileMenuOpen = false">首页</router-link>
         <router-link v-for="item in navItems" :key="item.path" :to="item.path" :class="{ active: isActive(item.path) }" @click="mobileMenuOpen = false">{{ item.label }}</router-link>
         <router-link v-if="userStore.isAdmin" to="/admin/dashboard" class="admin-mobile-nav" :class="{ active: isActive('/admin') }" @click="mobileMenuOpen = false">管理端</router-link>
       </nav>

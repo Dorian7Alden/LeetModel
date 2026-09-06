@@ -1,28 +1,28 @@
 export default [
   {
-    path: "profile",
+    path: "/profile",
     name: "Profile",
     component: () => import("@/views/profile/ProfilePage.vue"),
     meta: { requiresAuth: true },
   },
   {
-    path: "profile/analysis",
+    path: "/profile/analysis",
     name: "SkillAnalysis",
     component: () => import("@/views/profile/pages/SkillAnalysisPage.vue"),
   },
   {
-    path: "profile/history",
+    path: "/profile/history",
     name: "History",
     component: () => import("@/views/profile/pages/HistoryPage.vue"),
   },
   {
-    path: "profile/settings",
+    path: "/profile/settings",
     name: "Settings",
     component: () => import("@/views/profile/pages/SettingsPage.vue"),
     meta: { requiresAuth: true },
   },
   {
-    path: "submission/:id",
+    path: "/submission/:id",
     name: "SubmissionDetail",
     component: () => import("@/views/profile/pages/SubmissionDetailPage.vue"),
   },

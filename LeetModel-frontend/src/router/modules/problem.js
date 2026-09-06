@@ -1,6 +1,6 @@
 export default [
   {
-    path: "problem",
+    path: "/problem",
     component: () => import("@/views/problem/ProblemLayout.vue"),
     children: [
       {
