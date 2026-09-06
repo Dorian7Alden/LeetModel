@@ -39,6 +39,7 @@ import com.leetmodel.suggestion.workflow.SuggestionV1Workflow;
 import com.leetmodel.suggestion.workflow.SuggestionWorkflowResult;
 import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Output;
 import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Workflow;
+import com.leetmodel.suggestion.workflow.v3.GroundedSuggestionV3Workflow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -73,6 +74,7 @@ public class SuggestionService {
     private final KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient;
     private final SuggestionV1Workflow v1Workflow;
     private final GroundedSuggestionV2Workflow v2Workflow;
+    private final GroundedSuggestionV3Workflow v3Workflow;
     private final ReviewEvidenceProjector evidenceProjector;
     private final SuggestionReadyMessageService readyMessageService;
     private final SuggestionWorkerProperties workerProperties;
@@ -87,6 +89,7 @@ public class SuggestionService {
                              KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
                              SuggestionV1Workflow v1Workflow,
                              GroundedSuggestionV2Workflow v2Workflow,
+                             @Autowired(required = false) GroundedSuggestionV3Workflow v3Workflow,
                              ReviewEvidenceProjector evidenceProjector,
                              SuggestionReadyMessageService readyMessageService,
                              SuggestionWorkerProperties workerProperties,
@@ -99,10 +102,28 @@ public class SuggestionService {
         this.knowledgeRetrievalFeignClient = knowledgeRetrievalFeignClient;
         this.v1Workflow = v1Workflow;
         this.v2Workflow = v2Workflow;
+        this.v3Workflow = v3Workflow;
         this.evidenceProjector = evidenceProjector;
         this.readyMessageService = readyMessageService;
         this.workerProperties = workerProperties;
         this.objectMapper = objectMapper;
+    }
+
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             GroundedSuggestionV2Workflow v2Workflow,
+                             ReviewEvidenceProjector evidenceProjector,
+                             SuggestionReadyMessageService readyMessageService,
+                             SuggestionWorkerProperties workerProperties,
+                             ObjectMapper objectMapper) {
+        this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
+                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, null, evidenceProjector,
+                readyMessageService, workerProperties, objectMapper);
     }
 
     /** 保留面向服务单元测试的构造契约。 */
@@ -117,7 +138,7 @@ public class SuggestionService {
                              ReviewEvidenceProjector evidenceProjector,
                              ObjectMapper objectMapper) {
         this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
-                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, evidenceProjector,
+                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, null, evidenceProjector,
                 null, defaultWorkerProperties(), objectMapper);
     }
 
@@ -130,7 +151,7 @@ public class SuggestionService {
                              SuggestionV1Workflow v1Workflow,
                              ObjectMapper objectMapper) {
         this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
-                null, v1Workflow, null, null, null, defaultWorkerProperties(), objectMapper);
+                null, v1Workflow, null, null, null, null, defaultWorkerProperties(), objectMapper);
     }
 
     /** 新建一次独立生成意图；clientRequestId 只对本次用户动作幂等。 */
@@ -159,16 +180,22 @@ public class SuggestionService {
         task.setReviewTaskId(review.getTaskId());
         task.setEligibilityReviewTaskId(review.getTaskId());
         task.setEvidenceReviewTaskId(review.getTaskId());
-        task.setWorkflowVersion(GroundedSuggestionV2Workflow.VERSION);
+        boolean useV3 = v3Workflow != null;
+        String workflowVersion = useV3 ? SUGGESTION_V3_VERSION : GroundedSuggestionV2Workflow.VERSION;
+        String parseVersion = useV3 ? PAPER_PARSE_V2_VERSION : PAPER_PARSE_VERSION;
+        String resultSchema = useV3 ? GroundedSuggestionV3Workflow.RESULT_SCHEMA_VERSION : GroundedSuggestionV2Workflow.RESULT_SCHEMA_VERSION;
+        String promptSnapshot = useV3 ? v3Workflow.currentPrompt() : (v2Workflow != null ? v2Workflow.currentPrompt() : "prompt-v2");
+        String defaultRetrieval = useV3 ? SUGGESTION_DEEP_RETRIEVAL_V1 : DEFAULT_RETRIEVAL_VERSION;
+        task.setWorkflowVersion(workflowVersion);
         task.setReviewWorkflowVersion(review.getWorkflowVersion());
-        task.setPaperParsingWorkflowVersion(PAPER_PARSE_VERSION);
+        task.setPaperParsingWorkflowVersion(parseVersion);
         task.setRetrievalWorkflowVersion(request.getRetrievalWorkflowVersion() == null
                 || request.getRetrievalWorkflowVersion().isBlank()
-                ? DEFAULT_RETRIEVAL_VERSION : request.getRetrievalWorkflowVersion());
-        task.setResultSchemaVersion(GroundedSuggestionV2Workflow.RESULT_SCHEMA_VERSION);
+                ? defaultRetrieval : request.getRetrievalWorkflowVersion());
+        task.setResultSchemaVersion(resultSchema);
         task.setStatus("WAITING");
         task.setCurrentStage("PREPARING");
-        task.setPromptSnapshot(v2Workflow.currentPrompt());
+        task.setPromptSnapshot(promptSnapshot);
         task.setRetryCount(0);
         task.setAttemptNo(1);
         task.setMaxAttempts(workerProperties.getMaxAttempts());
@@ -302,6 +329,8 @@ public class SuggestionService {
                 processV1(task, leaseToken);
             } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
                 processV2(task, leaseToken);
+            } else if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+                processV3(task, leaseToken);
             } else {
                 throw new IllegalArgumentException("未知建议工作流版本: " + task.getWorkflowVersion());
             }
@@ -318,6 +347,37 @@ public class SuggestionService {
         ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(task.getProblemId()));
         validateTaskSource(task, submission, review, problem);
         SuggestionWorkflowResult result = v1Workflow.execute(task, submission, problem, review);
+        complete(task, result, leaseToken);
+    }
+
+    private void processV3(SuggestionTask task, String leaseToken) throws Exception {
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
+        ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(task.getProblemId()));
+        validateTaskSource(task, submission, eligibility, problem);
+
+        updateStage(task, leaseToken, "PARSING");
+        PaperParseDTO parse = requiredData(() -> reviewFeignClient.ensureParse(
+                task.getSubmissionId(), PAPER_PARSE_V2_VERSION));
+        if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
+            throw new IllegalStateException("PDF 解析未产生可用产物");
+        }
+        task.setParseArtifactId(parse.getArtifactId());
+        task.setPaperParsingWorkflowVersion(PAPER_PARSE_V2_VERSION);
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
+
+        task.setCurrentStage("PREPARING_REVIEW");
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
+        task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
+        task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
+        task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
+        requireLease(taskMapper.saveReviewEvidence(task.getId(), leaseToken,
+                reviewEvidence.evidenceReviewTaskId(), reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()));
+
+        task.setCurrentStage("GENERATING");
+        SuggestionWorkflowResult result = v3Workflow.execute(task, problem, parse, reviewEvidence);
+        updateStage(task, leaseToken, "VALIDATING");
         complete(task, result, leaseToken);
     }
 
