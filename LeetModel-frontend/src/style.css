@@ -9,6 +9,8 @@
 
 :root {
   /* Design tokens (黑白灰 Monochrome 极简专业体系) */
+  --lm-font-family: "Noto Sans SC Variable", "Microsoft YaHei", "Microsoft YaHei UI", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
+  --lm-code-font-family: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, "PingFang SC", "Microsoft YaHei", monospace;
   --lm-primary: #18181b;
   --lm-primary-light: #27272a;
   --lm-primary-dark: #09090b;
@@ -74,11 +76,11 @@
   --el-box-shadow: var(--lm-shadow);
   --el-box-shadow-dark: var(--lm-shadow-lg);
 
-  --el-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --el-font-family: var(--lm-font-family);
 }
 
 html {
-  font-family: var(--el-font-family);
+  font-family: var(--lm-font-family);
   line-height: 1.6;
   font-weight: 400;
   color: var(--lm-text-primary);
@@ -95,6 +97,13 @@ body {
   min-height: 100vh;
   background-color: var(--lm-bg);
   color: var(--lm-text-primary);
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: var(--lm-font-family);
 }
 
 #app {
@@ -169,7 +178,7 @@ a:hover {
   background: #f1f5f9;
   border-bottom: 1px solid var(--lm-border);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--lm-code-font-family);
 }
 
 .code-block-header .code-lang {
@@ -211,7 +220,7 @@ a:hover {
   background: transparent !important;
   font-size: 12px;
   line-height: 1.55;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--lm-code-font-family);
 }
 
 /* KaTeX Display formulas */

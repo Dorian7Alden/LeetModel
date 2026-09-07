@@ -405,7 +405,7 @@ onMounted(loadData);
 
 .dir-path {
   font-size: 12px;
-  font-family: monospace;
+  font-family: var(--lm-code-font-family);
   color: #64748b;
 }
 
@@ -457,7 +457,7 @@ onMounted(loadData);
 
 .doc-file {
   font-size: 12px;
-  font-family: monospace;
+  font-family: var(--lm-code-font-family);
   color: #64748b;
 }
 

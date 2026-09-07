@@ -342,7 +342,7 @@ onMounted(loadAll);
 .confirm-block ul, .confirm-block p { margin: 8px 0 0; }
 .confirm-block li { margin: 5px 0; }
 .confirm-meta, .muted { color: var(--lm-text-muted); font-size: 12px; }
-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+code { font-family: var(--lm-code-font-family); }
 @media (max-width: 900px) {
   .fact-grid { grid-template-columns: 1fr; }
   .page-heading, .observation-line { flex-direction: column; gap: 10px; }

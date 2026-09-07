@@ -129,7 +129,7 @@
     </main>
 
     <!-- 页脚 -->
-    <footer class="footer">
+    <footer v-if="route.path !== '/problem' && route.path !== '/problem/problemListPage'" class="footer">
       <div class="footer-content">
         <div class="footer-brand">
           <img src="@/assets/images/logo-en.png" alt="LeetModel" class="footer-logo-img" />

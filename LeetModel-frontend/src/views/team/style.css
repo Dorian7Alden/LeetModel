@@ -128,7 +128,7 @@
 .readiness p { margin: 4px 0 0; color: var(--lm-text-secondary); font-size: 13px; }
 .countdown-card { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 20px; margin-top: 24px; padding: 18px 20px; border-radius: 14px; background: #0f172a; color: #fff; }
 .countdown-card span, .countdown-card small { color: #94a3b8; }
-.countdown-card strong { grid-row: span 2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 30px; letter-spacing: .04em; }
+.countdown-card strong { grid-row: span 2; font-family: var(--lm-code-font-family); font-size: 30px; letter-spacing: .04em; }
 .ended-summary { display: flex; justify-content: space-between; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--lm-border-light); color: var(--lm-text-secondary); }
 .capacity { display: flex; align-items: baseline; gap: 4px; color: var(--lm-text-secondary); }
 .capacity strong { color: #1d4ed8; font-size: 26px; }
