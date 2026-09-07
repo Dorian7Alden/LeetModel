@@ -63,8 +63,8 @@ public class ProblemPageQuery extends BasePageQuery {
     @Size(max = 100, message = "关键词不能超过 100 个字符")
     private String keyword;
 
-    /** 排序字段：year、difficulty、averageScore；为空时按创建时间倒序。 */
-    @Pattern(regexp = "year|difficulty|averageScore", message = "排序字段只支持 year、difficulty 或 averageScore")
+    /** 排序字段：code、year、difficulty、averageScore；为空时按题号升序。 */
+    @Pattern(regexp = "code|year|difficulty|averageScore", message = "排序字段只支持 code、year、difficulty 或 averageScore")
     private String sortBy;
 
     /** 排序方向：asc 或 desc。 */

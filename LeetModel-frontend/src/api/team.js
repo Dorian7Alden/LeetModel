@@ -31,6 +31,10 @@ export function getPublicPreparingProblemIds() {
   return request.get("/teams/public/preparing-problem-ids");
 }
 
+export function getPopularPracticeProblems(limit = 3) {
+  return request.get("/teams/public/popular-practice-problems", { params: { limit } });
+}
+
 export function getTeamDetail(teamId) {
   return request.get(`/teams/${teamId}`);
 }

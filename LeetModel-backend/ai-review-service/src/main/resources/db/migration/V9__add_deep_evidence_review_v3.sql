@@ -1,3 +1,6 @@
+-- 扩容 final_contract_version 字段以支持 V3 契约版本名称（DEEP_EVIDENCE_REVIEW_V3 长度 23）
+ALTER TABLE `review_version` MODIFY COLUMN `final_contract_version` VARCHAR(40) NOT NULL;
+
 -- 注册 V3 评审版本元数据
 INSERT INTO `review_version`
 (`id`, `version_code`, `name`, `description`, `process_summary`, `final_contract_version`, `status`)

@@ -554,7 +554,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 <style>
 .ai-bubble .markdown-body,
 .ai-bubble .markdown-body *{box-sizing:border-box;}
-.ai-bubble .markdown-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",Arial,sans-serif;font-size:13px;line-height:1.65;color:inherit;word-break:break-word;padding:0;background:transparent;margin:0;}
+.ai-bubble .markdown-body{font-family:var(--lm-font-family);font-size:13px;line-height:1.65;color:inherit;word-break:break-word;padding:0;background:transparent;margin:0;}
 .ai-bubble .markdown-body :is(p,ul,ol,pre,blockquote,table){margin:0 0 6px;}
 .ai-bubble .markdown-body :is(ul,ol){padding-left:18px;}
 .ai-bubble .markdown-body :is(h1,h2,h3,h4,h5,h6){margin:8px 0 4px;font-size:1em;font-weight:700;line-height:1.4;}

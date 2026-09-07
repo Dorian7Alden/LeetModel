@@ -22,8 +22,8 @@ public class AssistantProblemQueryDTO {
     @NotNull(message = "查询模式不能为空")
     private AssistantProblemQueryMode mode;
 
-    @Min(value = 1001, message = "题号不能小于 1001")
-    @Max(value = 10000, message = "题号不能大于 10000")
+    @Min(value = 1, message = "题号不能小于 1")
+    @Max(value = 100000, message = "题号不能大于 100000")
     private Integer code;
 
     @Size(max = 50, message = "关键词不能超过 50 个字符")

@@ -517,13 +517,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     }
 
     /**
-     * 生成下一个短题号：基于现有最大 code + 1，起始 1001，上限 10000。
-     * 题目量有限（通常 <= 10000），该编号用于用户展示，不暴露内部雪花主键。
+     * 生成下一个题号：基于现有最大 code + 1，起始从 1 开始依次增加。
+     * 标识是标识（雪花主键 ID），题号是题号（code），面向用户展示自然连续序列。
      */
     private int nextProblemCode() {
         Integer maxCode = baseMapper.selectMaxCode();
-        int next = maxCode == null ? 1001 : maxCode + 1;
-        BusinessException.throwIf(next > 10000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
+        int next = (maxCode == null || maxCode < 1) ? 1 : maxCode + 1;
+        BusinessException.throwIf(next > 100000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
         return next;
     }
 
@@ -774,7 +774,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     }
 
     /**
-     * 校验标签存在；背景领域与题目类型最多选择一个，模型算法允许多选。
+     * 校验标签存在；背景领域最多选择一个，题目类型与模型算法允许多选。
+     * 数学建模实际赛题常包含多个题型不同的小问，允许单题关联多个题目类型标签。
      */
     private List<Tag> validateTags(List<Long> tagIds) {
         if (tagIds == null || tagIds.isEmpty()) return List.of();
@@ -786,7 +787,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Map<String, Long> typeCounts = tags.stream()
                 .collect(Collectors.groupingBy(Tag::getType, Collectors.counting()));
         boolean hasExclusiveTypeConflict = typeCounts.entrySet().stream()
-                .anyMatch(entry -> !TagType.MODEL_ALGORITHM.name().equals(entry.getKey())
+                .anyMatch(entry -> TagType.BACKGROUND_DOMAIN.name().equals(entry.getKey())
                         && entry.getValue() > 1);
         BusinessException.throwIf(hasExclusiveTypeConflict, ProblemErrorCode.TAG_TYPE_CONFLICT);
         return tags;
@@ -806,16 +807,22 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      */
     private void applySort(LambdaQueryWrapper<Problem> wrapper, ProblemPageQuery query) {
         boolean ascending = "asc".equals(query.getSortOrder());
-        if ("year".equals(query.getSortBy())) {
+        if ("code".equals(query.getSortBy())) {
+            wrapper.orderBy(true, ascending, Problem::getCode);
+            wrapper.orderBy(true, ascending, Problem::getId);
+        } else if ("year".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getYear);
+            wrapper.orderByDesc(Problem::getId);
         } else if ("difficulty".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getDifficulty);
+            wrapper.orderByDesc(Problem::getId);
         } else if ("averageScore".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getAverageScore);
+            wrapper.orderByDesc(Problem::getId);
         } else {
-            wrapper.orderByDesc(Problem::getCreateTime);
+            wrapper.orderByAsc(Problem::getCode);
+            wrapper.orderByAsc(Problem::getId);
         }
-        wrapper.orderByDesc(Problem::getId);
     }
 
     /**

@@ -71,7 +71,7 @@ class InternalProblemControllerTest {
     void delegatesAssistantQueryToProblemOwnerService() {
         AssistantProblemQueryDTO query = new AssistantProblemQueryDTO();
         query.setMode(AssistantProblemQueryMode.SEARCH);
-        query.setCode(1001);
+        query.setCode(1);
         AssistantProblemResultDTO expected = new AssistantProblemResultDTO(
                 List.of(), "CODE", false, List.of());
         when(problemService.queryForAssistant(query)).thenReturn(expected);

@@ -344,8 +344,8 @@ onBeforeUnmount(stopPolling);
 .action, .impact { margin: 8px 0 0; color: var(--lm-text-secondary); line-height: 1.7; }
 .diagnosis-text { margin: 6px 0 0; color: var(--el-color-danger); font-size: 13px; line-height: 1.6; }
 .v3-markdown { margin-top: 6px; font-size: 13.5px; line-height: 1.7; color: var(--lm-text-primary); }
-.v3-markdown :deep(pre) { background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 12.5px; margin: 8px 0; }
-.v3-markdown :deep(code) { font-family: monospace; font-size: 12.5px; }
+.v3-markdown :deep(pre) { background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-family: var(--lm-code-font-family); font-size: 12.5px; margin: 8px 0; }
+.v3-markdown :deep(code) { font-family: var(--lm-code-font-family); font-size: 12.5px; }
 .v3-markdown :deep(h4) { margin: 10px 0 4px; font-size: 14px; font-weight: 600; color: var(--lm-text-primary); }
 .detail-section { margin-top: 10px; color: var(--lm-text-secondary); }
 .detail-section ul { margin: 6px 0 0; padding-left: 22px; line-height: 1.7; }

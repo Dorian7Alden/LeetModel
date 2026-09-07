@@ -16,7 +16,7 @@ class AssistantProblemQueryContractTest {
     void acceptsSearchWithExactlyOneKeyAndRecommendationWithoutFilters() {
         AssistantProblemQueryDTO search = new AssistantProblemQueryDTO();
         search.setMode(AssistantProblemQueryMode.SEARCH);
-        search.setCode(1001);
+        search.setCode(1);
         search.setIncludeOverview(true);
 
         AssistantProblemQueryDTO recommend = new AssistantProblemQueryDTO();
@@ -31,7 +31,7 @@ class AssistantProblemQueryContractTest {
     void rejectsAmbiguousSearchAndRecommendationOverview() {
         AssistantProblemQueryDTO ambiguous = new AssistantProblemQueryDTO();
         ambiguous.setMode(AssistantProblemQueryMode.SEARCH);
-        ambiguous.setCode(1001);
+        ambiguous.setCode(1);
         ambiguous.setKeyword("优化");
 
         AssistantProblemQueryDTO recommend = new AssistantProblemQueryDTO();

@@ -16,11 +16,15 @@ import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.JoinApplicationVO;
+import com.leetmodel.team.vo.PopularPracticeProblemVO;
 import com.leetmodel.team.vo.TeamVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -39,6 +44,7 @@ import java.util.List;
 @RequestMapping("/api/teams")
 @RequiredArgsConstructor
 @Tag(name = "团队管理")
+@Validated
 public class TeamController {
 
     private final TeamService teamService;
@@ -79,6 +85,22 @@ public class TeamController {
     @GetMapping("/public/preparing-problem-ids")
     public Result<List<Long>> listPublicPreparingProblemIds() {
         return Result.ok(teamService.listPublicPreparingProblemIds());
+    }
+
+    /**
+     * 查询练习次数最多的已发布题目。
+     *
+     * @param limit 返回题目数量，默认 3 条
+     * @return 题目标题、题号与有效队伍练习次数
+     */
+    @Operation(summary = "查询热门练习题")
+    @GetMapping("/public/popular-practice-problems")
+    public Result<List<PopularPracticeProblemVO>> listPopularPracticeProblems(
+            @RequestParam(defaultValue = "3")
+            @Min(value = 1, message = "热门练习题数量最少为1")
+            @Max(value = 10, message = "热门练习题数量最多为10") Integer limit
+    ) {
+        return Result.ok(teamService.listPopularPracticeProblems(limit));
     }
 
     /**

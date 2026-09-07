@@ -15,6 +15,6 @@ public interface ProblemMapper extends BaseMapper<Problem> {
      * 查询全部题目（含逻辑删除）的最大题号。
      * 题号唯一索引覆盖所有行，需要避开逻辑删除过滤。
      */
-    @Select("SELECT COALESCE(MAX(code), 1000) FROM problem")
+    @Select("SELECT COALESCE(MAX(code), 0) FROM problem")
     Integer selectMaxCode();
 }

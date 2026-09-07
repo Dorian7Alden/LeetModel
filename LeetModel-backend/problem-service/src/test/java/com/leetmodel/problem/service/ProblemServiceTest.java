@@ -150,6 +150,38 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("分页查询默认按题号从小到大升序排列")
+    void pageProblemsSortsByCodeAscendingByDefault() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("code ASC"));
+    }
+
+    @Test
+    @DisplayName("分页查询支持指定按题号升序与降序排列")
+    void pageProblemsSortsByCodeExplicitly() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setSortBy("code");
+        query.setSortOrder("desc");
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("code DESC"));
+    }
+
+    @Test
     @DisplayName("分页查询拒绝反向历史分数区间")
     void pageProblemsRejectsReversedScoreRange() {
         ProblemPageQuery query = new ProblemPageQuery();
@@ -212,9 +244,27 @@ class ProblemServiceTest {
 
         ProblemVO result = problemService.createProblem(request, 100L);
 
+        assertEquals(1, result.getCode());
         assertEquals("# 新题面", result.getContentMarkdown());
         assertEquals("CUSTOM_CONTEST", result.getContestCode());
         verify(problemMapper).insert(any(Problem.class));
+    }
+
+    @Test
+    @DisplayName("创建题目按当前最大题号连续自增且初始从1开始")
+    void createProblemIncrementsCodeSequentiallyFromOne() {
+        when(problemMapper.selectMaxCode()).thenReturn(10);
+        when(problemMapper.insert(any(Problem.class))).thenAnswer(invocation -> {
+            Problem entity = invocation.getArgument(0);
+            entity.setId(2L);
+            return 1;
+        });
+        ProblemCreateRequest request = validCreateRequest();
+
+        ProblemVO result = problemService.createProblem(request, 100L);
+
+        assertEquals(11, result.getCode());
+        verify(problemMapper).selectMaxCode();
     }
 
     @Test
@@ -234,8 +284,8 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName("创建题目拒绝同类型的多个标签")
-    void createProblemRejectsTagsOfSameType() {
+    @DisplayName("创建题目拒绝多个背景领域标签")
+    void createProblemRejectsMultipleBackgroundDomainTags() {
         Tag first = tag(6001L, "环境生态", "BACKGROUND_DOMAIN");
         Tag second = tag(6002L, "交通物流", "BACKGROUND_DOMAIN");
         when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
@@ -248,6 +298,20 @@ class ProblemServiceTest {
         );
 
         assertEquals(ProblemErrorCode.TAG_TYPE_CONFLICT.getCode(), exception.getCode());
+    }
+
+    @Test
+    @DisplayName("创建题目允许关联多个题目类型标签")
+    void createProblemAcceptsMultipleProblemTypeTags() {
+        Tag first = tag(6101L, "预测", "PROBLEM_TYPE");
+        Tag second = tag(6103L, "优化", "PROBLEM_TYPE");
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
+        ProblemCreateRequest request = validCreateRequest();
+        request.setTagIds(List.of(6101L, 6103L));
+
+        ProblemVO result = problemService.createProblem(request, 100L);
+
+        assertEquals(List.of("预测", "优化"), result.getTagNames());
     }
 
     @Test

@@ -27,6 +27,7 @@ import com.leetmodel.team.mapper.TeamJoinApplicationMapper;
 import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.impl.TeamServiceImpl;
 import com.leetmodel.team.vo.TeamMemberVO;
+import com.leetmodel.team.vo.PopularPracticeProblemVO;
 import com.leetmodel.team.vo.TeamVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -123,6 +124,30 @@ class TeamServiceTest {
 
         assertEquals(List.of(51008L, 51006L), teamService.listPublicPreparingProblemIds());
         verify(teamMapper).selectObjs(any(QueryWrapper.class));
+    }
+
+    @Test
+    @DisplayName("热门练习题按队伍练习次数返回且忽略未发布题目")
+    void listPopularPracticeProblems() {
+        List<PopularPracticeProblemVO> candidates = List.of(
+                new PopularPracticeProblemVO(100L, null, null, 8L),
+                new PopularPracticeProblemVO(200L, null, null, 5L),
+                new PopularPracticeProblemVO(300L, null, null, 3L)
+        );
+        when(teamMapper.selectPopularPracticeProblems(30)).thenReturn(candidates);
+        when(problemFeignClient.getPracticeProblems(List.of(100L, 200L, 300L))).thenReturn(Result.ok(List.of(
+                new ProblemPracticeDTO(100L, 1001, "高频练习题", 180, 1),
+                new ProblemPracticeDTO(300L, 1003, "次高频练习题", 180, 1)
+        )));
+
+        List<PopularPracticeProblemVO> result = teamService.listPopularPracticeProblems(3);
+
+        assertEquals(2, result.size());
+        assertEquals(100L, result.get(0).getProblemId());
+        assertEquals(1001, result.get(0).getProblemCode());
+        assertEquals("高频练习题", result.get(0).getProblemTitle());
+        assertEquals(8L, result.get(0).getPracticeCount());
+        assertEquals(300L, result.get(1).getProblemId());
     }
 
     @Test

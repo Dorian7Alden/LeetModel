@@ -45,7 +45,7 @@
           </div>
         </div>
         <div class="header-right">
-          <router-link to="/" class="back-home-link">
+          <router-link to="/home" class="back-home-link">
             <el-icon :size="16"><HomeFilled /></el-icon><span>返回站点</span>
           </router-link>
           <span class="header-divider"></span>
