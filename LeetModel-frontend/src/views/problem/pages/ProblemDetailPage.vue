@@ -147,7 +147,7 @@ onMounted(fetchDetail)
 .attachment-item:last-child { border-bottom: 0; }
 .attachment-item p { margin: 4px 0 0; color: var(--lm-text-secondary); font-size: 13px; }
 .attachment-size { flex-shrink: 0; color: var(--lm-text-muted); font-size: 12px; }
-.markdown-body { padding: 24px 32px 32px; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif; font-synthesis: weight; overflow-wrap: anywhere; }
+.markdown-body { padding: 24px 32px 32px; background: transparent; font-family: var(--lm-font-family); font-synthesis: weight; overflow-wrap: anywhere; }
 .markdown-body :deep(strong), .markdown-body :deep(b) { font-weight: 800; }
 @media (max-width: 768px) { .markdown-body { padding: 20px; } .detail-header { padding: 18px; } .detail-top { align-items: flex-start; flex-direction: column; } .detail-footer-row { align-items: flex-end; flex-wrap: wrap; } }
 </style>

@@ -116,7 +116,7 @@
             >
               <div class="problem-main">
                 <h3 :title="item.title">
-                  <span class="row-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                  <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ String(item.code ?? (index + 1)).padStart(2, '0') }}</span>
                   {{ item.title }}
                 </h3>
               </div>
@@ -376,7 +376,7 @@ watch(typeId, () => {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .type-heat-tag {
   font-size: 11px;
@@ -430,7 +430,7 @@ watch(typeId, () => {
   background: #f1f5f9;
   color: var(--lm-text-secondary);
   font-size: 11px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 
 /* 核心统计 */
@@ -451,7 +451,7 @@ stat-cell {
   font-size: 16px;
   font-weight: 700;
   color: var(--lm-primary);
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .stat-label {
   font-size: 11px;
@@ -573,7 +573,7 @@ stat-cell {
   color: var(--lm-primary);
   font-size: 10px;
   font-weight: 800;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .contest-name {
   color: var(--lm-text-secondary);

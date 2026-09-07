@@ -143,7 +143,7 @@
             >
               <div class="problem-main">
                 <h3 :title="item.title">
-                  <span class="row-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                  <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ String(item.code ?? (index + 1)).padStart(2, '0') }}</span>
                   {{ item.title }}
                 </h3>
               </div>
@@ -404,7 +404,7 @@ watch(contestId, () => {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .contest-heat-tag {
   font-size: 11px;
@@ -464,7 +464,7 @@ watch(contestId, () => {
   font-size: 16px;
   font-weight: 700;
   color: var(--lm-primary);
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .stat-label {
   font-size: 11px;
@@ -622,7 +622,7 @@ watch(contestId, () => {
   color: var(--lm-primary);
   font-size: 10px;
   font-weight: 800;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 .problem-tags {
   display: flex;
