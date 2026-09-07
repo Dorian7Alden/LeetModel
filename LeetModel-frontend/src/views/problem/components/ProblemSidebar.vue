@@ -68,7 +68,7 @@
 
       <div class="sidebar-divider"></div>
 
-      <!-- 4. 关于用户的内容 (正在练习的题目、已完成练习的题目) -->
+      <!-- 4. 关于用户的内容 (练习中、已完成) -->
       <div class="sidebar-user-group">
         <div
           class="sidebar-nav-item"
@@ -76,7 +76,7 @@
           @click="selectSection('in_progress')"
         >
           <el-icon class="item-icon text-warning"><Clock /></el-icon>
-          <span class="item-text">正在练习的题目</span>
+          <span class="item-text">练习中</span>
           <span v-if="activeTeamCount > 0" class="active-bubble">{{ activeTeamCount }}</span>
         </div>
 
@@ -86,7 +86,7 @@
           @click="selectSection('completed')"
         >
           <el-icon class="item-icon text-success"><CircleCheck /></el-icon>
-          <span class="item-text">已完成练习的题目</span>
+          <span class="item-text">已完成</span>
         </div>
       </div>
 
@@ -161,9 +161,10 @@ const route = useRoute()
 const userStore = useUserStore()
 
 // 侧边栏宽度与折叠状态控制
-const DEFAULT_WIDTH = 260
+const DEFAULT_WIDTH = 240
 const COLLAPSED_WIDTH = 0
-const MIN_DRAG_WIDTH = 180
+const MIN_EXPANDED_WIDTH = 140
+const COLLAPSE_TRIGGER_WIDTH = 70
 const MAX_WIDTH = 280
 
 const sidebarWidth = ref(DEFAULT_WIDTH)
@@ -174,9 +175,9 @@ const lastExpandedWidth = ref(DEFAULT_WIDTH)
 const toggleCollapse = () => {
   if (isCollapsed.value) {
     isCollapsed.value = false
-    sidebarWidth.value = lastExpandedWidth.value || DEFAULT_WIDTH
+    sidebarWidth.value = lastExpandedWidth.value >= MIN_EXPANDED_WIDTH ? lastExpandedWidth.value : DEFAULT_WIDTH
   } else {
-    lastExpandedWidth.value = sidebarWidth.value > 120 ? sidebarWidth.value : DEFAULT_WIDTH
+    lastExpandedWidth.value = sidebarWidth.value >= MIN_EXPANDED_WIDTH ? sidebarWidth.value : DEFAULT_WIDTH
     isCollapsed.value = true
     sidebarWidth.value = COLLAPSED_WIDTH
   }
@@ -188,14 +189,38 @@ const startResize = (e) => {
   isDragging.value = true
   const startX = e.clientX
   const startWidth = sidebarWidth.value
+  const preDragWidth = startWidth >= MIN_EXPANDED_WIDTH ? startWidth : DEFAULT_WIDTH
 
   const onMouseMove = (moveEvent) => {
     const deltaX = moveEvent.clientX - startX
-    let newWidth = startWidth + deltaX
-    if (newWidth < MIN_DRAG_WIDTH) newWidth = MIN_DRAG_WIDTH
-    if (newWidth > MAX_WIDTH) newWidth = MAX_WIDTH
-    sidebarWidth.value = newWidth
-    lastExpandedWidth.value = newWidth
+    const virtualWidth = startWidth + deltaX
+
+    if (virtualWidth < COLLAPSE_TRIGGER_WIDTH) {
+      // 达到第二临界值（仅剩图标宽）：彻底折叠归零，不展示残缺半截图标
+      sidebarWidth.value = COLLAPSED_WIDTH
+      lastExpandedWidth.value = preDragWidth
+      if (!isCollapsed.value) {
+        isCollapsed.value = true
+        emit('collapse-change', true)
+      }
+    } else if (virtualWidth < MIN_EXPANDED_WIDTH) {
+      // 处于第一临界值与第二临界值之间：宽度锁定在文字刚好不被截断的最小宽度，给用户物理阻尼暗示
+      sidebarWidth.value = MIN_EXPANDED_WIDTH
+      lastExpandedWidth.value = preDragWidth
+      if (isCollapsed.value) {
+        isCollapsed.value = false
+        emit('collapse-change', false)
+      }
+    } else {
+      // 大于第一临界值：正常跟随拖拽连续缩放
+      const clampedWidth = Math.min(virtualWidth, MAX_WIDTH)
+      sidebarWidth.value = clampedWidth
+      lastExpandedWidth.value = clampedWidth
+      if (isCollapsed.value) {
+        isCollapsed.value = false
+        emit('collapse-change', false)
+      }
+    }
   }
 
   const onMouseUp = () => {
@@ -214,6 +239,7 @@ const startResize = (e) => {
 
 const resetWidth = () => {
   sidebarWidth.value = DEFAULT_WIDTH
+  lastExpandedWidth.value = DEFAULT_WIDTH
   isCollapsed.value = false
   emit('collapse-change', false)
 }
@@ -298,14 +324,17 @@ onMounted(async () => {
   background: #ffffff;
   user-select: none;
   z-index: 20;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+  transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.problem-sidebar-bar.is-resizing {
+.problem-sidebar-bar.is-resizing,
+.problem-sidebar-bar.is-resizing * {
   transition: none !important;
 }
 
 .sidebar-inner {
   flex: 1;
+  width: 100%;
   min-width: 0;
   height: 100%;
   overflow-y: auto;
@@ -314,10 +343,14 @@ onMounted(async () => {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  padding: 16px 12px 24px 14px;
+  padding: 16px 16px 24px;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  transition: opacity 0.18s ease, transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 极简精致滚动条 */
@@ -344,20 +377,24 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translateX(0);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .resizer-line {
   position: absolute;
   left: 6px;
   top: 0;
   bottom: 0;
-  width: 1px;
+  width: 0.5px;
   background: var(--lm-border);
-  transition: background var(--lm-transition), width 0.15s ease;
+  opacity: 1;
+  transition: background var(--lm-transition), width 0.15s ease, opacity 0.18s ease;
 }
 .sidebar-resizer:hover .resizer-line,
 .sidebar-resizer.is-resizing .resizer-line {
   background: var(--lm-primary);
-  width: 2px;
+  width: 4px;
+  background-color: rgb(38, 150, 255);
 }
 
 /* 悬浮在边界上的圆形折叠按钮 (悬浮边界显示，点一下直接折叠/展开) */
@@ -365,7 +402,7 @@ onMounted(async () => {
   position: absolute;
   top: 110px;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.85);
+  transform: translate(-50%, -50%) scale(0.9);
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -381,10 +418,9 @@ onMounted(async () => {
   z-index: 50;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .sidebar-resizer:hover .collapse-circle-btn,
-.problem-sidebar-bar:hover .collapse-circle-btn,
 .collapse-circle-btn:hover {
   opacity: 1;
   pointer-events: auto;
@@ -395,7 +431,7 @@ onMounted(async () => {
   border-color: #18181b;
   background: #18181b;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  transform: translate(-50%, -50%) scale(1.15);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 .circle-icon {
   font-size: 12px;
@@ -408,25 +444,26 @@ onMounted(async () => {
   min-width: 0 !important;
 }
 .problem-sidebar-bar.is-collapsed .sidebar-inner {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  padding: 0 !important;
-  width: 0 !important;
-  overflow: hidden !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-12px);
+  visibility: hidden;
+  overflow: hidden;
+  transition: opacity 0.18s ease, transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.24s;
 }
 .problem-sidebar-bar.is-collapsed .sidebar-resizer {
-  left: 0;
-  right: auto;
-  width: 24px;
+  transform: translateX(20px);
+  cursor: default;
+}
+.problem-sidebar-bar.is-collapsed .resizer-line {
+  opacity: 0;
+  pointer-events: none;
 }
 .problem-sidebar-bar.is-collapsed .collapse-circle-btn {
-  position: fixed;
-  top: 110px;
-  left: 22px; /* 靠在桌面靠左侧，但离最左边留出 22px 舒适边距 */
-  transform: translateY(-50%) scale(1);
-  opacity: 0.85;
+  opacity: 0.9;
   pointer-events: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-50%) scale(1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .problem-sidebar-bar.is-collapsed .collapse-circle-btn:hover {
   opacity: 1;
@@ -434,7 +471,7 @@ onMounted(async () => {
   background: #18181b;
   border-color: #18181b;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-  transform: translateY(-50%) scale(1.1);
+  transform: translateY(-50%) scale(1.12);
 }
 
 /* 一级菜单通用项 */
@@ -446,7 +483,7 @@ onMounted(async () => {
   border-radius: var(--lm-radius-sm);
   color: var(--lm-text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--lm-transition);
 }
@@ -455,18 +492,18 @@ onMounted(async () => {
   background: #f4f4f5;
 }
 .sidebar-nav-item.active {
-  color: #ffffff;
-  background: #18181b;
+  color: var(--lm-text-primary);
+  background: #f5f5f5;
   font-weight: 600;
 }
 .item-icon {
-  font-size: 15px;
+  font-size: 16px;
   color: var(--lm-text-muted);
   transition: color var(--lm-transition);
 }
 .sidebar-nav-item:hover .item-icon,
 .sidebar-nav-item.active .item-icon {
-  color: #ffffff;
+  color: var(--lm-text-primary);
 }
 .item-text {
   flex: 1;
@@ -488,22 +525,25 @@ onMounted(async () => {
   border-radius: var(--lm-radius-sm);
   color: var(--lm-text-secondary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--lm-transition);
 }
 .group-header:hover {
-  color: var(--lm-primary);
-  background: #f8fafc;
+  color: var(--lm-text-primary);
+  background: #f5f5f5;
 }
 .group-header.active {
-  color: var(--lm-primary);
+  color: var(--lm-text-primary);
   font-weight: 600;
 }
 .header-left {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.header-left .item-icon {
+  font-size: 16px;
 }
 .arrow-toggle {
   font-size: 12px;
@@ -534,8 +574,8 @@ onMounted(async () => {
   transition: all var(--lm-transition);
 }
 .sub-nav-item:hover {
-  color: var(--lm-primary);
-  background: #f8fafc;
+  color: var(--lm-text-primary);
+  background: #f5f5f5;
 }
 .sub-nav-item.active {
   color: var(--lm-primary);
@@ -582,7 +622,7 @@ onMounted(async () => {
   border: 1px solid #e4e4e7;
   font-size: 10px;
   font-weight: 700;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 
 .fav-badge {
@@ -593,7 +633,7 @@ onMounted(async () => {
   border: 1px solid #e4e4e7;
   font-size: 10px;
   font-weight: 700;
-  font-family: ui-monospace, monospace;
+  font-family: var(--lm-code-font-family);
 }
 
 .text-warning { color: #52525b !important; }

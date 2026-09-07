@@ -1,6 +1,6 @@
 <template>
   <div class="problem-workbench-shell" :class="{ 'is-sidebar-collapsed': isSidebarCollapsed }">
-    <!-- 左侧常驻 Bar (210px): 题目大厅、赛事展开、题型展开、我的实训、我的收藏 -->
+    <!-- 左侧常驻 Bar (240px): 题目大厅、赛事展开、题型展开、我的实训、我的收藏 -->
     <ProblemSidebar
       :contests="filterOptions.contests"
       :problem-types="problemTypeTags"
@@ -17,21 +17,33 @@
         <ProblemHeader
           :contests="filterOptions.contests"
           :tags="filterOptions.tags"
+          :total="problemTotal"
           :options-loading="optionsLoading"
           :random-loading="randomLoading"
           @change="handleSearch"
           @random="handleRandom"
+          @sort="handleSort"
         />
-        <ProblemList ref="listRef" @fav-change="handleFavChange" />
+        <ProblemList
+          ref="listRef"
+          :tags="filterOptions.tags"
+          @fav-change="handleFavChange"
+          @total-change="handleTotalChange"
+        />
       </div>
 
-      <!-- 右侧火热专区 (270px): 最火热备战题单、高频考向标签云、赛前排雷锦囊 -->
+      <!-- 右侧辅助区 (240px): 热门练习题、考向标签与页面链接 -->
       <ProblemRightAside
         :tags="filterOptions.tags"
-        @select-curated="handleSelectCurated"
+        :popular-problems="popularProblems"
+        :popular-loading="popularLoading"
+        @select-popular="handleSelectPopular"
         @select-tag="handleSelectRightTag"
       />
     </div>
+
+    <!-- 长列表滚动时提供与参考题库一致的回到顶部入口 -->
+    <el-backtop :right="28" :bottom="96" :visibility-height="320" />
   </div>
 </template>
 
@@ -40,7 +52,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPublicProblemFilterOptions, getRandomPublicProblem } from '@/api/problem'
-import { getMyTeams } from '@/api/team'
+import { getMyTeams, getPopularPracticeProblems } from '@/api/team'
 import ProblemHeader from "../components/ProblemHeader.vue";
 import ProblemList from "../components/ProblemList.vue";
 import ProblemSidebar from "../components/ProblemSidebar.vue";
@@ -54,7 +66,10 @@ const randomLoading = ref(false)
 const filterOptions = reactive({ contests: [], tags: [] })
 const activeSection = ref('all')
 const favCount = ref(0)
+const problemTotal = ref(0)
 const isSidebarCollapsed = ref(false)
+const popularProblems = ref([])
+const popularLoading = ref(false)
 
 const problemTypeTags = computed(() => filterOptions.tags.filter(t => t.type === 'PROBLEM_TYPE'))
 
@@ -68,6 +83,18 @@ const fetchFilterOptions = async () => {
     ElMessage.error(error.message || '获取筛选项失败')
   } finally {
     optionsLoading.value = false
+  }
+}
+
+const fetchPopularProblems = async () => {
+  popularLoading.value = true
+  try {
+    const response = await getPopularPracticeProblems(3)
+    popularProblems.value = Array.isArray(response.data) ? response.data : []
+  } catch {
+    popularProblems.value = []
+  } finally {
+    popularLoading.value = false
   }
 }
 
@@ -89,6 +116,14 @@ const handleRandom = async (params) => {
   } finally {
     randomLoading.value = false
   }
+}
+
+const handleSort = (field) => {
+  if (field === 'clear') {
+    listRef.value?.clearSort()
+    return
+  }
+  listRef.value?.cycleSort(field)
 }
 
 // 左侧 Bar 事件响应
@@ -132,10 +167,9 @@ const handleCollapseChange = (collapsed) => {
   isSidebarCollapsed.value = collapsed
 }
 
-// 右侧专区事件响应
-const handleSelectCurated = (curatedSet) => {
-  ElMessage.success(`已载入精选题单：${curatedSet.title}`)
-  listRef.value?.updateQuery(curatedSet.query)
+// 右侧辅助信息事件响应
+const handleSelectPopular = (problem) => {
+  if (problem?.problemId) router.push(`/problem/${problem.problemId}`)
 }
 
 const handleSelectRightTag = (tag) => {
@@ -151,8 +185,13 @@ const handleFavChange = (count) => {
   favCount.value = count
 }
 
+const handleTotalChange = (total) => {
+  problemTotal.value = Number(total) || 0
+}
+
 onMounted(() => {
   fetchFilterOptions()
+  fetchPopularProblems()
   if (route.query.keyword) listRef.value?.updateQuery({ keyword: String(route.query.keyword) })
   if (route.query.tagIds) listRef.value?.updateQuery({ tagIds: [Number(route.query.tagIds)] })
 })
@@ -185,20 +224,27 @@ watch(
   flex: 1;
   min-width: 0;
   display: flex;
-  gap: 20px;
+  gap: 24px;
   align-items: flex-start;
-  padding: 16px 24px 48px;
-  transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 16px 24px 64px;
+  transition: padding 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 侧边栏完全收起后，主体区域绝不紧贴屏幕最左侧，留出舒适的呼吸边距 */
 .problem-workbench-shell.is-sidebar-collapsed .problem-composite-area {
-  padding-left: 64px;
+  padding-left: 56px;
+  padding-right: 76px;
 }
 
 .problem-feed-area {
   flex: 1;
   min-width: 0;
+  transition: margin 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.problem-workbench-shell.is-sidebar-collapsed .problem-feed-area {
+  margin-left: 20px;
+  margin-right: 20px;
 }
 
 @media (max-width: 1280px) {
