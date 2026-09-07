@@ -1,39 +1,46 @@
 <template>
   <aside class="problem-right-aside">
-    <!-- 1. 最火热备战题单卡片 -->
-    <div class="aside-card">
+    <!-- 1. 按有效练习队伍数排序的热门题目 -->
+    <div class="aside-card popular-card">
       <div class="aside-card-header">
         <div class="header-title">
-          <span class="fire-icon">🔥</span>
-          <span>最火热备战题单</span>
+          <span>热门练习题</span>
         </div>
-        <span class="header-sub">赛前必练</span>
       </div>
-      <div class="curated-sets-list">
-        <div
-          v-for="set in curatedProblemsets"
-          :key="set.id"
-          class="curated-item"
-          @click="emit('select-curated', set)"
+      <div v-if="popularLoading" class="popular-list" aria-label="热门练习题加载中" aria-busy="true">
+        <div v-for="index in 3" :key="index" class="popular-skeleton">
+          <span class="skeleton-rank"></span>
+          <span class="skeleton-title"></span>
+          <span class="skeleton-count"></span>
+        </div>
+      </div>
+      <div v-else-if="popularProblems.length" class="popular-list">
+        <button
+          v-for="(problem, index) in popularProblems"
+          :key="problem.problemId"
+          type="button"
+          class="popular-item"
+          @click="emit('select-popular', problem)"
         >
-          <div class="curated-top">
-            <span class="curated-tag" :class="set.tagClass">{{ set.badge }}</span>
-            <span class="curated-heat">{{ set.heat }}</span>
-          </div>
-          <div class="curated-title">{{ set.title }}</div>
-          <div class="curated-desc">{{ set.description }}</div>
-        </div>
+          <span class="popular-rank" :title="`题号 ${problem.problemCode || (index + 1)}`">{{ problem.problemCode ?? (index + 1) }}</span>
+          <span class="popular-copy">
+            <span class="popular-title" :title="problem.problemTitle">{{ problem.problemTitle }}</span>
+          </span>
+          <span class="popular-count" :aria-label="`${formatPracticeCount(problem.practiceCount)} 次练习`">
+            <span>{{ formatPracticeCount(problem.practiceCount) }}</span>
+            <FlameIcon :size="13" :stroke-width="1.9" aria-hidden="true" />
+          </span>
+        </button>
       </div>
+      <div v-else class="popular-empty">暂无练习记录</div>
     </div>
 
     <!-- 2. 热门考向标签云展示 -->
     <div class="aside-card">
       <div class="aside-card-header">
         <div class="header-title">
-          <span class="tag-icon">🏷️</span>
-          <span>高频考向热词</span>
+          <span>热门算法标签</span>
         </div>
-        <span class="header-sub">点击筛选</span>
       </div>
       <div class="trending-tags-cloud">
         <span
@@ -42,111 +49,97 @@
           class="cloud-tag"
           @click="emit('select-tag', tag)"
         >
-          {{ tag.name }}
+          <span class="cloud-tag-name">{{ tag.name }}</span>
           <small class="tag-count">{{ tag.count }}</small>
         </span>
       </div>
     </div>
 
-    <!-- 3. 赛前格式避坑小贴士 -->
-    <div class="aside-card tip-card">
-      <div class="aside-card-header">
-        <div class="header-title">
-          <span class="pin-icon">📌</span>
-          <span>赛前格式排雷贴士</span>
-        </div>
-      </div>
-      <div class="tips-content">
-        <div class="tip-line">
-          <strong>国赛 AI 新规：</strong>使用 AI 辅助必须在支撑材料附录中提交《AI 工具使用详情》，严禁隐瞒。
-        </div>
-        <div class="tip-line">
-          <strong>摘要定生死：</strong>首段必须包含背景、建模主方法、关键参数与核心数值结论，杜绝泛泛而谈。
-        </div>
-      </div>
-    </div>
+    <nav class="problem-aside-footer" aria-label="帮助链接">
+      <router-link to="/about">关于我们</router-link>
+      <span aria-hidden="true">·</span>
+      <router-link to="/help">使用帮助</router-link>
+      <span aria-hidden="true">·</span>
+      <router-link to="/contact">联系我们</router-link>
+    </nav>
   </aside>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { Flame as FlameIcon } from '@lucide/vue'
 
 const props = defineProps({
-  tags: { type: Array, default: () => [] }
+  tags: { type: Array, default: () => [] },
+  popularProblems: { type: Array, default: () => [] },
+  popularLoading: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['select-curated', 'select-tag'])
+const emit = defineEmits(['select-popular', 'select-tag'])
 
-// 精选火热题单
-const curatedProblemsets = [
-  {
-    id: 'cumcm-top5',
-    badge: '国奖必刷',
-    tagClass: 'badge-gold',
-    title: '国赛国一必刷经典 Top 5',
-    description: '涵盖生产决策、机理分析与定日镜场',
-    heat: '🔥 3.2w 练过',
-    query: { contestId: 2 }
-  },
-  {
-    id: 'beginner-easy',
-    badge: '新手起步',
-    tagClass: 'badge-green',
-    title: '零基础快速跑通起手题',
-    description: '数据规整、模型套路标准，适合首测',
-    heat: '🌱 1.8w 练过',
-    query: { difficulty: 1 }
-  },
-  {
-    id: 'mcm-intl',
-    badge: '美赛精选',
-    tagClass: 'badge-purple',
-    title: '美赛 O 奖对标经典全英文题',
-    description: '网球势头动态与碳交易预测',
-    heat: '🌍 2.4w 练过',
-    query: { contestId: 1 }
-  }
-]
+const formatPracticeCount = (value) => `${Number(value) || 0}`
 
 // 热门考向标签云 (展示高频算法与领域)
 const trendingTags = computed(() => {
   const hotNames = [
-    { name: '线性规划', count: '18 题' },
-    { name: '层次分析法', count: '14 题' },
-    { name: '回归分析', count: '12 题' },
-    { name: '蒙特卡洛', count: '10 题' },
-    { name: '交通物流', count: '8 题' },
-    { name: '公共健康', count: '6 题' },
-    { name: '环境生态', count: '5 题' },
-    { name: '经济金融', count: '4 题' },
+    { name: '线性规划', problemCount: 18, practiceCount: 3200 },
+    { name: '层次分析法', problemCount: 14, practiceCount: 2800 },
+    { name: '回归分析', problemCount: 12, practiceCount: 2400 },
+    { name: '蒙特卡洛', problemCount: 10, practiceCount: 1900 },
+    { name: '交通物流', problemCount: 8, practiceCount: 1600 },
+    { name: '公共健康', problemCount: 6, practiceCount: 1300 },
+    { name: '环境生态', problemCount: 5, practiceCount: 1100 },
+    { name: '经济金融', problemCount: 4, practiceCount: 900 },
   ]
   return hotNames.map(h => {
     const match = props.tags.find(t => t.name.includes(h.name) || h.name.includes(t.name))
+    const problemCount = Number(match?.problemCount ?? match?.usageCount ?? h.problemCount)
+    const practiceCount = Number(match?.practiceCount ?? match?.practiceUsers ?? h.practiceCount)
     return {
       id: match?.id || h.name,
       name: h.name,
-      count: h.count,
+      count: problemCount,
+      practiceCount,
       rawTag: match
     }
-  })
+  }).sort((a, b) => b.practiceCount - a.practiceCount)
 })
 </script>
 
 <style scoped>
 .problem-right-aside {
-  width: 270px;
+  position: sticky;
+  top: 72px;
+  width: 240px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: visible;
+}
+.problem-aside-footer {
+  padding: 8px 4px;
+  color: var(--lm-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
+}
+.problem-aside-footer a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--lm-transition);
+}
+.problem-aside-footer a:hover {
+  color: var(--lm-primary);
 }
 
 .aside-card {
   background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius);
-  padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  border: 0;
+  border-radius: 8px;
+  padding: 16px;
+  color: #71717a;
+  box-shadow: 0 6px 18px rgba(30, 41, 59, 0.085);
 }
 .aside-card-header {
   display: flex;
@@ -156,66 +149,102 @@ const trendingTags = computed(() => {
 }
 .header-title {
   font-size: 13px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
+  font-weight: 600;
+  color: #5f6068;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.header-sub {
-  font-size: 11px;
-  color: var(--lm-text-muted);
-}
-
-/* 题单列表 */
-.curated-sets-list {
+/* 热门练习题 */
+.popular-list {
+  min-height: 162px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
-.curated-item {
-  padding: 10px 12px;
-  border: 1px solid var(--lm-border-light);
-  border-radius: var(--lm-radius-sm);
-  background: #ffffff;
+.popular-item {
+  width: 100%;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px solid #f0f0f2;
+  background: transparent;
+  color: #71717a;
+  text-align: left;
   cursor: pointer;
-  transition: all var(--lm-transition);
+  transition: background var(--lm-transition), color var(--lm-transition);
 }
-.curated-item:hover {
-  background: #f4f4f5;
-  border-color: #18181b;
-  transform: translateY(-1px);
+.popular-item:last-child {
+  border-bottom: 0;
 }
-.curated-top {
+.popular-item:hover {
+  background: #fafafa;
+  color: #52525b;
+}
+.popular-rank {
+  color: #a1a1aa;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.popular-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.popular-title {
+  overflow: hidden;
+  color: #6b6c74;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.popular-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  color: #71717a;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.popular-count svg {
+  color: #d97706;
+  flex-shrink: 0;
+}
+.popular-skeleton {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 48px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 4px;
+}
+.skeleton-rank,
+.skeleton-title,
+.skeleton-count {
+  height: 8px;
+  border-radius: 999px;
+  background: #f0f0f2;
+}
+.skeleton-rank { width: 14px; justify-self: center; }
+.skeleton-title { width: 82%; }
+.skeleton-count { width: 48px; }
+.popular-empty {
+  min-height: 162px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.curated-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.badge-gold { background: #18181b; color: #ffffff; }
-.badge-green { background: #f4f4f5; color: #18181b; border: 1px solid #e4e4e7; }
-.badge-purple { background: #f4f4f5; color: #52525b; border: 1px solid #e4e4e7; }
-.curated-heat {
+  justify-content: center;
+  color: #a1a1aa;
   font-size: 11px;
-  color: var(--lm-text-muted);
-}
-.curated-title {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--lm-text-primary);
-  line-height: 1.4;
-}
-.curated-desc {
-  font-size: 11px;
-  color: var(--lm-text-secondary);
-  margin-top: 3px;
-  line-height: 1.4;
 }
 
 /* 热门考向标签云 */
@@ -228,40 +257,41 @@ const trendingTags = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 4px 6px 4px 10px;
   background: #f4f4f5;
   border: 1px solid transparent;
   border-radius: 999px;
-  color: var(--lm-text-secondary);
+  color: #71717a;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: all var(--lm-transition);
 }
 .cloud-tag:hover {
-  color: #ffffff;
-  border-color: #18181b;
-  background: #18181b;
+  color: #52525b;
+  border-color: #e4e4e7;
+  background: #eeeef0;
 }
 .tag-count {
-  font-size: 9px;
-  color: var(--lm-text-muted);
+  display: inline-flex;
+  min-width: 20px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ffa116;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-/* 避坑贴士卡片 */
-.tip-card {
-  background: #fafafa;
-  border-color: var(--lm-border);
-}
-.tips-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--lm-text-secondary);
-}
-.tip-line strong {
-  color: var(--lm-text-primary);
+@media (max-width: 1280px) {
+  .problem-right-aside {
+    position: static;
+    width: 100%;
+    overflow: visible;
+  }
 }
 </style>
