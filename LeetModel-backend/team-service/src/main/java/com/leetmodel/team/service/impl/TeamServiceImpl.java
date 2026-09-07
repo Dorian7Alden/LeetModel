@@ -36,6 +36,7 @@ import com.leetmodel.team.mapper.TeamMemberMapper;
 import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.JoinApplicationVO;
+import com.leetmodel.team.vo.PopularPracticeProblemVO;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamRecruitmentVO;
 import com.leetmodel.team.vo.TeamVO;
@@ -160,6 +161,38 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 .groupBy("problem_id")
                 .orderByDesc("MAX(create_time)");
         return baseMapper.selectObjs(wrapper).stream().map(value -> ((Number) value).longValue()).toList();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<PopularPracticeProblemVO> listPopularPracticeProblems(int limit) {
+        int resultLimit = Math.max(1, Math.min(limit, 10));
+        int candidateLimit = Math.max(30, resultLimit * 3);
+        List<PopularPracticeProblemVO> candidates = baseMapper.selectPopularPracticeProblems(candidateLimit);
+        if (candidates.isEmpty()) return List.of();
+
+        List<Long> problemIds = candidates.stream()
+                .map(PopularPracticeProblemVO::getProblemId)
+                .toList();
+        Result<List<ProblemPracticeDTO>> response = problemFeignClient.getPracticeProblems(problemIds);
+        BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null,
+                ErrorCodeEnum.SYSTEM_ERROR);
+
+        Map<Long, ProblemPracticeDTO> publishedProblems = new HashMap<>();
+        for (ProblemPracticeDTO problem : response.getData()) {
+            publishedProblems.put(problem.getId(), problem);
+        }
+
+        List<PopularPracticeProblemVO> result = new ArrayList<>();
+        for (PopularPracticeProblemVO candidate : candidates) {
+            ProblemPracticeDTO problem = publishedProblems.get(candidate.getProblemId());
+            if (problem == null) continue;
+            candidate.setProblemCode(problem.getCode());
+            candidate.setProblemTitle(problem.getTitle());
+            result.add(candidate);
+            if (result.size() == resultLimit) break;
+        }
+        return result;
     }
 
     /** {@inheritDoc} */
