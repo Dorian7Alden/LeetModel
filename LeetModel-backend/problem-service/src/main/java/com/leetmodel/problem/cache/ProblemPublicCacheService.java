@@ -197,8 +197,8 @@ public class ProblemPublicCacheService {
                 value(query.getDifficulty()),
                 value(query.getMinAverageScore()),
                 value(query.getMaxAverageScore()),
-                value(query.getSortBy() == null ? "createdAt" : query.getSortBy()),
-                value(query.getSortOrder() == null ? "desc" : query.getSortOrder()),
+                value(query.getSortBy() == null ? "code" : query.getSortBy()),
+                value(query.getSortOrder() == null ? "asc" : query.getSortOrder()),
                 tagIds.toString()
         );
         return "page:" + CacheKeyHasher.sha256(canonical);

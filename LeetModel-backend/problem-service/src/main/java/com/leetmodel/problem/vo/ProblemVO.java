@@ -27,7 +27,7 @@ public class ProblemVO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
-    /** 题号：短顺序编号（1001 起始），面向用户展示。 */
+    /** 题号：顺序编号（从 1 起始自增），面向用户展示。 */
     private Integer code;
 
     /** 题目标题 */

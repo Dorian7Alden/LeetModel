@@ -70,6 +70,8 @@ public class SaTokenConfig {
                         "/actuator/prometheus",
                         // 公开题目浏览无需认证
                         "/api/public/problems/**",
+                        // 题库右侧只读热门练习统计无需认证
+                        "/api/teams/public/popular-practice-problems",
                         // Knife4j 聚合文档页面与 API 规范端点
                         "/doc.html",
                         "/v3/api-docs/**",

@@ -13,7 +13,7 @@ final class ProblemToolSchemas {
     /** 构造 search_problem 输入 Schema。 */
     static Map<String, Object> search() {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("code", integer(1001, 10000, "精确题号，与 keyword 二选一"));
+        properties.put("code", integer(1, 100000, "精确题号，与 keyword 二选一"));
         properties.put("keyword", string(1, 50, null, "题目标题关键词，与 code 二选一"));
         properties.put("includeOverview", Map.of("type", "boolean",
                 "description", "用户明确询问题面时为 true，默认 false"));

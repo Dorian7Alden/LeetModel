@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 
 /** search_problem 的模型可提交参数。 */
 public record SearchProblemInput(
-        @Min(1001) @Max(10000) Integer code,
+        @Min(1) @Max(100000) Integer code,
         @Size(max = 50) String keyword,
         Boolean includeOverview,
         @Min(1) @Max(5) Integer limit) {
