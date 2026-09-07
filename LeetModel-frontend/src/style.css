@@ -8,29 +8,29 @@
 }
 
 :root {
-  /* Design tokens */
-  --lm-primary: #2563eb;
-  --lm-primary-light: #3b82f6;
-  --lm-primary-dark: #1d4ed8;
-  --lm-primary-bg: #eff6ff;
-  --lm-success: #16a34a;
-  --lm-success-bg: #f0fdf4;
-  --lm-warning: #d97706;
-  --lm-warning-bg: #fffbeb;
-  --lm-danger: #dc2626;
-  --lm-danger-bg: #fef2f2;
-  --lm-info: #0891b2;
-  --lm-info-bg: #ecfeff;
+  /* Design tokens (黑白灰 Monochrome 极简专业体系) */
+  --lm-primary: #18181b;
+  --lm-primary-light: #27272a;
+  --lm-primary-dark: #09090b;
+  --lm-primary-bg: #f4f4f5;
+  --lm-success: #27272a;
+  --lm-success-bg: #f4f4f5;
+  --lm-warning: #52525b;
+  --lm-warning-bg: #f4f4f5;
+  --lm-danger: #18181b;
+  --lm-danger-bg: #f4f4f5;
+  --lm-info: #3f3f46;
+  --lm-info-bg: #f4f4f5;
 
-  --lm-bg: #f8fafc;
-  --lm-bg-secondary: #f1f5f9;
+  --lm-bg: #ffffff;
+  --lm-bg-secondary: #f4f4f5;
   --lm-surface: #ffffff;
-  --lm-border: #e2e8f0;
-  --lm-border-light: #f1f5f9;
+  --lm-border: #e4e4e7;
+  --lm-border-light: #f4f4f5;
 
-  --lm-text-primary: #1e293b;
-  --lm-text-secondary: #64748b;
-  --lm-text-muted: #94a3b8;
+  --lm-text-primary: #09090b;
+  --lm-text-secondary: #52525b;
+  --lm-text-muted: #71717a;
 
   --lm-radius-sm: 6px;
   --lm-radius: 10px;
@@ -108,7 +108,7 @@ a {
 }
 
 a:hover {
-  color: var(--lm-primary-light);
+  color: #000000;
 }
 
 /* Scrollbar */
@@ -122,12 +122,12 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--lm-text-muted);
+  background: #d4d4d8;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--lm-text-secondary);
+  background: #a1a1aa;
 }
 
 /* Utility classes */
@@ -149,28 +149,7 @@ a:hover {
 
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: var(--lm-shadow-lg);
-}
-
-/* Gradient backgrounds */
-.bg-gradient-blue {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #60a5fa 100%);
-}
-
-.bg-gradient-green {
-  background: linear-gradient(135deg, #16a34a 0%, #22c55e 50%, #4ade80 100%);
-}
-
-.bg-gradient-orange {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%);
-}
-
-.bg-gradient-purple {
-  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #a78bfa 100%);
-}
-
-.bg-gradient-teal {
-  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 /* ===== Code Block & KaTeX Formula Styles ===== */
