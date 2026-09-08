@@ -41,26 +41,26 @@
         </transition>
       </div>
 
-      <!-- 3. 题型导航栏 (跟赛事栏类似，展开/折叠，点击是具体的页面) -->
-      <div class="sidebar-group" :class="{ 'group-open': groupExpanded.problemType }">
-        <div class="group-header" :class="{ active: isTypeRoute }" @click="toggleGroup('problemType')">
+      <!-- 3. 题号导航栏：按赛事内 A-F / X 完整赛题聚合 -->
+      <div class="sidebar-group" :class="{ 'group-open': groupExpanded.problemNumber }">
+        <div class="group-header" :class="{ active: isNumberRoute }" @click="toggleGroup('problemNumber')">
           <div class="header-left">
             <el-icon class="item-icon"><CollectionTag /></el-icon>
-            <span class="header-title">题型</span>
+            <span class="header-title">题号</span>
           </div>
-          <el-icon class="arrow-toggle" :class="{ expanded: groupExpanded.problemType }"><ArrowRight /></el-icon>
+          <el-icon class="arrow-toggle" :class="{ expanded: groupExpanded.problemNumber }"><ArrowRight /></el-icon>
         </div>
         <transition name="collapse">
-          <div v-show="groupExpanded.problemType" class="group-sub-menu">
+          <div v-show="groupExpanded.problemNumber" class="group-sub-menu">
             <div
-              v-for="type in problemTypes"
-              :key="type.id"
+              v-for="number in problemNumbers"
+              :key="number"
               class="sub-nav-item"
-              :class="{ active: currentTypeId === String(type.id) }"
-              @click="navigateToType(type.id)"
+              :class="{ active: currentProblemNumber === number }"
+              @click="navigateToNumber(number)"
             >
               <span class="sub-dot"></span>
-              <span class="sub-text" :title="type.name">{{ type.name }}</span>
+              <span class="sub-text" :title="problemNumberLabel(number)">{{ problemNumberLabel(number) }}</span>
             </div>
           </div>
         </transition>
@@ -150,7 +150,7 @@ import { getMyTeams } from '@/api/team'
 
 const props = defineProps({
   contests: { type: Array, default: () => [] },
-  problemTypes: { type: Array, default: () => [] },
+  problemNumbers: { type: Array, default: () => ['A', 'B', 'C', 'D', 'E', 'F', 'X'] },
   activeSection: { type: String, default: 'all' },
   favCount: { type: Number, default: 0 }
 })
@@ -250,19 +250,19 @@ onUnmounted(() => {
   document.body.style.userSelect = ''
 })
 
-// 赛事与题型默认均为折叠状态
+// 赛事与题号默认均为折叠状态
 const groupExpanded = reactive({
   contest: false,
-  problemType: false
+  problemNumber: false
 })
 
 const activeTeamCount = ref(0)
 
 const isContestRoute = computed(() => route.path.startsWith('/problem/contest'))
 const currentContestId = computed(() => String(route.params.contestId || ''))
-const isTypeRoute = computed(() => route.path.startsWith('/problem/type'))
-const currentTypeId = computed(() => String(route.params.typeId || ''))
-const isContestOrTypeRoute = computed(() => isContestRoute.value || isTypeRoute.value)
+const isNumberRoute = computed(() => route.path.startsWith('/problem/number'))
+const currentProblemNumber = computed(() => String(route.params.problemNumber || '').toUpperCase())
+const isContestOrTypeRoute = computed(() => isContestRoute.value || isNumberRoute.value || route.path.startsWith('/problem/type'))
 
 // 监听路由自动保持匹配分组展开
 watch(
@@ -270,8 +270,8 @@ watch(
   (path) => {
     if (path.startsWith('/problem/contest')) {
       groupExpanded.contest = true
-    } else if (path.startsWith('/problem/type')) {
-      groupExpanded.problemType = true
+    } else if (path.startsWith('/problem/number')) {
+      groupExpanded.problemNumber = true
     }
   },
   { immediate: true }
@@ -299,8 +299,10 @@ const navigateToContest = (contestId) => {
   router.push(`/problem/contest/${contestId}`)
 }
 
-const navigateToType = (typeId) => {
-  router.push(`/problem/type/${typeId}`)
+const problemNumberLabel = (value) => `${value} 题`
+
+const navigateToNumber = (number) => {
+  router.push(`/problem/number/${number}`)
 }
 
 onMounted(async () => {

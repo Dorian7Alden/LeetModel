@@ -50,6 +50,25 @@
             <el-option v-for="year in recentYears" :key="year" :label="`${year} 年`" :value="year" />
           </el-select>
 
+          <!-- 赛事内题号下拉 -->
+          <el-select
+            v-model="filters.problemNumber"
+            placeholder="题号"
+            clearable
+            class="filter-select select-number"
+            popper-class="problem-filter-dropdown"
+            @change="emitChange"
+          >
+            <template #prefix><Hash class="filter-prefix-icon" :size="15" :stroke-width="1.8" /></template>
+            <el-option label="全部题号" :value="null" />
+            <el-option
+              v-for="number in problemNumbers"
+              :key="number"
+              :label="problemNumberLabels[number] || number"
+              :value="number"
+            />
+          </el-select>
+
           <!-- 语言下拉 -->
           <el-select
             v-model="filters.statementLanguage"
@@ -81,6 +100,7 @@
             v-model="filters.selectedTags.PROBLEM_TYPE"
             placeholder="题目类型"
             clearable
+            :disabled="Boolean(fixedTypeId)"
             class="filter-select select-type"
             popper-class="problem-filter-dropdown"
             @change="emitChange"
@@ -223,6 +243,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Gauge,
+  Hash,
   Languages,
   Layers3,
   LoaderCircle,
@@ -246,12 +267,15 @@ import midnightBackground from '@/assets/problem/contest-backgrounds/10-midnight
 const props = defineProps({
   contests: { type: Array, default: () => [] },
   tags: { type: Array, default: () => [] },
+  problemNumbers: { type: Array, default: () => ['A', 'B', 'C', 'D', 'E', 'F', 'X'] },
   optionsLoading: { type: Boolean, default: false },
   randomLoading: { type: Boolean, default: false },
   total: { type: Number, default: 0 },
   showContestCards: { type: Boolean, default: true },
   showAdvancedFilters: { type: Boolean, default: true },
   fixedContestId: { type: [Number, String], default: null },
+  fixedTypeId: { type: [Number, String], default: null },
+  fixedProblemNumber: { type: String, default: null },
   hideYearSort: { type: Boolean, default: false },
 })
 const emit = defineEmits(['change', 'random', 'sort'])
@@ -279,7 +303,8 @@ const scoreOptions = [
   { label: '80–89 分', min: 80, max: 89.9 },
   { label: '90 分以上', min: 90, max: null },
 ]
-const filters = reactive({ keyword: '', contestId: Number(props.fixedContestId) || null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
+const filters = reactive({ keyword: '', contestId: Number(props.fixedContestId) || null, problemNumber: null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
+const problemNumberLabels = { A: 'A 题', B: 'B 题', C: 'C 题', D: 'D 题', E: 'E 题', F: 'F 题', X: 'X 题' }
 const selectedAlgorithmId = ref(null)
 const selectedScoreLabel = ref('')
 const cardsScrollRef = ref(null)
@@ -502,6 +527,10 @@ const syncFiltersFromQuery = () => {
   if (props.fixedContestId) filters.contestId = Number(props.fixedContestId)
   else if (q.contestId) filters.contestId = Number(q.contestId)
   else if (!q.contestId && filters.contestId) filters.contestId = null
+  if (q.problemNumber) filters.problemNumber = String(q.problemNumber).toUpperCase()
+  else if (!q.problemNumber && filters.problemNumber) filters.problemNumber = null
+  if (props.fixedTypeId) filters.selectedTags.PROBLEM_TYPE = Number(props.fixedTypeId)
+  if (props.fixedProblemNumber) filters.problemNumber = props.fixedProblemNumber
   if (q.year) filters.year = Number(q.year)
   else if (!q.year && filters.year) filters.year = null
   if (q.difficulty) filters.difficulty = Number(q.difficulty)
@@ -526,6 +555,8 @@ const syncFiltersFromQuery = () => {
       }
     }
   }
+  if (props.fixedTypeId) filters.selectedTags.PROBLEM_TYPE = Number(props.fixedTypeId)
+  if (props.fixedProblemNumber) filters.problemNumber = props.fixedProblemNumber
 }
 
 onMounted(() => {
@@ -557,6 +588,20 @@ watch(
   () => props.fixedContestId,
   (value) => {
     filters.contestId = Number(value) || null
+  }
+)
+
+watch(
+  () => props.fixedTypeId,
+  (value) => {
+    filters.selectedTags.PROBLEM_TYPE = Number(value) || null
+  }
+)
+
+watch(
+  () => props.fixedProblemNumber,
+  (value) => {
+    filters.problemNumber = value || null
   }
 )
 
@@ -593,6 +638,14 @@ const selectedConditions = computed(() => {
   const contest = props.contests.find((item) => item.id === filters.contestId)
   if (contest) items.push({ key: 'contestId', label: contest.name, field: 'contestId', empty: null })
   if (filters.year) items.push({ key: 'year', label: `${filters.year} 年`, field: 'year', empty: null })
+  if (filters.problemNumber) {
+    items.push({
+      key: 'problemNumber',
+      label: problemNumberLabels[filters.problemNumber] || filters.problemNumber,
+      field: 'problemNumber',
+      empty: null,
+    })
+  }
   if (filters.statementLanguage) items.push({ key: 'statementLanguage', label: filters.statementLanguage === 'EN' ? '英文' : '中文', field: 'statementLanguage', empty: '' })
   if (filters.difficulty != null) items.push({ key: 'difficulty', label: difficultyOptions.find((item) => item.value === filters.difficulty).label, field: 'difficulty', empty: null })
   
@@ -616,7 +669,7 @@ const selectedConditions = computed(() => {
   if (score && (score.min != null || score.max != null)) items.push({ key: 'averageScore', label: `平均分：${score.label}`, score: true })
   return items
 })
-const buildParams = () => ({ keyword: filters.keyword, contestId: Number(props.fixedContestId) || filters.contestId, difficulty: filters.difficulty, year: filters.year, statementLanguage: filters.statementLanguage, minAverageScore: filters.minAverageScore, maxAverageScore: filters.maxAverageScore, tagIds: Object.values(filters.selectedTags).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean) })
+const buildParams = () => ({ keyword: filters.keyword, contestId: Number(props.fixedContestId) || filters.contestId, problemNumber: filters.problemNumber, difficulty: filters.difficulty, year: filters.year, statementLanguage: filters.statementLanguage, minAverageScore: filters.minAverageScore, maxAverageScore: filters.maxAverageScore, tagIds: Object.values(filters.selectedTags).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean) })
 const emitChange = () => emit('change', buildParams())
 const isTagActive = (type, value) => {
   const selected = filters.selectedTags[type]
@@ -640,9 +693,9 @@ const removeCondition = (item) => {
   emitChange()
 }
 const reset = () => {
-  Object.assign(filters, { keyword: '', contestId: Number(props.fixedContestId) || null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null })
+  Object.assign(filters, { keyword: '', contestId: Number(props.fixedContestId) || null, problemNumber: props.fixedProblemNumber || null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null })
   filters.selectedTags.BACKGROUND_DOMAIN = null
-  filters.selectedTags.PROBLEM_TYPE = null
+  filters.selectedTags.PROBLEM_TYPE = Number(props.fixedTypeId) || null
   filters.selectedTags.MODEL_ALGORITHM = []
   selectedAlgorithmId.value = null
   selectedScoreLabel.value = ''

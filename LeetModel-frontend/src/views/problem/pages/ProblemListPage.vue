@@ -5,6 +5,7 @@
       <ProblemHeader
         :contests="effectiveFilterOptions.contests"
         :tags="effectiveFilterOptions.tags"
+        :problem-numbers="effectiveFilterOptions.problemNumbers"
         :total="problemTotal"
         :options-loading="effectiveOptionsLoading"
         :random-loading="randomLoading"
@@ -52,7 +53,7 @@ const router = useRouter()
 const route = useRoute()
 const optionsLoading = ref(false)
 const randomLoading = ref(false)
-const filterOptions = reactive({ contests: [], tags: [] })
+const filterOptions = reactive({ contests: [], tags: [], problemNumbers: [] })
 const problemTotal = ref(0)
 const popularProblems = ref([])
 const popularLoading = ref(false)
@@ -80,6 +81,7 @@ const fetchFilterOptions = async () => {
     const response = await getPublicProblemFilterOptions()
     filterOptions.contests = response.data?.contests || []
     filterOptions.tags = response.data?.tags || []
+    filterOptions.problemNumbers = response.data?.problemNumbers || ['A', 'B', 'C', 'D', 'E', 'F', 'X']
   } catch (error) {
     ElMessage.error(error.message || '获取筛选项失败')
   } finally {
@@ -111,6 +113,7 @@ const handleSearch = (params) => {
   const nextQuery = {}
   if (params.keyword?.trim()) nextQuery.keyword = params.keyword.trim()
   if (params.contestId) nextQuery.contestId = params.contestId
+  if (params.problemNumber) nextQuery.problemNumber = params.problemNumber
   if (params.year) nextQuery.year = params.year
   if (params.difficulty) nextQuery.difficulty = params.difficulty
   if (params.statementLanguage) nextQuery.statementLanguage = params.statementLanguage
@@ -207,6 +210,7 @@ const applyRouteQueryToList = () => {
   const queryObj = {}
   if (q.keyword) queryObj.keyword = String(q.keyword)
   if (q.contestId) queryObj.contestId = Number(q.contestId)
+  if (q.problemNumber) queryObj.problemNumber = String(q.problemNumber).toUpperCase()
   if (q.year) queryObj.year = Number(q.year)
   if (q.difficulty) queryObj.difficulty = Number(q.difficulty)
   if (q.statementLanguage) queryObj.statementLanguage = String(q.statementLanguage)

@@ -23,6 +23,11 @@ export default [
         component: () => import("@/views/problem/pages/TypeProblemPage.vue"),
       },
       {
+        path: "number/:problemNumber",
+        name: "ProblemNumberPage",
+        component: () => import("@/views/problem/pages/ProblemNumberPage.vue"),
+      },
+      {
         path: ":id",
         name: "ProblemDetail",
         component: () => import("@/views/problem/pages/ProblemDetailPage.vue"),
