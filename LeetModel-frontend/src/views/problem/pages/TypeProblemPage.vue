@@ -1,5 +1,5 @@
 <template>
-  <div class="type-problem-page" v-loading="loading">
+  <div class="type-problem-page">
     <!-- 顶部面包屑与返回栏 -->
     <div class="page-top-nav">
       <button type="button" class="back-link-btn" @click="goBack">
@@ -10,7 +10,7 @@
       <span class="current-type-crumb">{{ typeInfo.name }} 题型专区</span>
     </div>
 
-    <!-- 双栏主布局 (左边题型方法档案与工具链 + 右边真题列表) -->
+    <!-- 双栏主布局：左侧固定题型上下文，右侧复用赛事页题目流 -->
     <div class="type-two-col-layout">
       <!-- 左边栏 (32% 宽度): 题型学术图谱与得分要点 -->
       <aside class="type-left-sidebar">
@@ -41,7 +41,7 @@
           <!-- 核心统计 -->
           <div class="type-stats-grid">
             <div class="stat-cell">
-              <div class="stat-num">{{ total }} 道</div>
+              <div class="stat-num">{{ problemTotal }} 道</div>
               <div class="stat-label">收录真题</div>
             </div>
             <div class="stat-cell">
@@ -60,97 +60,30 @@
         </div>
       </aside>
 
-      <!-- 右边栏 (68% 宽度): 属于该题型的历年真题列表 -->
+      <!-- 右边栏 (68% 宽度): 题型范围内按年份组织的真题流 -->
       <main class="type-right-main">
-        <div class="type-main-card">
-          <!-- 顶部工具栏: 赛事/难度过滤 -->
-          <div class="type-feed-header">
-            <div class="feed-header-left">
-              <h2>{{ typeInfo.name }} · 历年真题库</h2>
-              <span class="feed-subtitle">按最新年份倒序排布 · 专攻题型核心解题范式</span>
-            </div>
-            <div class="feed-header-actions">
-              <!-- 赛事胶囊筛选 -->
-              <el-select
-                v-model="filterContestId"
-                placeholder="赛事来源"
-                clearable
-                class="feed-select select-contest"
-                @change="fetchTypeProblems(false)"
-              >
-                <el-option label="全部赛事" :value="null" />
-                <el-option v-for="c in allContests" :key="c.id" :label="c.name" :value="c.id" />
-              </el-select>
-
-              <!-- 难度胶囊筛选 -->
-              <el-select
-                v-model="filterDifficulty"
-                placeholder="难度"
-                clearable
-                class="feed-select select-diff"
-                @change="fetchTypeProblems(false)"
-              >
-                <el-option label="全部难度" :value="null" />
-                <el-option label="简单" :value="1" />
-                <el-option label="中等" :value="2" />
-                <el-option label="困难" :value="3" />
-              </el-select>
-            </div>
-          </div>
-
-          <!-- 题目数据表格 -->
-          <div v-if="problems.length" class="type-problem-table">
-            <div class="table-head">
-              <span>题目</span>
-              <span>赛事</span>
-              <span class="col-center">年份</span>
-              <span class="col-center">难度</span>
-              <span class="col-center">平均分</span>
-              <span></span>
-            </div>
-            <button
-              v-for="(item, index) in problems"
-              :key="item.id"
-              class="problem-row"
-              @click="navigateToProblem(item.id)"
-            >
-              <div class="problem-main">
-                <h3 :title="item.title">
-                  <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ String(item.code ?? (index + 1)).padStart(2, '0') }}</span>
-                  {{ item.title }}
-                </h3>
-              </div>
-              <span class="contest-name" :title="item.contestName">{{ item.contestName || '全国大学生数学建模竞赛' }}</span>
-              <span class="col-center text-muted">{{ item.year || '—' }}</span>
-              <div class="col-center">
-                <el-tag :type="difficultyType(item.difficulty)" size="small" effect="plain">{{ difficultyLabel(item.difficulty) }}</el-tag>
-              </div>
-              <div class="col-center average-score">
-                <strong>{{ formatScore(item.averageScore) }}</strong>
-              </div>
-              <el-icon class="row-arrow"><ArrowRight /></el-icon>
-            </button>
-
-            <!-- 底部流式加载状态 -->
-            <div class="feed-footer">
-              <div v-if="loadingMore" class="loading-more">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>正在加载更多题目...</span>
-              </div>
-              <div v-else-if="problems.length < total" class="load-more-wrap">
-                <button type="button" class="load-more-btn" @click="loadMore">
-                  <span>加载更多真题 (已展示 {{ problems.length }} / 共 {{ total }} 题)</span>
-                  <el-icon><ArrowDown /></el-icon>
-                </button>
-              </div>
-              <div v-else class="all-loaded">
-                <span>— 已展示该题型全部 {{ total }} 道真题 —</span>
-              </div>
-            </div>
-          </div>
-
-          <el-empty v-else-if="!loading" description="该题型下暂无符合筛选条件的题目" />
-        </div>
+        <ProblemHeader
+          :contests="allContests"
+          :tags="allTags"
+          :total="problemTotal"
+          :random-loading="randomLoading"
+          :show-contest-cards="false"
+          :show-advanced-filters="false"
+          :hide-year-sort="true"
+          :fixed-type-id="typeId"
+          @change="handleSearch"
+          @random="handleRandom"
+          @sort="handleSort"
+        />
+        <ProblemList
+          ref="listRef"
+          :tags="allTags"
+          :initial-query="typeQuery"
+          :group-by-year="true"
+          :show-contest="true"
+          @total-change="handleTotalChange"
+          @loaded="handleProblemsLoaded"
+        />
       </main>
     </div>
   </div>
@@ -159,30 +92,23 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, ArrowLeft, ArrowRight, Loading } from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getPublicProblemFilterOptions, getPublicProblemList } from '@/api/problem'
+import { getPublicProblemFilterOptions, getRandomPublicProblem } from '@/api/problem'
+import ProblemHeader from '../components/ProblemHeader.vue'
+import ProblemList from '../components/ProblemList.vue'
 
 const route = useRoute()
 const router = useRouter()
 const typeId = computed(() => Number(route.params.typeId))
 
-const loading = ref(false)
-const loadingMore = ref(false)
-const problems = ref([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-
-const filterDifficulty = ref(null)
-const filterContestId = ref(null)
 const allContests = ref([])
 const allTags = ref([])
+const problemTotal = ref(0)
+const loadedProblems = ref([])
+const randomLoading = ref(false)
+const listRef = ref(null)
 const workbench = inject('problemWorkbench', null)
-
-const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
-const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
-const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '-'
 
 const rawTag = computed(() => allTags.value.find(t => t.id === typeId.value))
 
@@ -244,48 +170,85 @@ const typeInfo = computed(() => {
   }
 })
 
-const fetchTypeProblems = async (isLoadMore = false) => {
-  if (isLoadMore) {
-    loadingMore.value = true
-  } else {
-    loading.value = true
-    page.value = 1
+const typeQuery = computed(() => {
+  const query = { tagIds: [typeId.value] }
+  if (route.query.tagIds) {
+    const extraTagIds = String(route.query.tagIds)
+      .split(',')
+      .map(Number)
+      .filter((id) => id && id !== typeId.value)
+    query.tagIds.push(...extraTagIds)
   }
+  if (route.query.keyword) query.keyword = String(route.query.keyword)
+  if (route.query.contestId) query.contestId = Number(route.query.contestId)
+  if (route.query.year) query.year = Number(route.query.year)
+  if (route.query.difficulty) query.difficulty = Number(route.query.difficulty)
+  if (route.query.statementLanguage) query.statementLanguage = String(route.query.statementLanguage)
+  if (route.query.minScore) query.minAverageScore = Number(route.query.minScore)
+  if (route.query.maxScore) query.maxAverageScore = Number(route.query.maxScore)
+  return query
+})
 
-  try {
-    const params = {
-      tagIds: [typeId.value],
-      page: page.value,
-      pageSize: pageSize.value,
-      sortBy: 'year',
-      sortOrder: 'desc'
-    }
-    if (filterDifficulty.value != null && filterDifficulty.value !== '') {
-      params.difficulty = filterDifficulty.value
-    }
-    if (filterContestId.value != null && filterContestId.value !== '') {
-      params.contestId = filterContestId.value
-    }
-    const response = await getPublicProblemList(params)
-    const rows = response.data?.rows || []
-    total.value = response.data?.total || 0
-    if (isLoadMore) {
-      problems.value.push(...rows)
-    } else {
-      problems.value = rows
-    }
-  } catch (err) {
-    ElMessage.error(err.message || '获取题型题目失败')
-  } finally {
-    loading.value = false
-    loadingMore.value = false
-  }
+const handleTotalChange = (value) => {
+  problemTotal.value = Number(value) || 0
 }
 
-const loadMore = () => {
-  if (loadingMore.value || loading.value || problems.value.length >= total.value) return
-  page.value++
-  fetchTypeProblems(true)
+const handleProblemsLoaded = ({ problems, total }) => {
+  loadedProblems.value = Array.isArray(problems) ? problems : []
+  if (typeof total === 'number') problemTotal.value = total
+}
+
+const handleSearch = (params) => {
+  const selectedTagIds = Array.isArray(params.tagIds) ? params.tagIds : []
+  const nextParams = {
+    ...params,
+    tagIds: [typeId.value, ...selectedTagIds.filter((id) => Number(id) !== typeId.value)]
+  }
+  listRef.value?.updateQuery(nextParams)
+
+  const nextQuery = {}
+  if (params.keyword?.trim()) nextQuery.keyword = params.keyword.trim()
+  if (params.contestId) nextQuery.contestId = params.contestId
+  if (params.year) nextQuery.year = params.year
+  if (params.difficulty) nextQuery.difficulty = params.difficulty
+  if (params.statementLanguage) nextQuery.statementLanguage = params.statementLanguage
+  if (params.minAverageScore != null) nextQuery.minScore = params.minAverageScore
+  if (params.maxAverageScore != null) nextQuery.maxScore = params.maxAverageScore
+  const extraTagIds = Array.isArray(params.tagIds)
+    ? params.tagIds.filter((id) => Number(id) !== typeId.value)
+    : []
+  if (extraTagIds.length) nextQuery.tagIds = extraTagIds.join(',')
+  router.replace({ query: nextQuery })
+}
+
+const handleSort = (field) => {
+  if (field === 'clear') {
+    listRef.value?.clearSort()
+    return
+  }
+  listRef.value?.cycleSort(field)
+}
+
+const handleRandom = async (params = {}) => {
+  randomLoading.value = true
+  try {
+    const activeFilters = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => (
+        value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
+      ))
+    )
+    const selectedTagIds = Array.isArray(activeFilters.tagIds) ? activeFilters.tagIds : []
+    const tagIds = [typeId.value, ...selectedTagIds.filter((id) => Number(id) !== typeId.value)]
+    const response = await getRandomPublicProblem({ ...activeFilters, tagIds })
+    if (response.data?.id) {
+      ElMessage.success('已从当前题型抽取一题')
+      await router.push({ path: `/problem/${response.data.id}`, query: route.query })
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '暂时没有符合条件的题目')
+  } finally {
+    randomLoading.value = false
+  }
 }
 
 const goBack = () => {
@@ -294,13 +257,6 @@ const goBack = () => {
   } else {
     router.push('/problem')
   }
-}
-
-const navigateToProblem = (problemId) => {
-  router.push({
-    path: `/problem/${problemId}`,
-    query: route.query
-  })
 }
 
 const syncMetadata = () => {
@@ -322,7 +278,6 @@ const initData = async () => {
       console.warn('加载题型元数据异常', err)
     }
   }
-  fetchTypeProblems(false)
 }
 
 onMounted(initData)
@@ -334,7 +289,7 @@ watch(
   { deep: true }
 )
 watch(typeId, () => {
-  fetchTypeProblems(false)
+  listRef.value?.updateQuery({ tagIds: [typeId.value] })
 })
 </script>
 
@@ -381,7 +336,7 @@ watch(typeId, () => {
 .type-two-col-layout {
   display: grid;
   grid-template-columns: 350px 1fr;
-  gap: 20px;
+  gap: 32px;
   align-items: start;
 }
 
@@ -389,19 +344,26 @@ watch(typeId, () => {
 .type-left-sidebar {
   position: sticky;
   top: 72px;
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
 }
+.type-left-sidebar::-webkit-scrollbar { width: 4px; }
+.type-left-sidebar::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
+.type-left-sidebar:hover::-webkit-scrollbar-thumb { background: #cbd5e1; }
 .type-profile-card {
   background: #ffffff;
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
-  padding: 22px 20px;
+  padding: 18px 18px 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .profile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
 }
 .type-flag-badge {
   padding: 3px 8px;
@@ -441,10 +403,6 @@ watch(typeId, () => {
   margin-bottom: 8px;
 }
 
-.type-methods-panel, .type-tools-panel {
-  margin-bottom: 16px;
-}
-
 .method-tags, .tool-list {
   display: flex;
   flex-wrap: wrap;
@@ -473,9 +431,9 @@ watch(typeId, () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 16px;
+  margin: 0;
 }
-stat-cell {
+.stat-cell {
   padding: 10px 12px;
   background: #ffffff;
   border: 1px solid var(--lm-border);
@@ -510,172 +468,8 @@ stat-cell {
   color: var(--lm-text-secondary);
 }
 
-/* 右侧主面板: 题目列表 */
-.type-right-main {
-  min-width: 0;
-}
-.type-main-card {
-  background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-  overflow: hidden;
-}
-.type-feed-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--lm-border);
-  background: #ffffff;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.feed-header-left h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
-}
-.feed-subtitle {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  margin-top: 3px;
-  display: block;
-}
-.feed-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.feed-select {
-  width: 116px;
-}
-.feed-select :deep(.el-select__wrapper) {
-  border-radius: 9999px !important;
-  padding: 2px 10px;
-  min-height: 32px;
-}
-
-/* 表格与题目行 */
-.type-problem-table {
-  background: #ffffff;
-}
-.table-head, .problem-row {
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(130px, 0.7fr) 60px 66px 70px 18px;
-  align-items: center;
-  gap: 10px;
-  padding: 0 18px;
-}
-.table-head {
-  min-height: 40px;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--lm-border);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--lm-text-muted);
-}
-.problem-row {
-  width: 100%;
-  min-height: 58px;
-  border: 0;
-  border-bottom: 1px solid var(--lm-border-light);
-  background: #ffffff;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--lm-transition);
-}
-.problem-row:last-child {
-  border-bottom: 0;
-}
-.problem-row:hover {
-  background: #eff6ff;
-}
-.problem-main h3 {
-  margin: 0;
-  overflow: hidden;
-  color: var(--lm-text-primary);
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-index {
-  display: inline-block;
-  min-width: 24px;
-  margin-right: 6px;
-  color: var(--lm-primary);
-  font-size: 10px;
-  font-weight: 800;
-  font-family: var(--lm-code-font-family);
-}
-.contest-name {
-  color: var(--lm-text-secondary);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.col-center {
-  text-align: center;
-}
-.text-muted {
-  color: var(--lm-text-secondary);
-  font-size: 12px;
-}
-.average-score strong {
-  color: var(--lm-text-primary);
-  font-size: 15px;
-}
-.row-arrow {
-  color: var(--lm-text-muted);
-  transition: transform var(--lm-transition), color var(--lm-transition);
-}
-.problem-row:hover .row-arrow {
-  color: var(--lm-primary);
-  transform: translateX(3px);
-}
-
-/* 流式加载底栏 */
-.feed-footer {
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  border-top: 1px solid var(--lm-border-light);
-}
-.loading-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--lm-text-muted);
-  font-size: 12px;
-}
-.load-more-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-sm);
-  background: #ffffff;
-  color: var(--lm-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--lm-transition);
-}
-.load-more-btn:hover {
-  color: var(--lm-primary);
-  border-color: var(--lm-primary-light);
-  background: #eff6ff;
-}
-.all-loaded {
-  font-size: 11px;
-  color: #94a3b8;
-  letter-spacing: 0.04em;
-}
+/* 右侧主面板由 ProblemHeader / ProblemList 提供统一题目流 */
+.type-right-main { min-width: 0; }
 
 @media (max-width: 960px) {
   .type-two-col-layout {
@@ -683,6 +477,8 @@ stat-cell {
   }
   .type-left-sidebar {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 </style>
