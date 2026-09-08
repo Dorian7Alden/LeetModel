@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,6 +27,35 @@ class ProblemQueryIntegrationTest {
 
     @Autowired
     private ProblemService problemService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("现有测试题目均且仅分配一个 A-F 或 X 题号")
+    void assignsOneSupportedNumberToEveryExistingProblem() {
+        Integer unassignedCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM problem
+                WHERE problem_number NOT IN ('A', 'B', 'C', 'D', 'E', 'F', 'X')
+                """, Integer.class);
+
+        assertEquals(0, unassignedCount);
+    }
+
+    @Test
+    @DisplayName("题号字段收紧为单字符且默认使用 X")
+    void usesXAsProblemNumberSchemaDefault() {
+        String columnDefinition = jdbcTemplate.queryForObject("""
+                SELECT CONCAT(DATA_TYPE, ':', CHARACTER_MAXIMUM_LENGTH, ':', COLUMN_DEFAULT)
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'problem'
+                  AND COLUMN_NAME = 'problem_number'
+                """, String.class);
+
+        assertEquals("char:1:X", columnDefinition);
+    }
 
     @Test
     @DisplayName("赛事、年份、语言、难度、分数、关键词和标签可以动态组合")
@@ -80,6 +110,20 @@ class ProblemQueryIntegrationTest {
         ProblemVO lakeProblem = lakeResult.getRecords().get(0);
         assertTrue(lakeProblem.getTagNames().containsAll(List.of("预测", "评价")),
                 "水质题目未包含预期的多题目类型标签，实际标签：" + lakeProblem.getTagNames());
+    }
+
+    @Test
+    @DisplayName("公开题库可以按赛事题号筛选完整赛题")
+    void filtersByProblemNumber() {
+        ProblemPageQuery query = publishedQuery();
+        query.setProblemNumber("A");
+        query.setPageSize(100);
+
+        IPage<ProblemVO> result = problemService.pageProblems(query);
+
+        assertTrue(result.getTotal() >= 3);
+        assertTrue(result.getRecords().stream()
+                .allMatch(problem -> "A".equals(problem.getProblemNumber())));
     }
 
     @Test

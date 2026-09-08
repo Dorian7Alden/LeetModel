@@ -17,4 +17,5 @@ import java.util.List;
 public class ProblemFilterOptionsVO {
     private List<Contest> contests;
     private List<Tag> tags;
+    private List<String> problemNumbers;
 }

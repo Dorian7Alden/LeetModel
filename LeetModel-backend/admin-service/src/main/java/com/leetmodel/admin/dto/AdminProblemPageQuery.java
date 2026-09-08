@@ -19,6 +19,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class AdminProblemPageQuery extends BasePageQuery {
     @Positive private Long contestId;
+    @Pattern(regexp = "A|B|C|D|E|F|X") private String problemNumber;
     @Min(2000) @Max(2100) private Integer year;
     @Pattern(regexp = "ZH|EN") private String statementLanguage;
     @Min(1) @Max(3) private Integer difficulty;

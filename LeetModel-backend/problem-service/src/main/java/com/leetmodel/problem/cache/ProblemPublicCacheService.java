@@ -14,6 +14,7 @@ import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
+import com.leetmodel.problem.enums.ProblemNumber;
 import com.leetmodel.problem.mapper.ContestMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.ProblemService;
@@ -37,7 +38,12 @@ public class ProblemPublicCacheService {
 
     public static final String REGION = "public";
     public static final String SCOPE = "all";
-    public static final String SCHEMA_VERSION = "v1";
+    /**
+     * Public problem payload version. Bump when the response shape or query
+     * dimensions change so entries written by an older process cannot be
+     * reused after a deployment.
+     */
+    public static final String SCHEMA_VERSION = "v3";
 
     private static final Duration NEGATIVE_LOCAL_TTL = Duration.ofSeconds(5);
     private static final Duration NEGATIVE_REDIS_TTL = Duration.ofSeconds(30);
@@ -154,7 +160,7 @@ public class ProblemPublicCacheService {
         List<Tag> tags = tagMapper.selectList(
                 new LambdaQueryWrapper<Tag>().orderByAsc(Tag::getType).orderByAsc(Tag::getName)
         );
-        return new ProblemFilterOptionsVO(contests, tags);
+        return new ProblemFilterOptionsVO(contests, tags, ProblemNumber.codes());
     }
 
     /**
@@ -192,6 +198,7 @@ public class ProblemPublicCacheService {
                 Integer.toString(query.getPage()),
                 Integer.toString(query.getPageSize()),
                 value(query.getContestId()),
+                value(query.getProblemNumber()),
                 value(query.getYear()),
                 value(query.getStatementLanguage()),
                 value(query.getDifficulty()),

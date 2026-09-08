@@ -1,12 +1,14 @@
 package com.leetmodel.problem.service;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
-import com.leetmodel.common.cache.CacheInvalidator;
-import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.audit.ProblemAuditEventProducer;
+import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Contest;
@@ -21,12 +23,14 @@ import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.impl.ProblemServiceImpl;
 import com.leetmodel.problem.vo.ProblemVO;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -52,6 +56,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ProblemServiceTest {
 
+    @BeforeAll
+    static void initializeMybatisMetadata() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(configuration, "problem-service-test"),
+                Problem.class
+        );
+    }
+
     @Mock private ProblemMapper problemMapper;
     @Mock private ProblemTagMapper problemTagMapper;
     @Mock private TagMapper tagMapper;
@@ -75,6 +88,7 @@ class ProblemServiceTest {
         problem.setTitle("测试题目");
         problem.setContentMarkdown("## 题面");
         problem.setContestId(10L);
+        problem.setProblemNumber("B");
         problem.setYear(2026);
         problem.setStatementLanguage("ZH");
         problem.setDurationMinutes(4320);
@@ -130,6 +144,21 @@ class ProblemServiceTest {
         assertTrue(sql.contains("tag_id = 6001"));
         assertTrue(sql.contains("tag_id = 6101"));
         assertTrue(sql.contains("AND"));
+    }
+
+    @Test
+    @DisplayName("分页查询按赛事题号过滤")
+    void pageProblemsFiltersByProblemNumber() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setProblemNumber("A");
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        assertTrue(wrapperCaptor.getValue().getSqlSegment().contains("problem_number ="));
     }
 
     @Test
@@ -212,6 +241,7 @@ class ProblemServiceTest {
         ProblemVO result = problemService.getProblemDetail(1L);
 
         assertEquals("## 题面", result.getContentMarkdown());
+        assertEquals("B", result.getProblemNumber());
         assertEquals(2, result.getAttachments().size());
         assertEquals("data.xlsx", result.getAttachments().get(0).getFileName());
     }
@@ -245,6 +275,7 @@ class ProblemServiceTest {
         ProblemVO result = problemService.createProblem(request, 100L);
 
         assertEquals(1, result.getCode());
+        assertEquals("X", result.getProblemNumber());
         assertEquals("# 新题面", result.getContentMarkdown());
         assertEquals("CUSTOM_CONTEST", result.getContestCode());
         verify(problemMapper).insert(any(Problem.class));
@@ -392,6 +423,7 @@ class ProblemServiceTest {
         ProblemCreateRequest request = new ProblemCreateRequest();
         request.setTitle("新题目");
         request.setContestId(10L);
+        request.setProblemNumber("X");
         request.setYear(2026);
         request.setStatementLanguage("ZH");
         request.setDurationMinutes(4320);

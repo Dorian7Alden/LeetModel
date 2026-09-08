@@ -1,5 +1,6 @@
 package com.leetmodel.problem.dto;
 
+import com.leetmodel.problem.enums.ProblemNumber;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +31,10 @@ public class ProblemUpdateRequest {
 
     @Positive(message = "赛事 ID 必须为正数")
     private Long contestId;
+
+    /** 赛事内题号：A-F 或 X。 */
+    @Pattern(regexp = ProblemNumber.PATTERN, message = "题号分类只支持 A-F 或 X")
+    private String problemNumber;
 
     @Min(value = 2000, message = "题目年份不能早于 2000 年")
     @Max(value = 2100, message = "题目年份不能晚于 2100 年")

@@ -30,6 +30,9 @@ public class ProblemVO {
     /** 题号：顺序编号（从 1 起始自增），面向用户展示。 */
     private Integer code;
 
+    /** 赛事内题号：A-F 或 X。 */
+    private String problemNumber;
+
     /** 题目标题 */
     private String title;
 

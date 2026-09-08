@@ -83,6 +83,9 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             wrapper.eq(Problem::getDifficulty, query.getDifficulty());
         }
         if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getProblemNumber() != null) {
+            wrapper.eq(Problem::getProblemNumber, query.getProblemNumber());
+        }
         if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
         if (query.getStatementLanguage() != null) {
             wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
@@ -215,6 +218,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         return ProblemVO.builder()
                 .id(source.getId())
                 .code(source.getCode())
+                .problemNumber(source.getProblemNumber())
                 .title(source.getTitle())
                 .contentMarkdown(source.getContentMarkdown())
                 .contestId(source.getContestId())
@@ -247,6 +251,9 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
                 .eq(Problem::getStatus, 1);
         if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getProblemNumber() != null) {
+            wrapper.eq(Problem::getProblemNumber, query.getProblemNumber());
+        }
         if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
         if (query.getStatementLanguage() != null) {
             wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
@@ -497,6 +504,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         problem.setTitle(request.getTitle());
         problem.setContentMarkdown(request.getContentMarkdown());
         problem.setContestId(request.getContestId());
+        problem.setProblemNumber(request.getProblemNumber());
         problem.setYear(request.getYear());
         problem.setStatementLanguage(request.getStatementLanguage());
         problem.setDurationMinutes(request.getDurationMinutes());
@@ -557,6 +565,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         }
         if (request.getContestId() != null) {
             problem.setContestId(request.getContestId());
+            changed = true;
+        }
+        if (request.getProblemNumber() != null) {
+            problem.setProblemNumber(request.getProblemNumber());
             changed = true;
         }
         if (request.getYear() != null) { problem.setYear(request.getYear()); changed = true; }
@@ -876,6 +888,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         ProblemVO.ProblemVOBuilder builder = ProblemVO.builder()
                 .id(p.getId())
                 .code(p.getCode())
+                .problemNumber(p.getProblemNumber())
                 .title(p.getTitle())
                 .contentMarkdown(attachments == null ? null : p.getContentMarkdown())
                 .contestId(p.getContestId())

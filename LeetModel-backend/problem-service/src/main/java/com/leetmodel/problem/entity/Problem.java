@@ -18,6 +18,9 @@ public class Problem extends BaseEntity {
     /** 题号：短顺序编号，面向用户展示，不暴露内部雪花主键。 */
     private Integer code;
 
+    /** 赛事内题号：A-F，无法归入标准字母时使用 X。 */
+    private String problemNumber;
+
     /** 题目标题 */
     private String title;
 
