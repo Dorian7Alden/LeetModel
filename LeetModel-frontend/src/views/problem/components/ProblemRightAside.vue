@@ -9,27 +9,45 @@
       </div>
       <div v-if="popularLoading" class="popular-list" aria-label="热门练习题加载中" aria-busy="true">
         <div v-for="index in 3" :key="index" class="popular-skeleton">
-          <span class="skeleton-rank"></span>
-          <span class="skeleton-title"></span>
-          <span class="skeleton-count"></span>
+          <div class="popular-item-inner">
+            <span class="skeleton-rank"></span>
+            <span class="skeleton-title"></span>
+            <span class="skeleton-count"></span>
+          </div>
         </div>
       </div>
       <div v-else-if="popularProblems.length" class="popular-list">
         <button
-          v-for="(problem, index) in popularProblems"
+          v-for="(problem, index) in displayPopularProblems"
           :key="problem.problemId"
           type="button"
           class="popular-item"
           @click="emit('select-popular', problem)"
         >
-          <span class="popular-rank" :title="`题号 ${problem.problemCode || (index + 1)}`">{{ problem.problemCode ?? (index + 1) }}</span>
-          <span class="popular-copy">
-            <span class="popular-title" :title="problem.problemTitle">{{ problem.problemTitle }}</span>
-          </span>
-          <span class="popular-count" :aria-label="`${formatPracticeCount(problem.practiceCount)} 次练习`">
-            <span>{{ formatPracticeCount(problem.practiceCount) }}</span>
-            <FlameIcon :size="13" :stroke-width="1.9" aria-hidden="true" />
-          </span>
+          <div class="popular-item-inner">
+            <span
+              class="popular-rank-trophy"
+              :class="`trophy-rank-${index + 1}`"
+              :title="`最热练习榜第 ${index + 1} 名`"
+            >
+              <TrophyIcon :size="15" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <el-tooltip
+              :content="problem.problemTitle"
+              placement="top"
+              effect="light"
+              popper-class="problem-tooltip"
+              :show-after="200"
+            >
+              <span class="popular-copy">
+                <span class="popular-title">{{ problem.problemTitle }}</span>
+              </span>
+            </el-tooltip>
+            <span class="popular-count" :aria-label="`${formatPracticeCount(problem.practiceCount)} 次练习`">
+              <span class="count-num">{{ formatPracticeCount(problem.practiceCount) }}</span>
+              <FlameIcon :size="13" :stroke-width="1.9" aria-hidden="true" />
+            </span>
+          </div>
         </button>
       </div>
       <div v-else class="popular-empty">暂无练习记录</div>
@@ -39,7 +57,7 @@
     <div class="aside-card">
       <div class="aside-card-header">
         <div class="header-title">
-          <span>热门算法标签</span>
+          <span>热门标签</span>
         </div>
       </div>
       <div class="trending-tags-cloud">
@@ -67,7 +85,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Flame as FlameIcon } from '@lucide/vue'
+import { Flame as FlameIcon, Trophy as TrophyIcon } from '@lucide/vue'
 
 const props = defineProps({
   tags: { type: Array, default: () => [] },
@@ -78,6 +96,11 @@ const props = defineProps({
 const emit = defineEmits(['select-popular', 'select-tag'])
 
 const formatPracticeCount = (value) => `${Number(value) || 0}`
+
+// 固定取热度最高的前 3 道题目
+const displayPopularProblems = computed(() => {
+  return props.popularProblems.slice(0, 3)
+})
 
 // 热门考向标签云 (展示高频算法与领域)
 const trendingTags = computed(() => {
@@ -147,6 +170,17 @@ const trendingTags = computed(() => {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+
+/* 热门练习题卡片去除底部内边距，靠内部 item 自身留白保持上下视觉平衡 */
+.aside-card.popular-card {
+  padding-bottom: 0;
+}
+
+/* 热门练习题的 header 去除 bottom 边距 */
+.popular-card .aside-card-header {
+  margin-bottom: 0;
+}
+
 .header-title {
   font-size: 13px;
   font-weight: 600;
@@ -157,18 +191,17 @@ const trendingTags = computed(() => {
 }
 /* 热门练习题 */
 .popular-list {
-  min-height: 162px;
+  min-height: auto;
+  margin-bottom: 0;
   display: flex;
   flex-direction: column;
 }
 .popular-item {
   width: 100%;
-  min-height: 54px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 8px;
+  min-height: 52px;
+  display: flex;
   align-items: center;
-  padding: 8px 4px;
+  padding: 6px 4px;
   border: 0;
   border-bottom: 1px solid #f0f0f2;
   background: transparent;
@@ -184,49 +217,81 @@ const trendingTags = computed(() => {
   background: #fafafa;
   color: #52525b;
 }
-.popular-rank {
-  color: #a1a1aa;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+
+.popular-item-inner {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.popular-rank-trophy {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  padding-bottom: 1px;
+}
+
+/* 冠亚季军奖杯颜色区分 */
+.popular-rank-trophy.trophy-rank-1 {
+  color: #f59e0b; /* 冠军金 */
+}
+
+.popular-rank-trophy.trophy-rank-2 {
+  color: #94a3b8; /* 亚军银 */
+}
+
+.popular-rank-trophy.trophy-rank-3 {
+  color: #b45309; /* 季军铜 */
 }
 .popular-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 .popular-title {
   overflow: hidden;
   color: #6b6c74;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .popular-count {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
   gap: 3px;
-  color: #71717a;
-  font-size: 10px;
+  color: #ea580c;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--lm-code-font-family);
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  line-height: 1.4;
   white-space: nowrap;
+  padding-bottom: 1px;
+}
+.count-num {
+  color: inherit;
+  line-height: 1;
 }
 .popular-count svg {
-  color: #d97706;
+  color: inherit;
   flex-shrink: 0;
+  margin-bottom: 1px;
 }
 .popular-skeleton {
-  min-height: 54px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 48px;
-  gap: 8px;
+  min-height: 52px;
+  display: flex;
   align-items: center;
-  padding: 8px 4px;
+  padding: 6px 4px;
+  border-bottom: 1px solid #f0f0f2;
 }
 .skeleton-rank,
 .skeleton-title,

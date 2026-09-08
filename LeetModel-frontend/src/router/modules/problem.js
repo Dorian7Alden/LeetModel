@@ -5,12 +5,12 @@ export default [
     children: [
       {
         path: "",
-        redirect: "/problem/problemListPage",
+        name: "ProblemListPage",
+        component: () => import("@/views/problem/pages/ProblemListPage.vue"),
       },
       {
         path: "problemListPage",
-        name: "ProblemListPage",
-        component: () => import("@/views/problem/pages/ProblemListPage.vue"),
+        redirect: "/problem",
       },
       {
         path: "contest/:contestId",

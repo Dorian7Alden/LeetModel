@@ -1,7 +1,7 @@
 <template>
   <section class="problem-list" v-loading="initialLoading">
     <div v-if="displayedProblems.length" class="list-table">
-      <button v-for="(item, index) in displayedProblems" :key="item.id" class="problem-row" @click="$router.push(`/problem/${item.id}`)">
+      <button v-for="(item, index) in displayedProblems" :key="item.id" class="problem-row" @click="navigateToDetail(item.id)">
         <div class="problem-entities">
           <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ item.code ?? (index + 1) }}</span>
           <div class="problem-main">
@@ -25,6 +25,21 @@
           <span class="problem-cell difficulty-value" :class="difficultyClass(item.difficulty)">{{ difficultyLabel(item.difficulty) }}</span>
           <el-tooltip content="平均分" placement="top" effect="light" popper-class="problem-tooltip" :show-after="150">
             <div class="problem-cell average-score" aria-label="平均分"><strong>{{ formatScore(item.averageScore) }}</strong></div>
+          </el-tooltip>
+
+          <el-tooltip
+            :content="userStore.isLogin ? '参与练习人数' : '登录后查看参与练习人数'"
+            placement="top"
+            effect="light"
+            popper-class="problem-tooltip"
+            :show-after="150"
+          >
+            <div class="problem-cell practice-count" aria-label="参与练习人数">
+              <template v-if="userStore.isLogin">
+                {{ item.practiceCount ?? item.practiceUserCount ?? item.teamsCount ?? 0 }}
+              </template>
+              <el-icon v-else><Lock /></el-icon>
+            </div>
           </el-tooltip>
 
           <!-- 收藏星星操作 -->
@@ -65,16 +80,29 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ArrowDown, Loading, Star, StarFilled } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowDown, Loading, Lock, Star, StarFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getPublicProblemList } from '@/api/problem'
+import { useUserStore } from '@/store/user'
 
 const props = defineProps({
   tags: { type: Array, default: () => [] }
 })
 
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
 const problems = ref([])
 const emit = defineEmits(['fav-change', 'total-change'])
+const navigateToDetail = (problemId) => {
+  router.push({
+    path: `/problem/${problemId}`,
+    query: route.query
+  })
+}
+
 const initialLoading = ref(false)
 const loadingMore = ref(false)
 const page = ref(1)
@@ -125,7 +153,10 @@ const toggleFavorite = (id) => {
 
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyClass = (value) => ({ 1: 'difficulty-easy', 2: 'difficulty-medium', 3: 'difficulty-hard' })[value] || 'difficulty-unknown'
-const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '-'
+const formatScore = (score) => {
+  const numericScore = Number(score)
+  return Number.isFinite(numericScore) && numericScore > 0 ? numericScore.toFixed(1) : '0'
+}
 const tagTypeByName = computed(() => new Map(props.tags.map(tag => [tag.name, tag.type])))
 const visibleTags = (problem) => (problem.tagNames || [])
   .map(name => ({ name, type: tagTypeByName.value.get(name) }))
@@ -244,7 +275,7 @@ defineExpose({
 .problem-row {
   --problem-row-grid: 16px;
   --problem-row-minor-gap: var(--problem-row-grid);
-  --problem-row-micro-gap: 9.6px;
+  --problem-row-micro-gap: 2.6px;
   --problem-row-outer-padding: 24px;
   --problem-row-meta-unit: 52px;
   display: flex;
@@ -300,20 +331,22 @@ defineExpose({
 }
 .problem-meta {
   display: grid;
-  grid-template-columns: repeat(4, var(--problem-row-meta-unit));
+  grid-template-columns: repeat(5, var(--problem-row-meta-unit));
   align-items: center;
   column-gap: var(--problem-row-micro-gap);
   margin-left: auto;
   flex: 0 0 auto;
 }
 .year-value { width: 100%; text-align: center; color: var(--lm-text-secondary); font-size: 12px; }
-.difficulty-value { width: 100%; font-size: 13px; font-weight: 600; text-align: center; }
+.difficulty-value { width: 100%; font-size: 13px; text-align: center; }
 .difficulty-easy { color: #13a8a8; }
 .difficulty-medium { color: #d99016; }
 .difficulty-hard { color: #d94b4b; }
 .difficulty-unknown { color: var(--lm-text-muted); }
 .average-score { display: flex; width: 100%; align-items: center; justify-content: center; }
-.average-score strong { color: var(--lm-text-primary); font-size: 14px; font-weight: 500; }
+.average-score strong { color: var(--lm-text-secondary); font-size: 14px; font-weight: 500; }
+.practice-count { display: flex; width: 100%; align-items: center; justify-content: center; color: var(--lm-text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.practice-count .el-icon { color: var(--lm-text-muted); font-size: 14px; }
 /* 收藏小星星 */
 .fav-star-btn {
   width: 26px;
@@ -330,12 +363,12 @@ defineExpose({
   justify-self: center;
 }
 .fav-star-btn:hover {
-  color: #18181b;
-  background: #e4e4e7;
+  color: #d97706;
+  background: #fef3c7;
   transform: scale(1.1);
 }
 .fav-star-btn.active {
-  color: #18181b;
+  color: #f59e0b;
 }
 
 /* 流式懒加载底栏 */

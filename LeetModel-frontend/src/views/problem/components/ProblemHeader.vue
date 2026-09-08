@@ -213,7 +213,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownWideNarrow,
   ArrowDownNarrowWide,
@@ -261,6 +261,7 @@ const sortField = ref('')
 const sortDirection = ref('')
 const activeSortLabel = computed(() => sortOptions.find(item => item.value === sortField.value)?.label || '')
 const sortButtonLabel = computed(() => sortField.value ? `${activeSortLabel.value}${sortDirection.value === 'desc' ? '降序' : '升序'}` : '选择排序方式')
+const route = useRoute()
 const router = useRouter()
 const currentYear = new Date().getFullYear()
 const recentYears = Array.from({ length: 5 }, (_, index) => currentYear - index)
@@ -489,13 +490,62 @@ const updateScrollButtons = () => {
   canScrollRight.value = track.scrollLeft < maxScrollLeft - 2
 }
 
+const syncFiltersFromQuery = () => {
+  const q = route.query
+  if (!q) return
+  if (q.keyword !== undefined) filters.keyword = String(q.keyword || '')
+  if (q.contestId) filters.contestId = Number(q.contestId)
+  else if (!q.contestId && filters.contestId) filters.contestId = null
+  if (q.year) filters.year = Number(q.year)
+  else if (!q.year && filters.year) filters.year = null
+  if (q.difficulty) filters.difficulty = Number(q.difficulty)
+  else if (!q.difficulty && filters.difficulty) filters.difficulty = null
+  if (q.statementLanguage !== undefined) filters.statementLanguage = String(q.statementLanguage || '')
+  if (q.minScore !== undefined) filters.minAverageScore = q.minScore ? Number(q.minScore) : null
+  if (q.maxScore !== undefined) filters.maxAverageScore = q.maxScore ? Number(q.maxScore) : null
+
+  if (q.tagIds) {
+    const ids = String(q.tagIds).split(',').map(Number).filter(Boolean)
+    for (const id of ids) {
+      const tag = props.tags.find(t => t.id === id)
+      if (tag) {
+        if (tag.type === 'PROBLEM_TYPE') filters.selectedTags.PROBLEM_TYPE = id
+        else if (tag.type === 'BACKGROUND_DOMAIN') filters.selectedTags.BACKGROUND_DOMAIN = id
+        else if (tag.type === 'MODEL_ALGORITHM') {
+          if (!filters.selectedTags.MODEL_ALGORITHM.includes(id)) {
+            filters.selectedTags.MODEL_ALGORITHM = [id]
+          }
+          selectedAlgorithmId.value = id
+        }
+      }
+    }
+  }
+}
+
 onMounted(() => {
+  syncFiltersFromQuery()
   nextTick(() => {
     updateScrollButtons()
     cardsScrollRef.value?.addEventListener('scroll', updateScrollButtons, { passive: true })
     window.addEventListener('resize', updateScrollButtons)
   })
 })
+
+watch(
+  () => route.query,
+  () => {
+    syncFiltersFromQuery()
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.tags,
+  () => {
+    syncFiltersFromQuery()
+  },
+  { deep: true }
+)
 
 watch(sortedContestCards, () => {
   nextTick(updateScrollButtons)

@@ -72,7 +72,7 @@
       <div class="sidebar-user-group">
         <div
           class="sidebar-nav-item"
-          :class="{ active: activeSection === 'in_progress' }"
+          :class="{ active: activeSection === 'in_progress' && !isContestOrTypeRoute }"
           @click="selectSection('in_progress')"
         >
           <el-icon class="item-icon text-warning"><Clock /></el-icon>
@@ -82,7 +82,7 @@
 
         <div
           class="sidebar-nav-item"
-          :class="{ active: activeSection === 'completed' }"
+          :class="{ active: activeSection === 'completed' && !isContestOrTypeRoute }"
           @click="selectSection('completed')"
         >
           <el-icon class="item-icon text-success"><CircleCheck /></el-icon>
@@ -95,13 +95,13 @@
       <!-- 5. 收藏栏 (用户点击收藏题目将会加入到这里面来) -->
       <div
         class="sidebar-nav-item fav-item"
-        :class="{ active: activeSection === 'favorite' }"
+        :class="{ active: activeSection === 'favorite' && !isContestOrTypeRoute }"
         title="收藏"
         @click="selectSection('favorite')"
       >
         <el-icon class="item-icon text-gold"><StarFilled /></el-icon>
         <span class="item-text">收藏</span>
-        <span v-if="favCount > 0" class="fav-badge">{{ favCount }}</span>
+        <span v-if="favCount > 0" class="fav-badge"><span class="fav-badge-value">{{ favCount }}</span></span>
       </div>
     </div>
 
@@ -626,19 +626,38 @@ onMounted(async () => {
 }
 
 .fav-badge {
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: #f4f4f5;
-  color: #27272a;
-  border: 1px solid #e4e4e7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
   font-size: 10px;
   font-weight: 700;
   font-family: var(--lm-code-font-family);
 }
+.fav-badge-value {
+  display: block;
+  transform: translateY(1px);
+}
 
-.text-warning { color: #52525b !important; }
-.text-success { color: #27272a !important; }
-.text-gold { color: #18181b !important; }
+.text-warning { color: #f59e0b !important; }
+.text-success { color: #22c55e !important; }
+.text-gold { color: #fbbf24 !important; }
+.sidebar-nav-item:hover .text-warning,
+.sidebar-nav-item.active .text-warning { color: #d97706 !important; }
+.sidebar-nav-item:hover .text-success,
+.sidebar-nav-item.active .text-success { color: #16a34a !important; }
+.sidebar-nav-item:hover .text-gold,
+.sidebar-nav-item.active .text-gold { color: #d97706 !important; }
 
 /* 折叠过渡动画 */
 .collapse-enter-active,

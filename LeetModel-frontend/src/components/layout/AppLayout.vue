@@ -3,13 +3,18 @@
     <!-- 顶部栏 -->
     <header class="topbar">
       <div class="topbar-inner">
-        <!-- 左侧：系统名 + 导航 -->
+        <!-- 左侧：品牌 -->
         <div class="left-area">
-          <nav class="navbar">
-            <router-link to="/home" class="nav-item home-icon">
-              <img src="@/assets/images/logo-with-en.png" alt="home" />
-            </router-link>
+          <router-link to="/home" class="nav-item home-icon">
+            <img src="@/assets/images/logo-with-en.png" alt="home" />
+          </router-link>
+          <button type="button" class="mobile-menu-button" aria-label="打开导航菜单" @click="mobileMenuOpen = true">
+            <el-icon><Menu /></el-icon><span>菜单</span>
+          </button>
+        </div>
 
+        <!-- 中间：主导航 -->
+        <nav class="navbar">
             <router-link
               to="/home"
               class="nav-item"
@@ -34,11 +39,7 @@
             >
               管理端
             </router-link>
-          </nav>
-          <button type="button" class="mobile-menu-button" aria-label="打开导航菜单" @click="mobileMenuOpen = true">
-            <el-icon><Menu /></el-icon><span>菜单</span>
-          </button>
-        </div>
+        </nav>
 
         <!-- 右侧 -->
         <div class="right-area">
@@ -232,7 +233,8 @@ onMounted(async () => {
 .topbar-inner {
   width: 100%;
   max-width: 1200px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
@@ -244,6 +246,8 @@ onMounted(async () => {
   align-items: center;
   gap: 32px;
 }
+
+.right-area { justify-self: end; }
 
 .navbar {
   display: flex;

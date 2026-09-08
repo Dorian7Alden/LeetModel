@@ -2,12 +2,12 @@
   <div class="contest-problem-page" v-loading="loading">
     <!-- 顶部面包屑与返回栏 -->
     <div class="page-top-nav">
-      <button type="button" class="back-link-btn" @click="$router.push('/problem')">
+      <button type="button" class="back-link-btn" @click="goBack">
         <el-icon><ArrowLeft /></el-icon>
-        <span>返回全部题库</span>
+        <span>返回</span>
       </button>
       <span class="nav-sep">/</span>
-      <span class="current-contest-crumb">{{ contestInfo.name }} 专属题库</span>
+      <span class="current-contest-crumb">{{ contestInfo.name }}</span>
     </div>
 
     <!-- 双栏主布局 (左边赛事档案与统计 + 右边题目列表) -->
@@ -139,7 +139,7 @@
               v-for="(item, index) in problems"
               :key="item.id"
               class="problem-row"
-              @click="$router.push(`/problem/${item.id}`)"
+              @click="navigateToProblem(item.id)"
             >
               <div class="problem-main">
                 <h3 :title="item.title">
@@ -187,13 +187,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, ArrowLeft, ArrowRight, Calendar, Document, Loading, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getPublicProblemFilterOptions, getPublicProblemList } from '@/api/problem'
 
 const route = useRoute()
+const router = useRouter()
 const contestId = computed(() => Number(route.params.contestId))
 
 const loading = ref(false)
@@ -207,6 +208,7 @@ const filterDifficulty = ref(null)
 const filterProblemType = ref(null)
 const allContests = ref([])
 const allTags = ref([])
+const workbench = inject('problemWorkbench', null)
 
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
@@ -314,18 +316,53 @@ const loadMore = () => {
   fetchContestProblems(true)
 }
 
-const initData = async () => {
-  try {
-    const filterRes = await getPublicProblemFilterOptions()
-    allContests.value = filterRes.data?.contests || []
-    allTags.value = filterRes.data?.tags || []
-    fetchContestProblems(false)
-  } catch (err) {
-    console.warn('加载赛事元数据异常', err)
+const goBack = () => {
+  if (window.history.state && window.history.state.back) {
+    router.back()
+  } else {
+    router.push('/problem')
   }
 }
 
+const navigateToProblem = (problemId) => {
+  router.push({
+    path: `/problem/${problemId}`,
+    query: route.query
+  })
+}
+
+const syncMetadata = () => {
+  if (workbench?.filterOptions?.contests?.length) {
+    allContests.value = workbench.filterOptions.contests
+    allTags.value = workbench.filterOptions.tags
+    return true
+  }
+  return false
+}
+
+const initData = async () => {
+  if (!syncMetadata()) {
+    try {
+      const filterRes = await getPublicProblemFilterOptions()
+      allContests.value = filterRes.data?.contests || []
+      allTags.value = filterRes.data?.tags || []
+    } catch (err) {
+      console.warn('加载赛事元数据异常', err)
+    }
+  }
+  fetchContestProblems(false)
+}
+
 onMounted(initData)
+watch(
+  () => workbench?.filterOptions?.contests,
+  () => {
+    if (syncMetadata()) {
+      // 元数据到达后无需强刷题目列表
+    }
+  },
+  { deep: true }
+)
 watch(contestId, () => {
   fetchContestProblems(false)
 })
@@ -333,9 +370,9 @@ watch(contestId, () => {
 
 <style scoped>
 .contest-problem-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 10px 0 32px;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 32px;
 }
 
 /* 面包屑返回栏 */
