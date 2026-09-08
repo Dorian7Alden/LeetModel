@@ -22,7 +22,16 @@ public interface ContestService {
      * @param id   目标赛事 ID，不能为 null
      * @param code 赛事编码，不能为 null
      * @param name 赛事名称，不能为 null
-     * @return 更新后的赛事实体
+    * @return 更新后的赛事实体
      */
     Contest update(Long id, String code, String name);
+
+    /**
+     * 更新指定赛事的完整学术档案与规格。
+     *
+     * @param id      目标赛事 ID，不能为 null
+     * @param request 包含新属性的请求对象，不能为 null
+     * @return 更新后的赛事实体
+     */
+    Contest update(Long id, com.leetmodel.problem.dto.ContestRequest request);
 }

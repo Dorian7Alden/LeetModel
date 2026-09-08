@@ -48,6 +48,6 @@ public class ContestController {
     @PutMapping("/{id}")
     public Result<Contest> update(@PathVariable Long id,
                                   @Valid @RequestBody ContestRequest request) {
-        return Result.ok(contestService.update(id, request.getCode(), request.getName()));
+        return Result.ok(contestService.update(id, request));
     }
 }
