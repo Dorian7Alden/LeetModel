@@ -1,7 +1,11 @@
 <template>
   <section
     class="problem-list"
-    :class="{ 'is-grouped-by-year': groupByYear, 'is-contest-list': !showContest }"
+    :class="{
+      'is-grouped-by-year': groupByYear,
+      'is-contest-list': !showContest,
+      'without-problem-number': !showProblemNumber
+    }"
     v-loading="initialLoading"
   >
     <div v-if="displayedProblems.length" class="list-table">
@@ -15,10 +19,19 @@
         <button class="problem-row" @click="navigateToDetail(item.id)">
           <div class="problem-entities">
             <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ item.code ?? (index + 1) }}</span>
-            <div class="problem-main">
-              <el-tooltip :content="item.title" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
-                <h3>{{ item.title }}</h3>
-              </el-tooltip>
+            <div class="problem-title-group">
+              <span
+                v-if="showProblemNumber"
+                class="problem-number-label"
+                :title="`赛事题号 ${displayProblemNumber(item.problemNumber)}`"
+              >
+                {{ displayProblemNumber(item.problemNumber) }}
+              </span>
+              <div class="problem-main">
+                <el-tooltip :content="item.title" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
+                  <h3>{{ item.title }}</h3>
+                </el-tooltip>
+              </div>
             </div>
             <div v-if="showContest" class="problem-cell contest-cell">
               <el-tooltip :content="item.contestName || '未分类赛事'" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
@@ -102,6 +115,7 @@ const props = defineProps({
   initialQuery: { type: Object, default: () => ({}) },
   groupByYear: { type: Boolean, default: false },
   showContest: { type: Boolean, default: true },
+  showProblemNumber: { type: Boolean, default: true },
 })
 
 const route = useRoute()
@@ -133,6 +147,7 @@ const specialIds = ref([])
 
 const groupByYear = computed(() => props.groupByYear)
 const showContest = computed(() => props.showContest)
+const showProblemNumber = computed(() => props.showProblemNumber)
 
 // 本地收藏题目状态
 const favoritedIds = ref(JSON.parse(localStorage.getItem('lm_fav_problems') || '[]'))
@@ -200,6 +215,7 @@ const toggleFavorite = (id) => {
 
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
 const difficultyClass = (value) => ({ 1: 'difficulty-easy', 2: 'difficulty-medium', 3: 'difficulty-hard' })[value] || 'difficulty-unknown'
+const displayProblemNumber = (value) => value || 'X'
 const formatScore = (score) => {
   const numericScore = Number(score)
   return Number.isFinite(numericScore) && numericScore > 0 ? numericScore.toFixed(1) : '0'
@@ -222,7 +238,10 @@ const shouldRenderYearRow = (problem, index) => {
   return yearLabel(problem) !== yearLabel(displayedProblems.value[index - 1])
 }
 
+let requestSequence = 0
+
 const fetchProblems = async (isLoadMore = false) => {
+  const currentRequest = ++requestSequence
   if (isLoadMore) {
     loadingMore.value = true
   } else {
@@ -241,6 +260,8 @@ const fetchProblems = async (isLoadMore = false) => {
       ...query.value,
       ...sortParams,
     })
+    if (currentRequest !== requestSequence) return false
+
     const rows = response.data?.rows || []
     total.value = response.data?.total || 0
     emit('total-change', total.value)
@@ -252,6 +273,8 @@ const fetchProblems = async (isLoadMore = false) => {
     emit('loaded', { problems: problems.value, total: total.value })
     return true
   } catch (error) {
+    if (currentRequest !== requestSequence) return false
+
     if (isLoadMore) {
       // 保留失败页码，用户再次触发时重试同一页，避免跳过题目。
       page.value = Math.max(1, page.value - 1)
@@ -265,8 +288,10 @@ const fetchProblems = async (isLoadMore = false) => {
     ElMessage.error(error.message || '获取题目列表失败')
     return false
   } finally {
-    initialLoading.value = false
-    loadingMore.value = false
+    if (currentRequest === requestSequence) {
+      initialLoading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
@@ -378,17 +403,19 @@ defineExpose({
 .problem-row:nth-child(even) { background: #fafafa; }
 .problem-entities {
   display: grid;
-  grid-template-columns: 28px 200px 80px minmax(56px, max-content);
+  grid-template-columns: 28px 220px 80px minmax(56px, max-content);
   align-items: center;
   column-gap: var(--problem-row-minor-gap);
   min-width: 0;
   flex: 0 1 auto;
 }
-.problem-list.is-contest-list .problem-entities { grid-template-columns: 28px 200px minmax(56px, max-content); }
+.problem-list.is-contest-list .problem-entities { grid-template-columns: 28px 220px minmax(56px, max-content); }
 .problem-list.is-contest-list .contest-cell { display: none; }
+.problem-title-group { display: flex; width: 220px; min-width: 0; align-items: center; gap: 10px; }
 .problem-main { min-width: 0; max-width: 200px; }
-.problem-main h3 { margin: 0; overflow: hidden; color: var(--lm-text-primary); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.problem-main h3 { margin: 0; overflow: hidden; color: var(--lm-text-primary); font-size: 14px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
 .row-index { display: block; width: 28px; color: #18181b; font-size: 11px; font-weight: 500; letter-spacing: 0; text-align: left; }
+.problem-number-label { display: block; flex: 0 0 auto; color: var(--lm-text-secondary); font-size: 14px; font-family: inherit; font-weight: 600; line-height: 20px; white-space: nowrap; }
 .problem-cell { min-width: 0; }
 .contest-cell { display: flex; width: 80px; align-items: center; justify-content: center; overflow: hidden; }
 .contest-name { display: block; width: 100%; overflow: hidden; color: var(--lm-text-secondary); font-size: 11px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
@@ -508,7 +535,15 @@ defineExpose({
 }
 @media (max-width: 1000px) {
   .problem-row { gap: 12px; padding: 12px 16px; }
-  .problem-entities { grid-template-columns: 28px minmax(0, 1fr) 90px; gap: 12px; flex: 1 1 auto; }
+  .problem-entities,
+  .problem-list.is-contest-list .problem-entities,
+  .problem-list.without-problem-number .problem-entities,
+  .problem-list.without-problem-number.is-contest-list .problem-entities {
+    grid-template-columns: 28px minmax(0, 1fr) 90px;
+    gap: 12px;
+    flex: 1 1 auto;
+  }
+  .problem-title-group { width: 100%; }
   .problem-main { max-width: none; }
   .contest-cell { width: 90px; }
   .problem-meta { grid-template-columns: 58px 32px; gap: 12px; margin-left: 0; }
@@ -517,7 +552,12 @@ defineExpose({
 }
 @media (max-width: 760px) { .pagination-wrap { flex-wrap: wrap; gap: 10px 14px; } }
 @media (max-width: 600px) {
-  .problem-entities { grid-template-columns: 28px minmax(0, 1fr); }
+  .problem-entities,
+  .problem-list.is-contest-list .problem-entities,
+  .problem-list.without-problem-number .problem-entities,
+  .problem-list.without-problem-number.is-contest-list .problem-entities {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
   .problem-meta { grid-template-columns: 52px 18px; gap: 4px; }
   .problem-list.is-grouped-by-year .problem-meta { grid-template-columns: 52px 18px; }
   .contest-cell { display: none; }

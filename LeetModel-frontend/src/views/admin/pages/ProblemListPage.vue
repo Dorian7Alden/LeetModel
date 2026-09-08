@@ -20,6 +20,9 @@
         <el-table-column label="题号" width="90">
           <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
         </el-table-column>
+        <el-table-column prop="problemNumber" label="赛事题号" width="90">
+          <template #default="scope">{{ formatProblemNumber(scope.row.problemNumber) }}</template>
+        </el-table-column>
         <el-table-column prop="title" label="题目名称" min-width="220">
           <template #default="scope">
             <button class="problem-title-link" @click="openPreview(scope.row)">{{ scope.row.title }}</button>
@@ -89,6 +92,12 @@
         <el-form-item label="所属赛事" prop="contestId">
           <el-select v-model="form.contestId" style="width: 100%">
             <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="赛事题号" prop="problemNumber">
+          <el-select v-model="form.problemNumber" style="width: 100%" placeholder="请选择赛事题号">
+            <el-option v-for="item in problemNumberOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
 
@@ -201,6 +210,7 @@
         <template v-if="previewProblem">
           <div class="preview-meta">
             <span><small>题号</small><strong>{{ previewProblem.code ?? previewProblem.id }}</strong></span>
+            <span><small>赛事题号</small><strong>{{ formatProblemNumber(previewProblem.problemNumber) }}</strong></span>
             <span><small>赛事</small><strong>{{ previewProblem.contestName || '未设置' }}</strong></span>
             <span><small>年份</small><strong>{{ previewProblem.year || '—' }}</strong></span>
             <span><small>难度</small><strong>{{ getDifficultyLabel(previewProblem.difficulty) }}</strong></span>
@@ -358,6 +368,7 @@ const form = reactive({
   title: '',
   contentMarkdown: '',
   contestId: null,
+  problemNumber: null,
   year: new Date().getFullYear(),
   statementLanguage: 'ZH',
   durationMinutes: 4320,
@@ -372,7 +383,8 @@ const rules = {
   year: [{ required: true, message: '请输入年份', trigger: 'change' }],
   statementLanguage: [{ required: true, message: '请选择题面语言', trigger: 'change' }],
   durationMinutes: [{ required: true, message: '请输入完成时长', trigger: 'change' }],
-  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }]
+  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
+  problemNumber: [{ required: true, message: '请选择赛事题号', trigger: 'change' }]
 };
 
 const statusMap = {
@@ -385,6 +397,16 @@ const statusMap = {
 const getStatusLabel = (status) => statusMap[status]?.label || '未知';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 const getDifficultyLabel = (difficulty) => ({ 1: '简单', 2: '中等', 3: '困难' })[difficulty] || '未知';
+const problemNumberOptions = [
+  { value: 'A', label: 'A 题' },
+  { value: 'B', label: 'B 题' },
+  { value: 'C', label: 'C 题' },
+  { value: 'D', label: 'D 题' },
+  { value: 'E', label: 'E 题' },
+  { value: 'F', label: 'F 题' },
+  { value: 'X', label: 'X 题' },
+];
+const formatProblemNumber = (value) => problemNumberOptions.find(item => item.value === value)?.label || 'X 题';
 
 const fetchList = async () => {
   tableLoading.value = true;
@@ -445,6 +467,7 @@ const openEditDialog = async (row) => {
       form.title = d.title;
       form.contentMarkdown = d.contentMarkdown || '';
       form.contestId = d.contestId;
+      form.problemNumber = d.problemNumber || 'X';
       form.year = d.year;
       form.statementLanguage = d.statementLanguage;
       form.durationMinutes = d.durationMinutes;
@@ -486,6 +509,7 @@ const resetForm = () => {
   form.title = '';
   form.contentMarkdown = '';
   form.contestId = null;
+  form.problemNumber = null;
   form.year = new Date().getFullYear();
   form.statementLanguage = 'ZH';
   form.durationMinutes = 4320;
@@ -508,6 +532,7 @@ const onSubmit = async () => {
       title: form.title,
       contentMarkdown: form.contentMarkdown,
       contestId: form.contestId,
+      problemNumber: form.problemNumber,
       year: form.year,
       statementLanguage: form.statementLanguage,
       durationMinutes: form.durationMinutes,

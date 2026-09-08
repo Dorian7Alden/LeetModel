@@ -10,7 +10,7 @@
     <ProblemSidebar
       v-if="!hideSidebar"
       :contests="filterOptions.contests"
-      :problem-types="problemTypeTags"
+      :problem-numbers="filterOptions.problemNumbers"
       :active-section="activeSection"
       :fav-count="favCount"
       @select-section="handleSelectSection"
@@ -54,10 +54,8 @@ const isSidebarCollapsed = ref(false)
 const activeSection = ref('all')
 const favCount = ref(0)
 const optionsLoading = ref(false)
-const filterOptions = reactive({ contests: [], tags: [] })
+const filterOptions = reactive({ contests: [], tags: [], problemNumbers: [] })
 const lobbyBus = ref(null)
-
-const problemTypeTags = computed(() => filterOptions.tags.filter(t => t.type === 'PROBLEM_TYPE'))
 
 const fetchFilterOptions = async () => {
   optionsLoading.value = true
@@ -65,6 +63,7 @@ const fetchFilterOptions = async () => {
     const response = await getPublicProblemFilterOptions()
     filterOptions.contests = response.data?.contests || []
     filterOptions.tags = response.data?.tags || []
+    filterOptions.problemNumbers = response.data?.problemNumbers || ['A', 'B', 'C', 'D', 'E', 'F', 'X']
   } catch (error) {
     ElMessage.error(error.message || '获取筛选项失败')
   } finally {
@@ -101,7 +100,6 @@ const updateFavCount = (count) => {
 provide('problemWorkbench', {
   filterOptions,
   optionsLoading,
-  problemTypeTags,
   favCount,
   updateFavCount,
   activeSection,
@@ -113,6 +111,8 @@ const syncActiveSectionFromRoute = () => {
   const path = route.path
   if (path.startsWith('/problem/contest')) {
     activeSection.value = 'contest'
+  } else if (path.startsWith('/problem/number')) {
+    activeSection.value = 'number'
   } else if (path.startsWith('/problem/type')) {
     activeSection.value = 'type'
   } else if (path === '/problem' || path === '/problem/') {

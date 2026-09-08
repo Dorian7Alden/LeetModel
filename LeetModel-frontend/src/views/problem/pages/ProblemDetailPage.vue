@@ -79,6 +79,10 @@
                 <span class="spec-value text-strong">{{ problem.contestName || '未分类' }}</span>
               </div>
               <div class="spec-row">
+                <span class="spec-label">赛事题号</span>
+                <span class="spec-value">{{ `${problem.problemNumber || 'X'} 题` }}</span>
+              </div>
+              <div class="spec-row">
                 <span class="spec-label">命题年份</span>
                 <span class="spec-value">{{ problem.year ? `${problem.year} 年` : '—' }}</span>
               </div>
