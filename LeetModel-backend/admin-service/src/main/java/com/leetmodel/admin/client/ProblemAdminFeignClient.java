@@ -44,4 +44,15 @@ public interface ProblemAdminFeignClient {
     @DeleteMapping("/api/problems/{problemId}/attachments/{attachmentId}")
     Result<Void> deleteAttachment(@PathVariable("problemId") Long problemId,
                                   @PathVariable("attachmentId") Long attachmentId);
+
+    @GetMapping("/api/storage/objects")
+    Result<Object> listStorageObjects(@RequestParam(value = "keyword", required = false) String keyword,
+                                      @RequestParam(value = "onlyOrphans", required = false) Boolean onlyOrphans);
+
+    @PostMapping(value = "/api/storage/objects", consumes = "multipart/form-data")
+    Result<Object> uploadStorageObject(@RequestPart("file") MultipartFile file,
+                                       @RequestParam(value = "prefix", required = false) String prefix);
+
+    @DeleteMapping("/api/storage/objects")
+    Result<Void> deleteStorageObject(@RequestParam("objectKey") String objectKey);
 }

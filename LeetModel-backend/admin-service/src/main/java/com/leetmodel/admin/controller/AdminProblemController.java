@@ -109,4 +109,21 @@ public class AdminProblemController {
         return executor.forward("题目服务",
                 () -> problemClient.deleteAttachment(problemId, attachmentId));
     }
+
+    @GetMapping("/storage/objects")
+    public Result<Object> listStorageObjects(@RequestParam(required = false) String keyword,
+                                             @RequestParam(required = false) Boolean onlyOrphans) {
+        return executor.forward("题目服务", () -> problemClient.listStorageObjects(keyword, onlyOrphans));
+    }
+
+    @PostMapping(value = "/storage/objects", consumes = "multipart/form-data")
+    public Result<Object> uploadStorageObject(@RequestPart("file") MultipartFile file,
+                                              @RequestParam(required = false, defaultValue = "manual") String prefix) {
+        return executor.forward("题目服务", () -> problemClient.uploadStorageObject(file, prefix));
+    }
+
+    @DeleteMapping("/storage/objects")
+    public Result<Void> deleteStorageObject(@RequestParam String objectKey) {
+        return executor.forward("题目服务", () -> problemClient.deleteStorageObject(objectKey));
+    }
 }
