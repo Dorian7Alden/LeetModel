@@ -72,11 +72,12 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑题目' : '新增题目'"
-      width="600px"
+      width="680px"
+      top="6vh"
       destroy-on-close
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="problem-dialog-form">
         <el-form-item label="题目标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入题目标题" />
         </el-form-item>
@@ -115,6 +116,72 @@
             <el-option label="已归档" :value="3" />
           </el-select>
         </el-form-item>
+
+        <!-- 题目附件与数据集管理区 -->
+        <div class="form-attachment-section">
+          <div class="attachment-section-header">
+            <div>
+              <span class="attachment-title">题目附件与数据集</span>
+              <span class="attachment-subtitle">支持上传 CSV、XLSX、PDF 等赛题配套数据与材料</span>
+            </div>
+            <div>
+              <input
+                ref="fileInputRef"
+                type="file"
+                multiple
+                style="display: none"
+                @change="handleFileSelected"
+              />
+              <el-button size="small" type="primary" plain :loading="uploadingAttachment" @click="triggerChooseFile">
+                <el-icon><Upload /></el-icon> 上传附件
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 编辑模式：已关联附件列表 -->
+          <div v-if="isEdit" class="attachment-list">
+            <div v-if="existingAttachments.length" class="attachment-items">
+              <div v-for="att in existingAttachments" :key="att.id" class="attachment-item-card">
+                <el-icon class="file-icon"><Document /></el-icon>
+                <div class="file-info">
+                  <div class="file-name" :title="att.fileName">{{ att.fileName }}</div>
+                  <div class="file-meta">
+                    <span>{{ formatFileSize(att.fileSize) }}</span>
+                    <span v-if="att.description" class="file-desc">{{ att.description }}</span>
+                  </div>
+                </div>
+                <div class="file-actions">
+                  <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="action-btn link">下载</a>
+                  <el-button type="danger" link size="small" @click="handleDeleteExistingAttachment(att.id)">删除</el-button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="attachment-empty-tip">暂无附件，可点击右上角上传新附件</div>
+          </div>
+
+          <!-- 新增模式：暂存待上传附件列表 -->
+          <div v-else class="attachment-list">
+            <div v-if="pendingAttachments.length" class="attachment-items">
+              <div v-for="(att, idx) in pendingAttachments" :key="idx" class="attachment-item-card is-pending">
+                <el-icon class="file-icon"><Document /></el-icon>
+                <div class="file-info">
+                  <div class="file-name">{{ att.fileName }}</div>
+                  <div class="file-meta">
+                    <span>{{ formatFileSize(att.fileSize) }}</span>
+                    <el-input
+                      v-model="att.description"
+                      size="small"
+                      placeholder="添加说明（可选）"
+                      class="desc-inline-input"
+                    />
+                  </div>
+                </div>
+                <el-button type="danger" link size="small" @click="removePendingAttachment(idx)">移除</el-button>
+              </div>
+            </div>
+            <div v-else class="attachment-empty-tip">可以在此处预选附件，保存题目时将自动联动上传</div>
+          </div>
+        </div>
       </el-form>
 
       <template #footer>
@@ -141,6 +208,24 @@
           <div v-if="previewTagNames.length" class="preview-tags">
             <el-tag v-for="tag in previewTagNames" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
           </div>
+
+          <!-- 附件与数据集展示 -->
+          <div v-if="previewProblem.attachments && previewProblem.attachments.length" class="preview-attachments-box">
+            <div class="preview-att-title">配套赛题附件与数据集（{{ previewProblem.attachments.length }}）</div>
+            <div class="preview-att-grid">
+              <div v-for="att in previewProblem.attachments" :key="att.id" class="preview-att-card">
+                <el-icon class="att-card-icon"><Document /></el-icon>
+                <div class="att-text">
+                  <div class="att-name" :title="att.fileName">{{ att.fileName }}</div>
+                  <div class="att-size">{{ formatFileSize(att.fileSize) }}</div>
+                </div>
+                <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="att-download-btn">
+                  下载
+                </a>
+              </div>
+            </div>
+          </div>
+
           <article v-if="renderedPreview" class="markdown-body problem-markdown" v-html="renderedPreview"></article>
           <el-empty v-else description="该题目尚未填写 Markdown 题面" />
         </template>
@@ -162,7 +247,7 @@ const formatTime = (val) => {
   });
 };
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Document, Plus, Upload } from '@element-plus/icons-vue';
 import { renderSafeMarkdown } from '@/utils/markdown';
 import {
   getAdminContentProblems,
@@ -170,6 +255,8 @@ import {
   createAdminContentProblem,
   updateAdminContentProblem,
   deleteAdminContentProblem,
+  uploadAdminAttachment,
+  deleteAdminAttachment,
   getAdminContentContests,
   getAdminContentTags,
 } from '@/api/problem';
@@ -196,6 +283,76 @@ const isEdit = ref(false);
 const editId = ref(null);
 const submitLoading = ref(false);
 const formRef = ref();
+const fileInputRef = ref(null);
+const uploadingAttachment = ref(false);
+const existingAttachments = ref([]);
+const pendingAttachments = ref([]);
+
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const triggerChooseFile = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileSelected = async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+
+  if (isEdit.value && editId.value) {
+    // 编辑模式：直接调用后端接口上传并挂载至已有题目
+    uploadingAttachment.value = true;
+    try {
+      for (const file of files) {
+        const res = await uploadAdminAttachment(editId.value, file);
+        if (res.code === 20000 && res.data) {
+          existingAttachments.value.push(res.data);
+        }
+      }
+      ElMessage.success('附件已上传并关联至该题目');
+    } catch (err) {
+      ElMessage.error(err.message || '附件上传失败');
+    } finally {
+      uploadingAttachment.value = false;
+      if (fileInputRef.value) fileInputRef.value.value = '';
+    }
+  } else {
+    // 新增模式：将待上传的 File 对象暂存在前端队列，保存题目时联动上传
+    for (const file of files) {
+      pendingAttachments.value.push({
+        file,
+        fileName: file.name,
+        fileSize: file.size,
+        description: '',
+      });
+    }
+    if (fileInputRef.value) fileInputRef.value.value = '';
+  }
+};
+
+const handleDeleteExistingAttachment = async (attachmentId) => {
+  try {
+    await ElMessageBox.confirm('确定要从该题目中删除此附件吗？存储对象将被一并清除。', '删除附件确认', {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    await deleteAdminAttachment(editId.value, attachmentId);
+    existingAttachments.value = existingAttachments.value.filter(a => a.id !== attachmentId);
+    ElMessage.success('附件已删除');
+  } catch (err) {
+    if (err !== 'cancel') ElMessage.error(err.message || '删除附件失败');
+  }
+};
+
+const removePendingAttachment = (index) => {
+  pendingAttachments.value.splice(index, 1);
+};
 
 const form = reactive({
   title: '',
@@ -254,6 +411,8 @@ const fetchList = async () => {
 const openCreateDialog = () => {
   isEdit.value = false;
   editId.value = null;
+  pendingAttachments.value = [];
+  existingAttachments.value = [];
   dialogVisible.value = true;
 };
 
@@ -292,6 +451,8 @@ const openEditDialog = async (row) => {
       form.difficulty = d.difficulty;
       form.status = d.status;
       form.tagIds = d.tagIds || [];
+      existingAttachments.value = d.attachments || [];
+      pendingAttachments.value = [];
     } else {
       ElMessage.error(res.msg || '获取题目详情失败');
       return;
@@ -331,6 +492,8 @@ const resetForm = () => {
   form.difficulty = 1;
   form.status = 0;
   form.tagIds = [];
+  pendingAttachments.value = [];
+  existingAttachments.value = [];
   formRef.value?.resetFields();
 };
 
@@ -357,8 +520,26 @@ const onSubmit = async () => {
       await updateAdminContentProblem(editId.value, payload);
       ElMessage.success('更新成功');
     } else {
-      await createAdminContentProblem(payload);
-      ElMessage.success('创建成功');
+      const createRes = await createAdminContentProblem(payload);
+      const newProblemId = createRes.data?.id;
+      if (newProblemId && pendingAttachments.value.length > 0) {
+        let uploadSuccessCount = 0;
+        for (let i = 0; i < pendingAttachments.value.length; i++) {
+          const att = pendingAttachments.value[i];
+          try {
+            await uploadAdminAttachment(newProblemId, att.file, {
+              description: att.description?.trim() || null,
+              sortOrder: i,
+            });
+            uploadSuccessCount++;
+          } catch (uploadErr) {
+            console.error(`附件 ${att.fileName} 联动上传失败:`, uploadErr);
+          }
+        }
+        ElMessage.success(`题目创建成功，已上传 ${uploadSuccessCount} 个配套附件`);
+      } else {
+        ElMessage.success('题目创建成功');
+      }
     }
     dialogVisible.value = false;
     fetchList();
@@ -413,4 +594,178 @@ onMounted(() => {
 .problem-markdown { min-height: 320px; padding: 28px 32px; color: #1f2937; background: #fff; border: 1px solid var(--lm-border); border-radius: 12px; }
 .problem-preview-drawer :deep(.el-drawer__header) { margin-bottom: 0; padding: 20px 24px; border-bottom: 1px solid var(--lm-border); }
 .problem-preview-drawer :deep(.el-drawer__body) { padding: 22px 24px 32px; background: #f8fafc; }
+
+/* 题目表单附件区段 */
+.problem-dialog-form {
+  max-height: 68vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.problem-dialog-form::-webkit-scrollbar {
+  width: 4px;
+}
+.problem-dialog-form::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.form-attachment-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lm-border-light);
+}
+.attachment-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.attachment-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lm-text-primary);
+  display: block;
+}
+.attachment-subtitle {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+  margin-top: 2px;
+  display: block;
+}
+.attachment-empty-tip {
+  padding: 14px;
+  text-align: center;
+  color: var(--lm-text-muted);
+  font-size: 12px;
+  background: #f8fafc;
+  border-radius: var(--lm-radius-sm);
+  border: 1px dashed var(--lm-border);
+}
+.attachment-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attachment-item-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fafafa;
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-sm);
+}
+.attachment-item-card.is-pending {
+  border-style: dashed;
+}
+.file-icon {
+  font-size: 18px;
+  color: var(--lm-primary);
+  flex-shrink: 0;
+}
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+.file-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--lm-text-muted);
+  margin-top: 2px;
+}
+.file-desc {
+  color: var(--lm-text-secondary);
+}
+.desc-inline-input {
+  max-width: 200px;
+}
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.action-btn.link {
+  font-size: 12px;
+  color: var(--lm-primary);
+  text-decoration: none;
+}
+.action-btn.link:hover {
+  text-decoration: underline;
+}
+
+/* 题目预览抽屉内附件卡片 */
+.preview-attachments-box {
+  margin-bottom: 18px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid var(--lm-border);
+  border-radius: 8px;
+}
+.preview-att-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lm-text-primary);
+  margin-bottom: 10px;
+}
+.preview-att-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.preview-att-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fafafa;
+  border: 1px solid var(--lm-border-light);
+  border-radius: var(--lm-radius-sm);
+}
+.att-card-icon {
+  font-size: 16px;
+  color: var(--lm-primary);
+  flex-shrink: 0;
+}
+.att-text {
+  flex: 1;
+  min-width: 0;
+}
+.att-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-size {
+  font-size: 10.5px;
+  color: var(--lm-text-muted);
+  margin-top: 1px;
+}
+.att-download-btn {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--lm-primary);
+  background: var(--lm-primary-bg);
+  border-radius: var(--lm-radius-sm);
+  text-decoration: none;
+  transition: all var(--lm-transition);
+}
+.att-download-btn:hover {
+  background: var(--lm-primary);
+  color: #ffffff;
+}
 </style>

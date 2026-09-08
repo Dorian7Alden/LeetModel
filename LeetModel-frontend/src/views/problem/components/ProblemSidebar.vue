@@ -90,8 +90,6 @@
         </div>
       </div>
 
-      <div class="sidebar-divider"></div>
-
       <!-- 5. 收藏栏 (用户点击收藏题目将会加入到这里面来) -->
       <div
         class="sidebar-nav-item fav-item"
@@ -103,6 +101,9 @@
         <span class="item-text">收藏</span>
         <span v-if="favCount > 0" class="fav-badge"><span class="fav-badge-value">{{ favCount }}</span></span>
       </div>
+
+      <!-- <div class="sidebar-divider"></div> -->
+
     </div>
 
     <!-- 右侧垂直分割线与悬浮圆形折叠按钮 (悬浮显示小圆钮，一键折叠到最小/恢复最宽) -->

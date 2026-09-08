@@ -193,6 +193,18 @@ const formatFileSize = (bytes) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
+const prepareMarkdownImages = (html) => {
+  if (typeof document === 'undefined') return html
+  const container = document.createElement('div')
+  container.innerHTML = html
+  container.querySelectorAll('img').forEach((image) => {
+    // Gitee 图床会拒绝带本地 Referer 的嵌入请求；不泄露页面地址即可正常加载。
+    image.setAttribute('referrerpolicy', 'no-referrer')
+    image.setAttribute('loading', 'lazy')
+    image.setAttribute('decoding', 'async')
+  })
+  return container.innerHTML
+}
 const renderedMarkdown = computed(() => {
   if (!problem.value?.contentMarkdown) return ''
   const html = marked.parse(problem.value.contentMarkdown, {
@@ -200,7 +212,7 @@ const renderedMarkdown = computed(() => {
     breaks: true,
     gfm: true,
   })
-  return DOMPurify.sanitize(html)
+  return prepareMarkdownImages(DOMPurify.sanitize(html))
 })
 const createProblemTeam = () => { showCreateDialog.value = true }
 const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
@@ -398,6 +410,17 @@ onMounted(fetchDetail)
 .markdown-body :deep(strong),
 .markdown-body :deep(b) {
   font-weight: 800;
+}
+
+.markdown-body :deep(table) {
+  margin: 1.5rem auto;
+  text-align: center;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  text-align: center;
+  vertical-align: middle;
 }
 
 /* 附件卡片 */
