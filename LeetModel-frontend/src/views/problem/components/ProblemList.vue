@@ -1,60 +1,71 @@
 <template>
-  <section class="problem-list" v-loading="initialLoading">
+  <section
+    class="problem-list"
+    :class="{ 'is-grouped-by-year': groupByYear, 'is-contest-list': !showContest }"
+    v-loading="initialLoading"
+  >
     <div v-if="displayedProblems.length" class="list-table">
-      <button v-for="(item, index) in displayedProblems" :key="item.id" class="problem-row" @click="navigateToDetail(item.id)">
-        <div class="problem-entities">
-          <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ item.code ?? (index + 1) }}</span>
-          <div class="problem-main">
-            <el-tooltip :content="item.title" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
-              <h3>{{ item.title }}</h3>
-            </el-tooltip>
-          </div>
-          <div class="problem-cell contest-cell">
-            <el-tooltip :content="item.contestName || '未分类赛事'" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
-              <span class="contest-name">{{ contestLabel(item.contestName) }}</span>
-            </el-tooltip>
-          </div>
-          <div class="problem-tags">
-            <span v-for="tag in visibleTags(item)" :key="`${tag.type}-${tag.name}`" class="problem-tag" :title="tag.name">
-              {{ tag.name }}
-            </span>
-          </div>
+      <template v-for="(item, index) in displayedProblems" :key="item.id">
+        <div v-if="shouldRenderYearRow(item, index)" class="year-group-row">
+          <span class="year-group-line"></span>
+          <span class="year-group-label">{{ yearLabel(item) }}</span>
+          <span class="year-group-line"></span>
         </div>
-        <div class="problem-meta">
-          <span class="problem-cell year-value">{{ item.year || '—' }}</span>
-          <span class="problem-cell difficulty-value" :class="difficultyClass(item.difficulty)">{{ difficultyLabel(item.difficulty) }}</span>
-          <el-tooltip content="平均分" placement="top" effect="light" popper-class="problem-tooltip" :show-after="150">
-            <div class="problem-cell average-score" aria-label="平均分"><strong>{{ formatScore(item.averageScore) }}</strong></div>
-          </el-tooltip>
 
-          <el-tooltip
-            :content="userStore.isLogin ? '参与练习人数' : '登录后查看参与练习人数'"
-            placement="top"
-            effect="light"
-            popper-class="problem-tooltip"
-            :show-after="150"
-          >
-            <div class="problem-cell practice-count" aria-label="参与练习人数">
-              <template v-if="userStore.isLogin">
-                {{ item.practiceCount ?? item.practiceUserCount ?? item.teamsCount ?? 0 }}
-              </template>
-              <el-icon v-else><Lock /></el-icon>
+        <button class="problem-row" @click="navigateToDetail(item.id)">
+          <div class="problem-entities">
+            <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ item.code ?? (index + 1) }}</span>
+            <div class="problem-main">
+              <el-tooltip :content="item.title" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
+                <h3>{{ item.title }}</h3>
+              </el-tooltip>
             </div>
-          </el-tooltip>
+            <div v-if="showContest" class="problem-cell contest-cell">
+              <el-tooltip :content="item.contestName || '未分类赛事'" placement="top" effect="light" popper-class="problem-tooltip" :show-after="250">
+                <span class="contest-name">{{ contestLabel(item.contestName) }}</span>
+              </el-tooltip>
+            </div>
+            <div class="problem-tags">
+              <span v-for="tag in visibleTags(item)" :key="`${tag.type}-${tag.name}`" class="problem-tag" :title="tag.name">
+                {{ tag.name }}
+              </span>
+            </div>
+          </div>
+          <div class="problem-meta">
+            <span v-if="!groupByYear" class="problem-cell year-value">{{ item.year || '—' }}</span>
+            <span class="problem-cell difficulty-value" :class="difficultyClass(item.difficulty)">{{ difficultyLabel(item.difficulty) }}</span>
+            <el-tooltip content="平均分" placement="top" effect="light" popper-class="problem-tooltip" :show-after="150">
+              <div class="problem-cell average-score" aria-label="平均分"><strong>{{ formatScore(item.averageScore) }}</strong></div>
+            </el-tooltip>
 
-          <!-- 收藏星星操作 -->
-          <button
-            type="button"
-            class="fav-star-btn"
-            :class="{ active: isFavorited(item.id) }"
-            :title="isFavorited(item.id) ? '已收藏，点击取消' : '收藏此题'"
-            @click.stop="toggleFavorite(item.id)"
-          >
-            <el-icon><StarFilled v-if="isFavorited(item.id)" /><Star v-else /></el-icon>
-          </button>
-        </div>
+            <el-tooltip
+              :content="userStore.isLogin ? '参与练习人数' : '登录后查看参与练习人数'"
+              placement="top"
+              effect="light"
+              popper-class="problem-tooltip"
+              :show-after="150"
+            >
+              <div class="problem-cell practice-count" aria-label="参与练习人数">
+                <template v-if="userStore.isLogin">
+                  {{ item.practiceCount ?? item.practiceUserCount ?? item.teamsCount ?? 0 }}
+                </template>
+                <el-icon v-else><Lock /></el-icon>
+              </div>
+            </el-tooltip>
 
-      </button>
+            <!-- 收藏星星操作 -->
+            <button
+              type="button"
+              class="fav-star-btn"
+              :class="{ active: isFavorited(item.id) }"
+              :title="isFavorited(item.id) ? '已收藏，点击取消' : '收藏此题'"
+              @click.stop="toggleFavorite(item.id)"
+            >
+              <el-icon><StarFilled v-if="isFavorited(item.id)" /><Star v-else /></el-icon>
+            </button>
+          </div>
+        </button>
+      </template>
 
       <!-- 底部流式懒加载锚点与状态提示 (彻底废弃分页栏) -->
       <div ref="sentinelRef" class="feed-footer">
@@ -79,7 +90,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Loading, Lock, Star, StarFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -87,7 +98,10 @@ import { getPublicProblemList } from '@/api/problem'
 import { useUserStore } from '@/store/user'
 
 const props = defineProps({
-  tags: { type: Array, default: () => [] }
+  tags: { type: Array, default: () => [] },
+  initialQuery: { type: Object, default: () => ({}) },
+  groupByYear: { type: Boolean, default: false },
+  showContest: { type: Boolean, default: true },
 })
 
 const route = useRoute()
@@ -95,7 +109,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const problems = ref([])
-const emit = defineEmits(['fav-change', 'total-change'])
+const emit = defineEmits(['fav-change', 'total-change', 'loaded'])
 const navigateToDetail = (problemId) => {
   router.push({
     path: `/problem/${problemId}`,
@@ -113,13 +127,17 @@ const sortBy = ref('')
 const sortOrder = ref('')
 const sentinelRef = ref(null)
 let observer = null
+let observedSentinel = null
 const displayMode = ref('all') // 'all' | 'favorite' | 'in_progress' | 'completed'
 const specialIds = ref([])
+
+const groupByYear = computed(() => props.groupByYear)
+const showContest = computed(() => props.showContest)
 
 // 本地收藏题目状态
 const favoritedIds = ref(JSON.parse(localStorage.getItem('lm_fav_problems') || '[]'))
 
-const displayedProblems = computed(() => {
+const filteredProblems = computed(() => {
   if (displayMode.value === 'favorite') {
     return problems.value.filter(p => isFavorited(p.id))
   }
@@ -129,6 +147,35 @@ const displayedProblems = computed(() => {
   }
   return problems.value
 })
+
+const compareSortValue = (left, right, field) => {
+  if (field === 'code') {
+    return String(left.code ?? '').localeCompare(String(right.code ?? ''), 'zh-Hans', { numeric: true })
+  }
+  const leftValue = Number(left[field])
+  const rightValue = Number(right[field])
+  const leftNumber = Number.isFinite(leftValue) ? leftValue : 0
+  const rightNumber = Number.isFinite(rightValue) ? rightValue : 0
+  return leftNumber - rightNumber
+}
+
+const sortWithinYearGroups = (rows) => {
+  if (!groupByYear.value || !sortBy.value || sortBy.value === 'year') return rows
+
+  const groups = new Map()
+  for (const row of rows) {
+    const key = yearLabel(row)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(row)
+  }
+
+  const direction = sortOrder.value === 'asc' ? 1 : -1
+  return Array.from(groups.values()).flatMap((group) => (
+    group.sort((left, right) => compareSortValue(left, right, sortBy.value) * direction)
+  ))
+}
+
+const displayedProblems = computed(() => sortWithinYearGroups(filteredProblems.value))
 
 const emptyText = computed(() => {
   if (displayMode.value === 'favorite') return '暂无收藏题目，可点击题目右侧小星星加入收藏'
@@ -168,6 +215,12 @@ const contestLabel = (name) => {
   if (/全国大学生数学建模竞赛|国赛|cumcm/i.test(name)) return 'CUMCM'
   return name.length > 10 ? `${name.slice(0, 10)}…` : name
 }
+const yearLabel = (problem) => problem.year || '未标注年份'
+const shouldRenderYearRow = (problem, index) => {
+  if (!groupByYear.value) return false
+  if (index === 0) return true
+  return yearLabel(problem) !== yearLabel(displayedProblems.value[index - 1])
+}
 
 const fetchProblems = async (isLoadMore = false) => {
   if (isLoadMore) {
@@ -177,11 +230,16 @@ const fetchProblems = async (isLoadMore = false) => {
   }
 
   try {
+    const sortParams = groupByYear.value
+      ? { sortBy: 'year', sortOrder: 'desc' }
+      : sortBy.value
+        ? { sortBy: sortBy.value, sortOrder: sortOrder.value }
+        : {}
     const response = await getPublicProblemList({
       page: page.value,
       pageSize: pageSize.value,
       ...query.value,
-      ...(sortBy.value ? { sortBy: sortBy.value, sortOrder: sortOrder.value } : {})
+      ...sortParams,
     })
     const rows = response.data?.rows || []
     total.value = response.data?.total || 0
@@ -191,23 +249,31 @@ const fetchProblems = async (isLoadMore = false) => {
     } else {
       problems.value = rows
     }
+    emit('loaded', { problems: problems.value, total: total.value })
+    return true
   } catch (error) {
+    if (isLoadMore) {
+      // 保留失败页码，用户再次触发时重试同一页，避免跳过题目。
+      page.value = Math.max(1, page.value - 1)
+    }
     if (!isLoadMore) {
       problems.value = []
       total.value = 0
       emit('total-change', 0)
+      emit('loaded', { problems: [], total: 0 })
     }
     ElMessage.error(error.message || '获取题目列表失败')
+    return false
   } finally {
     initialLoading.value = false
     loadingMore.value = false
   }
 }
 
-const loadMore = () => {
+const loadMore = async () => {
   if (loadingMore.value || initialLoading.value || problems.value.length >= total.value) return
   page.value++
-  fetchProblems(true)
+  await fetchProblems(true)
 }
 
 const updateQuery = (params) => {
@@ -242,8 +308,16 @@ const clearSort = () => {
   fetchProblems(false)
 }
 
+// 首次请求完成后列表才会渲染锚点；监听模板 ref，确保观察器不会因过早绑定而失效。
+const observeSentinel = () => {
+  if (!observer || observedSentinel === sentinelRef.value) return
+  if (observedSentinel) observer.unobserve(observedSentinel)
+  observedSentinel = sentinelRef.value
+  if (observedSentinel) observer.observe(observedSentinel)
+}
+
 onMounted(() => {
-  fetchProblems(false)
+  query.value = { ...props.initialQuery }
   emit('fav-change', favoritedIds.value.length)
   if (typeof IntersectionObserver !== 'undefined') {
     observer = new IntersectionObserver((entries) => {
@@ -251,13 +325,17 @@ onMounted(() => {
       if (entry && entry.isIntersecting && problems.value.length < total.value && !loadingMore.value && !initialLoading.value) {
         loadMore()
       }
-    }, { rootMargin: '100px' })
-    if (sentinelRef.value) observer.observe(sentinelRef.value)
+    }, { rootMargin: '0px 0px 360px 0px' })
+    observeSentinel()
   }
+  fetchProblems(false)
 })
+
+watch(sentinelRef, observeSentinel, { flush: 'post' })
 
 onUnmounted(() => {
   if (observer) observer.disconnect()
+  observedSentinel = null
 })
 
 defineExpose({
@@ -265,6 +343,7 @@ defineExpose({
   setDisplayMode,
   cycleSort,
   clearSort,
+  problems,
   getFavoritedIds: () => favoritedIds.value
 })
 </script>
@@ -272,6 +351,19 @@ defineExpose({
 <style scoped>
 .problem-list { min-height: 320px; }
 .list-table { overflow: visible; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.year-group-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0 8px;
+  color: var(--lm-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.year-group-row:first-child { padding-top: 4px; }
+.year-group-line { height: 1px; flex: 1; background: var(--lm-border); }
+.year-group-label { flex: 0 0 auto; color: var(--lm-text-primary); font-family: var(--lm-code-font-family); letter-spacing: 0.04em; }
 .problem-row {
   --problem-row-grid: 16px;
   --problem-row-minor-gap: var(--problem-row-grid);
@@ -292,9 +384,11 @@ defineExpose({
   min-width: 0;
   flex: 0 1 auto;
 }
+.problem-list.is-contest-list .problem-entities { grid-template-columns: 28px 200px minmax(56px, max-content); }
+.problem-list.is-contest-list .contest-cell { display: none; }
 .problem-main { min-width: 0; max-width: 200px; }
 .problem-main h3 { margin: 0; overflow: hidden; color: var(--lm-text-primary); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.row-index { display: block; width: 28px; color: #18181b; font-size: 11px; font-weight: 500; letter-spacing: 0; text-align: center; }
+.row-index { display: block; width: 28px; color: #18181b; font-size: 11px; font-weight: 500; letter-spacing: 0; text-align: left; }
 .problem-cell { min-width: 0; }
 .contest-cell { display: flex; width: 80px; align-items: center; justify-content: center; overflow: hidden; }
 .contest-name { display: block; width: 100%; overflow: hidden; color: var(--lm-text-secondary); font-size: 11px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
@@ -337,6 +431,7 @@ defineExpose({
   margin-left: auto;
   flex: 0 0 auto;
 }
+.problem-list.is-grouped-by-year .problem-meta { grid-template-columns: repeat(4, var(--problem-row-meta-unit)); }
 .year-value { width: 100%; text-align: center; color: var(--lm-text-secondary); font-size: 12px; }
 .difficulty-value { width: 100%; font-size: 13px; text-align: center; }
 .difficulty-easy { color: #13a8a8; }
@@ -417,12 +512,15 @@ defineExpose({
   .problem-main { max-width: none; }
   .contest-cell { width: 90px; }
   .problem-meta { grid-template-columns: 58px 32px; gap: 12px; margin-left: 0; }
+  .problem-list.is-grouped-by-year .problem-meta { grid-template-columns: 58px 32px; }
   .difficulty-value, .year-value, .problem-tags { display: none; }
 }
 @media (max-width: 760px) { .pagination-wrap { flex-wrap: wrap; gap: 10px 14px; } }
 @media (max-width: 600px) {
   .problem-entities { grid-template-columns: 28px minmax(0, 1fr); }
   .problem-meta { grid-template-columns: 52px 18px; gap: 4px; }
+  .problem-list.is-grouped-by-year .problem-meta { grid-template-columns: 52px 18px; }
   .contest-cell { display: none; }
+  .year-group-row { padding-right: 0; padding-left: 0; }
 }
 </style>

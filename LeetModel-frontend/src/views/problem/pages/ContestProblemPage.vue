@@ -1,5 +1,5 @@
 <template>
-  <div class="contest-problem-page" v-loading="loading">
+  <div class="contest-problem-page">
     <!-- 顶部面包屑与返回栏 -->
     <div class="page-top-nav">
       <button type="button" class="back-link-btn" @click="goBack">
@@ -12,175 +12,116 @@
 
     <!-- 双栏主布局 (左边赛事档案与统计 + 右边题目列表) -->
     <div class="contest-two-col-layout">
-      <!-- 左边栏 (32% 宽度): 赛事学术档案、规则与数据大屏 -->
+      <!-- 左边栏: 赛事学术档案与官方规约看板 -->
       <aside class="contest-left-sidebar">
         <div class="contest-profile-card">
+          <!-- 1. 顶部代码徽标与官方外链 -->
           <div class="profile-header">
-            <span class="contest-flag-badge">{{ contestInfo.code }}</span>
-            <span class="contest-heat-tag">{{ contestInfo.heatTag }}</span>
+            <span class="contest-code-badge">{{ formattedCode }}</span>
+            <a
+              v-if="contestInfo.officialUrl"
+              :href="contestInfo.officialUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="official-portal-link"
+              title="前往组委会官方网站"
+            >
+              <span>赛事官网</span>
+              <el-icon><TopRight /></el-icon>
+            </a>
           </div>
-          <h1 class="contest-name">{{ contestInfo.name }}</h1>
-          <p class="contest-description">{{ contestInfo.description }}</p>
-          
-          <div class="contest-rules-list">
-            <div class="rule-item">
-              <el-icon><Calendar /></el-icon>
-              <span>{{ contestInfo.scheduleTime }}</span>
-            </div>
-            <div class="rule-item">
-              <el-icon><User /></el-icon>
-              <span>{{ contestInfo.teamSpec }}</span>
-            </div>
-            <div class="rule-item">
-              <el-icon><Document /></el-icon>
-              <span>{{ contestInfo.deliverable }}</span>
+
+          <!-- 2. 赛事中英文官方全称 -->
+          <div class="profile-title-group">
+            <h1 class="contest-name">{{ contestInfo.name }}</h1>
+            <p v-if="contestInfo.englishName" class="contest-english-name">{{ contestInfo.englishName }}</p>
+          </div>
+
+          <!-- 3. 官方赛制核心规约 -->
+          <div class="contest-rules-panel">
+            <div class="panel-section-title">官方赛制规约</div>
+            <div class="rules-spec-list">
+              <div class="spec-row">
+                <el-icon class="spec-icon"><Calendar /></el-icon>
+                <span class="spec-label">赛程时限</span>
+                <span class="spec-value">{{ contestInfo.scheduleDesc || '赛前统一公布' }}</span>
+              </div>
+              <div class="spec-row">
+                <el-icon class="spec-icon"><User /></el-icon>
+                <span class="spec-label">队伍规程</span>
+                <span class="spec-value">{{ contestInfo.teamRules || '以官方报名简章为准' }}</span>
+              </div>
+              <div class="spec-row">
+                <el-icon class="spec-icon"><Document /></el-icon>
+                <span class="spec-label">成果交付</span>
+                <span class="spec-value">{{ contestInfo.submissionSpec || '学术论文与支撑材料' }}</span>
+              </div>
+              <div class="spec-row">
+                <el-icon class="spec-icon"><Compass /></el-icon>
+                <span class="spec-label">赛题范式</span>
+                <span class="spec-value">{{ contestInfo.problemSpec || '综合性数学建模赛题' }}</span>
+              </div>
             </div>
           </div>
 
-          <!-- 核心实训数据统计 -->
-          <div class="contest-stats-grid">
-            <div class="stat-cell">
-              <div class="stat-num">{{ total }} 道</div>
-              <div class="stat-label">收录真题</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-num">{{ contestInfo.participantTotal }}</div>
-              <div class="stat-label">演练热度</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-num">{{ contestInfo.avgScore }} 分</div>
-              <div class="stat-label">历史平均分</div>
-            </div>
-            <div class="stat-cell">
-              <div class="stat-num">每年 ~5 题</div>
-              <div class="stat-label">更新频次</div>
+          <!-- 4. 平台真实收录指标 -->
+          <div class="contest-metrics-panel">
+            <div class="panel-section-title">平台实训真题</div>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-num">
+                  {{ problemTotal }}
+                  <span class="metric-unit">道</span>
+                </div>
+                <div class="metric-label">收录真题</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-num">{{ yearSpan }}</div>
+                <div class="metric-label">真题年份覆盖</div>
+              </div>
             </div>
           </div>
 
-          <!-- 历年分数段分布可视化看板 -->
-          <div class="score-distribution-panel">
-            <div class="dist-title">全真模拟分数段对标</div>
-            <div class="dist-bars">
-              <div class="dist-bar-row">
-                <span class="dist-label">90+ 分 (国一/国二区)</span>
-                <div class="dist-track"><div class="dist-fill tier-1" style="width: 15%;"></div></div>
-                <span class="dist-val">15%</span>
-              </div>
-              <div class="dist-bar-row">
-                <span class="dist-label">80~89 分 (省一/省二区)</span>
-                <div class="dist-track"><div class="dist-fill tier-2" style="width: 42%;"></div></div>
-                <span class="dist-val">42%</span>
-              </div>
-              <div class="dist-bar-row">
-                <span class="dist-label">60~79 分 (成功参赛区)</span>
-                <div class="dist-track"><div class="dist-fill tier-3" style="width: 35%;"></div></div>
-                <span class="dist-val">35%</span>
-              </div>
-              <div class="dist-bar-row">
-                <span class="dist-label">60分以下 (格式需排雷)</span>
-                <div class="dist-track"><div class="dist-fill tier-4" style="width: 8%;"></div></div>
-                <span class="dist-val">8%</span>
-              </div>
+          <!-- 5. 常见考查领域与题型 -->
+          <div v-if="focusTags.length" class="contest-topics-panel">
+            <div class="panel-section-title">常见考查方向</div>
+            <div class="topics-tags-cloud">
+              <span v-for="tag in focusTags" :key="tag" class="topic-pill">{{ tag }}</span>
             </div>
+          </div>
+
+          <!-- 6. 赛事权威客观概况 -->
+          <div v-if="contestInfo.description" class="contest-desc-panel">
+            <div class="panel-section-title">赛事概况</div>
+            <p class="contest-desc-text">{{ contestInfo.description }}</p>
           </div>
         </div>
       </aside>
 
       <!-- 右边栏 (68% 宽度): 按最新年份倒序排布的题目列表 -->
       <main class="contest-right-main">
-        <div class="contest-main-card">
-          <!-- 顶部工具栏: 年份倒序说明 + 紧凑过滤胶囊 -->
-          <div class="contest-feed-header">
-            <div class="feed-header-left">
-              <h2>历年精选题单</h2>
-              <span class="feed-subtitle">按最新年份倒序排布 · 近年真题最具参考价值</span>
-            </div>
-            <div class="feed-header-actions">
-              <!-- 难度胶囊筛选 -->
-              <el-select
-                v-model="filterDifficulty"
-                placeholder="难度"
-                clearable
-                class="feed-select select-diff"
-                @change="fetchContestProblems(false)"
-              >
-                <el-option label="全部难度" :value="null" />
-                <el-option label="简单" :value="1" />
-                <el-option label="中等" :value="2" />
-                <el-option label="困难" :value="3" />
-              </el-select>
-
-              <!-- 题型胶囊筛选 -->
-              <el-select
-                v-model="filterProblemType"
-                placeholder="题目类型"
-                clearable
-                class="feed-select select-type"
-                @change="fetchContestProblems(false)"
-              >
-                <el-option label="全部题型" :value="null" />
-                <el-option v-for="tag in problemTypeTags" :key="tag.id" :label="tag.name" :value="tag.id" />
-              </el-select>
-            </div>
-          </div>
-
-          <!-- 题目数据表格 -->
-          <div v-if="problems.length" class="contest-problem-table">
-            <div class="table-head">
-              <span>题目</span>
-              <span>标签 / 模型</span>
-              <span class="col-center">年份</span>
-              <span class="col-center">语言</span>
-              <span class="col-center">难度</span>
-              <span class="col-center">平均分</span>
-              <span></span>
-            </div>
-            <button
-              v-for="(item, index) in problems"
-              :key="item.id"
-              class="problem-row"
-              @click="navigateToProblem(item.id)"
-            >
-              <div class="problem-main">
-                <h3 :title="item.title">
-                  <span class="row-index" :title="`题号 ${item.code ?? (index + 1)}`">{{ String(item.code ?? (index + 1)).padStart(2, '0') }}</span>
-                  {{ item.title }}
-                </h3>
-              </div>
-              <div class="problem-tags">
-                <span v-for="tag in item.tagNames?.slice(0, 3)" :key="tag" class="problem-tag" :title="tag">{{ tag }}</span>
-              </div>
-              <span class="col-center text-muted">{{ item.year || '—' }}</span>
-              <span class="col-center text-muted">{{ item.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
-              <div class="col-center">
-                <el-tag :type="difficultyType(item.difficulty)" size="small" effect="plain">{{ difficultyLabel(item.difficulty) }}</el-tag>
-              </div>
-              <div class="col-center average-score">
-                <strong>{{ formatScore(item.averageScore) }}</strong>
-              </div>
-              <el-icon class="row-arrow"><ArrowRight /></el-icon>
-            </button>
-
-            <!-- 底部流式加载状态 -->
-            <div class="feed-footer">
-              <div v-if="loadingMore" class="loading-more">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>正在加载更多年份真题...</span>
-              </div>
-              <div v-else-if="problems.length < total" class="load-more-wrap">
-                <button type="button" class="load-more-btn" @click="loadMore">
-                  <span>加载更多真题 (已展示 {{ problems.length }} / 共 {{ total }} 题)</span>
-                  <el-icon><ArrowDown /></el-icon>
-                </button>
-              </div>
-              <div v-else class="all-loaded">
-                <span>— 已展示该赛事全部 {{ total }} 道真题 —</span>
-              </div>
-            </div>
-          </div>
-
-          <el-empty v-else-if="!loading" description="该赛事下暂无符合筛选条件的题目" />
-        </div>
+        <ProblemHeader
+          :contests="allContests"
+          :tags="allTags"
+          :total="problemTotal"
+          :random-loading="randomLoading"
+          :show-contest-cards="false"
+          :show-advanced-filters="false"
+          :hide-year-sort="true"
+          :fixed-contest-id="contestId"
+          @change="handleSearch"
+          @random="handleRandom"
+          @sort="handleSort"
+        />
+        <ProblemList
+          ref="listRef"
+          :tags="allTags"
+          :initial-query="contestQuery"
+          :group-by-year="true"
+          :show-contest="false"
+          @total-change="handleTotalChange"
+          @loaded="handleProblemsLoaded"
+        />
       </main>
     </div>
   </div>
@@ -189,132 +130,112 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, ArrowLeft, ArrowRight, Calendar, Document, Loading, User } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  Calendar,
+  Compass,
+  Document,
+  TopRight,
+  User
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getPublicProblemFilterOptions, getPublicProblemList } from '@/api/problem'
+import { getPublicProblemFilterOptions, getRandomPublicProblem } from '@/api/problem'
+import ProblemHeader from '../components/ProblemHeader.vue'
+import ProblemList from '../components/ProblemList.vue'
 
 const route = useRoute()
 const router = useRouter()
 const contestId = computed(() => Number(route.params.contestId))
 
-const loading = ref(false)
-const loadingMore = ref(false)
-const problems = ref([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
-
-const filterDifficulty = ref(null)
-const filterProblemType = ref(null)
 const allContests = ref([])
 const allTags = ref([])
+const problemTotal = ref(0)
+const loadedProblems = ref([])
+const randomLoading = ref(false)
+const listRef = ref(null)
 const workbench = inject('problemWorkbench', null)
 
-const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
-const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
-const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '-'
+const contestQuery = computed(() => {
+  const query = { contestId: contestId.value }
+  if (route.query.keyword) query.keyword = String(route.query.keyword)
+  return query
+})
 
-const problemTypeTags = computed(() => allTags.value.filter(t => t.type === 'PROBLEM_TYPE'))
-
-// 赛事详细档案模型
+// 赛事详细档案模型：直接消费后端扩展字段与真实数据，辅以平滑兜底
 const contestInfo = computed(() => {
   const raw = allContests.value.find(c => c.id === contestId.value)
   if (!raw) {
     return {
       code: 'CONTEST',
       name: '数学建模竞赛',
-      description: '综合性学术数学建模竞赛，三人成团，限时完成假设、建模、求解与长篇论文撰写。',
-      heatTag: '🔥 热门备战赛事',
-      scheduleTime: '每年定期举行 · 3天3夜全真模拟',
-      teamSpec: '三人小队 · 建模/编程/论文三职责',
-      deliverable: '20~30 页完整 PDF 学术论文',
-      participantTotal: '10w+ 人',
-      avgScore: '81.5'
+      englishName: '',
+      scheduleDesc: '赛前由组委会统一公布',
+      teamRules: '以官方报名简章为准',
+      submissionSpec: '学术论文与支撑材料',
+      problemSpec: '涵盖机理推导、运筹优化与数据分析等大类',
+      description: '数学建模竞赛通过三人小队限时协同，完成实际问题的假设、机理建模、数值求解与长篇学术论文撰写。',
+      officialUrl: null
     }
-  }
-  
-  let code = 'CUMCM'
-  let description = '全国大学生数学建模竞赛是中国高校规模最大、最具公信力的基础学科赛事。每年命制 5 道经典赛题（A~E 题），重点考察机理推导、运筹优化与学术论文规范性。'
-  let heatTag = '🔥 15w+ 人在练 · 顶尖热度'
-  let scheduleTime = '每年 9 月上旬 · 72 小时极限实训'
-  let teamSpec = '三人小队 · 建模手/编程手/论文手'
-  let deliverable = '20~30 页 PDF 论文（含摘要与附录代码）'
-  let participantTotal = '15.2w 人'
-  let avgScore = '81.2'
-
-  if (raw.name.includes('美国') || raw.name.toLowerCase().includes('mcm')) {
-    code = 'MCM/ICM'
-    description = '美国大学生数学建模竞赛是全球规模最大的国际性数模赛事。涵盖连续型、离散型、大数据、环境科学等 6 大赛题，全英文命题与英文论文撰写。'
-    heatTag = '🔥 8.6w+ 人在练 · 国际赛事'
-    scheduleTime = '每年 2 月中旬 · 96 小时跨学科实战'
-    deliverable = '全英文学术论文（PDF 格式）'
-    participantTotal = '8.6w 人'
-    avgScore = '83.4'
-  } else if (raw.name.includes('力模')) {
-    code = 'LEETMODEL'
-    description = 'LeetModel 平台官方常态化实训模拟赛，紧跟命题前沿，支持随时开赛、全自动双阶段 AI 深度体检与改写建议。'
-    heatTag = '⭐ 3.4w+ 人在练 · 官方实训'
-    scheduleTime = '常态化开放 · 随时自选时限开赛'
-    participantTotal = '3.4w 人'
-    avgScore = '79.6'
   }
 
   return {
     ...raw,
-    code,
-    description,
-    heatTag,
-    scheduleTime,
-    teamSpec,
-    deliverable,
-    participantTotal,
-    avgScore
+    englishName: raw.englishName || '',
+    scheduleDesc: raw.scheduleDesc || '赛前由组委会统一公布',
+    teamRules: raw.teamRules || '以官方报名简章为准',
+    submissionSpec: raw.submissionSpec || '学术论文与支撑材料',
+    problemSpec: raw.problemSpec || '涵盖机理推导、运筹优化与数据分析等大类',
+    description: raw.description || '',
+    officialUrl: raw.officialUrl || null
   }
 })
 
-const fetchContestProblems = async (isLoadMore = false) => {
-  if (isLoadMore) {
-    loadingMore.value = true
-  } else {
-    loading.value = true
-    page.value = 1
-  }
+// 规范化赛事编码展示
+const formattedCode = computed(() => {
+  const rawCode = contestInfo.value.code || ''
+  if (rawCode === 'MCM_ICM') return 'MCM / ICM'
+  if (rawCode === 'LM') return 'LEETMODEL'
+  return rawCode.toUpperCase()
+})
 
-  try {
-    const params = {
-      contestId: contestId.value,
-      page: page.value,
-      pageSize: pageSize.value,
-      sortBy: 'year',
-      sortOrder: 'desc' // 严格最新年份倒序排布
-    }
-    if (filterDifficulty.value != null && filterDifficulty.value !== '') {
-      params.difficulty = filterDifficulty.value
-    }
-    if (filterProblemType.value != null && filterProblemType.value !== '') {
-      params.tagIds = [filterProblemType.value]
-    }
-    const response = await getPublicProblemList(params)
-    const rows = response.data?.rows || []
-    total.value = response.data?.total || 0
-    if (isLoadMore) {
-      problems.value.push(...rows)
-    } else {
-      problems.value = rows
-    }
-  } catch (err) {
-    ElMessage.error(err.message || '获取赛事题目失败')
-  } finally {
-    loading.value = false
-    loadingMore.value = false
-  }
-}
+// 真实年份跨度计算（根据已收录题目动态计算）
+const yearSpan = computed(() => {
+  const years = loadedProblems.value
+    .map(p => Number(p.year))
+    .filter(y => Number.isInteger(y) && y > 0)
+  if (!years.length) return '—'
+  const minYear = Math.min(...years)
+  const maxYear = Math.max(...years)
+  return minYear === maxYear ? `${minYear} 年` : `${minYear} – ${maxYear}`
+})
 
-const loadMore = () => {
-  if (loadingMore.value || loading.value || problems.value.length >= total.value) return
-  page.value++
-  fetchContestProblems(true)
-}
+// 模型与算法类型标签名称集合（严格限制 MODEL_ALGORITHM）
+const modelAlgoTagNames = computed(() => {
+  return new Set(
+    allTags.value
+      .filter(t => t.type === 'MODEL_ALGORITHM')
+      .map(t => t.name)
+  )
+})
+
+// 常见考查方向（仅统计 MODEL_ALGORITHM 类型标签，按出现频次降序排列）
+const focusTags = computed(() => {
+  const algoSet = modelAlgoTagNames.value
+  const countMap = {}
+  for (const p of loadedProblems.value) {
+    if (Array.isArray(p.tagNames)) {
+      for (const t of p.tagNames) {
+        if (t && typeof t === 'string' && algoSet.has(t.trim())) {
+          const name = t.trim()
+          countMap[name] = (countMap[name] || 0) + 1
+        }
+      }
+    }
+  }
+  return Object.entries(countMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name)
+})
 
 const goBack = () => {
   if (window.history.state && window.history.state.back) {
@@ -324,11 +245,60 @@ const goBack = () => {
   }
 }
 
-const navigateToProblem = (problemId) => {
-  router.push({
-    path: `/problem/${problemId}`,
-    query: route.query
-  })
+const handleTotalChange = (value) => {
+  problemTotal.value = Number(value) || 0
+}
+
+const handleProblemsLoaded = ({ problems, total }) => {
+  loadedProblems.value = Array.isArray(problems) ? problems : []
+  if (typeof total === 'number') {
+    problemTotal.value = total
+  }
+}
+
+const handleSearch = (params) => {
+  listRef.value?.updateQuery({ ...params, contestId: contestId.value })
+  const nextQuery = {}
+  if (params.keyword?.trim()) nextQuery.keyword = params.keyword.trim()
+  router.replace({ query: nextQuery })
+}
+
+const handleSort = (field) => {
+  if (field === 'clear') {
+    listRef.value?.clearSort()
+    return
+  }
+  listRef.value?.cycleSort(field)
+}
+
+const handleRandom = async (params = {}) => {
+  const currentContestId = Number(contestId.value)
+  if (!Number.isInteger(currentContestId) || currentContestId <= 0) {
+    ElMessage.error('当前赛事无效，暂时无法随机抽题')
+    return
+  }
+
+  randomLoading.value = true
+  try {
+    // 赛事页的随机题范围由路由赛事 ID 固定，不能被表单或历史 query 覆盖。
+    const activeFilters = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => (
+        value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
+      ))
+    )
+    const response = await getRandomPublicProblem({
+      ...activeFilters,
+      contestId: currentContestId,
+    })
+    if (response.data?.id) {
+      ElMessage.success('已从当前赛事抽取一题')
+      await router.push(`/problem/${response.data.id}`)
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '暂时没有符合条件的题目')
+  } finally {
+    randomLoading.value = false
+  }
 }
 
 const syncMetadata = () => {
@@ -350,7 +320,6 @@ const initData = async () => {
       console.warn('加载赛事元数据异常', err)
     }
   }
-  fetchContestProblems(false)
 }
 
 onMounted(initData)
@@ -364,14 +333,14 @@ watch(
   { deep: true }
 )
 watch(contestId, () => {
-  fetchContestProblems(false)
+  listRef.value?.updateQuery({ contestId: contestId.value })
 })
 </script>
 
 <style scoped>
 .contest-problem-page {
-  width: 100%;
-  margin: 0;
+  width: auto;
+  margin: 0 40px;
   padding: 0 0 32px;
 }
 
@@ -411,7 +380,7 @@ watch(contestId, () => {
 .contest-two-col-layout {
   display: grid;
   grid-template-columns: 350px 1fr;
-  gap: 20px;
+  gap: 32px;
   align-items: start;
 }
 
@@ -419,329 +388,211 @@ watch(contestId, () => {
 .contest-left-sidebar {
   position: sticky;
   top: 72px;
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
+}
+/* 极简精致隐形滚动条 */
+.contest-left-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.contest-left-sidebar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+.contest-left-sidebar:hover::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }
 .contest-profile-card {
   background: #ffffff;
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
-  padding: 22px 20px;
+  padding: 18px 18px 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .profile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
 }
-.contest-flag-badge {
-  padding: 3px 8px;
+.contest-code-badge {
+  padding: 2px 7px;
   border-radius: var(--lm-radius-sm);
-  background: var(--lm-primary);
+  background: #18181b;
   color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   font-family: var(--lm-code-font-family);
 }
-.contest-heat-tag {
+.official-portal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--lm-text-muted);
   font-size: 11px;
-  font-weight: 600;
-  color: #d97706;
+  text-decoration: none;
+  transition: color var(--lm-transition);
+}
+.official-portal-link:hover {
+  color: var(--lm-text-primary);
+  text-decoration: underline;
+}
+.profile-title-group {
+  margin: 0;
 }
 .contest-name {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
   color: var(--lm-text-primary);
 }
-.contest-description {
-  margin: 0 0 16px;
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--lm-text-secondary);
+.contest-english-name {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--lm-text-muted);
+  font-family: var(--lm-font-family);
 }
 
-.contest-rules-list {
+.panel-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--lm-text-muted);
+  margin-bottom: 6px;
+}
+
+/* 官方规约列表 */
+.contest-rules-panel {
+  margin: 0;
+}
+.rules-spec-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background: #f8fafc;
+  gap: 7px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border: 1px solid var(--lm-border-light);
   border-radius: var(--lm-radius-sm);
-  margin-bottom: 16px;
 }
-.rule-item {
+.spec-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  font-size: 12px;
-  color: var(--lm-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
-.rule-item .el-icon {
-  color: var(--lm-primary);
-  font-size: 14px;
+.spec-icon {
+  font-size: 13px;
+  color: var(--lm-text-secondary);
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+.spec-label {
+  width: 52px;
+  flex-shrink: 0;
+  color: var(--lm-text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.spec-value {
+  flex: 1;
+  color: var(--lm-text-primary);
+  font-size: 11.5px;
+  font-weight: 500;
+  word-break: break-word;
 }
 
-/* 四格数据统计看板 */
-.contest-stats-grid {
+/* 平台实训真题指标看板 */
+.contest-metrics-panel {
+  margin: 0;
+}
+.metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 7px;
 }
-.stat-cell {
-  padding: 10px 12px;
+.metric-card {
+  padding: 8px 10px;
   background: #ffffff;
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius-sm);
   text-align: center;
 }
-.stat-num {
+.metric-num {
   font-size: 16px;
   font-weight: 700;
-  color: var(--lm-primary);
+  color: var(--lm-text-primary);
   font-family: var(--lm-code-font-family);
+  line-height: 1.2;
 }
-.stat-label {
-  font-size: 11px;
+.metric-unit {
+  font-size: 10.5px;
+  font-weight: 400;
   color: var(--lm-text-muted);
-  margin-top: 2px;
+  margin-left: 2px;
+}
+.metric-label {
+  font-size: 10.5px;
+  color: var(--lm-text-muted);
+  margin-top: 3px;
 }
 
-/* 分数段分布看板 */
-.score-distribution-panel {
-  padding-top: 14px;
-  border-top: 1px dashed var(--lm-border);
+/* 考查方向标签云 */
+.contest-topics-panel {
+  margin: 0;
 }
-.dist-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
-  margin-bottom: 10px;
-}
-.dist-bars {
+.topics-tags-cloud {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.dist-bar-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--lm-text-secondary);
-}
-.dist-label {
-  width: 140px;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow: hidden;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.dist-track {
-  flex: 1;
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 3px;
-  overflow: hidden;
+.topic-pill {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  font-size: 10.5px;
+  color: var(--lm-text-secondary);
+  line-height: 1.35;
 }
-.dist-fill {
-  height: 100%;
-  border-radius: 3px;
+
+/* 赛事概况客观简介 */
+.contest-desc-panel {
+  margin: 0;
 }
-.dist-fill.tier-1 { background: #18181b; }
-.dist-fill.tier-2 { background: #3f3f46; }
-.dist-fill.tier-3 { background: #71717a; }
-.dist-fill.tier-4 { background: #a1a1aa; }
-.dist-val {
-  font-weight: 700;
-  font-size: 11px;
-  width: 28px;
-  text-align: right;
+.contest-desc-text {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--lm-text-secondary);
 }
 
 /* 右侧主面板: 题目列表 */
 .contest-right-main {
   min-width: 0;
 }
-.contest-main-card {
-  background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-  overflow: hidden;
-}
-.contest-feed-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--lm-border);
-  background: #ffffff;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.feed-header-left h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
-}
-.feed-subtitle {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  margin-top: 3px;
-  display: block;
-}
-.feed-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.feed-select {
-  width: 104px;
-}
-.feed-select :deep(.el-select__wrapper) {
-  border-radius: 9999px !important;
-  padding: 2px 10px;
-  min-height: 32px;
-}
-
-/* 表格与题目行 */
-.contest-problem-table {
-  background: #ffffff;
-}
-.table-head, .problem-row {
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(130px, 0.7fr) 60px 56px 66px 70px 18px;
-  align-items: center;
-  gap: 10px;
-  padding: 0 18px;
-}
-.table-head {
-  min-height: 40px;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--lm-border);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--lm-text-muted);
-}
-.problem-row {
-  width: 100%;
-  min-height: 58px;
-  border: 0;
-  border-bottom: 1px solid var(--lm-border-light);
-  background: #ffffff;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--lm-transition);
-}
-.problem-row:last-child {
-  border-bottom: 0;
-}
-.problem-row:hover {
-  background: #eff6ff;
-}
-.problem-main h3 {
-  margin: 0;
-  overflow: hidden;
-  color: var(--lm-text-primary);
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.row-index {
-  display: inline-block;
-  min-width: 24px;
-  margin-right: 6px;
-  color: var(--lm-primary);
-  font-size: 10px;
-  font-weight: 800;
-  font-family: var(--lm-code-font-family);
-}
-.problem-tags {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-}
-.problem-tag {
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: var(--lm-text-secondary);
-  font-size: 10px;
-  white-space: nowrap;
-}
-.col-center {
-  text-align: center;
-}
-.text-muted {
-  color: var(--lm-text-secondary);
-  font-size: 12px;
-}
-.average-score strong {
-  color: var(--lm-text-primary);
-  font-size: 15px;
-}
-.row-arrow {
-  color: var(--lm-text-muted);
-  transition: transform var(--lm-transition), color var(--lm-transition);
-}
-.problem-row:hover .row-arrow {
-  color: var(--lm-primary);
-  transform: translateX(3px);
-}
-
-/* 流式加载底栏 */
-.feed-footer {
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  border-top: 1px solid var(--lm-border-light);
-}
-.loading-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--lm-text-muted);
-  font-size: 12px;
-}
-.load-more-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-sm);
-  background: #ffffff;
-  color: var(--lm-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--lm-transition);
-}
-.load-more-btn:hover {
-  color: var(--lm-primary);
-  border-color: var(--lm-primary-light);
-  background: #eff6ff;
-}
-.all-loaded {
-  font-size: 11px;
-  color: #94a3b8;
-  letter-spacing: 0.04em;
-}
 
 @media (max-width: 960px) {
+  .contest-problem-page {
+    margin-right: 0;
+    margin-left: 0;
+  }
   .contest-two-col-layout {
     grid-template-columns: 1fr;
   }
   .contest-left-sidebar {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 </style>

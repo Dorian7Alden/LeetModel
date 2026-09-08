@@ -1,7 +1,7 @@
 <template>
   <section class="problem-filter">
     <!-- 1. 赛事卡片单行横向排布（高度135px，一行3个拉满，左右按钮在容器宽度以内且尺寸较小） -->
-    <div class="contest-carousel-wrap">
+    <div v-if="showContestCards" class="contest-carousel-wrap">
       <button v-if="canScrollLeft" type="button" class="scroll-arrow left" aria-label="向左滚动" @click="scrollCards('left')">
         <ChevronLeft :size="16" :stroke-width="1.8" />
       </button>
@@ -33,8 +33,8 @@
     </div>
 
     <!-- 2. 两行筛选工具栏：筛选条件独立一行，搜索与列表操作独立一行 -->
-    <div class="filter-control-panel">
-      <div class="filter-row filter-row-primary">
+    <div class="filter-control-panel" :class="{ 'is-compact': !showAdvancedFilters }">
+      <div v-if="showAdvancedFilters" class="filter-row filter-row-primary">
         <div class="dropdown-group">
           <!-- 年份下拉 -->
           <el-select
@@ -180,7 +180,7 @@
             </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-for="item in sortOptions" :key="item.value" :command="item.value">
+                <el-dropdown-item v-for="item in visibleSortOptions" :key="item.value" :command="item.value">
                   <span class="sort-option-label">{{ item.label }}</span>
                   <span class="sort-option-status" aria-hidden="true">
                     <ArrowDownWideNarrow v-if="sortField === item.value && sortDirection === 'desc'" :size="16" :stroke-width="2" />
@@ -249,6 +249,10 @@ const props = defineProps({
   optionsLoading: { type: Boolean, default: false },
   randomLoading: { type: Boolean, default: false },
   total: { type: Number, default: 0 },
+  showContestCards: { type: Boolean, default: true },
+  showAdvancedFilters: { type: Boolean, default: true },
+  fixedContestId: { type: [Number, String], default: null },
+  hideYearSort: { type: Boolean, default: false },
 })
 const emit = defineEmits(['change', 'random', 'sort'])
 const sortOptions = [
@@ -257,6 +261,7 @@ const sortOptions = [
   { value: 'difficulty', label: '难度' },
   { value: 'averageScore', label: '平均分' },
 ]
+const visibleSortOptions = computed(() => props.hideYearSort ? sortOptions.filter(item => item.value !== 'year') : sortOptions)
 const sortField = ref('')
 const sortDirection = ref('')
 const activeSortLabel = computed(() => sortOptions.find(item => item.value === sortField.value)?.label || '')
@@ -274,7 +279,7 @@ const scoreOptions = [
   { label: '80–89 分', min: 80, max: 89.9 },
   { label: '90 分以上', min: 90, max: null },
 ]
-const filters = reactive({ keyword: '', contestId: null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
+const filters = reactive({ keyword: '', contestId: Number(props.fixedContestId) || null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null, selectedTags: { BACKGROUND_DOMAIN: null, PROBLEM_TYPE: null, MODEL_ALGORITHM: [] } })
 const selectedAlgorithmId = ref(null)
 const selectedScoreLabel = ref('')
 const cardsScrollRef = ref(null)
@@ -494,7 +499,8 @@ const syncFiltersFromQuery = () => {
   const q = route.query
   if (!q) return
   if (q.keyword !== undefined) filters.keyword = String(q.keyword || '')
-  if (q.contestId) filters.contestId = Number(q.contestId)
+  if (props.fixedContestId) filters.contestId = Number(props.fixedContestId)
+  else if (q.contestId) filters.contestId = Number(q.contestId)
   else if (!q.contestId && filters.contestId) filters.contestId = null
   if (q.year) filters.year = Number(q.year)
   else if (!q.year && filters.year) filters.year = null
@@ -545,6 +551,13 @@ watch(
     syncFiltersFromQuery()
   },
   { deep: true }
+)
+
+watch(
+  () => props.fixedContestId,
+  (value) => {
+    filters.contestId = Number(value) || null
+  }
 )
 
 watch(sortedContestCards, () => {
@@ -603,7 +616,7 @@ const selectedConditions = computed(() => {
   if (score && (score.min != null || score.max != null)) items.push({ key: 'averageScore', label: `平均分：${score.label}`, score: true })
   return items
 })
-const buildParams = () => ({ keyword: filters.keyword, contestId: filters.contestId, difficulty: filters.difficulty, year: filters.year, statementLanguage: filters.statementLanguage, minAverageScore: filters.minAverageScore, maxAverageScore: filters.maxAverageScore, tagIds: Object.values(filters.selectedTags).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean) })
+const buildParams = () => ({ keyword: filters.keyword, contestId: Number(props.fixedContestId) || filters.contestId, difficulty: filters.difficulty, year: filters.year, statementLanguage: filters.statementLanguage, minAverageScore: filters.minAverageScore, maxAverageScore: filters.maxAverageScore, tagIds: Object.values(filters.selectedTags).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean) })
 const emitChange = () => emit('change', buildParams())
 const isTagActive = (type, value) => {
   const selected = filters.selectedTags[type]
@@ -627,7 +640,7 @@ const removeCondition = (item) => {
   emitChange()
 }
 const reset = () => {
-  Object.assign(filters, { keyword: '', contestId: null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null })
+  Object.assign(filters, { keyword: '', contestId: Number(props.fixedContestId) || null, difficulty: null, year: null, statementLanguage: '', minAverageScore: null, maxAverageScore: null })
   filters.selectedTags.BACKGROUND_DOMAIN = null
   filters.selectedTags.PROBLEM_TYPE = null
   filters.selectedTags.MODEL_ALGORITHM = []
@@ -954,6 +967,12 @@ const handleSortCommand = (field) => {
   margin-top: 16px;
   padding-top: 14px;
 }
+.filter-control-panel.is-compact .filter-row-secondary {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 .dropdown-group {
   display: flex;
   align-items: center;
@@ -973,7 +992,7 @@ const handleSortCommand = (field) => {
 
 /* 搜索框胶囊样式 */
 .filter-search-pill {
-  width: min(240px, 45%);
+  width: min(200px, 45%);
   min-width: 180px;
 }
 .filter-search-pill :deep(.el-input__wrapper) {
@@ -1107,14 +1126,16 @@ const handleSortCommand = (field) => {
   flex-shrink: 0;
 }
 .sort-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   box-sizing: border-box;
-  justify-content: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 0;
-  padding: 0 9px;
+  padding: 0;
   overflow: hidden;
   transition:
     width 240ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -1125,17 +1146,19 @@ const handleSortCommand = (field) => {
     background var(--lm-transition);
 }
 .sort-btn.sort-btn-active {
-  width: 84px;
-  gap: 0.5rem;
-  padding: 0 1rem;
+  width: auto;
+  min-width: 84px;
+  gap: 6px;
+  padding: 0 12px;
 }
 .sort-btn.sort-btn-active.sort-btn-average {
-  width: 96px;
+  min-width: 96px;
 }
 .sort-btn > svg {
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
+  margin: 0;
 }
 .random-btn {
   width: 36px;
