@@ -7,6 +7,7 @@
         <p>题目是核心内容；标签负责描述建模领域和方法，赛事提供来源上下文，不再拆成彼此孤立的管理页。</p>
       </div>
       <div class="domain-actions">
+        <el-button class="hero-button" @click="openTool('storage')"><el-icon><Coin /></el-icon>存储资产</el-button>
         <el-button class="hero-button" @click="openTool('contests')"><el-icon><Trophy /></el-icon>赛事数据</el-button>
         <el-button class="hero-button" @click="openTool('knowledge')"><el-icon><Notebook /></el-icon>知识库管理</el-button>
         <el-button type="primary" class="hero-primary emerald" @click="openTool('tags')"><el-icon><CollectionTag /></el-icon>维护标签</el-button>
@@ -49,7 +50,8 @@ import ProblemListPage from "./ProblemListPage.vue";
 import TagListPage from "./TagListPage.vue";
 import ContestListPage from "./ContestListPage.vue";
 import KnowledgeManagerPage from "./KnowledgeManagerPage.vue";
-import { Notebook } from "@element-plus/icons-vue";
+import StorageConsolePage from "./StorageConsolePage.vue";
+import { Coin, Notebook } from "@element-plus/icons-vue";
 import { getAdminContentContests, getAdminContentProblems, getAdminContentTags } from "@/api/problem";
 
 const route = useRoute();
@@ -58,6 +60,7 @@ const summaryLoading = ref(false);
 const summary = ref({ problems: "—", tags: "—", contests: "—" });
 const activeTool = ref("");
 const tools = {
+  storage: { title: "存储桶对象资产与孤儿文件对账", description: "扫描 MinIO 存储桶对象，对账题目附件引用并安全清理孤儿文件。", icon: "Coin", component: StorageConsolePage },
   tags: { title: "标签体系", description: "维护题目使用的领域、题型与算法标签。", icon: "CollectionTag", component: TagListPage },
   contests: { title: "赛事基础数据", description: "查看题目可归属的赛事来源。", icon: "Trophy", component: ContestListPage },
   knowledge: { title: "知识库管理", description: "浏览目录与多维标签树、一键导出自包含 ZIP、导入知识包与监控物理索引。", icon: "Notebook", component: KnowledgeManagerPage },
