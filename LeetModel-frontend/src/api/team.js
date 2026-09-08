@@ -32,7 +32,10 @@ export function getPublicPreparingProblemIds() {
 }
 
 export function getPopularPracticeProblems(limit = 3) {
-  return request.get("/teams/public/popular-practice-problems", { params: { limit } });
+  return request.get("/teams/public/popular-practice-problems", {
+    params: { limit },
+    skipAuthRedirect: true
+  });
 }
 
 export function getTeamDetail(teamId) {

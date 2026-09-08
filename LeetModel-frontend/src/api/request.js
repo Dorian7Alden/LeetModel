@@ -66,7 +66,9 @@ service.interceptors.response.use(
     // 兜底处理携带业务错误码的情况（部分路径仍可能以 HTTP 200 返回错误体）。
     const { code, message } = parseErrorBody(body);
     if (code === 40101 || code === 40103) {
-      toLogin();
+      if (!response.config?.skipAuthRedirect) {
+        toLogin();
+      }
       return Promise.reject(new Error(message || "请先登录"));
     }
     const error = new Error(message || "请求失败");
@@ -81,7 +83,9 @@ service.interceptors.response.use(
     const { code, message } = parseErrorBody(body);
 
     if (status === 401 || code === 40101 || code === 40103) {
-      toLogin();
+      if (!error.config?.skipAuthRedirect) {
+        toLogin();
+      }
     } else if (status === 403 || code === 40104) {
       const err = new Error(message || "没有权限执行该操作");
       err.code = code || 40104;

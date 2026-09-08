@@ -1,62 +1,51 @@
 <template>
-  <div class="problem-workbench-shell" :class="{ 'is-sidebar-collapsed': isSidebarCollapsed }">
-    <!-- 左侧常驻 Bar (240px): 题目大厅、赛事展开、题型展开、我的实训、我的收藏 -->
-    <ProblemSidebar
-      :contests="filterOptions.contests"
-      :problem-types="problemTypeTags"
-      :active-section="activeSection"
-      :fav-count="favCount"
-      @select-section="handleSelectSection"
-      @collapse-change="handleCollapseChange"
-    />
-
-    <!-- 右侧复合工作区 (代码左右布局，视觉上划分出 中间正文 + 右侧火热专区) -->
-    <div class="problem-composite-area">
-      <!-- 中间正文题目流 -->
-      <div class="problem-feed-area">
-        <ProblemHeader
-          :contests="filterOptions.contests"
-          :tags="filterOptions.tags"
-          :total="problemTotal"
-          :options-loading="optionsLoading"
-          :random-loading="randomLoading"
-          @change="handleSearch"
-          @random="handleRandom"
-          @sort="handleSort"
-        />
-        <ProblemList
-          ref="listRef"
-          :tags="filterOptions.tags"
-          @fav-change="handleFavChange"
-          @total-change="handleTotalChange"
-        />
-      </div>
-
-      <!-- 右侧辅助区 (240px): 热门练习题、考向标签与页面链接 -->
-      <ProblemRightAside
-        :tags="filterOptions.tags"
-        :popular-problems="popularProblems"
-        :popular-loading="popularLoading"
-        @select-popular="handleSelectPopular"
-        @select-tag="handleSelectRightTag"
+  <div class="problem-lobby-shell">
+    <!-- 中间正文题目流 -->
+    <div class="problem-feed-area">
+      <ProblemHeader
+        :contests="effectiveFilterOptions.contests"
+        :tags="effectiveFilterOptions.tags"
+        :total="problemTotal"
+        :options-loading="effectiveOptionsLoading"
+        :random-loading="randomLoading"
+        @change="handleSearch"
+        @random="handleRandom"
+        @sort="handleSort"
+      />
+      <ProblemList
+        ref="listRef"
+        :tags="effectiveFilterOptions.tags"
+        @fav-change="handleFavChange"
+        @total-change="handleTotalChange"
       />
     </div>
 
-    <!-- 长列表滚动时提供与参考题库一致的回到顶部入口 -->
-    <el-backtop :right="28" :bottom="96" :visibility-height="320" />
+    <!-- 右侧辅助区 (240px): 热门练习题、考向标签与页面链接 -->
+    <ProblemRightAside
+      :tags="effectiveFilterOptions.tags"
+      :popular-problems="popularProblems"
+      :popular-loading="popularLoading"
+      @select-popular="handleSelectPopular"
+      @select-tag="handleSelectRightTag"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, inject, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPublicProblemFilterOptions, getRandomPublicProblem } from '@/api/problem'
 import { getMyTeams, getPopularPracticeProblems } from '@/api/team'
 import ProblemHeader from "../components/ProblemHeader.vue";
 import ProblemList from "../components/ProblemList.vue";
-import ProblemSidebar from "../components/ProblemSidebar.vue";
 import ProblemRightAside from "../components/ProblemRightAside.vue";
+
+const workbench = inject('problemWorkbench', null)
+
+defineOptions({
+  name: 'ProblemListPage'
+})
 
 const listRef = ref();
 const router = useRouter()
@@ -64,16 +53,28 @@ const route = useRoute()
 const optionsLoading = ref(false)
 const randomLoading = ref(false)
 const filterOptions = reactive({ contests: [], tags: [] })
-const activeSection = ref('all')
-const favCount = ref(0)
 const problemTotal = ref(0)
-const isSidebarCollapsed = ref(false)
 const popularProblems = ref([])
 const popularLoading = ref(false)
 
-const problemTypeTags = computed(() => filterOptions.tags.filter(t => t.type === 'PROBLEM_TYPE'))
+const effectiveFilterOptions = computed(() => {
+  if (workbench?.filterOptions && (workbench.filterOptions.contests?.length || workbench.filterOptions.tags?.length)) {
+    return workbench.filterOptions
+  }
+  return filterOptions
+})
+
+const effectiveOptionsLoading = computed(() => {
+  if (workbench?.optionsLoading != null) {
+    return workbench.optionsLoading.value
+  }
+  return optionsLoading.value
+})
 
 const fetchFilterOptions = async () => {
+  if (workbench?.filterOptions && (workbench.filterOptions.contests?.length || workbench.filterOptions.tags?.length)) {
+    return
+  }
   optionsLoading.value = true
   try {
     const response = await getPublicProblemFilterOptions()
@@ -99,8 +100,27 @@ const fetchPopularProblems = async () => {
 }
 
 const handleSearch = (params) => {
-  activeSection.value = 'all'
   listRef.value.updateQuery(params);
+
+  // 使用顶部筛选时回到“题目”主视图，避免筛选结果仍被个人列表状态限制。
+  if (route.query.section) {
+    workbench?.activeSection && (workbench.activeSection.value = 'all')
+  }
+
+  // 将当前筛选条件同步写入 URL query，确保进入详情页或分享后，返回时条件完整还原
+  const nextQuery = {}
+  if (params.keyword?.trim()) nextQuery.keyword = params.keyword.trim()
+  if (params.contestId) nextQuery.contestId = params.contestId
+  if (params.year) nextQuery.year = params.year
+  if (params.difficulty) nextQuery.difficulty = params.difficulty
+  if (params.statementLanguage) nextQuery.statementLanguage = params.statementLanguage
+  if (params.minAverageScore != null) nextQuery.minScore = params.minAverageScore
+  if (params.maxAverageScore != null) nextQuery.maxScore = params.maxAverageScore
+  if (Array.isArray(params.tagIds) && params.tagIds.length) {
+    nextQuery.tagIds = params.tagIds.join(',')
+  }
+
+  router.replace({ query: nextQuery })
 };
 
 const handleRandom = async (params) => {
@@ -126,9 +146,7 @@ const handleSort = (field) => {
   listRef.value?.cycleSort(field)
 }
 
-// 左侧 Bar 事件响应
-const handleSelectSection = async (sectionKey) => {
-  activeSection.value = sectionKey
+const switchSection = async (sectionKey) => {
   if (sectionKey === 'all') {
     listRef.value?.setDisplayMode('all')
   } else if (sectionKey === 'favorite') {
@@ -142,7 +160,6 @@ const handleSelectSection = async (sectionKey) => {
       const res = await getMyTeams({ practiceStatus: 'IN_PROGRESS', page: 1, pageSize: 20 })
       const ids = (res.data?.rows || []).map(t => t.problemId).filter(Boolean)
       listRef.value?.setDisplayMode('in_progress', ids)
-      ElMessage.info('已切换至正在实训练习的赛题')
     } catch {
       listRef.value?.setDisplayMode('in_progress', [])
     }
@@ -151,20 +168,10 @@ const handleSelectSection = async (sectionKey) => {
       const res = await getMyTeams({ practiceStatus: 'ENDED', page: 1, pageSize: 20 })
       const ids = (res.data?.rows || []).map(t => t.problemId).filter(Boolean)
       listRef.value?.setDisplayMode('completed', ids)
-      ElMessage.info('已切换至已完成实训练习的赛题')
     } catch {
       listRef.value?.setDisplayMode('completed', [])
     }
   }
-}
-
-const handleSelectType = (typeTag) => {
-  activeSection.value = `type-${typeTag.id}`
-  listRef.value?.updateQuery({ tagIds: [typeTag.id] })
-}
-
-const handleCollapseChange = (collapsed) => {
-  isSidebarCollapsed.value = collapsed
 }
 
 // 右侧辅助信息事件响应
@@ -173,92 +180,97 @@ const handleSelectPopular = (problem) => {
 }
 
 const handleSelectRightTag = (tag) => {
+  if (route.query.section) {
+    workbench?.activeSection && (workbench.activeSection.value = 'all')
+    router.replace({ query: { ...route.query, section: undefined } })
+  }
   if (tag.rawTag?.id) {
-    ElMessage.info(`按热门标签筛选：${tag.name}`)
+    router.replace({ query: { ...route.query, section: undefined, tagIds: String(tag.rawTag.id) } })
     listRef.value?.updateQuery({ tagIds: [tag.rawTag.id] })
   } else {
+    router.replace({ query: { ...route.query, section: undefined, keyword: tag.name, tagIds: undefined } })
     listRef.value?.updateQuery({ keyword: tag.name })
   }
 }
 
 const handleFavChange = (count) => {
-  favCount.value = count
+  workbench?.updateFavCount?.(count)
 }
 
 const handleTotalChange = (total) => {
   problemTotal.value = Number(total) || 0
 }
 
+const applyRouteQueryToList = () => {
+  const q = route.query
+  if (!q) return
+  const queryObj = {}
+  if (q.keyword) queryObj.keyword = String(q.keyword)
+  if (q.contestId) queryObj.contestId = Number(q.contestId)
+  if (q.year) queryObj.year = Number(q.year)
+  if (q.difficulty) queryObj.difficulty = Number(q.difficulty)
+  if (q.statementLanguage) queryObj.statementLanguage = String(q.statementLanguage)
+  if (q.minScore != null) queryObj.minAverageScore = Number(q.minScore)
+  if (q.maxScore != null) queryObj.maxAverageScore = Number(q.maxScore)
+  if (q.tagIds) queryObj.tagIds = String(q.tagIds).split(',').map(Number).filter(Boolean)
+  if (Object.keys(queryObj).length) {
+    listRef.value?.updateQuery(queryObj)
+  }
+}
+
 onMounted(() => {
   fetchFilterOptions()
   fetchPopularProblems()
-  if (route.query.keyword) listRef.value?.updateQuery({ keyword: String(route.query.keyword) })
-  if (route.query.tagIds) listRef.value?.updateQuery({ tagIds: [Number(route.query.tagIds)] })
+  if (route.query.section) switchSection(String(route.query.section))
+  applyRouteQueryToList()
 })
+
+// 响应父级工作台通过 bus 分发的操作指令
 watch(
-  () => route.query.keyword,
-  (keyword) => {
-    if (listRef.value) listRef.value.updateQuery({ keyword: keyword || '' })
+  () => workbench?.lobbyBus?.value,
+  (bus) => {
+    if (!bus) return
+    if (bus.type === 'reset_all') {
+      listRef.value?.setDisplayMode('all')
+    } else if (bus.type === 'set_section' && bus.section) {
+      switchSection(bus.section)
+    }
   },
-  { immediate: true },
+  { deep: true }
+)
+
+watch(
+  () => route.query.section,
+  (section) => {
+    if (section) switchSection(String(section))
+    else listRef.value?.setDisplayMode('all')
+  }
 )
 watch(
-  () => route.query.tagIds,
-  (tagId) => {
-    if (tagId && listRef.value) listRef.value.updateQuery({ tagIds: [Number(tagId)] })
+  () => route.query,
+  () => {
+    applyRouteQueryToList()
   },
   { immediate: true },
 )
 </script>
 
 <style scoped>
-.problem-workbench-shell {
-  display: flex;
-  gap: 0;
-  align-items: flex-start;
-  width: 100%;
-  min-height: calc(100vh - 56px);
-}
-
-.problem-composite-area {
-  flex: 1;
-  min-width: 0;
+.problem-lobby-shell {
   display: flex;
   gap: 24px;
   align-items: flex-start;
-  padding: 16px 24px 64px;
-  transition: padding 0.24s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* 侧边栏完全收起后，主体区域绝不紧贴屏幕最左侧，留出舒适的呼吸边距 */
-.problem-workbench-shell.is-sidebar-collapsed .problem-composite-area {
-  padding-left: 56px;
-  padding-right: 76px;
+  width: 100%;
 }
 
 .problem-feed-area {
   flex: 1;
   min-width: 0;
-  transition: margin 0.24s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.problem-workbench-shell.is-sidebar-collapsed .problem-feed-area {
-  margin-left: 20px;
-  margin-right: 20px;
 }
 
 @media (max-width: 1280px) {
-  .problem-composite-area {
+  .problem-lobby-shell {
     flex-direction: column;
-  }
-}
-
-@media (max-width: 860px) {
-  .problem-workbench-shell {
-    flex-direction: column;
-  }
-  .problem-composite-area {
-    padding: 12px 14px 32px;
   }
 }
 </style>
