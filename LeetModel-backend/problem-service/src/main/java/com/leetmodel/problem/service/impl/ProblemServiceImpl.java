@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
+import com.leetmodel.common.core.storage.StorageContentTypes;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
@@ -656,7 +657,11 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         StorageService storageService = getStorageService();
 
         // 先上传对象，再保存元数据
-        String objectKey = storageService.upload(file, "problems/" + problemId + "/attachments");
+        String objectKey = storageService.upload(
+                file,
+                "problems/" + problemId + "/attachments",
+                StorageContentTypes.ARCHIVE
+        );
         ProblemAttachment attachment = new ProblemAttachment();
         attachment.setProblemId(problemId);
         attachment.setFileName(normalizeFileName(file.getOriginalFilename()));

@@ -40,12 +40,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -380,7 +382,7 @@ class ProblemServiceTest {
     void uploadAttachmentStoresObjectAndMetadata() {
         when(problemMapper.selectById(1L)).thenReturn(problem);
         when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
-        when(storageService.upload(any(), any())).thenReturn("problems/1/attachments/file.pdf");
+        when(storageService.upload(any(), any(), any())).thenReturn("problems/1/attachments/file.pdf");
         when(storageService.getUrl(any())).thenReturn("https://example.com/file.pdf");
         when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
             ProblemAttachment attachment = invocation.getArgument(0);
@@ -397,7 +399,15 @@ class ProblemServiceTest {
 
         assertEquals("statement.pdf", result.getFileName());
         assertEquals("原始题面", result.getDescription());
-        verify(storageService).upload(file, "problems/1/attachments");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<String>> contentTypesCaptor = ArgumentCaptor.forClass(Set.class);
+        verify(storageService).upload(
+                eq(file),
+                eq("problems/1/attachments"),
+                contentTypesCaptor.capture()
+        );
+        assertTrue(contentTypesCaptor.getValue().contains("application/zip"));
+        assertTrue(contentTypesCaptor.getValue().contains("application/x-7z-compressed"));
         verify(problemAttachmentMapper).insert(any(ProblemAttachment.class));
     }
 
