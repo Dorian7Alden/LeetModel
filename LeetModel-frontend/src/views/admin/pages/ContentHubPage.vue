@@ -60,7 +60,7 @@ const summaryLoading = ref(false);
 const summary = ref({ problems: "—", tags: "—", contests: "—" });
 const activeTool = ref("");
 const tools = {
-  storage: { title: "存储桶对象资产与孤儿文件对账", description: "扫描 MinIO 存储桶对象，对账题目附件引用并安全清理孤儿文件。", icon: "Coin", component: StorageConsolePage },
+  storage: { title: "文件资产管理", description: "通过 file-service 按逻辑分组管理文件，支持手动上传、历史盘点、临时链接与延迟清理。", icon: "Coin", component: StorageConsolePage },
   tags: { title: "标签体系", description: "维护题目使用的领域、题型与算法标签。", icon: "CollectionTag", component: TagListPage },
   contests: { title: "赛事基础数据", description: "查看题目可归属的赛事来源。", icon: "Trophy", component: ContestListPage },
   knowledge: { title: "知识库管理", description: "浏览目录与多维标签树、一键导出自包含 ZIP、导入知识包与监控物理索引。", icon: "Notebook", component: KnowledgeManagerPage },

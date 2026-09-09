@@ -1,13 +1,13 @@
 import request from "./request";
 
 /**
- * 查询存储桶对象列表与业务对账结果。
+ * 查询文件资产分页、分组与容量统计。
  *
  * @param {Object} params 查询参数，包含 keyword、onlyOrphans
  */
 export function getAdminStorageObjects(params) {
   return request({
-    url: "/admin/content/storage/objects",
+    url: "/admin/content/files",
     method: "get",
     params,
   });
@@ -17,28 +17,53 @@ export function getAdminStorageObjects(params) {
  * 管理员手动上传文件至存储桶。
  *
  * @param {File} file 本地文件
- * @param {string} prefix 存储前缀路径，默认为 manual
+ * @param {string} groupPath manual 命名空间下的逻辑分组
  */
-export function uploadAdminStorageObject(file, prefix = "manual") {
+export function uploadAdminStorageObject(file, groupPath = "", onUploadProgress) {
   const formData = new FormData();
   formData.append("file", file);
   return request({
-    url: `/admin/content/storage/objects?prefix=${encodeURIComponent(prefix)}`,
+    url: "/admin/content/files",
     method: "post",
     data: formData,
+    params: { groupPath },
     headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress,
   });
 }
 
 /**
- * 安全删除存储桶对象（带依赖强检查）。
+ * 为文件资产生成新的临时访问链接。
  *
- * @param {string} objectKey 对象存储路径
+ * @param {string} id 文件资产 ID
  */
-export function deleteAdminStorageObject(objectKey) {
+export function createAdminStorageAccessUrl(id) {
   return request({
-    url: "/admin/content/storage/objects",
+    url: `/admin/content/files/${id}/access-url`,
+    method: "post",
+  });
+}
+
+/** 为文件资产生成预览用的短时访问链接。 */
+export function createAdminStoragePreviewUrl(id) {
+  return request({
+    url: `/admin/content/files/${id}/preview-url`,
+    method: "post",
+  });
+}
+
+/** 对手动上传资产发起逻辑删除。 */
+export function deleteAdminStorageObject(id) {
+  return request({
+    url: `/admin/content/files/${id}`,
     method: "delete",
-    params: { objectKey },
+  });
+}
+
+/** 扫描存储桶并登记尚未纳管的历史对象。 */
+export function reconcileAdminStorageObjects() {
+  return request({
+    url: "/admin/content/files/reconcile",
+    method: "post",
   });
 }
