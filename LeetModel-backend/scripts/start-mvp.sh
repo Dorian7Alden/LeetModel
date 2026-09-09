@@ -39,12 +39,12 @@ elif [[ $# -gt 0 ]]; then
 fi
 
 services=(
-  user-service problem-service team-service ai-gateway-service
+  user-service problem-service file-service team-service ai-gateway-service
   submission-service ai-review-service ranking-service knowledge-retrieval-service
   ai-suggestion-service ai-assistant-service ai-evaluation-service admin-service gateway-service
   audit-service
 )
-ports=(8081 8083 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080 8094)
+ports=(8081 8083 8095 8082 8090 8092 8086 8087 8093 8088 8089 8091 8084 8080 8094)
 
 mkdir -p "${RUNTIME_DIR}/logs"
 

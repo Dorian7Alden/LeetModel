@@ -37,7 +37,7 @@ for required in "${start_script}" "${prepare_script}" "${bridge}" "${layout}" \
 done
 
 expected_services=(
-  user-service problem-service team-service ai-gateway-service
+  user-service problem-service file-service team-service ai-gateway-service
   submission-service ai-review-service ranking-service knowledge-retrieval-service
   ai-suggestion-service ai-assistant-service ai-evaluation-service admin-service gateway-service
   audit-service
@@ -50,7 +50,7 @@ mapfile -t configured_services < <(awk '
   }
 ' "${start_script}")
 if [[ "${configured_services[*]}" != "${expected_services[*]}" ]]; then
-  echo "start-mvp.sh 没有且仅有 14 个固定服务。" >&2
+  echo "start-mvp.sh 没有且仅有 15 个固定服务。" >&2
   printf '实际: %s\n' "${configured_services[*]}" >&2
   exit 1
 fi
@@ -67,7 +67,7 @@ for marker in \
     'skywalking.plugin.exclude_plugins=feign-default-http-9.x,feign-pathvar-9.x' \
     'skywalking.plugin.jdbc.trace_sql_parameters=false'; do
   if ! rg -Fq "${marker}" "${start_script}"; then
-    echo "14 服务启动契约缺少：${marker}" >&2
+    echo "15 服务启动契约缺少：${marker}" >&2
     exit 1
   fi
 done
@@ -157,7 +157,7 @@ if rg -q 'io\.micrometer:micrometer-tracing|io\.opentelemetry:opentelemetry-expo
   exit 1
 fi
 
-echo "[通过] 14 服务 Agent 开关、资源、采样、HTTP/Feign/MDC 与唯一 Trace 实现静态契约"
+echo "[通过] 15 服务 Agent 开关、资源、采样、HTTP/Feign/MDC 与唯一 Trace 实现静态契约"
 
 if [[ "${RUNTIME}" != "true" ]]; then
   exit 0

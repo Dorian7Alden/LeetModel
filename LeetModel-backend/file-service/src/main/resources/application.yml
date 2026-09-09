@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: file-service
+  profiles:
+    active: dev
+  config:
+    import:
+      - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
+      - optional:nacos:file-service-${spring.profiles.active}.yml
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  shutdown: graceful
+
+file:
+  lifecycle:
+    delete-grace: ${FILE_DELETE_GRACE:24h}
+    cleanup-interval-ms: ${FILE_CLEANUP_INTERVAL_MS:60000}
+    retry-delay: ${FILE_DELETE_RETRY_DELAY:10m}

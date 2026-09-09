@@ -9,7 +9,7 @@ services=(
   gateway-service admin-service ai-evaluation-service ai-assistant-service
   audit-service
   ai-suggestion-service knowledge-retrieval-service ranking-service ai-review-service submission-service
-  ai-gateway-service team-service problem-service user-service
+  ai-gateway-service team-service file-service problem-service user-service
 )
 
 for service in "${services[@]}"; do
