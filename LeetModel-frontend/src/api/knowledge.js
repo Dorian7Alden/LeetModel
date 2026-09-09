@@ -5,7 +5,7 @@ import request from "./request";
  */
 export function getKnowledgeTree() {
   return request({
-    url: "/api/admin/knowledge/tree",
+    url: "/admin/knowledge/tree",
     method: "get",
   });
 }
@@ -15,7 +15,7 @@ export function getKnowledgeTree() {
  */
 export function exportKnowledgeZip() {
   return request({
-    url: "/api/admin/knowledge/export",
+    url: "/admin/knowledge/export",
     method: "get",
     responseType: "blob",
   });
@@ -26,7 +26,7 @@ export function exportKnowledgeZip() {
  */
 export function importKnowledgeZip(formData) {
   return request({
-    url: "/api/admin/knowledge/import",
+    url: "/admin/knowledge/import",
     method: "post",
     data: formData,
     headers: {
@@ -40,7 +40,7 @@ export function importKnowledgeZip(formData) {
  */
 export function getKnowledgeIndexStatus() {
   return request({
-    url: "/api/admin/knowledge/index/status",
+    url: "/admin/knowledge/index/status",
     method: "get",
   });
 }
@@ -50,7 +50,7 @@ export function getKnowledgeIndexStatus() {
  */
 export function rebuildKnowledgeIndex() {
   return request({
-    url: "/api/admin/knowledge/index/rebuild",
+    url: "/admin/knowledge/index/rebuild",
     method: "post",
   });
 }
