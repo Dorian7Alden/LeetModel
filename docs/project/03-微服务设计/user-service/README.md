@@ -33,6 +33,7 @@ flowchart LR
     subgraph data["用户数据与文件"]
         userDatabase[(lm_user)]
         minio["MinIO 头像对象"]
+        fileService["file-service，目标文件资产控制面"]
     end
 
     apiGateway --> publicApi
@@ -44,9 +45,11 @@ flowchart LR
     rbac --> userDatabase
     summary --> userDatabase
     profile --> minio
+    profile -. "目标：头像资产与绑定事件" .-> fileService
+    fileService -. "目标：管理正式头像文件" .-> minio
 ```
 
-用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。
+用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。当前 profile 直接使用 MinIO，虚线表示 file-service 建成后通过稳定 fileId 和绑定事件协作的目标关系。
 
 ## 职责边界
 
@@ -57,6 +60,7 @@ flowchart LR
 - 维护角色、权限、用户角色和角色权限关系。
 - 提供当前用户信息、公开用户摘要、简约个人名片和内部用户查询能力。
 - 校验用户、角色和权限数据的合法性并保证 RBAC 变更事务一致性。
+- 维护用户当前头像的业务选择。目标迁移后只保存稳定 fileId，不拥有文件技术元数据和物理生命周期。
 
 ### 不负责
 
@@ -64,10 +68,11 @@ flowchart LR
 - 不维护题目、提交、评审和排行数据。
 - 不代替其他业务服务校验资源归属和业务操作权限。
 - 不聚合管理看板和跨领域统计。
+- 不扫描或管理题目附件、论文和管理员手动素材等其他命名空间。
 
 ## 数据与协作边界
 
-user-service 独占 `lm_user` 数据库，用户、角色和权限以这里的数据为事实源。其他服务只通过内部接口获取必要摘要或权限信息，不直连 `lm_user`。队伍成员关系由 team-service 维护，管理后台通过 admin-service 聚合用户统计。
+user-service 独占 `lm_user` 数据库，用户、角色、权限和当前头像选择以这里的数据为事实源。其他服务只通过内部接口获取必要摘要或权限信息，不直连 `lm_user`。队伍成员关系由 team-service 维护，管理后台通过 admin-service 聚合用户统计。目标 file-service 建成后，头像技术元数据和物理生命周期归 file-service，user-service 通过 fileId 和绑定事件维护头像关系。
 
 ## 功能清单
 
@@ -93,3 +98,4 @@ user-service 独占 `lm_user` 数据库，用户、角色和权限以这里的�
 |------|----------|
 | [服务设计.md](服务设计.md) | 用户信息、注册登录、角色与权限 |
 | [用户公开名片](用户公开名片/README.md) | 简约个人名片的公开字段、触发方式和动效规则 |
+| [文件资产管理架构](../../02-架构设计/文件资产管理架构.md) | 用户头像与 file-service 的数据归属和迁移边界 |

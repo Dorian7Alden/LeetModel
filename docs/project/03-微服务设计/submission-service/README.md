@@ -38,6 +38,7 @@ flowchart LR
         reviewService["ai-review-service"]
         suggestionService["ai-suggestion-service"]
         evaluationService["ai-evaluation-service"]
+        fileService["file-service，目标文件资产控制面"]
     end
 
     subgraph data["提交数据与文件"]
@@ -52,6 +53,8 @@ flowchart LR
     eligibility --> teamService
     eligibility --> problemService
     uploadTask --> minio
+    versionRecord -. "目标：登记正式论文资产与绑定" .-> fileService
+    fileService -. "目标：管理正式论文文件" .-> minio
     versionRecord --> submissionDatabase
     reviewTrigger --> messageOutbox
     messageOutbox -->|"RocketMQ / Feign Relay"| reviewService
@@ -61,7 +64,7 @@ flowchart LR
     snapshotApi -.-> evaluationService
 ```
 
-论文先完成分片、文件和提交资格校验，再在同一本地事务中形成提交版本、上传关联和 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；历史上已经形成提交但缺失 Outbox 的记录，会在重复完成请求中按业务幂等键补建。最终提交锁与 `FINAL_SUBMISSION_CHANGED` Outbox 也在同一事务提交，并可为历史锁补建事件。评审执行状态仍由 ai-review-service 自己维护。
+论文先完成分片、文件和提交资格校验，再在同一本地事务中形成提交版本、上传关联和 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；历史上已经形成提交但缺失 Outbox 的记录，会在重复完成请求中按业务幂等键补建。最终提交锁与 `FINAL_SUBMISSION_CHANGED` Outbox 也在同一事务提交，并可为历史锁补建事件。评审执行状态仍由 ai-review-service 自己维护。当前上传与正式文件均由 submission-service 直接管理，虚线表示未来只将合并后的正式论文登记到 file-service，临时分片首期保持现状。
 
 ## 职责边界
 
@@ -70,7 +73,7 @@ flowchart LR
 - 维护分片上传任务、分片完整性和 PDF 文件合并。
 - 维护论文提交记录、提交版本、上传者和队伍归属。
 - 校验文件类型、大小、分片数量、队伍上传资格和题目绑定。
-- 维护原始 PDF 在 MinIO 中的路由与必要文件元数据。
+- 当前维护原始 PDF 在 MinIO 中的路由与必要文件元数据。目标迁移后继续拥有论文版本关系，通过 fileId 关联正式文件资产。
 - 在提交成功后触发评审链路，并提供不可变的提交与文件快照。
 - 拥有评审请求与最终提交变化的生产端 Outbox，并提供评审消息等待、已派发和阻塞状态。
 - 提供提交历史、当前状态和提交详情查询。
@@ -81,10 +84,11 @@ flowchart LR
 - 不执行 AI 评审和评审稳定性统计。
 - 不拥有队伍成员关系和题目主数据。
 - 不把评审服务的执行状态复制为第二份事实源。
+- 不管理题目附件、头像和管理员手动素材等其他文件资产。
 
 ## 数据与协作边界
 
-submission-service 独占 `lm_submission` 数据库，并拥有原始 PDF 对象路由、上传任务、提交记录、版本事实和 `message_outbox`。它通过 team-service 校验队伍与成员关系，通过 problem-service 校验题目信息，向 ai-review-service 提供评审使用的 PDF 快照。ai-review-service 拥有评审执行状态，submission-service 只保存“需要发起评审”的消息事实和派发状态，不复制 review_task。
+submission-service 独占 `lm_submission` 数据库，并拥有上传任务、提交记录、论文版本事实和 `message_outbox`。当前还维护原始 PDF 对象路由。目标 file-service 建成后，正式论文的技术元数据和物理生命周期归 file-service，submission-service 保存稳定 fileId 并发布绑定或解绑事件；临时分片与合并流程首期仍归 submission-service。它通过 team-service 校验队伍与成员关系，通过 problem-service 校验题目信息，向 ai-review-service 提供评审使用的 PDF 快照。ai-review-service 拥有评审执行状态，submission-service 只保存需要发起评审的消息事实和派发状态，不复制 review_task。
 
 ## 功能清单
 
@@ -111,3 +115,4 @@ submission-service 独占 `lm_submission` 数据库，并拥有原始 PDF 对象
 | 文档 | 内容摘要 |
 |------|----------|
 | [论文提交/](论文提交/) | PDF 上传、提交归属、权限和文件存储 |
+| [文件资产管理架构](../../02-架构设计/文件资产管理架构.md) | 正式论文、临时分片与 file-service 的迁移边界 |

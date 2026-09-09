@@ -39,6 +39,7 @@ A - BB - CC
 | 10 | 管理后台 | 预留 |
 | 11 | AI 质量评价 | 固定数据集、评价任务与依赖错误 |
 | 12 | AI 网关 | 模型路由、能力校验与供应商错误 |
+| 13 | 文件资产 | 文件登记、分组、访问与生命周期治理 |
 
 ---
 
@@ -192,6 +193,16 @@ A - BB - CC
 | PROVIDER_NOT_CONFIGURED | 51201 | AI 供应商未配置 |
 | PROVIDER_UNAVAILABLE | 51202 | AI 供应商暂不可用 |
 | RESPONSE_INVALID | 51203 | AI 供应商响应无效 |
+
+### BB=13：文件资产
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| FILE_NOT_FOUND | 41301 | 文件资产不存在 |
+| GROUP_PATH_INVALID | 41302 | 文件分组路径不合法 |
+| FILE_NOT_DELETABLE | 41303 | 文件来源或引用状态不允许删除 |
+| FILE_STATUS_INVALID | 41304 | 文件生命周期状态不允许当前操作 |
+| STORAGE_UNAVAILABLE | 51301 | 对象存储暂不可用 |
 
 ---
 

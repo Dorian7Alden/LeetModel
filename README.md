@@ -58,6 +58,7 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 | `user-service` | 用户服务，注册登录、个人信息、RBAC 权限 |
 | `team-service` | 团队服务，组队、成员管理、解散留存 |
 | `problem-service` | 题目服务，题目与标签 CRUD、分页筛选 |
+| `file-service` | 文件资产服务，统一元数据、逻辑分组、历史盘点、临时访问与安全清理 |
 | `admin-service` | 管理后台服务，Feign 聚合统计 |
 | `submission-service` | PDF 上传、版本记录、最终提交与评审触发 |
 | `ai-gateway-service` | AI 业务调度、new-api 协议适配、调用审计和计量 |
@@ -115,7 +116,7 @@ curl -fsS http://127.0.0.1:9200/_cluster/health
 
 #### 验证 Actuator 与 Prometheus
 
-后端 14 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
+后端 15 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
 
 ```bash
 cd LeetModel-backend
@@ -128,7 +129,7 @@ cd LeetModel-backend
 
 #### 启动与验证观测栈
 
-本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 14 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
+本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 15 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
 
 ```bash
 cd LeetModel-backend
@@ -170,7 +171,7 @@ cd LeetModel-backend
 ./scripts/start-mvp.sh
 ```
 
-脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 14 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service 与端口 `8094` 的 audit-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 15 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service、端口 `8094` 的 audit-service 与端口 `8095` 的 file-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
 
 AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
 
