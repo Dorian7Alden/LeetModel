@@ -13,7 +13,7 @@ elif [[ $# -gt 0 ]]; then
 fi
 
 services=(
-  user-service problem-service team-service submission-service ai-review-service
+  user-service problem-service file-service team-service submission-service ai-review-service
   ranking-service ai-suggestion-service ai-assistant-service knowledge-retrieval-service
   ai-evaluation-service gateway-service admin-service ai-gateway-service
   audit-service

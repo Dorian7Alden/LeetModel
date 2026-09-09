@@ -58,6 +58,12 @@ service.interceptors.response.use(
   (response) => {
     const body = response.data;
 
+    // 二进制下载接口（例如知识库 ZIP 导出）不携带统一 Result 包装，
+    // 直接把 Blob/ArrayBuffer 返回给调用方，避免被误判为“系统内部错误”。
+    if (["blob", "arraybuffer"].includes(response.config?.responseType)) {
+      return body;
+    }
+
     // 业务成功（2xxxx）
     if (body && typeof body.code === "number" && body.code >= 20000 && body.code < 30000) {
       return body;

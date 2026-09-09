@@ -27,3 +27,4 @@
 | [admin服务查询审计报403导致中央审计暂不可用.md](admin服务查询审计报403导致中央审计暂不可用.md) | 管理端审计板块提示“中央审计暂不可用”，请求报 50001 / FeignException$Forbidden | Nacos 局域网 IP 导致 loopback 判定失败 + 本地缺失 AUDIT_INTERNAL_TOKEN 默认值 |
 | [review服务启动报Flyway迁移V9超长失败.md](review服务启动报Flyway迁移V9超长失败.md) | ai-review-service 启动报 Flyway 异常与 sqlSessionTemplate 依赖失败 | V9 脚本向 review_version 插入 23 位版本契约值，超出 VARCHAR(20) 限制导致迁移失败并残留阻断记录 |
 | [三级缓存与HTTP协商缓存导致数据库变更后前端展示未更新.md](三级缓存与HTTP协商缓存导致数据库变更后前端展示未更新.md) | 数据库插入多题目标签后，curl 能返回新数据，但浏览器页面仍只展示单标签 | 客户端携带旧 ETag 触发 304 命中浏览器磁盘缓存 + 直接改库未触发多级缓存代际推进与失效通知 |
+| [file-service资产列表返回系统内部错误.md](file-service资产列表返回系统内部错误.md) | 管理端存储资产列表提示“系统内部错误”，接口返回 50001 | 历史资产 MIME 类型为空时，压缩包 MIME 集合的 contains(null) 抛出 NullPointerException |

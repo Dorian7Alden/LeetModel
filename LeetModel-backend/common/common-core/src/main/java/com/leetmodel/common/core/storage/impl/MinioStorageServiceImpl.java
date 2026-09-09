@@ -53,8 +53,17 @@ public class MinioStorageServiceImpl implements StorageService {
 
     @Override
     public String upload(MultipartFile file, String prefix) {
+        return upload(file, prefix, Set.of());
+    }
+
+    @Override
+    public String upload(
+            MultipartFile file,
+            String prefix,
+            Set<String> additionalAllowedContentTypes
+    ) {
         // 1. 校验文件
-        validateFile(file);
+        validateFile(file, additionalAllowedContentTypes);
 
         // 2. 生成 objectName
         String originalFilename = file.getOriginalFilename();
@@ -184,10 +193,14 @@ public class MinioStorageServiceImpl implements StorageService {
     /**
      * 校验待上传文件的完整性、大小上限与类型白名单。
      *
-     * @param file 待校验的文件对象
+     * @param file                          待校验的文件对象，不能为 null
+     * @param additionalAllowedContentTypes 当前业务额外允许的 MIME 类型集合，不能为 null
      * @throws BusinessException 当文件为空、超出大小限制或类型不支持时抛出
      */
-    private void validateFile(MultipartFile file) {
+    private void validateFile(
+            MultipartFile file,
+            Set<String> additionalAllowedContentTypes
+    ) {
 
         // 1. 文件非空
         if (file == null || file.isEmpty()) {
@@ -202,12 +215,28 @@ public class MinioStorageServiceImpl implements StorageService {
             );
         }
         // 3. 文件类型
-        if (file.getContentType() != null && !ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
+        String contentType = file.getContentType();
+        if (contentType != null && !isContentTypeAllowed(contentType, additionalAllowedContentTypes)) {
             throw new BusinessException(
                     ErrorCodeEnum.PARAM_INVALID,
-                    "不支持的文件类型: " + file.getContentType()
+                    "不支持的文件类型: " + contentType
             );
         }
+    }
+
+    /**
+     * 判断媒体类型是否属于基础白名单或当前业务额外白名单。
+     *
+     * @param contentType                   待校验的 MIME 类型，不能为 null
+     * @param additionalAllowedContentTypes 当前业务额外允许的 MIME 类型集合，不能为 null
+     * @return 任一白名单包含该类型时返回 true，否则返回 false
+     */
+    private boolean isContentTypeAllowed(
+            String contentType,
+            Set<String> additionalAllowedContentTypes
+    ) {
+        return ALLOWED_CONTENT_TYPES.contains(contentType)
+                || additionalAllowedContentTypes.contains(contentType);
     }
 
     /**

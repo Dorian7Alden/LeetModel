@@ -3,6 +3,7 @@ package com.leetmodel.common.core.storage;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Set;
 
 /**
  * 对象存储服务接口。
@@ -27,6 +28,22 @@ public interface StorageService {
      * @return 格式为 {prefix}/{UUID}.{ext} 的唯一对象路径
      */
     String upload(MultipartFile file, String prefix);
+
+    /**
+     * 使用业务额外允许的媒体类型将文件上传至指定目录。
+     *
+     * <p>额外类型只对本次调用生效，不会放宽头像、论文等其他上传入口的基础白名单。</p>
+     *
+     * @param file                          待上传的文件对象，不能为空
+     * @param prefix                        目标业务目录前缀，不能为空
+     * @param additionalAllowedContentTypes 当前业务额外允许的 MIME 类型集合，不能为 null
+     * @return 格式为 {prefix}/{UUID}.{ext} 的唯一对象路径
+     */
+    String upload(
+            MultipartFile file,
+            String prefix,
+            Set<String> additionalAllowedContentTypes
+    );
 
     /**
      * 流式读取文件内容。

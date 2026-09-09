@@ -8,6 +8,10 @@
     "labels": {"service": "problem-service"}
   },
   {
+    "targets": ["127.0.0.1:8095"],
+    "labels": {"service": "file-service"}
+  },
+  {
     "targets": ["127.0.0.1:8082"],
     "labels": {"service": "team-service"}
   },

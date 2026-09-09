@@ -30,6 +30,7 @@
         <module>common/common-ai</module>
         <module>user-service</module>
         <module>problem-service</module>
+        <module>file-service</module>
         <module>team-service</module>
         <module>submission-service</module>
         <module>ai-review-service</module>

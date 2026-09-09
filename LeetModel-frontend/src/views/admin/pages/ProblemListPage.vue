@@ -131,13 +131,14 @@
           <div class="attachment-section-header">
             <div>
               <span class="attachment-title">题目附件与数据集</span>
-              <span class="attachment-subtitle">支持上传 CSV、XLSX、PDF 等赛题配套数据与材料</span>
+              <span class="attachment-subtitle">支持 ZIP、RAR、7Z、TAR.GZ 等压缩包，以及 CSV、XLSX、PDF 等题目材料</span>
             </div>
             <div>
               <input
                 ref="fileInputRef"
                 type="file"
                 multiple
+                accept=".txt,.md,.csv,.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.rar,.7z,.tar,.gz,.tgz,.bz2,.xz"
                 style="display: none"
                 @change="handleFileSelected"
               />
