@@ -57,69 +57,98 @@
       </div>
     </div>
 
-    <!-- 目录大纲与多维标签树 -->
-    <el-card shadow="never" class="tree-card" v-loading="loading">
+    <!-- 目录导航与文档卡片 -->
+    <el-card shadow="never" class="knowledge-browser" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span><strong>知识库层级大纲与原子文档清单</strong> (共 {{ filteredTreeData.length }} 个主题目录)</span>
-          <span class="sub-text">自包含 README.yaml 元数据驱动，与物理目录严格对齐</span>
+          <span><strong>知识库目录与文档</strong> · {{ filteredTreeData.length }} 个主题目录</span>
+          <span class="sub-text">目录负责组织，标签负责描述，卡片用于快速识别文档</span>
         </div>
       </template>
 
-      <el-collapse v-if="filteredTreeData.length > 0" v-model="activeCollapse">
-        <el-collapse-item
-          v-for="dir in filteredTreeData"
-          :key="dir.path"
-          :name="dir.path"
-        >
-          <template #title>
-            <div class="collapse-title-row">
-              <span class="dir-name">
-                <el-icon><Folder /></el-icon>
-                {{ dir.title }} ({{ dir.name }})
-              </span>
-              <span class="dir-path text-muted">{{ dir.path }}</span>
-              <el-tag size="small" type="info" class="count-badge">{{ dir.documentCount }} 篇文档</el-tag>
-              <div class="tag-group" v-if="dir.tags && dir.tags.length > 0">
-                <el-tag
-                  v-for="tag in dir.tags.slice(0, 3)"
-                  :key="tag"
-                  size="small"
-                  effect="plain"
-                  class="custom-tag"
-                >
-                  {{ tag }}
-                </el-tag>
-              </div>
-            </div>
-          </template>
+      <div v-if="currentDirectory" class="browser-layout">
+        <aside class="directory-panel" aria-label="知识库目录">
+          <div class="panel-heading">
+            <span class="panel-kicker">BROWSE</span>
+            <strong>目录导航</strong>
+          </div>
+          <button
+            v-for="dir in filteredTreeData"
+            :key="dir.path"
+            type="button"
+            class="directory-item"
+            :class="{ 'is-active': dir.path === currentDirectory.path }"
+            @click="selectDirectory(dir.path)"
+          >
+            <span class="directory-icon"><el-icon><Folder /></el-icon></span>
+            <span class="directory-copy">
+              <strong>{{ dir.title || dir.name }}</strong>
+              <small>{{ dir.documentCount || dir.documents?.length || 0 }} 篇文档</small>
+            </span>
+            <span class="directory-arrow">›</span>
+          </button>
+        </aside>
 
-          <!-- 目录下属文档列表 -->
-          <div class="doc-list">
-            <div
-              v-for="doc in dir.documents"
+        <section class="document-panel" aria-label="知识库文档">
+          <div class="document-panel-header">
+            <div>
+              <span class="panel-kicker">CURRENT DIRECTORY</span>
+              <h3>{{ currentDirectory.title || currentDirectory.name }}</h3>
+              <code>{{ currentDirectory.path }}</code>
+            </div>
+            <el-tag type="info" effect="plain">
+              {{ currentDirectory.documents?.length || 0 }} 篇文档
+            </el-tag>
+          </div>
+
+          <div v-if="directoryTags(currentDirectory).length" class="directory-tags">
+            <span class="tag-label">目录标签</span>
+            <el-tag
+              v-for="tag in directoryTags(currentDirectory)"
+              :key="tag"
+              size="small"
+              effect="plain"
+            >{{ tag }}</el-tag>
+          </div>
+
+          <div v-if="currentDirectory.documents?.length" class="document-grid">
+            <article
+              v-for="doc in currentDirectory.documents"
               :key="doc.file"
-              class="doc-item"
-              @click="showDocDetail(doc, dir)"
+              class="document-card"
+              tabindex="0"
+              @click="showDocDetail(doc, currentDirectory)"
+              @keydown.enter="showDocDetail(doc, currentDirectory)"
             >
-              <div class="doc-main">
-                <span class="doc-title">
-                  <el-icon><Document /></el-icon>
-                  {{ doc.title }}
-                </span>
-                <span class="doc-file text-muted">{{ doc.file }}</span>
+              <div class="document-card-topline">
+                <span class="document-type-icon"><el-icon><Document /></el-icon></span>
                 <el-tag :type="authorityTagType(doc.authorityLevel)" size="small">
                   {{ doc.authorityLevel || 'L4' }}
                 </el-tag>
               </div>
-              <p class="doc-summary text-muted">{{ doc.summary }}</p>
-              <div class="doc-tags" v-if="doc.docTags && doc.docTags.length > 0">
-                <span v-for="t in doc.docTags" :key="t" class="tag-pill">{{ t }}</span>
+              <h4>{{ doc.title || doc.file }}</h4>
+              <code class="document-file">{{ doc.file }}</code>
+              <p class="doc-summary">{{ doc.summary || '暂无摘要' }}</p>
+              <div v-if="documentTags(doc).length" class="document-tags">
+                <el-tag
+                  v-for="tag in documentTags(doc).slice(0, 5)"
+                  :key="tag"
+                  size="small"
+                  effect="plain"
+                >{{ tag }}</el-tag>
+                <span v-if="documentTags(doc).length > 5" class="more-tags">
+                  +{{ documentTags(doc).length - 5 }}
+                </span>
               </div>
-            </div>
+              <div class="document-card-footer">
+                <span>{{ doc.estimatedTokens ? `约 ${doc.estimatedTokens} tokens` : '原子文档' }}</span>
+                <span class="detail-link">查看详情 ›</span>
+              </div>
+            </article>
           </div>
-        </el-collapse-item>
-      </el-collapse>
+          <el-empty v-else description="当前目录没有匹配的文档" />
+        </section>
+      </div>
       <el-empty v-else description="未找到匹配的知识库目录或文档" />
     </el-card>
 
@@ -176,10 +205,16 @@ const indexStatus = ref({
   totalChunks: 0,
   healthy: true,
 });
-const activeCollapse = ref([]);
+const selectedDirectoryPath = ref("");
 const detailVisible = ref(false);
 const selectedDoc = ref(null);
 const selectedDir = ref(null);
+
+const currentDirectory = computed(() => {
+  return filteredTreeData.value.find((dir) => dir.path === selectedDirectoryPath.value)
+    || filteredTreeData.value[0]
+    || null;
+});
 
 const filteredTreeData = computed(() => {
   const kw = (searchKeyword.value || "").trim().toLowerCase();
@@ -214,6 +249,18 @@ function authorityTagType(level) {
   }
 }
 
+function selectDirectory(path) {
+  selectedDirectoryPath.value = path;
+}
+
+function directoryTags(directory) {
+  return [...new Set(directory?.tags || [])].filter(Boolean);
+}
+
+function documentTags(doc) {
+  return [...new Set([...(doc?.docTags || []), ...(doc?.methods || [])])].filter(Boolean);
+}
+
 function showDocDetail(doc, dir) {
   selectedDoc.value = doc;
   selectedDir.value = dir;
@@ -229,7 +276,9 @@ async function loadData() {
     ]);
     if (treeRes.status === "fulfilled" && treeRes.value.data) {
       treeData.value = treeRes.value.data;
-      activeCollapse.value = treeData.value.map((d) => d.path);
+      if (!selectedDirectoryPath.value && treeData.value.length > 0) {
+        selectedDirectoryPath.value = treeData.value[0].path;
+      }
     }
     if (statusRes.status === "fulfilled" && statusRes.value.data) {
       indexStatus.value = statusRes.value.data;
@@ -372,7 +421,7 @@ onMounted(loadData);
   gap: 8px;
 }
 
-.tree-card {
+.knowledge-browser {
   border-radius: 6px;
 }
 
@@ -387,99 +436,254 @@ onMounted(loadData);
   color: #94a3b8;
 }
 
-.collapse-title-row {
+.browser-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  min-height: 520px;
+}
+
+.directory-panel {
+  border-right: 1px solid #e2e8f0;
+  padding-right: 16px;
+}
+
+.panel-heading,
+.document-panel-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
+  justify-content: space-between;
 }
 
-.dir-name {
-  font-weight: 600;
-  font-size: 14px;
-  color: #1e293b;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dir-path {
-  font-size: 12px;
-  font-family: var(--lm-code-font-family);
-  color: #64748b;
-}
-
-.count-badge {
-  margin-left: auto;
-}
-
-.tag-group {
-  display: flex;
-  gap: 4px;
-  margin-right: 16px;
-}
-
-.doc-list {
-  display: flex;
-  flex-direction: column;
+.panel-heading {
+  justify-content: flex-start;
   gap: 8px;
-  padding-top: 8px;
+  padding: 4px 8px 12px;
+  color: #0f172a;
 }
 
-.doc-item {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 10px 14px;
+.panel-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.directory-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.doc-item:hover {
+.directory-item:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.directory-item.is-active {
   background: #f1f5f9;
   border-color: #cbd5e1;
-}
-
-.doc-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.doc-title {
-  font-weight: 500;
-  font-size: 13px;
   color: #0f172a;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
-.doc-file {
-  font-size: 12px;
-  font-family: var(--lm-code-font-family);
+.directory-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.directory-item.is-active .directory-icon {
+  background: #0f172a;
+  color: #fff;
+}
+
+.directory-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.directory-copy strong,
+.directory-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-copy strong {
+  font-size: 13px;
+}
+
+.directory-copy small {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.directory-arrow {
+  color: #94a3b8;
+  font-size: 18px;
+}
+
+.document-panel {
+  min-width: 0;
+}
+
+.document-panel-header {
+  align-items: flex-start;
+  padding: 4px 0 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.document-panel-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.document-panel-header code {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
   color: #64748b;
+  font-family: var(--lm-code-font-family);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 0 4px;
+}
+
+.tag-label {
+  margin-right: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.document-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.document-card {
+  display: flex;
+  min-height: 218px;
+  flex-direction: column;
+  padding: 15px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.document-card:hover,
+.document-card:focus-visible {
+  border-color: #94a3b8;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.document-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.document-type-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.document-card h4 {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 14px 0 5px;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.document-file {
+  overflow: hidden;
+  color: #94a3b8;
+  font-family: var(--lm-code-font-family);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-summary {
-  margin: 6px 0 4px 0;
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 10px 0 12px;
+  color: #64748b;
   font-size: 12px;
-  line-height: 1.4;
-  color: #475569;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-.doc-tags {
+.document-tags {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: auto;
 }
 
-.tag-pill {
+.more-tags {
+  align-self: center;
+  color: #94a3b8;
   font-size: 11px;
-  background: #e2e8f0;
+}
+
+.document-card-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.detail-link {
   color: #475569;
-  padding: 1px 6px;
-  border-radius: 4px;
+  font-weight: 600;
 }
 
 .detail-content .summary-box {
@@ -500,6 +704,22 @@ onMounted(loadData);
   .toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+  .browser-layout {
+    grid-template-columns: 1fr;
+  }
+  .directory-panel {
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 0 12px;
+  }
+  .directory-item {
+    display: inline-flex;
+    width: calc(50% - 4px);
+    margin-right: 4px;
+  }
+  .document-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
