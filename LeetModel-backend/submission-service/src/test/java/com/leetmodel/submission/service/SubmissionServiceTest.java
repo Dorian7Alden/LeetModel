@@ -12,6 +12,7 @@ import com.leetmodel.submission.entity.SubmissionLock;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.vo.SubmissionVO;
+import com.leetmodel.submission.vo.ProblemSubmissionStatsVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,6 +31,17 @@ class SubmissionServiceTest {
     @Mock StorageService storageService; @InjectMocks SubmissionService service;
     @Mock ReviewDispatchQueryService reviewDispatchQueryService;
     @Mock SubmissionFinalizationPersistenceService finalizationPersistenceService;
+
+    @Test
+    void aggregateSuccessfulSubmissionCountByProblem() {
+        when(submissionMapper.countSuccessfulByProblemId(100L)).thenReturn(7L);
+
+        ProblemSubmissionStatsVO stats = service.getProblemSubmissionStats(100L);
+
+        assertEquals(100L, stats.getProblemId());
+        assertEquals(7L, stats.getSubmissionCount());
+        verify(submissionMapper).countSuccessfulByProblemId(100L);
+    }
 
     @Test
     void markLockedSubmissionAsFinalVersionInHistory() {

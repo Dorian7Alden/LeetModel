@@ -37,6 +37,7 @@ import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.JoinApplicationVO;
 import com.leetmodel.team.vo.PopularPracticeProblemVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamRecruitmentVO;
 import com.leetmodel.team.vo.TeamVO;
@@ -193,6 +194,20 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
             if (result.size() == resultLimit) break;
         }
         return result;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public ProblemParticipationStatsVO getProblemParticipationStats(Long problemId) {
+        ProblemParticipationStatsVO stats = baseMapper.selectProblemParticipationStats(problemId);
+        if (stats == null) {
+            stats = ProblemParticipationStatsVO.builder()
+                    .teamCount(0L)
+                    .participantCount(0L)
+                    .build();
+        }
+        stats.setProblemId(problemId);
+        return stats;
     }
 
     /** {@inheritDoc} */

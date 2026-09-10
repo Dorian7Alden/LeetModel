@@ -6,10 +6,13 @@ import com.leetmodel.submission.dto.UploadInitializeRequest;
 import com.leetmodel.submission.service.SubmissionService;
 import com.leetmodel.submission.service.SubmissionUploadService;
 import com.leetmodel.submission.vo.SubmissionVO;
+import com.leetmodel.submission.vo.ProblemSubmissionStatsVO;
 import com.leetmodel.submission.vo.UploadSessionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.validation.annotation.Validated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,9 +31,24 @@ import java.util.List;
 @RequestMapping("/api/submissions")
 @RequiredArgsConstructor
 @Tag(name = "论文提交")
+@Validated
 public class SubmissionController {
     private final SubmissionService submissionService;
     private final SubmissionUploadService uploadService;
+
+    /**
+     * 查询指定题目的成功提交总次数。
+     *
+     * @param problemId 题目标识
+     * @return 成功提交统计
+     */
+    @Operation(summary = "查询题目提交统计")
+    @GetMapping("/public/problems/{problemId}/stats")
+    public Result<ProblemSubmissionStatsVO> getProblemSubmissionStats(
+            @PathVariable @Positive(message = "题目标识必须为正整数") Long problemId
+    ) {
+        return Result.ok(submissionService.getProblemSubmissionStats(problemId));
+    }
 
     /**
      * 初始化分片上传会话，校验队伍提交窗口并返回会话元数据。

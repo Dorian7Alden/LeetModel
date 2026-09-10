@@ -18,4 +18,13 @@ import java.util.List;
              ORDER BY submission_count DESC, problem_id ASC
             """)
     List<ProblemSubmissionStatsDTO> selectProblemStats();
+
+    @Select("""
+            SELECT COUNT(*)
+              FROM submission
+             WHERE problem_id = #{problemId}
+               AND status = 'SUCCESS'
+               AND deleted = 0
+            """)
+    long countSuccessfulByProblemId(@Param("problemId") Long problemId);
 }

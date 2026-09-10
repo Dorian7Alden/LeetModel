@@ -17,12 +17,14 @@ import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.JoinApplicationVO;
 import com.leetmodel.team.vo.PopularPracticeProblemVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import com.leetmodel.team.vo.TeamVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -101,6 +103,20 @@ public class TeamController {
             @Max(value = 10, message = "热门练习题数量最多为10") Integer limit
     ) {
         return Result.ok(teamService.listPopularPracticeProblems(limit));
+    }
+
+    /**
+     * 查询指定题目的有效参赛队伍和当前成员总数。
+     *
+     * @param problemId 题目标识
+     * @return 参赛统计
+     */
+    @Operation(summary = "查询题目参赛统计")
+    @GetMapping("/public/problems/{problemId}/stats")
+    public Result<ProblemParticipationStatsVO> getProblemParticipationStats(
+            @PathVariable @Positive(message = "题目标识必须为正整数") Long problemId
+    ) {
+        return Result.ok(teamService.getProblemParticipationStats(problemId));
     }
 
     /**

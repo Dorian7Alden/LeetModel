@@ -72,6 +72,11 @@ public class SaTokenConfig {
                         "/api/public/problems/**",
                         // 题库右侧只读热门练习统计无需认证
                         "/api/teams/public/popular-practice-problems",
+                        // 题目详情页的只读参赛与提交统计无需认证
+                        "/api/teams/public/problems/**",
+                        "/api/submissions/public/problems/**",
+                        // 题目详情页的匿名分数分布聚合数据无需认证
+                        "/api/rankings/public/problems/**",
                         // Knife4j 聚合文档页面与 API 规范端点
                         "/doc.html",
                         "/v3/api-docs/**",

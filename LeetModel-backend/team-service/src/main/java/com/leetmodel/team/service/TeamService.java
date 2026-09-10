@@ -16,6 +16,7 @@ import com.leetmodel.team.dto.TeamUpdateRequest;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.vo.JoinApplicationVO;
 import com.leetmodel.team.vo.PopularPracticeProblemVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamVO;
 
@@ -58,6 +59,14 @@ public interface TeamService extends IService<Team> {
      * @return 按练习次数倒序排列的题目列表
      */
     List<PopularPracticeProblemVO> listPopularPracticeProblems(int limit);
+
+    /**
+     * 查询指定题目的有效参赛队伍和当前成员总数。
+     *
+     * @param problemId 题目标识
+     * @return 参赛统计
+     */
+    ProblemParticipationStatsVO getProblemParticipationStats(Long problemId);
 
     /**
      * 查询指定队伍的详细信息（含申请状态匹配）。

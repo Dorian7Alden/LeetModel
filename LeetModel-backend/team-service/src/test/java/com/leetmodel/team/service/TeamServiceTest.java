@@ -29,6 +29,7 @@ import com.leetmodel.team.service.impl.TeamServiceImpl;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.PopularPracticeProblemVO;
 import com.leetmodel.team.vo.TeamVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,6 +91,23 @@ class TeamServiceTest {
         team.setStatus(1);
         team.setProblemId(100L);
         team.setPracticeStatus("PREPARING");
+    }
+
+    @Test
+    @DisplayName("聚合题目的有效队伍与参赛人数")
+    void aggregateProblemParticipationStats() {
+        when(teamMapper.selectProblemParticipationStats(100L))
+                .thenReturn(ProblemParticipationStatsVO.builder()
+                        .teamCount(3L)
+                        .participantCount(8L)
+                        .build());
+
+        ProblemParticipationStatsVO stats = teamService.getProblemParticipationStats(100L);
+
+        assertEquals(100L, stats.getProblemId());
+        assertEquals(3L, stats.getTeamCount());
+        assertEquals(8L, stats.getParticipantCount());
+        verify(teamMapper).selectProblemParticipationStats(100L);
     }
 
     @Test
