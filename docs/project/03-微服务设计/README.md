@@ -22,6 +22,7 @@
 | [ranking-service/](ranking-service/) | 论文评分口径、题目排行和队伍排名查询 |
 | [admin-service/](admin-service/) | 管理端聚合、AI 调用监控和 AI 测试控制 |
 | [audit-service/](audit-service/) | 目标服务（尚未实现）；集中不可变归档和查询各业务所有者可靠投递的操作审计事件 |
+| [file-service/](file-service/) | 目标服务（尚未实现）；管理文件资产、逻辑分组、访问策略、引用投影和存储生命周期 |
 | [common/](common/) | 公共 Maven 模块，包含基础能力、服务调用、认证鉴权、三级缓存、可靠消息和 AI 调用客户端 |
 
 ---
