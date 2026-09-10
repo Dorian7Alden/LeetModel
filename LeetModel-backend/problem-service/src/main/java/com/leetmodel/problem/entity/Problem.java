@@ -27,6 +27,9 @@ public class Problem extends BaseEntity {
     /** 可直接渲染的 Markdown 题面 */
     private String contentMarkdown;
 
+    /** 面向练习者展示的精短解题提示。 */
+    private String solutionHint;
+
     private Long contestId;
     private Integer year;
     private String statementLanguage;

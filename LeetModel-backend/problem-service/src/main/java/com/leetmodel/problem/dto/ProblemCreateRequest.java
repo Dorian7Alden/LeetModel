@@ -30,6 +30,10 @@ public class ProblemCreateRequest {
     /** 可直接渲染的 Markdown 题面，可为空 */
     private String contentMarkdown;
 
+    /** 精短解题提示，只说明建模切入点。 */
+    @Size(max = 200, message = "解题提示不能超过 200 个字符")
+    private String solutionHint;
+
     @NotNull(message = "赛事不能为空")
     @Positive(message = "赛事 ID 必须为正数")
     private Long contestId;
