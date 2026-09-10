@@ -50,6 +50,7 @@
           :group-by-year="true"
           :show-contest="true"
           :show-problem-number="false"
+          @fav-change="handleFavChange"
           @total-change="handleTotalChange"
         />
       </main>
@@ -76,6 +77,10 @@ const allContests = ref([])
 const allTags = ref([])
 const problemTotal = ref(0)
 const listRef = ref(null)
+
+const handleFavChange = (count) => {
+  workbench?.updateFavCount?.(count)
+}
 
 const routeFilterQuery = () => {
   const params = {}

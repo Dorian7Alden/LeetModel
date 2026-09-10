@@ -26,7 +26,6 @@
               class="official-portal-link"
               title="前往组委会官方网站"
             >
-              <span>赛事官网</span>
               <el-icon><TopRight /></el-icon>
             </a>
           </div>
@@ -119,6 +118,7 @@
           :initial-query="contestQuery"
           :group-by-year="true"
           :show-contest="false"
+          @fav-change="handleFavChange"
           @total-change="handleTotalChange"
           @loaded="handleProblemsLoaded"
         />
@@ -154,6 +154,10 @@ const loadedProblems = ref([])
 const randomLoading = ref(false)
 const listRef = ref(null)
 const workbench = inject('problemWorkbench', null)
+
+const handleFavChange = (count) => {
+  workbench?.updateFavCount?.(count)
+}
 
 const contestQuery = computed(() => {
   const query = { contestId: contestId.value }
@@ -432,9 +436,12 @@ watch(contestId, () => {
   align-items: center;
   gap: 2px;
   color: var(--lm-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   text-decoration: none;
   transition: color var(--lm-transition);
+}
+.official-portal-link .el-icon {
+  font-size: 15px;
 }
 .official-portal-link:hover {
   color: var(--lm-text-primary);

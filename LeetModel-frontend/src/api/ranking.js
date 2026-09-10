@@ -15,3 +15,10 @@ export function locateTeamRanking(problemId, teamId, radius = 2) {
     params: { radius },
   });
 }
+
+export function getProblemScoreDistribution(problemId) {
+  return request({
+    url: `/rankings/public/problems/${problemId}/score-distribution`,
+    method: "get",
+  });
+}

@@ -81,6 +81,7 @@
           :initial-query="typeQuery"
           :group-by-year="true"
           :show-contest="true"
+          @fav-change="handleFavChange"
           @total-change="handleTotalChange"
           @loaded="handleProblemsLoaded"
         />
@@ -109,6 +110,10 @@ const loadedProblems = ref([])
 const randomLoading = ref(false)
 const listRef = ref(null)
 const workbench = inject('problemWorkbench', null)
+
+const handleFavChange = (count) => {
+  workbench?.updateFavCount?.(count)
+}
 
 const rawTag = computed(() => allTags.value.find(t => t.id === typeId.value))
 

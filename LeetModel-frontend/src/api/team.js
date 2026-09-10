@@ -38,6 +38,12 @@ export function getPopularPracticeProblems(limit = 3) {
   });
 }
 
+export function getProblemParticipationStats(problemId) {
+  return request.get(`/teams/public/problems/${problemId}/stats`, {
+    skipAuthRedirect: true
+  });
+}
+
 export function getTeamDetail(teamId) {
   return request.get(`/teams/${teamId}`);
 }

@@ -154,10 +154,6 @@ const switchSection = async (sectionKey) => {
     listRef.value?.setDisplayMode('all')
   } else if (sectionKey === 'favorite') {
     listRef.value?.setDisplayMode('favorite')
-    const favIds = listRef.value?.getFavoritedIds() || []
-    if (!favIds.length) {
-      ElMessage.info('暂无收藏题目，可点击题目右侧小星星加入收藏')
-    }
   } else if (sectionKey === 'in_progress') {
     try {
       const res = await getMyTeams({ practiceStatus: 'IN_PROGRESS', page: 1, pageSize: 20 })
