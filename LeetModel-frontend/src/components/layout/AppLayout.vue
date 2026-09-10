@@ -151,7 +151,6 @@
       </div>
     </footer>
 
-    <AiAssistantWidget />
   </div>
 </template>
 
@@ -161,7 +160,6 @@ import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
 import { getCurrentAuthorization } from '@/api/user'
-import AiAssistantWidget from '@/components/common/AiAssistantWidget.vue'
 import {
   Trophy,
   Menu,
@@ -185,6 +183,7 @@ const navItems = [
   { label: '题库', path: '/problem' },
   { label: '队伍', path: '/team' },
   { label: '排行榜', path: '/ranking' },
+  { label: 'AI 客服', path: '/assistant' },
 ]
 
 function isActive(path) {

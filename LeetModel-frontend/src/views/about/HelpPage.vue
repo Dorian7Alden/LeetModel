@@ -47,7 +47,7 @@
     </el-collapse>
 
     <div class="help-footer">
-      <p>没有找到答案？登录后可打开右下角 AI 客服查询平台操作，或前往<router-link to="/contact">支持渠道</router-link>。</p>
+      <p>没有找到答案？登录后可从顶部导航进入<router-link to="/assistant">AI 客服</router-link>查询平台操作，或前往<router-link to="/contact">支持渠道</router-link>。</p>
     </div>
   </div>
 </template>
