@@ -28,6 +28,7 @@ import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
 import com.leetmodel.ranking.vo.GlobalRankingOverviewVO;
 import com.leetmodel.ranking.vo.ProblemRankingStatsVO;
+import com.leetmodel.ranking.vo.ProblemScoreDistributionVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -211,6 +212,32 @@ public class RankingService {
                 .current(entries.get(currentIndex))
                 .nearby(entries.subList(from, to))
                 .total(entries.size())
+                .build();
+    }
+
+    /**
+     * 聚合指定题目当前榜单的匿名分数分布，按整数分值四舍五入归入 0–100 桶。
+     *
+     * @param problemId 题目 ID
+     * @return 包含完整 0–100 分桶的分布
+     */
+    public ProblemScoreDistributionVO getScoreDistribution(Long problemId) {
+        long[] counts = new long[101];
+        for (RankingEntryVO item : currentOverview(problemId).getItems()) {
+            if (item == null || item.getScore() == null) continue;
+            int score = item.getScore().setScale(0, RoundingMode.HALF_UP).intValue();
+            if (score >= 0 && score <= 100) counts[score]++;
+        }
+        List<ProblemScoreDistributionVO.ScoreBucketVO> buckets = new ArrayList<>(101);
+        for (int score = 0; score <= 100; score++) {
+            buckets.add(ProblemScoreDistributionVO.ScoreBucketVO.builder()
+                    .score(score)
+                    .teamCount(counts[score])
+                    .build());
+        }
+        return ProblemScoreDistributionVO.builder()
+                .problemId(problemId)
+                .buckets(buckets)
                 .build();
     }
 

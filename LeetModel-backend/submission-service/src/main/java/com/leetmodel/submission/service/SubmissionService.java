@@ -18,6 +18,7 @@ import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.vo.SubmissionVO;
+import com.leetmodel.submission.vo.ProblemSubmissionStatsVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -161,6 +162,19 @@ public class SubmissionService {
     /** 按题目统计全部成功提交，不受管理端列表条数限制。 */
     public List<ProblemSubmissionStatsDTO> listProblemStats() {
         return submissionMapper.selectProblemStats();
+    }
+
+    /**
+     * 查询指定题目的成功提交总次数。
+     *
+     * @param problemId 题目标识
+     * @return 成功提交统计
+     */
+    public ProblemSubmissionStatsVO getProblemSubmissionStats(Long problemId) {
+        return ProblemSubmissionStatsVO.builder()
+                .problemId(problemId)
+                .submissionCount(submissionMapper.countSuccessfulByProblemId(problemId))
+                .build();
     }
 
     /** 管理聚合使用的最近提交快照，不暴露下载地址。 */

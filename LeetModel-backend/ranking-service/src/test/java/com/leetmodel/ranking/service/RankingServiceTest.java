@@ -21,6 +21,7 @@ import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
 import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
+import com.leetmodel.ranking.vo.ProblemScoreDistributionVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -215,6 +216,27 @@ class RankingServiceTest {
         assertThat(result.getTotal()).isEqualTo(1);
         assertThat(result.getItems().get(0).getRank()).isEqualTo(2);
         assertThat(result.getItems().get(0).getTeamName()).isEqualTo("Beta 数据队");
+    }
+
+    @Test
+    void scoreDistributionRoundsScoresIntoCompleteZeroToHundredBuckets() {
+        RankingSnapshot high = snapshot(1L, 1);
+        high.setScore(new BigDecimal("99.50"));
+        RankingSnapshot nearHigh = snapshot(2L, 2);
+        nearHigh.setScore(new BigDecimal("99.40"));
+        RankingSnapshot low = snapshot(3L, 3);
+        low.setScore(new BigDecimal("0.50"));
+        when(snapshotMapper.selectList(org.mockito.ArgumentMatchers.<Wrapper<RankingSnapshot>>any()))
+                .thenReturn(List.of(high, nearHigh, low));
+
+        ProblemScoreDistributionVO result = rankingService.getScoreDistribution(PROBLEM_ID);
+
+        assertThat(result.getBuckets()).hasSize(101);
+        assertThat(result.getBuckets().get(100).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().get(99).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().get(1).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().stream().mapToLong(ProblemScoreDistributionVO.ScoreBucketVO::getTeamCount)
+                .sum()).isEqualTo(3L);
     }
 
     @Test

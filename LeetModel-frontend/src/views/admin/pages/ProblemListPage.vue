@@ -89,6 +89,17 @@
           <el-input v-model="form.contentMarkdown" type="textarea" :rows="6" placeholder="填写可直接渲染的 Markdown 题面，可为空" />
         </el-form-item>
 
+        <el-form-item label="解题提示" prop="solutionHint">
+          <el-input
+            v-model="form.solutionHint"
+            type="textarea"
+            :rows="2"
+            maxlength="200"
+            show-word-limit
+            placeholder="用一两句话说明建模切入点，不提供完整答案"
+          />
+        </el-form-item>
+
         <el-form-item label="所属赛事" prop="contestId">
           <el-select v-model="form.contestId" style="width: 100%">
             <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
@@ -218,6 +229,10 @@
           </div>
           <div v-if="previewTagNames.length" class="preview-tags">
             <el-tag v-for="tag in previewTagNames" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+          </div>
+          <div v-if="previewProblem.solutionHint" class="preview-solution-hint">
+            <small>解题提示</small>
+            <p>{{ previewProblem.solutionHint }}</p>
           </div>
 
           <!-- 附件与数据集展示 -->
@@ -368,6 +383,7 @@ const removePendingAttachment = (index) => {
 const form = reactive({
   title: '',
   contentMarkdown: '',
+  solutionHint: '',
   contestId: null,
   problemNumber: null,
   year: new Date().getFullYear(),
@@ -467,6 +483,7 @@ const openEditDialog = async (row) => {
       const d = res.data;
       form.title = d.title;
       form.contentMarkdown = d.contentMarkdown || '';
+      form.solutionHint = d.solutionHint || '';
       form.contestId = d.contestId;
       form.problemNumber = d.problemNumber || 'X';
       form.year = d.year;
@@ -509,6 +526,7 @@ const handleDelete = (row) => {
 const resetForm = () => {
   form.title = '';
   form.contentMarkdown = '';
+  form.solutionHint = '';
   form.contestId = null;
   form.problemNumber = null;
   form.year = new Date().getFullYear();
@@ -532,6 +550,7 @@ const onSubmit = async () => {
     const payload = {
       title: form.title,
       contentMarkdown: form.contentMarkdown,
+      solutionHint: form.solutionHint,
       contestId: form.contestId,
       problemNumber: form.problemNumber,
       year: form.year,
@@ -617,6 +636,9 @@ onMounted(() => {
 .preview-meta small { color: var(--lm-text-muted); font-size: 10px; }
 .preview-meta strong { margin-top: 3px; overflow: hidden; color: var(--lm-text-primary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .preview-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.preview-solution-hint { margin-bottom: 18px; padding: 12px 14px; border-left: 3px solid #f59e0b; background: #fffbeb; }
+.preview-solution-hint small { color: #a16207; font-size: 10px; font-weight: 700; }
+.preview-solution-hint p { margin: 5px 0 0; color: #44403c; font-size: 13px; line-height: 1.65; }
 .problem-markdown { min-height: 320px; padding: 28px 32px; color: #1f2937; background: #fff; border: 1px solid var(--lm-border); border-radius: 12px; }
 .problem-preview-drawer :deep(.el-drawer__header) { margin-bottom: 0; padding: 20px 24px; border-bottom: 1px solid var(--lm-border); }
 .problem-preview-drawer :deep(.el-drawer__body) { padding: 22px 24px 32px; background: #f8fafc; }

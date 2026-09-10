@@ -103,12 +103,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Loading, Lock, Star, StarFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getPublicProblemList } from '@/api/problem'
+import { getPublicProblemDetail, getPublicProblemList } from '@/api/problem'
 import { useUserStore } from '@/store/user'
+import {
+  getFavoriteCount,
+  getFavoriteIds,
+  getProblemFavoritedAt,
+  isProblemFavorited,
+  toggleProblemFavorite
+} from '@/utils/favoriteStorage'
 
 const props = defineProps({
   tags: { type: Array, default: () => [] },
@@ -121,6 +128,7 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const workbench = inject('problemWorkbench', null)
 
 const problems = ref([])
 const emit = defineEmits(['fav-change', 'total-change', 'loaded'])
@@ -150,10 +158,11 @@ const showContest = computed(() => props.showContest)
 const showProblemNumber = computed(() => props.showProblemNumber)
 
 // 本地收藏题目状态
-const favoritedIds = ref(JSON.parse(localStorage.getItem('lm_fav_problems') || '[]'))
+const favVersion = ref(0)
 
 const filteredProblems = computed(() => {
   if (displayMode.value === 'favorite') {
+    void favVersion.value
     return problems.value.filter(p => isFavorited(p.id))
   }
   if (displayMode.value === 'in_progress' || displayMode.value === 'completed') {
@@ -190,7 +199,21 @@ const sortWithinYearGroups = (rows) => {
   ))
 }
 
-const displayedProblems = computed(() => sortWithinYearGroups(filteredProblems.value))
+const displayedProblems = computed(() => {
+  if (displayMode.value === 'favorite') {
+    void favVersion.value
+    const list = problems.value.filter(p => isFavorited(p.id))
+    return list.slice().sort((a, b) => {
+      const timeA = getProblemFavoritedAt(a.id) ?? Infinity
+      const timeB = getProblemFavoritedAt(b.id) ?? Infinity
+      if (timeA !== timeB) {
+        return timeA - timeB // 按照点击收藏的时刻排序，最先收藏的排在最前面
+      }
+      return 0
+    })
+  }
+  return sortWithinYearGroups(filteredProblems.value)
+})
 
 const emptyText = computed(() => {
   if (displayMode.value === 'favorite') return '暂无收藏题目，可点击题目右侧小星星加入收藏'
@@ -199,18 +222,16 @@ const emptyText = computed(() => {
   return '暂无符合条件的题目'
 })
 
-const isFavorited = (id) => favoritedIds.value.includes(String(id))
+const isFavorited = (id) => {
+  void favVersion.value
+  return isProblemFavorited(id)
+}
+
 const toggleFavorite = (id) => {
-  const sId = String(id)
-  if (favoritedIds.value.includes(sId)) {
-    favoritedIds.value = favoritedIds.value.filter(i => i !== sId)
-    ElMessage.info('已取消收藏')
-  } else {
-    favoritedIds.value.push(sId)
-    ElMessage.success('已加入我的收藏题单')
-  }
-  localStorage.setItem('lm_fav_problems', JSON.stringify(favoritedIds.value))
-  emit('fav-change', favoritedIds.value.length)
+  const result = toggleProblemFavorite(id)
+  favVersion.value++
+  emit('fav-change', result.count)
+  workbench?.updateFavCount?.(result.count)
 }
 
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
@@ -233,6 +254,7 @@ const contestLabel = (name) => {
 }
 const yearLabel = (problem) => problem.year || '未标注年份'
 const shouldRenderYearRow = (problem, index) => {
+  if (displayMode.value === 'favorite') return false
   if (!groupByYear.value) return false
   if (index === 0) return true
   return yearLabel(problem) !== yearLabel(displayedProblems.value[index - 1])
@@ -308,9 +330,44 @@ const updateQuery = (params) => {
   fetchProblems(false)
 }
 
-const setDisplayMode = (mode, ids = []) => {
+const ensureFavoritedProblemsLoaded = async () => {
+  const favIds = getFavoriteIds()
+  const existingIds = new Set(problems.value.map(p => String(p.id)))
+  const missingIds = favIds.filter(id => !existingIds.has(String(id)))
+  if (!missingIds.length) return
+
+  try {
+    const results = await Promise.allSettled(
+      missingIds.map(id => getPublicProblemDetail(id))
+    )
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value?.data) {
+        const item = result.value.data
+        if (!problems.value.some(p => String(p.id) === String(item.id))) {
+          problems.value.push(item)
+        }
+      }
+    }
+  } catch {
+    // 异常兜底
+  }
+}
+
+const syncFavorites = async () => {
+  favVersion.value++
+  emit('fav-change', getFavoriteCount())
+  if (displayMode.value === 'favorite') {
+    await ensureFavoritedProblemsLoaded()
+  }
+}
+
+const setDisplayMode = async (mode, ids = []) => {
   displayMode.value = mode
   specialIds.value = ids
+  if (mode === 'favorite') {
+    favVersion.value++
+    await ensureFavoritedProblemsLoaded()
+  }
 }
 
 const cycleSort = (field) => {
@@ -343,7 +400,9 @@ const observeSentinel = () => {
 
 onMounted(() => {
   query.value = { ...props.initialQuery }
-  emit('fav-change', favoritedIds.value.length)
+  emit('fav-change', getFavoriteCount())
+  window.addEventListener('storage', syncFavorites)
+  window.addEventListener('lm-fav-change', syncFavorites)
   if (typeof IntersectionObserver !== 'undefined') {
     observer = new IntersectionObserver((entries) => {
       const entry = entries[0]
@@ -359,6 +418,8 @@ onMounted(() => {
 watch(sentinelRef, observeSentinel, { flush: 'post' })
 
 onUnmounted(() => {
+  window.removeEventListener('storage', syncFavorites)
+  window.removeEventListener('lm-fav-change', syncFavorites)
   if (observer) observer.disconnect()
   observedSentinel = null
 })
@@ -369,7 +430,7 @@ defineExpose({
   cycleSort,
   clearSort,
   problems,
-  getFavoritedIds: () => favoritedIds.value
+  getFavoritedIds: () => getFavoriteIds()
 })
 </script>
 

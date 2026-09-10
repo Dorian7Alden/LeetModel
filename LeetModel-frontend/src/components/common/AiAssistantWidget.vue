@@ -1,6 +1,6 @@
 <template>
   <transition name="fade">
-    <div v-if="userStore.isLogin" class="ai-widget">
+    <div v-if="userStore.isLogin" class="ai-widget" :class="{ 'ai-widget--page': embedded }">
       <transition name="slide-up">
         <div v-if="opened" class="ai-panel">
           <!-- Header -->
@@ -20,7 +20,7 @@
               <button v-if="view === 'chat'" type="button" class="ai-text-btn" title="历史记录" @click="view = 'history'">
                 <el-icon :size="15"><Clock /></el-icon><span>历史记录</span>
               </button>
-              <button type="button" class="ai-close" title="收起" @click="opened = false">×</button>
+              <button v-if="!embedded" type="button" class="ai-close" title="收起" @click="opened = false">×</button>
             </div>
           </header>
 
@@ -193,7 +193,7 @@
         </div>
       </transition>
 
-      <button type="button" class="ai-bubble-btn" @click="toggleOpen" :aria-label="opened ? '收起 AI 客服' : '打开 AI 客服'">
+      <button v-if="!embedded" type="button" class="ai-bubble-btn" @click="toggleOpen" :aria-label="opened ? '收起 AI 客服' : '打开 AI 客服'">
         <img :src="aiAvatarImg" alt="AI 客服" class="ai-bubble-avatar-img" />
         <span v-if="!opened" class="ai-bubble-label">AI 客服</span>
       </button>
@@ -202,7 +202,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
@@ -213,7 +213,13 @@ import aiSmileImg from "@/assets/images/AI客服-smile.png";
 
 const router = useRouter();
 const userStore = useUserStore();
-const opened = ref(false);
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+});
+const opened = ref(props.embedded);
 const view = ref("chat");
 const sending = ref(false);
 const creating = ref(false);
@@ -548,6 +554,10 @@ async function retry(messageId) {
   } catch (error) { ElMessage.error(error.message || "重试失败"); }
 }
 
+onMounted(() => {
+  if (props.embedded && userStore.isLogin) open();
+});
+
 onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); });
 </script>
 
@@ -570,10 +580,16 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 
 <style scoped>
 .ai-widget { position: fixed; right: 22px; bottom: 22px; z-index: 4000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.ai-widget--page { position: static; right: auto; bottom: auto; z-index: auto; width: 100%; align-items: stretch; }
 .ai-bubble-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px 8px 10px; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-light)); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgba(37, 99, 235, 0.34); transition: transform .2s, box-shadow .2s; }
 .ai-bubble-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(37, 99, 235, 0.42); }
 .ai-bubble-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-shrink: 0; }
 .ai-panel { display: flex; width: 400px; max-width: calc(100vw - 24px); height: 560px; max-height: calc(100vh - 130px); flex-direction: column; overflow: hidden; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 16px; box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18); }
+.ai-widget--page .ai-panel { width: 100%; max-width: none; height: min(720px, calc(100vh - 210px)); min-height: 560px; max-height: none; border-radius: 20px; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.1); }
+.ai-widget--page .ai-header { padding: 14px 18px; }
+.ai-widget--page .ai-messages { padding: 22px 24px 16px; }
+.ai-widget--page .ai-msg-col { max-width: min(78%, 760px); }
+.ai-widget--page .ai-input { padding: 12px 18px 16px; }
 
 /* Header */
 .ai-header { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--lm-border-light); }
@@ -715,5 +731,13 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 @keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
 
-@media (max-width: 520px) { .ai-widget { right: 12px; bottom: 12px; gap: 10px; } .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; } }
+@media (max-width: 520px) {
+  .ai-widget:not(.ai-widget--page) { right: 12px; bottom: 12px; gap: 10px; }
+  .ai-widget:not(.ai-widget--page) .ai-panel { width: calc(100vw - 24px); height: 74vh; border-radius: 14px; }
+  .ai-widget--page .ai-panel { height: calc(100vh - 164px); min-height: 520px; border-radius: 14px; }
+  .ai-widget--page .ai-header { padding: 10px 12px; }
+  .ai-widget--page .ai-header-actions span { display: none; }
+  .ai-widget--page .ai-messages { padding: 16px 12px 10px; }
+  .ai-widget--page .ai-input { padding: 9px 12px 12px; }
+}
 </style>

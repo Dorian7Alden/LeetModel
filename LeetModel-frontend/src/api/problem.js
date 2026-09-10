@@ -115,3 +115,25 @@ export function deleteAdminAttachment(problemId, attachmentId) {
     method: "delete",
   });
 }
+
+// ==================== 题目收藏接口（需登录） ====================
+
+export function addProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "post" });
+}
+
+export function removeProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "delete" });
+}
+
+export function checkProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "get" });
+}
+
+export function getFavoriteRecords() {
+  return request({ url: "/problems/favorites", method: "get" });
+}
+
+export function getFavoriteProblemsPage(params) {
+  return request({ url: "/problems/favorites/page", method: "get", params });
+}

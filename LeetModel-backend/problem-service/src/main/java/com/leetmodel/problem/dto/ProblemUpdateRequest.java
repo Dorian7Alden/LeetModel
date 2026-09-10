@@ -29,6 +29,10 @@ public class ProblemUpdateRequest {
     /** 可直接渲染的 Markdown 题面，空字符串表示清空 */
     private String contentMarkdown;
 
+    /** 精短解题提示，空字符串表示清空。 */
+    @Size(max = 200, message = "解题提示不能超过 200 个字符")
+    private String solutionHint;
+
     @Positive(message = "赛事 ID 必须为正数")
     private Long contestId;
 

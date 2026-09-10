@@ -39,6 +39,9 @@ public class ProblemVO {
     /** 题目详情使用的 Markdown 题面，列表中不返回 */
     private String contentMarkdown;
 
+    /** 题目详情使用的精短解题提示，列表中不返回。 */
+    private String solutionHint;
+
     private Long contestId;
     private String contestCode;
     private String contestName;
@@ -67,6 +70,9 @@ public class ProblemVO {
     /** 标签名称列表 */
     private List<String> tagNames;
 
+    /** 题目详情中的标签及其业务分类。 */
+    private List<TagVO> tags;
+
     /** 附件列表，仅详情接口返回 */
     private List<AttachmentVO> attachments;
 
@@ -82,5 +88,14 @@ public class ProblemVO {
         private String description;
         private Integer sortOrder;
         private String downloadUrl;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TagVO {
+        private String name;
+        private String type;
     }
 }

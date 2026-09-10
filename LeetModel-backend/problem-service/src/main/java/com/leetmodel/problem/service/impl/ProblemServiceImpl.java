@@ -222,6 +222,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .problemNumber(source.getProblemNumber())
                 .title(source.getTitle())
                 .contentMarkdown(source.getContentMarkdown())
+                .solutionHint(source.getSolutionHint())
                 .contestId(source.getContestId())
                 .contestCode(source.getContestCode())
                 .contestName(source.getContestName())
@@ -235,6 +236,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .createTime(source.getCreateTime())
                 .updateTime(source.getUpdateTime())
                 .tagNames(source.getTagNames())
+                .tags(source.getTags())
                 .attachments(attachments)
                 .build();
     }
@@ -504,6 +506,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Problem problem = new Problem();
         problem.setTitle(request.getTitle());
         problem.setContentMarkdown(request.getContentMarkdown());
+        problem.setSolutionHint(normalized(request.getSolutionHint()));
         problem.setContestId(request.getContestId());
         problem.setProblemNumber(request.getProblemNumber());
         problem.setYear(request.getYear());
@@ -562,6 +565,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         if (request.getContentMarkdown() != null) {
             problem.setContentMarkdown(request.getContentMarkdown().isEmpty()
                     ? null : request.getContentMarkdown());
+            changed = true;
+        }
+        if (request.getSolutionHint() != null) {
+            problem.setSolutionHint(normalized(request.getSolutionHint()));
             changed = true;
         }
         if (request.getContestId() != null) {
@@ -723,6 +730,22 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         }
         return tagMapper.selectBatchIds(tagIds).stream()
                 .map(Tag::getName).toList();
+    }
+
+    /** 查询指定题目关联的标签名称及其业务分类，仅用于详情响应。 */
+    private List<ProblemVO.TagVO> getTagDetails(Long problemId) {
+        List<Long> tagIds = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                        .eq(ProblemTag::getProblemId, problemId))
+                .stream()
+                .map(ProblemTag::getTagId)
+                .toList();
+        if (tagIds.isEmpty()) return List.of();
+        return tagMapper.selectBatchIds(tagIds).stream()
+                .map(tag -> ProblemVO.TagVO.builder()
+                        .name(tag.getName())
+                        .type(tag.getType())
+                        .build())
+                .toList();
     }
 
     // ==================== 私有方法 ====================
@@ -896,6 +919,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .problemNumber(p.getProblemNumber())
                 .title(p.getTitle())
                 .contentMarkdown(attachments == null ? null : p.getContentMarkdown())
+                .solutionHint(attachments == null ? null : p.getSolutionHint())
                 .contestId(p.getContestId())
                 .contestCode(contest == null ? null : contest.getCode())
                 .contestName(contest == null ? null : contest.getName())
@@ -908,7 +932,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .creatorId(p.getCreatorId())
                 .createTime(p.getCreateTime())
                 .updateTime(p.getUpdateTime())
-                .tagNames(tagNames);
+                .tagNames(tagNames)
+                .tags(attachments == null ? null : getTagDetails(p.getId()));
 
         if (attachments != null) {
             builder.attachments(attachments.stream()

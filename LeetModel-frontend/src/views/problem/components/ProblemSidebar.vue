@@ -99,7 +99,7 @@
       >
         <el-icon class="item-icon text-gold"><StarFilled /></el-icon>
         <span class="item-text">收藏</span>
-        <span v-if="favCount > 0" class="fav-badge"><span class="fav-badge-value">{{ favCount }}</span></span>
+        <span v-if="displayFavCount > 0" class="fav-badge"><span class="fav-badge-value">{{ displayFavCount }}</span></span>
       </div>
 
       <!-- <div class="sidebar-divider"></div> -->
@@ -147,12 +147,36 @@ import {
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { getMyTeams } from '@/api/team'
+import { getFavoriteCount } from '@/utils/favoriteStorage'
 
 const props = defineProps({
   contests: { type: Array, default: () => [] },
   problemNumbers: { type: Array, default: () => ['A', 'B', 'C', 'D', 'E', 'F', 'X'] },
   activeSection: { type: String, default: 'all' },
   favCount: { type: Number, default: 0 }
+})
+
+const localFavCount = ref(getFavoriteCount())
+
+const displayFavCount = computed(() => {
+  if (typeof props.favCount === 'number' && props.favCount > 0) {
+    return props.favCount
+  }
+  return localFavCount.value
+})
+
+const syncFavCount = (e) => {
+  if (typeof e?.detail?.count === 'number') {
+    localFavCount.value = e.detail.count
+  } else {
+    localFavCount.value = getFavoriteCount()
+  }
+}
+
+watch(() => props.favCount, (val) => {
+  if (typeof val === 'number') {
+    localFavCount.value = val
+  }
 })
 
 const emit = defineEmits(['select-section', 'collapse-change'])
@@ -306,6 +330,9 @@ const navigateToNumber = (number) => {
 }
 
 onMounted(async () => {
+  localFavCount.value = getFavoriteCount()
+  window.addEventListener('lm-fav-change', syncFavCount)
+  window.addEventListener('storage', syncFavCount)
   // 仅在已登录态下才请求进行中的实训队伍数，避免未登录时 401 被拦截器重定向到 /login
   if (!userStore.isLogin) return
   try {
@@ -314,6 +341,11 @@ onMounted(async () => {
   } catch {
     // 静默兜底
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('lm-fav-change', syncFavCount)
+  window.removeEventListener('storage', syncFavCount)
 })
 </script>
 

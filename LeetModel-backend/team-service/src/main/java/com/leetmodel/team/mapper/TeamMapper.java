@@ -3,6 +3,7 @@ package com.leetmodel.team.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.vo.PopularPracticeProblemVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -41,4 +42,21 @@ public interface TeamMapper extends BaseMapper<Team> {
             LIMIT #{limit}
             """)
     List<PopularPracticeProblemVO> selectPopularPracticeProblems(@Param("limit") int limit);
+
+    /**
+     * 聚合指定题目的有效队伍与当前成员数量。
+     *
+     * @param problemId 题目标识
+     * @return 参赛统计
+     */
+    @Select("""
+            SELECT COUNT(DISTINCT t.id) AS teamCount,
+                   COUNT(DISTINCT tm.user_id) AS participantCount
+            FROM team t
+            LEFT JOIN team_member tm ON tm.team_id = t.id
+            WHERE t.problem_id = #{problemId}
+              AND t.status = 1
+              AND t.deleted = 0
+            """)
+    ProblemParticipationStatsVO selectProblemParticipationStats(@Param("problemId") Long problemId);
 }

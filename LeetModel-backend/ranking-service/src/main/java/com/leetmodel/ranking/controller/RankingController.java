@@ -6,6 +6,7 @@ import com.leetmodel.ranking.cache.RankingCachePolicy;
 import com.leetmodel.common.cache.HttpCacheSupport;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
+import com.leetmodel.ranking.vo.ProblemScoreDistributionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
@@ -74,5 +75,18 @@ public class RankingController {
         HttpCacheSupport.Validator validator = cachePolicy.locateValidator(problemId, teamId, radius);
         if (validator.matches(ifNoneMatch)) return validator.notModified();
         return validator.ok(Result.ok(rankingService.locate(problemId, teamId, radius)));
+    }
+
+    /**
+     * 查询指定题目当前榜单的匿名分数分布。
+     *
+     * @param problemId 目标题目 ID
+     * @return 0–100 整数分值对应的队伍数量
+     */
+    @Operation(summary = "查询题目分数分布")
+    @GetMapping("/public/problems/{problemId}/score-distribution")
+    public Result<ProblemScoreDistributionVO> scoreDistribution(
+            @PathVariable @Positive(message = "题目标识必须为正整数") Long problemId) {
+        return Result.ok(rankingService.getScoreDistribution(problemId));
     }
 }

@@ -1,5 +1,11 @@
 import request from './request'
 
+export function getProblemSubmissionStats(problemId) {
+  return request.get(`/submissions/public/problems/${problemId}/stats`, {
+    skipAuthRedirect: true,
+  })
+}
+
 export function initializeSubmissionUpload(data) {
   return request.post('/submissions/uploads', data)
 }

@@ -234,9 +234,12 @@ onMounted(load);
 }
 .table-link {
   color: var(--lm-primary);
-  font-size: 14px;
+  font-size: 16px;
   display: inline-flex;
   align-items: center;
+}
+.table-link .el-icon {
+  font-size: 16px;
 }
 .table-link:hover {
   color: #18181b;

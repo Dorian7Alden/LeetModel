@@ -24,135 +24,173 @@
         <main class="detail-main-col">
           <!-- 纯净题面 Markdown 卡片 -->
           <div class="detail-markdown-card">
-            <div class="card-section-title">
-              <el-icon class="title-icon"><Document /></el-icon>
-              <span>题目描述与任务要求</span>
-            </div>
+
             <article v-if="problem.contentMarkdown" class="markdown-body" v-html="renderedMarkdown" />
             <el-empty v-else description="暂无题面描述" />
           </div>
         </main>
 
-        <!-- 右边栏：具体的题目详细、标题卡、操作与附件 (固定 310px，Sticky 吸顶) -->
+        <!-- 右边栏：单卡片连续呈现题目概览、附件、实训数据和解题提示 -->
         <aside class="detail-side-col">
-          <!-- 1. 题目标题与题号卡片 -->
-          <div class="side-card detail-title-card">
-            <div class="title-main-row">
-              <span v-if="problem.code" class="problem-code-badge" :title="`题号 ${problem.code}`">
-                #{{ String(problem.code).padStart(2, '0') }}
+          <section class="aside-card problem-side-card">
+            <div class="overview-kicker">
+              <div class="overview-kicker-tags">
+                <span v-if="problem.code" class="problem-code-badge">题号 {{ problem.code }}</span>
+                <span class="overview-year">{{ problem.year || '—' }}</span>
+                <span class="contest-code-badge">{{ problem.contestCode || '赛事' }}</span>
+                <span class="contest-number-badge">{{ problem.problemNumber || 'X' }}题</span>
+              </div>
+              <button
+                type="button"
+                class="problem-fav-btn"
+                :class="{ active: isFavorited }"
+                :title="isFavorited ? '已收藏，点击取消' : '收藏此题'"
+                :aria-label="isFavorited ? '取消收藏' : '收藏题目'"
+                @click="toggleFavorite"
+              >
+                <el-icon><StarFilled v-if="isFavorited" /><Star v-else /></el-icon>
+              </button>
+            </div>
+            <h1 class="problem-heading">{{ problem.title }}</h1>
+
+            <div class="overview-facts" aria-label="题目投入信息">
+              <span class="difficulty-capsule" :class="`diff-${problem.difficulty}`">
+                {{ difficultyLabel(problem.difficulty) }}
               </span>
-              <h1 class="problem-heading" :title="problem.title">{{ problem.title }}</h1>
+              <span class="difficulty-capsule duration-capsule">{{ formatDuration(problem.durationMinutes) }}</span>
+              <span
+                v-for="tag in algorithmTags"
+                :key="`algorithm-${tag.name}`"
+                class="difficulty-capsule algorithm-capsule"
+              >{{ tag.name }}</span>
             </div>
-          </div>
 
-          <!-- 2. 核心行动卡片 -->
-          <div class="side-card action-hub-card">
-            <button type="button" class="primary-action-btn" @click="createProblemTeam">
-              <el-icon><User /></el-icon>
-              <span>创建实训队伍</span>
-            </button>
-            <div class="secondary-actions-row">
-              <button type="button" class="secondary-action-btn" @click="findProblemTeams">
-                <el-icon><Search /></el-icon>
-                <span>寻找队伍</span>
+            <div class="action-hub-section">
+              <button type="button" class="primary-action-btn" @click="createProblemTeam">
+                <el-icon><User /></el-icon>
+                <span>以此题开始实训</span>
               </button>
-              <button type="button" class="secondary-action-btn" @click="viewRanking">
-                <el-icon><Trophy /></el-icon>
-                <span>查看排行</span>
-              </button>
+              <div class="secondary-actions-row">
+                <button type="button" class="secondary-action-btn" @click="findProblemTeams">
+                  <el-icon><Search /></el-icon>
+                  <span>寻找队伍</span>
+                </button>
+                <button type="button" class="secondary-action-btn" @click="viewRanking">
+                  <el-icon><Trophy /></el-icon>
+                  <span>完整榜单</span>
+                </button>
+              </div>
             </div>
-          </div>
-
-          <!-- 3. 题目详细档案卡片 -->
-          <div class="side-card specs-card">
-            <div class="side-card-title">题目详细信息</div>
-
-            <!-- 历史平均预评分大看板 -->
-            <div class="score-highlight-block">
-              <div class="score-num">{{ formatScore(problem.averageScore) }}</div>
-              <div class="score-label">历史平均预评分</div>
-            </div>
-
-            <div class="specs-list">
-              <div class="spec-row">
-                <span class="spec-label">所属赛事</span>
-                <span class="spec-value text-strong">{{ problem.contestName || '未分类' }}</span>
+            <div class="detail-attachments-section">
+              <div class="side-section-heading attachment-heading">
+                <span class="side-section-title"><Paperclip :size="14" aria-hidden="true" />附件</span>
               </div>
-              <div class="spec-row">
-                <span class="spec-label">赛事题号</span>
-                <span class="spec-value">{{ `${problem.problemNumber || 'X'} 题` }}</span>
-              </div>
-              <div class="spec-row">
-                <span class="spec-label">命题年份</span>
-                <span class="spec-value">{{ problem.year ? `${problem.year} 年` : '—' }}</span>
-              </div>
-              <div class="spec-row">
-                <span class="spec-label">难度评级</span>
-                <div class="spec-value">
-                  <span class="difficulty-capsule" :class="`diff-${problem.difficulty}`">
-                    {{ difficultyLabel(problem.difficulty) }}
-                  </span>
+
+              <div v-if="problem.attachments?.length" class="side-attachments-feed">
+                <div v-for="att in problem.attachments" :key="att.id" class="side-attachment-item">
+                  <component
+                    :is="attachmentIcon(att)"
+                    class="side-att-icon"
+                    :class="`file-kind-${attachmentKind(att)}`"
+                    aria-hidden="true"
+                  />
+                  <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="side-att-link" :title="att.fileName">{{ att.fileName }}</a>
+                  <span v-else class="side-att-title" :title="att.fileName">{{ att.fileName }}</span>
+                  <span class="side-att-size">{{ formatFileSize(att.fileSize) }}</span>
+                  <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="side-att-dl-btn" :aria-label="`下载 ${att.fileName}`">
+                    <el-icon><Download /></el-icon>
+                  </a>
+                  <span v-else class="side-att-unavailable">不可下载</span>
                 </div>
               </div>
-              <div class="spec-row">
-                <span class="spec-label">试卷语言</span>
-                <span class="spec-value">{{ problem.statementLanguage === 'EN' ? '英文' : '中文' }}</span>
+
+              <div v-else class="side-empty-attachment-notice">
+                <el-icon class="notice-icon"><InfoFilled /></el-icon>
+                <div class="notice-desc">暂无可下载的附件</div>
               </div>
-              <div class="spec-row">
-                <span class="spec-label">建议用时</span>
-                <span class="spec-value">{{ formatDuration(problem.durationMinutes) }}</span>
+            </div>
+
+          <div class="side-card-divider" aria-hidden="true"></div>
+
+          <div v-loading="practiceStatsLoading" class="side-content-section">
+
+            <div class="practice-metrics" aria-label="题目实训数据">
+              <div class="metric-item secondary-metric">
+                <strong class="metric-value">{{ formatCount(practiceStats.teamCount) }}</strong>
+                <span class="metric-label">参赛队伍</span>
               </div>
-              <div class="spec-row">
-                <span class="spec-label">更新时间</span>
-                <span class="spec-value text-muted text-small">{{ formatTime(problem.updateTime) }}</span>
+              <div class="metric-item primary-metric">
+                <strong class="metric-value">{{ averageScoreDisplay }}</strong>
+                <span class="metric-label">平均得分</span>
+              </div>
+              <div class="metric-item secondary-metric">
+                <strong class="metric-value">{{ formatCount(practiceStats.submissionCount) }}</strong>
+                <span class="metric-label">提交总次数</span>
               </div>
             </div>
           </div>
 
-          <!-- 3. 考察题型与算法标签卡片 -->
-          <div v-if="problem.tagNames?.length" class="side-card tags-card">
-            <div class="side-card-title">考察题型与方法</div>
-            <div class="tags-cloud">
-              <span v-for="tag in problem.tagNames" :key="tag" class="detail-tag-chip">
-                {{ tag }}
+          <div class="side-card-divider" aria-hidden="true"></div>
+
+          <div v-loading="scoreDistributionLoading" class="score-distribution-section">
+            <div class="side-section-heading score-distribution-heading">
+              <span class="side-section-title">
+                <BarChart3 :size="14" class="section-title-icon icon-score-dist" aria-hidden="true" />分数分布
               </span>
-            </div>
-          </div>
-
-          <!-- 5. 赛题附件与数据集下载卡片 -->
-          <div class="side-card detail-attachments-card">
-            <div class="side-card-title">
-              <el-icon class="title-inline-icon"><Download /></el-icon>
-              <span>赛题附件与数据集</span>
+              <span class="score-distribution-caption">队伍数</span>
             </div>
 
-            <div v-if="problem.attachments?.length" class="side-attachments-feed">
-              <div v-for="att in problem.attachments" :key="att.id" class="side-attachment-item">
-                <div class="side-att-main">
-                  <el-icon class="side-att-icon"><Folder /></el-icon>
-                  <div class="side-att-texts">
-                    <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="side-att-link" :title="att.fileName">
-                      {{ att.fileName }}
-                    </a>
-                    <span v-else class="side-att-title" :title="att.fileName">{{ att.fileName }}</span>
-                    <p v-if="att.description" class="side-att-desc">{{ att.description }}</p>
+            <div
+              v-if="scoreDistributionHasData"
+              class="score-distribution-chart"
+              role="img"
+              aria-label="按四舍五入后的最终得分统计队伍数量"
+            >
+              <div class="score-chart-y-axis" aria-hidden="true">
+                <span>{{ scoreDistributionMax }}</span>
+                <span>{{ Math.ceil(scoreDistributionMax / 2) }}</span>
+                <span>0</span>
+              </div>
+              <div class="score-chart-main">
+                <div class="score-chart-grid" aria-hidden="true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="score-bars">
+                  <div
+                    v-for="item in scoreDistribution"
+                    :key="item.score"
+                    class="score-bar-column"
+                    :title="`${item.score} 分：${item.count} 支队伍`"
+                  >
+                    <span
+                      v-if="item.count"
+                      class="score-bar"
+                      :style="{ height: `${scoreBarHeight(item.count)}%` }"
+                    ></span>
                   </div>
                 </div>
-                <div class="side-att-meta">
-                  <span class="side-att-size">{{ formatFileSize(att.fileSize) }}</span>
-                  <a v-if="att.downloadUrl" :href="att.downloadUrl" target="_blank" rel="noopener noreferrer" class="side-att-dl-btn">
-                    <el-icon><Download /></el-icon>
-                    <span>下载</span>
-                  </a>
+                <div class="score-axis-labels" aria-hidden="true">
+                  <span v-for="score in scoreAxisLabels" :key="score" :style="{ left: `${score}%` }">{{ score }}</span>
                 </div>
               </div>
             </div>
-
-            <div v-else class="side-empty-attachment-notice">
-              <el-icon class="notice-icon"><InfoFilled /></el-icon>
-              <div class="notice-desc">本题暂无可下载附件，请根据题面文字信息作答。</div>
-            </div>
+            <p v-else class="score-distribution-empty">暂无已完成评分的队伍</p>
           </div>
+
+          <div class="side-card-divider" aria-hidden="true"></div>
+
+          <div class="side-content-section">
+            <div class="side-section-heading focus-heading">
+              <span class="side-section-title">
+                <Lightbulb :size="14" class="section-title-icon icon-solution-hint" aria-hidden="true" />提示
+              </span>
+            </div>
+
+            <p class="solution-hint">{{ problem.solutionHint || '暂无解题提示' }}</p>
+          </div>
+          </section>
         </aside>
       </div>
     </template>
@@ -162,7 +200,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
@@ -170,27 +208,97 @@ import DOMPurify from 'dompurify'
 import 'github-markdown-css/github-markdown.css'
 import {
   ArrowLeft,
-  Document,
   Download,
-  Folder,
   InfoFilled,
   Search,
+  Star,
+  StarFilled,
   Trophy,
   User
 } from '@element-plus/icons-vue'
+import {
+  BarChart3,
+  File as FileIcon,
+  FileArchive,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  Lightbulb,
+  Paperclip
+} from '@lucide/vue'
 import { getPublicProblemDetail } from '@/api/problem'
+import { getProblemParticipationStats } from '@/api/team'
+import { getProblemSubmissionStats } from '@/api/submission'
+import { getProblemScoreDistribution } from '@/api/ranking'
 import CreateTeamDialog from '@/views/team/components/CreateTeamDialog.vue'
+import {
+  getFavoriteCount,
+  isProblemFavorited,
+  toggleProblemFavorite
+} from '@/utils/favoriteStorage'
 
 const route = useRoute()
 const router = useRouter()
+const workbench = inject('problemWorkbench', null)
 const loading = ref(false)
+const practiceStatsLoading = ref(false)
+const scoreDistributionLoading = ref(false)
 const showCreateDialog = ref(false)
 const problem = ref(null)
+const practiceStats = ref({ teamCount: null, submissionCount: null, participantCount: null })
+const scoreDistribution = ref([])
+const scoreAxisLabels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+const favVersion = ref(0)
+
+const isFavorited = computed(() => {
+  void favVersion.value
+  if (!problem.value?.id) return false
+  return isProblemFavorited(problem.value.id)
+})
+
+const syncFavoriteState = () => {
+  favVersion.value++
+  workbench?.updateFavCount?.(getFavoriteCount())
+}
+
+const toggleFavorite = () => {
+  if (!problem.value?.id) return
+  toggleProblemFavorite(problem.value.id)
+  syncFavoriteState()
+}
+
 const difficultyLabel = (value) => ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知'
-const difficultyType = (value) => ({ 1: 'success', 2: 'warning', 3: 'danger' })[value] || 'info'
-const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN') : '-'
-const formatDuration = (minutes) => minutes ? `${Math.floor(minutes / 60)} 小时${minutes % 60 ? ` ${minutes % 60} 分钟` : ''}` : '-'
-const formatScore = (score) => Number(score) > 0 ? Number(score).toFixed(1) : '暂无评分'
+const formatDuration = (minutes) => {
+  if (!minutes) return '-'
+  const hours = minutes / 60
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`
+}
+const formatScore = (value) => {
+  if (value == null || value === '') return '—'
+  const score = Number(value)
+  return Number.isFinite(score) && score >= 0 ? score.toFixed(1) : '—'
+}
+const averageScoreDisplay = computed(() => {
+  if (problem.value?.averageScore != null && Number(problem.value.averageScore) >= 0) {
+    return formatScore(problem.value.averageScore)
+  }
+  const validBuckets = (scoreDistribution.value || []).filter((item) => item.count > 0)
+  if (validBuckets.length > 0) {
+    const totalScore = validBuckets.reduce((sum, item) => sum + item.score * item.count, 0)
+    const totalTeams = validBuckets.reduce((sum, item) => sum + item.count, 0)
+    if (totalTeams > 0) {
+      return (totalScore / totalTeams).toFixed(1)
+    }
+  }
+  return '—'
+})
+const formatCount = (count) => Number.isFinite(Number(count)) ? Number(count).toLocaleString('zh-CN') : '—'
+const scoreDistributionMax = computed(() => Math.max(...scoreDistribution.value.map((item) => item.count), 0))
+const scoreDistributionHasData = computed(() => scoreDistributionMax.value > 0)
+const scoreBarHeight = (count) => {
+  if (!scoreDistributionMax.value || !count) return 0
+  return Math.max((count / scoreDistributionMax.value) * 100, 4)
+}
 const formatFileSize = (bytes) => {
   if (bytes == null) return '-'
   if (bytes < 1024) return `${bytes} B`
@@ -218,6 +326,23 @@ const renderedMarkdown = computed(() => {
   })
   return prepareMarkdownImages(DOMPurify.sanitize(html))
 })
+
+const detailTags = computed(() => problem.value?.tags || [])
+const algorithmTags = computed(() => detailTags.value.filter((tag) => tag.type === 'MODEL_ALGORITHM'))
+
+function attachmentKind(attachment) {
+  const fileName = String(attachment?.fileName || '').toLowerCase()
+  const extension = fileName.includes('.') ? fileName.split('.').pop() : ''
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz'].includes(extension)) return 'archive'
+  if (['csv', 'tsv', 'xls', 'xlsx', 'json'].includes(extension)) return 'sheet'
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) return 'image'
+  if (['pdf', 'doc', 'docx', 'txt', 'md', 'rtf'].includes(extension)) return 'document'
+  return 'file'
+}
+
+const attachmentIcons = { archive: FileArchive, sheet: FileSpreadsheet, image: FileImage, document: FileText, file: FileIcon }
+const attachmentIcon = (attachment) => attachmentIcons[attachmentKind(attachment)]
+
 const createProblemTeam = () => { showCreateDialog.value = true }
 const findProblemTeams = () => router.push({ name: 'TeamSquare', query: { mode: 'problems', problemId: String(problem.value.id) } })
 const viewRanking = () => router.push({ name: 'Ranking', query: { problemId: String(problem.value.id) } })
@@ -239,12 +364,57 @@ const goToContest = () => {
   }
 }
 
+const fetchPracticeStats = async () => {
+  const problemId = problem.value?.id
+  practiceStats.value = { teamCount: null, submissionCount: null, participantCount: null }
+  if (!problemId) return
+
+  practiceStatsLoading.value = true
+  const [participationResult, submissionResult] = await Promise.allSettled([
+    getProblemParticipationStats(problemId),
+    getProblemSubmissionStats(problemId),
+  ])
+  if (participationResult.status === 'fulfilled') {
+    practiceStats.value.teamCount = participationResult.value.data?.teamCount ?? 0
+    practiceStats.value.participantCount = participationResult.value.data?.participantCount ?? 0
+  }
+  if (submissionResult.status === 'fulfilled') {
+    practiceStats.value.submissionCount = submissionResult.value.data?.submissionCount ?? 0
+  }
+  practiceStatsLoading.value = false
+}
+
+const fetchScoreDistribution = async () => {
+  const problemId = problem.value?.id
+  scoreDistribution.value = Array.from({ length: 101 }, (_, score) => ({ score, count: 0 }))
+  if (!problemId) return
+
+  scoreDistributionLoading.value = true
+  try {
+    const response = await getProblemScoreDistribution(problemId)
+    const distribution = scoreDistribution.value
+    for (const item of response.data?.buckets || []) {
+      const score = Number(item?.score)
+      const teamCount = Number(item?.teamCount)
+      if (Number.isInteger(score) && score >= 0 && score <= 100 && Number.isFinite(teamCount)) {
+        distribution[score].count = Math.max(0, teamCount)
+      }
+    }
+  } catch {
+    // 排行数据不可用时保留空状态，不影响题面、附件和实训数据浏览。
+  } finally {
+    scoreDistributionLoading.value = false
+  }
+}
+
 const fetchDetail = async () => {
   loading.value = true
   problem.value = null
   try {
     const response = await getPublicProblemDetail(route.params.id)
     problem.value = response.data || null
+    fetchPracticeStats()
+    fetchScoreDistribution()
   } catch (error) {
     ElMessage.error(error.message || '获取题目详情失败')
   } finally {
@@ -253,7 +423,17 @@ const fetchDetail = async () => {
 }
 
 watch(() => route.params.id, fetchDetail)
-onMounted(fetchDetail)
+onMounted(() => {
+  syncFavoriteState()
+  fetchDetail()
+  window.addEventListener('lm-fav-change', syncFavoriteState)
+  window.addEventListener('storage', syncFavoriteState)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('lm-fav-change', syncFavoriteState)
+  window.removeEventListener('storage', syncFavoriteState)
+})
 </script>
 
 <style scoped>
@@ -324,8 +504,8 @@ onMounted(fetchDetail)
 /* 左右双栏网格 */
 .problem-detail-grid {
   display: grid;
-  grid-template-columns: 1fr 310px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 28px;
   align-items: flex-start;
   width: 100%;
 }
@@ -338,67 +518,19 @@ onMounted(fetchDetail)
   min-width: 0;
 }
 
-.detail-title-card {
-  background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  padding: 16px 18px;
-}
-
-.title-main-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.problem-code-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 7px;
-  background: #f4f4f5;
-  border: 1px solid #e4e4e7;
-  border-radius: 6px;
-  color: #18181b;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: var(--lm-code-font-family);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
 .problem-heading {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #18181b;
-  line-height: 1.45;
+  font-size: 20px;
+  font-weight: 750;
+  color: #111827;
+  line-height: 1.42;
   word-break: break-word;
 }
 
 /* Markdown 题面卡片 */
 .detail-markdown-card {
   background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
   overflow: hidden;
-}
-
-.card-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 24px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #27272a;
-  border-bottom: 1px solid var(--lm-border-light);
-  background: #fafafa;
-}
-
-.title-icon {
-  font-size: 15px;
-  color: var(--lm-text-muted);
 }
 
 .markdown-body {
@@ -431,38 +563,29 @@ onMounted(fetchDetail)
 .side-attachments-feed {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .side-attachment-item {
-  padding: 8px 10px;
-  background: #fafafa;
-  border: 1px solid var(--lm-border-light);
-  border-radius: var(--lm-radius-sm);
+  min-height: 46px;
+  padding: 8px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.side-att-main {
-  display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
 
 .side-att-icon {
-  font-size: 15px;
-  color: var(--lm-text-muted);
-  margin-top: 2px;
+  width: 17px;
+  height: 17px;
+  color: #64748b;
   flex-shrink: 0;
 }
 
-.side-att-texts {
+.side-att-link {
   flex: 1;
   min-width: 0;
-}
-
-.side-att-link {
   color: #18181b;
   font-size: 12px;
   font-weight: 600;
@@ -479,6 +602,8 @@ onMounted(fetchDetail)
 }
 
 .side-att-title {
+  flex: 1;
+  min-width: 0;
   color: #18181b;
   font-size: 12px;
   font-weight: 600;
@@ -488,21 +613,8 @@ onMounted(fetchDetail)
   white-space: nowrap;
 }
 
-.side-att-desc {
-  margin: 2px 0 0;
-  font-size: 11px;
-  color: var(--lm-text-secondary);
-}
-
-.side-att-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 4px;
-  border-top: 1px dashed var(--lm-border-light);
-}
-
 .side-att-size {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--lm-text-muted);
   font-family: var(--lm-code-font-family);
@@ -511,24 +623,39 @@ onMounted(fetchDetail)
 .side-att-dl-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: var(--lm-radius-sm);
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
   border: 1px solid var(--lm-border);
   background: #ffffff;
-  color: #27272a;
-  font-size: 11px;
-  font-weight: 600;
+  color: #4b5563;
+  font-size: 13px;
   text-decoration: none;
   transition: all var(--lm-transition);
+  flex-shrink: 0;
 }
 .side-att-dl-btn:hover {
-  border-color: #18181b;
-  background: #18181b;
-  color: #ffffff;
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
+.side-att-unavailable {
+  flex-shrink: 0;
+  color: #a1a1aa;
+  font-size: 10px;
+}
+
+.file-kind-archive { color: #c2410c; }
+.file-kind-sheet { color: #15803d; }
+.file-kind-image { color: #7c3aed; }
+.file-kind-document { color: #2563eb; }
+.file-kind-file { color: #64748b; }
+
 .side-empty-attachment-notice {
+  margin-top: 10px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -544,7 +671,7 @@ onMounted(fetchDetail)
   line-height: 1.45;
 }
 
-/* 右栏：题目详细与行动区 (Sticky 吸顶) */
+/* 右栏：单卡片连续信息流 */
 .detail-side-col {
   position: sticky;
   top: 72px;
@@ -553,36 +680,173 @@ onMounted(fetchDetail)
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: 310px;
-  padding-right: 2px;
+  width: 360px;
+  padding: 12px 14px 26px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .detail-side-col::-webkit-scrollbar {
-  width: 4px;
-}
-.detail-side-col::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-}
-.detail-side-col:hover::-webkit-scrollbar-thumb {
-  background: #e4e4e7;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-.side-card {
+.aside-card {
+  flex-shrink: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 8px;
   background: #ffffff;
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  padding: 18px 20px;
+  color: #71717a;
+  box-shadow: 0 6px 18px rgba(30, 41, 59, 0.085);
 }
 
-.side-card-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #27272a;
-  margin-bottom: 14px;
+.overview-kicker {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 22px;
+}
+
+.overview-kicker-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.problem-code-badge,
+.overview-year,
+.contest-code-badge,
+.contest-number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+  font-family: var(--lm-font-family);
+  background: #f4f4f5;
+  box-sizing: border-box;
+}
+
+.problem-code-badge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.overview-year,
+.contest-code-badge,
+.contest-number-badge {
+  font-weight: 600;
+}
+
+.problem-fav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--lm-border);
+  background: #ffffff;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all var(--lm-transition);
+  flex-shrink: 0;
+  margin-left: auto;
+  box-sizing: border-box;
+}
+
+.problem-fav-btn :deep(.el-icon) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  width: 100%;
+  height: 100%;
+}
+
+.problem-fav-btn:hover {
+  background: #fefce8;
+  color: #eab308;
+  border-color: #fde047;
+}
+
+.problem-fav-btn.active {
+  color: #eab308;
+  background: #fefce8;
+  border-color: #fde047;
+}
+
+.problem-fav-btn.active:hover {
+  color: #ca8a04;
+  background: #fef08a;
+  border-color: #facc15;
+}
+
+.overview-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 13px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.side-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.side-section-heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.side-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #5f6068;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.section-title-icon {
+  flex-shrink: 0;
+}
+
+.icon-score-dist {
+  color: #2563eb;
+}
+
+.icon-solution-hint {
+  color: #f59e0b;
+}
+
+.side-section-caption {
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.45;
 }
 
 .title-inline-icon {
@@ -590,11 +854,28 @@ onMounted(fetchDetail)
   color: var(--lm-text-muted);
 }
 
+.text-action-btn {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.text-action-btn:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 /* 行动卡片 */
-.action-hub-card {
+.action-hub-section {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 16px;
+  padding-top: 4px;
 }
 
 .primary-action-btn {
@@ -603,10 +884,10 @@ onMounted(fetchDetail)
   justify-content: center;
   gap: 8px;
   width: 100%;
-  height: 40px;
-  border-radius: var(--lm-radius-sm);
-  border: 1px solid #18181b;
-  background: #18181b;
+  height: 42px;
+  border-radius: 4px;
+  border: 1px solid #1d4ed8;
+  background: #2563eb;
   color: #ffffff;
   font-size: 13px;
   font-weight: 600;
@@ -614,9 +895,10 @@ onMounted(fetchDetail)
   transition: all var(--lm-transition);
 }
 .primary-action-btn:hover {
-  background: #27272a;
-  border-color: #27272a;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+  transform: translateY(-1px);
 }
 
 .secondary-actions-row {
@@ -631,7 +913,7 @@ onMounted(fetchDetail)
   justify-content: center;
   gap: 6px;
   height: 34px;
-  border-radius: var(--lm-radius-sm);
+  border-radius: 4px;
   border: 1px solid var(--lm-border);
   background: #ffffff;
   color: #3f3f46;
@@ -641,98 +923,245 @@ onMounted(fetchDetail)
   transition: all var(--lm-transition);
 }
 .secondary-action-btn:hover {
-  border-color: #18181b;
-  color: #18181b;
-  background: #f4f4f5;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
-/* 详细档案卡片 */
-.score-highlight-block {
+/* 实训数据 */
+.practice-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metric-item {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   align-items: center;
+  text-align: center;
+}
+
+.metric-value {
+  display: flex;
+  align-items: flex-end;
   justify-content: center;
-  padding: 14px;
-  margin-bottom: 16px;
-  background: #f4f4f5;
-  border: 1px solid #e4e4e7;
-  border-radius: var(--lm-radius-sm);
-}
-
-.score-num {
-  font-size: 26px;
-  font-weight: 800;
-  color: #18181b;
+  height: 26px;
+  line-height: 1;
   font-family: var(--lm-code-font-family);
+  font-weight: 700;
 }
 
-.score-label {
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--lm-text-secondary);
+.primary-metric .metric-value {
+  color: #1e3a8a;
+  font-size: 20px;
 }
 
-.specs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.secondary-metric .metric-value {
+  color: #334155;
+  font-size: 16px;
 }
 
-.spec-row {
-  display: flex;
+.metric-label {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.score-distribution-section {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.score-distribution-heading {
   align-items: center;
+  margin-bottom: 12px;
+}
+
+.score-distribution-caption {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.score-distribution-chart {
+  display: flex;
+  min-height: 118px;
+  gap: 7px;
+}
+
+.score-chart-y-axis {
+  display: flex;
+  flex: 0 0 18px;
+  flex-direction: column;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-}
-
-.spec-label {
-  color: var(--lm-text-muted);
-  flex-shrink: 0;
-}
-
-.spec-value {
-  color: #27272a;
-  font-weight: 500;
+  padding: 1px 0 15px;
+  color: #94a3b8;
+  font-family: var(--lm-code-font-family);
+  font-size: 9px;
+  line-height: 1;
   text-align: right;
 }
 
-.spec-value.text-strong {
-  font-weight: 600;
-  color: #18181b;
+.score-chart-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 15px;
 }
 
-.spec-value.text-small {
+.score-chart-grid,
+.score-bars {
+  position: absolute;
+  inset: 0 0 15px;
+}
+
+.score-chart-grid {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.score-chart-grid span {
+  display: block;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.score-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.score-bar-column {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  height: 100%;
+}
+
+.score-bar {
+  display: block;
+  width: min(100%, 6px);
+  min-height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: #2563eb;
+  transition: height 180ms ease, background-color 180ms ease;
+}
+
+.score-bar-column:hover .score-bar {
+  background: #1d4ed8;
+}
+
+.score-axis-labels {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 11px;
+  color: #94a3b8;
+  font-family: var(--lm-code-font-family);
+  font-size: 9px;
+}
+
+.score-axis-labels span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.score-axis-labels span:first-child {
+  transform: translateX(0);
+}
+
+.score-axis-labels span:last-child {
+  transform: translateX(-100%);
+}
+
+.score-distribution-empty {
+  margin: 0;
+  color: #94a3b8;
   font-size: 11px;
 }
 
 .difficulty-capsule {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f1f5f9;
   font-size: 11px;
   font-weight: 600;
 }
-.diff-1 { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-.diff-2 { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-.diff-3 { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
-/* 题型标签卡片 */
+.diff-1 { color: #047857; background: #ecfdf5; border-color: #bbf7d0; }
+.diff-2 { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.diff-3 { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.duration-capsule { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.context-capsule { color: #7c3aed; background: #f5f3ff; border-color: #ddd6fe; }
+.algorithm-capsule { color: #0f766e; background: #f0fdfa; border-color: #99f6e4; }
+
+/* 解题提示 */
+.focus-heading {
+  margin-bottom: 10px;
+}
+
+.solution-hint {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 2px solid #f59e0b;
+  color: #422006;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.72;
+}
+
 .tags-cloud {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-top: 11px;
 }
 
 .detail-tag-chip {
-  padding: 3px 9px;
-  border-radius: 9999px;
-  background: #f4f4f5;
-  border: 1px solid #e4e4e7;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 1px solid #d6d3d1;
+  border-radius: 0;
+  background: transparent;
   color: #52525b;
   font-size: 11px;
   font-weight: 600;
+}
+
+.attachment-heading {
+  align-items: center;
+}
+
+.detail-attachments-section {
+  margin-top: 20px;
+  padding-top: 0;
+}
+
+.side-card-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 18px 0;
+  border: 0;
+}
+
+.side-content-section {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 @media (max-width: 1100px) {
@@ -742,6 +1171,27 @@ onMounted(fetchDetail)
   .detail-side-col {
     position: static;
     width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .detail-breadcrumb-bar {
+    align-items: flex-start;
+  }
+
+  .current-problem-crumb {
+    max-width: 180px;
+  }
+
+  .markdown-body {
+    padding: 20px 16px 28px;
+  }
+
+  .problem-heading {
+    font-size: 18px;
   }
 }
 </style>

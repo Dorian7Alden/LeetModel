@@ -38,12 +38,13 @@
 </template>
 
 <script setup>
-import { computed, provide, reactive, ref, watch, onMounted } from 'vue'
+import { computed, provide, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowUpFromLine } from '@lucide/vue'
 import { getPublicProblemFilterOptions } from '@/api/problem'
 import ProblemSidebar from './components/ProblemSidebar.vue'
+import { getFavoriteCount, syncFavoritesWithServer } from '@/utils/favoriteStorage'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,6 +57,26 @@ const favCount = ref(0)
 const optionsLoading = ref(false)
 const filterOptions = reactive({ contests: [], tags: [], problemNumbers: [] })
 const lobbyBus = ref(null)
+
+const readLocalFavCount = () => {
+  favCount.value = getFavoriteCount()
+}
+
+const handleStorageChange = (e) => {
+  if (!e || e.key === 'lm_fav_problems') {
+    readLocalFavCount()
+  }
+}
+
+const handleCustomFavChange = (e) => {
+  if (typeof e?.detail?.count === 'number') {
+    favCount.value = e.detail.count
+  } else if (typeof e?.detail === 'number') {
+    favCount.value = e.detail
+  } else {
+    readLocalFavCount()
+  }
+}
 
 const fetchFilterOptions = async () => {
   optionsLoading.value = true
@@ -123,7 +144,16 @@ const syncActiveSectionFromRoute = () => {
 watch(() => [route.path, route.query.section], syncActiveSectionFromRoute, { immediate: true })
 
 onMounted(() => {
+  readLocalFavCount()
+  syncFavoritesWithServer()
   fetchFilterOptions()
+  window.addEventListener('storage', handleStorageChange)
+  window.addEventListener('lm-fav-change', handleCustomFavChange)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', handleStorageChange)
+  window.removeEventListener('lm-fav-change', handleCustomFavChange)
 })
 </script>
 
