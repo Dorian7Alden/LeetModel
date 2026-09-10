@@ -1,7 +1,7 @@
 import request from "./request";
 
 /**
- * 查询存储桶对象列表与业务对账结果。
+ * 查询存储桶对象列表与当前服务可识别的题目附件引用。
  *
  * @param {Object} params 查询参数，包含 keyword、onlyOrphans
  */

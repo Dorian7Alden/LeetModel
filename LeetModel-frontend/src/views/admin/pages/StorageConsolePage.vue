@@ -1,10 +1,9 @@
 <template>
   <el-card shadow="never" class="storage-console-card">
-    <!-- 顶部标题与说明 -->
     <div class="toolbar">
       <div>
-        <h2 class="panel-title">存储桶对象资产与孤儿文件对账</h2>
-        <p class="panel-subtitle">扫描 MinIO 对象存储桶，实时对账业务引用；支持手动上传、安全删除与孤儿文件排查。</p>
+        <h2 class="panel-title">MinIO 存储桶管理</h2>
+        <p class="panel-subtitle">按对象前缀分组查看文件，支持手动上传、下载、复制临时链接与谨慎删除。</p>
       </div>
       <div class="toolbar-actions">
         <el-button :loading="loading" @click="loadData">刷新对账</el-button>
@@ -14,7 +13,6 @@
       </div>
     </div>
 
-    <!-- 资产大盘统计指标 -->
     <div class="storage-stat-grid">
       <div class="stat-box">
         <div class="stat-num">{{ totalObjects }}</div>
@@ -24,96 +22,108 @@
         <div class="stat-num">{{ formatFileSize(totalBytes) }}</div>
         <div class="stat-label">占用物理容量</div>
       </div>
-      <div class="stat-box" :class="{ 'has-orphans': orphanCount > 0 }">
-        <div class="stat-num orphan-num">{{ orphanCount }}</div>
-        <div class="stat-label">孤儿文件（未引用）</div>
+      <div class="stat-box">
+        <div class="stat-num">{{ storageGroupCount }}</div>
+        <div class="stat-label">一级前缀分组</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num">{{ identifiedReferenceCount }}</div>
+        <div class="stat-label">已识别题目附件</div>
       </div>
     </div>
 
-    <!-- 过滤工具栏 -->
-    <div class="filter-bar">
-      <el-input
-        v-model="searchKeyword"
-        placeholder="搜索文件路径、名称或关联题目..."
-        clearable
-        style="width: 320px"
-        prefix-icon="Search"
-        @clear="loadData"
-        @keyup.enter="loadData"
-      />
-      <div class="filter-orphan-toggle">
-        <el-switch
-          v-model="onlyOrphans"
-          active-text="仅看孤儿文件"
-          @change="loadData"
-        />
-      </div>
-    </div>
+    <div class="storage-workspace">
+      <aside class="storage-group-panel">
+        <div class="group-panel-heading">
+          <span>对象分组</span>
+          <small>按一级前缀聚合</small>
+        </div>
+        <button
+          v-for="group in storageGroups"
+          :key="group.key"
+          type="button"
+          class="storage-group-item"
+          :class="{ active: activeGroup === group.key }"
+          @click="activeGroup = group.key"
+        >
+          <span class="group-name"><el-icon><Folder /></el-icon>{{ group.label }}</span>
+          <span class="group-meta">{{ group.count }} 个 · {{ formatFileSize(group.size) }}</span>
+        </button>
+      </aside>
 
-    <!-- 对象资产表格 -->
-    <el-table :data="objects" v-loading="loading" stripe style="width: 100%" class="storage-table">
-      <el-table-column label="文件路径 (Object Key)" min-width="280">
-        <template #default="{ row }">
-          <div class="object-key-cell">
-            <el-icon class="object-icon"><Document /></el-icon>
-            <span class="object-key-text" :title="row.objectKey">{{ row.objectKey }}</span>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="大小" width="100">
-        <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
-      </el-table-column>
-      <el-table-column label="修改时间" width="160">
-        <template #default="{ row }">{{ formatTime(row.lastModified) }}</template>
-      </el-table-column>
-      <el-table-column label="业务引用对账" min-width="220">
-        <template #default="{ row }">
-          <div v-if="row.refCount > 0" class="ref-status in-use">
-            <el-tag type="success" size="small" effect="plain">使用中</el-tag>
-            <span class="ref-problem" :title="row.refProblemTitle">
-              题目: {{ row.refProblemTitle || '#' + row.refProblemId }}
-            </span>
-          </div>
-          <div v-else class="ref-status orphan">
-            <el-tag type="warning" size="small" effect="plain">孤儿文件</el-tag>
-            <span class="ref-tip">无数据库引用</span>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
-        <template #default="{ row }">
-          <a
-            v-if="row.downloadUrl"
-            :href="row.downloadUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="table-action-btn"
-          >下载</a>
-          <el-button
-            type="danger"
-            link
-            size="small"
-            @click="handleDelete(row)"
-          >删除</el-button>
-        </template>
-      </el-table-column>
-      <template #empty><el-empty description="暂无匹配的存储对象" /></template>
-    </el-table>
+      <section class="storage-object-panel">
+        <div class="filter-bar">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索文件路径、名称或关联题目..."
+            clearable
+            prefix-icon="Search"
+          />
+          <span class="result-count">当前显示 {{ visibleObjects.length }} 个对象</span>
+        </div>
+
+        <div class="reference-boundary-tip">
+          “未识别引用”只表示没有匹配到题目附件记录，不代表头像、论文等其他服务一定没有使用。
+        </div>
+
+        <el-table :data="visibleObjects" v-loading="loading" stripe style="width: 100%" class="storage-table">
+          <el-table-column label="分组" width="110">
+            <template #default="{ row }"><el-tag size="small" effect="plain">{{ getGroupLabel(getObjectGroup(row.objectKey)) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="文件路径 (Object Key)" min-width="280">
+            <template #default="{ row }">
+              <div class="object-key-cell">
+                <el-icon class="object-icon"><Document /></el-icon>
+                <span class="object-key-text" :title="row.objectKey">{{ row.objectKey }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="大小" width="100">
+            <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
+          </el-table-column>
+          <el-table-column label="修改时间" width="160">
+            <template #default="{ row }">{{ formatTime(row.lastModified) }}</template>
+          </el-table-column>
+          <el-table-column label="已识别引用" min-width="210">
+            <template #default="{ row }">
+              <div v-if="row.refCount > 0" class="ref-status in-use">
+                <el-tag type="success" size="small" effect="plain">题目附件</el-tag>
+                <span class="ref-problem" :title="row.refProblemTitle">{{ row.refProblemTitle || '#' + row.refProblemId }}</span>
+              </div>
+              <div v-else class="ref-status untracked">
+                <el-tag type="info" size="small" effect="plain">未识别引用</el-tag>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" fixed="right">
+            <template #default="{ row }">
+              <a v-if="row.downloadUrl" :href="row.downloadUrl" target="_blank" rel="noopener noreferrer" class="table-action-btn">下载</a>
+              <el-button v-if="row.downloadUrl" link size="small" @click="copyObjectLink(row.downloadUrl)">复制临时链接</el-button>
+              <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无匹配的存储对象" /></template>
+        </el-table>
+      </section>
+    </div>
 
     <!-- 手动上传文件对话框 -->
     <el-dialog v-model="uploadDialogVisible" title="手动上传文件至存储桶" width="520px" append-to-body destroy-on-close>
       <el-form label-width="100px">
         <el-form-item label="存储前缀">
-          <el-input v-model="uploadPrefix" placeholder="例如 manual、problems/common 等" />
-          <span class="form-tip">文件将存放至指定前缀目录</span>
+          <el-select v-model="uploadPrefix" filterable allow-create default-first-option style="width: 100%" placeholder="选择或输入前缀">
+            <el-option v-for="group in uploadGroupOptions" :key="group.key" :label="group.label" :value="group.key" />
+          </el-select>
+          <span class="form-tip">MinIO 分组是对象 Key 的前缀，可输入如 manual/images；仅支持字母、数字、/、_ 和 -</span>
         </el-form-item>
         <el-form-item label="选择文件">
-          <input type="file" ref="fileRef" @change="onManualFileChange" />
+          <input type="file" ref="fileRef" accept=".txt,.md,.csv,.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.rar,.7z,.tar,.gz,.tgz,.bz2,.xz" @change="onManualFileChange" />
           <div v-if="selectedFile" class="file-chosen-tip">
             已选: <strong>{{ selectedFile.name }}</strong> ({{ formatFileSize(selectedFile.size) }})
           </div>
         </el-form-item>
       </el-form>
+      <div class="upload-link-tip">上传后生成的是有时效的 MinIO 预签名链接，可随时在列表中重新复制。</div>
       <template #footer>
         <el-button @click="uploadDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="uploading" :disabled="!selectedFile" @click="submitManualUpload">
@@ -126,7 +136,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { Document, Upload } from "@element-plus/icons-vue";
+import { Document, Folder, Upload } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   getAdminStorageObjects,
@@ -137,7 +147,7 @@ import {
 const objects = ref([]);
 const loading = ref(false);
 const searchKeyword = ref("");
-const onlyOrphans = ref(false);
+const activeGroup = ref("all");
 
 const uploadDialogVisible = ref(false);
 const uploadPrefix = ref("manual");
@@ -147,7 +157,61 @@ const fileRef = ref(null);
 
 const totalObjects = computed(() => objects.value.length);
 const totalBytes = computed(() => objects.value.reduce((acc, cur) => acc + (cur.fileSize || 0), 0));
-const orphanCount = computed(() => objects.value.filter(o => o.refCount === 0).length);
+const identifiedReferenceCount = computed(() => objects.value.filter(object => object.refCount > 0).length);
+
+const groupLabels = {
+  avatars: "用户头像",
+  manual: "手动上传",
+  problems: "题目资源",
+  "submission-uploads": "论文上传分片",
+  submissions: "论文文件",
+  root: "根目录",
+};
+
+const getObjectGroup = (objectKey) => {
+  if (!objectKey || !objectKey.includes("/")) return "root";
+  return objectKey.slice(0, objectKey.indexOf("/")) || "root";
+};
+
+const getGroupLabel = (groupKey) => groupLabels[groupKey] || groupKey;
+
+const storageGroups = computed(() => {
+  const groups = new Map();
+  objects.value.forEach((object) => {
+    const key = getObjectGroup(object.objectKey);
+    const current = groups.get(key) || { key, label: getGroupLabel(key), count: 0, size: 0 };
+    current.count += 1;
+    current.size += object.fileSize || 0;
+    groups.set(key, current);
+  });
+
+  const children = Array.from(groups.values()).sort((first, second) => first.label.localeCompare(second.label, "zh-CN"));
+  return [
+    { key: "all", label: "全部对象", count: totalObjects.value, size: totalBytes.value },
+    ...children,
+  ];
+});
+
+const storageGroupCount = computed(() => Math.max(storageGroups.value.length - 1, 0));
+const uploadGroupOptions = computed(() => {
+  const availableGroups = storageGroups.value.filter(group => !["all", "root"].includes(group.key));
+  if (availableGroups.some(group => group.key === "manual")) return availableGroups;
+  return [{ key: "manual", label: "手动上传" }, ...availableGroups];
+});
+const visibleObjects = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase();
+  return objects.value.filter((object) => {
+    const matchesGroup = activeGroup.value === "all" || getObjectGroup(object.objectKey) === activeGroup.value;
+    if (!matchesGroup) return false;
+    if (!keyword) return true;
+
+    const searchableText = [object.objectKey, object.fileName, object.refProblemTitle]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return searchableText.includes(keyword);
+  });
+});
 
 function formatFileSize(bytes) {
   if (!bytes || bytes <= 0) return "0 B";
@@ -165,11 +229,7 @@ function formatTime(val) {
 async function loadData() {
   loading.value = true;
   try {
-    const params = {};
-    if (searchKeyword.value.trim()) params.keyword = searchKeyword.value.trim();
-    if (onlyOrphans.value) params.onlyOrphans = true;
-
-    const res = await getAdminStorageObjects(params);
+    const res = await getAdminStorageObjects({});
     objects.value = res.data || [];
   } catch (error) {
     ElMessage.error(error.message || "获取存储对象清单失败");
@@ -180,7 +240,7 @@ async function loadData() {
 
 function openUploadDialog() {
   selectedFile.value = null;
-  uploadPrefix.value = "manual";
+  uploadPrefix.value = ["all", "root"].includes(activeGroup.value) ? "manual" : activeGroup.value;
   uploadDialogVisible.value = true;
 }
 
@@ -195,14 +255,37 @@ async function submitManualUpload() {
   if (!selectedFile.value) return;
   uploading.value = true;
   try {
-    await uploadAdminStorageObject(selectedFile.value, uploadPrefix.value.trim() || "manual");
+    const targetPrefix = uploadPrefix.value.trim() || "manual";
+    await uploadAdminStorageObject(selectedFile.value, targetPrefix);
     ElMessage.success("文件已成功上传至存储桶");
     uploadDialogVisible.value = false;
     await loadData();
+    activeGroup.value = getObjectGroup(`${targetPrefix}/placeholder`);
   } catch (error) {
     ElMessage.error(error.message || "上传失败");
   } finally {
     uploading.value = false;
+  }
+}
+
+async function copyObjectLink(downloadUrl) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(downloadUrl);
+    } else {
+      const temporaryInput = document.createElement("textarea");
+      temporaryInput.value = downloadUrl;
+      temporaryInput.style.position = "fixed";
+      temporaryInput.style.opacity = "0";
+      document.body.appendChild(temporaryInput);
+      temporaryInput.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(temporaryInput);
+      if (!copied) throw new Error("copy failed");
+    }
+    ElMessage.success("临时下载链接已复制");
+  } catch {
+    ElMessage.warning("浏览器未允许复制，请通过下载入口手动复制链接");
   }
 }
 
@@ -221,11 +304,11 @@ async function handleDelete(row) {
     return;
   }
 
-  // 2. 若为孤儿文件：允许二次确认后物理删除
+  // 2. 未识别题目附件引用时，提示跨服务引用边界并由管理员二次确认
   try {
     await ElMessageBox.confirm(
-      `确定要物理删除孤儿文件「${row.objectKey}」吗？删除后不可恢复。`,
-      "孤儿文件清理确认",
+      `确定要物理删除「${row.objectKey}」吗？当前只能确认它未被题目附件引用，无法排除头像、论文等其他服务仍在使用；删除后不可恢复。`,
+      "存储对象删除确认",
       {
         confirmButtonText: "确定删除",
         cancelButtonText: "取消",
@@ -233,7 +316,7 @@ async function handleDelete(row) {
       }
     );
     await deleteAdminStorageObject(row.objectKey);
-    ElMessage.success("孤儿文件已彻底清理");
+    ElMessage.success("存储对象已物理删除");
     await loadData();
   } catch (err) {
     if (err !== "cancel") {
@@ -267,7 +350,7 @@ onMounted(loadData);
 /* 统计卡片网格 */
 .storage-stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -278,23 +361,80 @@ onMounted(loadData);
   border-radius: var(--lm-radius-sm);
   text-align: center;
 }
-.stat-box.has-orphans {
-  background: #fffbeb;
-  border-color: #fef3c7;
-}
 .stat-num {
   font-size: 20px;
   font-weight: 700;
   color: var(--lm-text-primary);
   font-family: var(--lm-code-font-family);
 }
-.stat-box.has-orphans .orphan-num {
-  color: #b45309;
-}
 .stat-label {
   font-size: 11px;
   color: var(--lm-text-muted);
   margin-top: 4px;
+}
+
+.storage-workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.storage-group-panel {
+  padding: 10px;
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-sm);
+  background: #fafafa;
+}
+.group-panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px 10px;
+  color: var(--lm-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.group-panel-heading small {
+  color: var(--lm-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.storage-group-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.storage-group-item:hover {
+  background: #f1f5f9;
+}
+.storage-group-item.active {
+  background: color-mix(in srgb, var(--lm-primary) 10%, white);
+  color: var(--lm-primary);
+}
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-all;
+}
+.group-meta {
+  padding-left: 20px;
+  color: var(--lm-text-muted);
+  font-size: 10.5px;
+}
+.storage-object-panel {
+  min-width: 0;
 }
 
 /* 过滤栏 */
@@ -305,9 +445,23 @@ onMounted(loadData);
   margin-bottom: 14px;
   gap: 12px;
 }
-.filter-orphan-toggle {
-  display: flex;
-  align-items: center;
+.filter-bar .el-input {
+  max-width: 420px;
+}
+.result-count {
+  flex-shrink: 0;
+  color: var(--lm-text-muted);
+  font-size: 11px;
+}
+.reference-boundary-tip {
+  margin-bottom: 12px;
+  padding: 9px 11px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 11.5px;
+  line-height: 1.6;
 }
 
 /* 表格细节 */
@@ -339,10 +493,6 @@ onMounted(loadData);
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ref-tip {
-  color: #d97706;
-  font-size: 11px;
-}
 .table-action-btn {
   font-size: 12px;
   color: var(--lm-primary);
@@ -354,13 +504,54 @@ onMounted(loadData);
 }
 .form-tip {
   display: block;
+  width: 100%;
   font-size: 11px;
   color: var(--lm-text-muted);
   margin-top: 4px;
+  line-height: 1.5;
 }
 .file-chosen-tip {
   margin-top: 6px;
   font-size: 12px;
   color: var(--lm-text-secondary);
+}
+.upload-link-tip {
+  padding: 9px 11px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--lm-text-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .storage-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .storage-workspace {
+    grid-template-columns: 1fr;
+  }
+  .storage-group-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .group-panel-heading {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar,
+  .filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .toolbar-actions {
+    flex-wrap: wrap;
+  }
+  .filter-bar .el-input {
+    max-width: none;
+  }
 }
 </style>
