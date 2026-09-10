@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 存储桶对象资产视图对象（含业务引用与孤儿状态标记）。
+ * 存储桶对象资产视图对象，包含当前服务能够识别的题目附件引用。
  */
 @Data
 @Builder
@@ -28,7 +28,7 @@ public class StorageObjectVO {
     /** 最后修改时间 */
     private LocalDateTime lastModified;
 
-    /** 引用计数：0 表示孤儿文件（未关联），>=1 表示使用中 */
+    /** 已识别的题目附件引用计数：0 不代表其他业务一定没有引用 */
     private Integer refCount;
 
     /** 关联题目 ID（若存在） */

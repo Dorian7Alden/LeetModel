@@ -24,7 +24,7 @@ public class StorageConsoleController {
 
     private final StorageConsoleService storageConsoleService;
 
-    @Operation(summary = "扫描存储桶对象列表与孤儿对账")
+    @Operation(summary = "扫描存储桶对象列表并识别题目附件引用")
     @GetMapping("/objects")
     public Result<List<StorageObjectVO>> listObjects(
             @RequestParam(required = false) String keyword,

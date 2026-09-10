@@ -11,10 +11,10 @@ import java.util.List;
 public interface StorageConsoleService {
 
     /**
-     * 扫描存储桶对象列表，并与数据库业务引用进行对账。
+     * 扫描存储桶对象列表，并识别数据库中的题目附件引用。
      *
      * @param keyword      搜索关键词（匹配 objectKey 或关联题目）
-     * @param onlyOrphans  是否只筛选孤儿文件（未关联任何业务的文件）
+     * @param onlyOrphans  是否只筛选未被题目附件引用的文件
      * @return 对象资产视图列表
      */
     List<StorageObjectVO> listObjects(String keyword, Boolean onlyOrphans);
@@ -29,8 +29,8 @@ public interface StorageConsoleService {
     StorageObjectVO uploadObject(MultipartFile file, String prefix);
 
     /**
-     * 安全删除对象存储文件：严格防误删校验。
-     * 若文件仍被题目附件引用，强行阻断并提示关联题目；仅孤儿文件允许物理清除。
+     * 安全删除对象存储文件：严格校验已知的题目附件引用。
+     * 若文件仍被题目附件引用，强行阻断并提示关联题目；其他对象由管理员确认后物理删除。
      *
      * @param objectKey 对象路径
      */

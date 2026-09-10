@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.core.config.MinioProperties;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
+import com.leetmodel.common.core.storage.StorageContentTypes;
 import com.leetmodel.common.core.storage.StorageService;
-import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.entity.ProblemAttachment;
 import com.leetmodel.problem.enums.ProblemErrorCode;
@@ -39,12 +39,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StorageConsoleServiceImpl implements StorageConsoleService {
 
+    private static final String DEFAULT_UPLOAD_PREFIX = "manual";
+    private static final int MAX_PREFIX_LENGTH = 128;
+
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
     private final StorageService storageService;
     private final ProblemAttachmentMapper attachmentMapper;
     private final ProblemMapper problemMapper;
-    private final ProblemAuditEventProducer audit;
 
     @Override
     public List<StorageObjectVO> listObjects(String keyword, Boolean onlyOrphans) {
@@ -86,7 +88,7 @@ public class StorageConsoleServiceImpl implements StorageConsoleService {
                 String refProblemTitle = refProblemId != null ? problemTitleMap.get(refProblemId) : null;
                 String fileName = linkedAtt != null ? linkedAtt.getFileName() : extractFileName(objectKey);
 
-                // 孤儿文件过滤
+                // 未识别题目附件引用的对象过滤
                 if (Boolean.TRUE.equals(onlyOrphans) && refCount > 0) {
                     continue;
                 }
@@ -137,8 +139,8 @@ public class StorageConsoleServiceImpl implements StorageConsoleService {
 
     @Override
     public StorageObjectVO uploadObject(MultipartFile file, String prefix) {
-        String safePrefix = (prefix == null || prefix.isBlank()) ? "manual" : prefix.trim();
-        String objectKey = storageService.upload(file, safePrefix);
+        String safePrefix = normalizePrefix(prefix);
+        String objectKey = storageService.upload(file, safePrefix, StorageContentTypes.ARCHIVE);
         String url = storageService.getUrl(objectKey);
 
         return StorageObjectVO.builder()
@@ -158,10 +160,11 @@ public class StorageConsoleServiceImpl implements StorageConsoleService {
         if (objectKey == null || objectKey.isBlank()) {
             throw new BusinessException(ErrorCodeEnum.PARAM_INVALID, "待删除的对象路径不能为空");
         }
+        String normalizedObjectKey = objectKey.trim();
 
-        // 强依赖检查（防误删）
+        // 题目附件强依赖检查
         List<ProblemAttachment> linked = attachmentMapper.selectList(
-                new LambdaQueryWrapper<ProblemAttachment>().eq(ProblemAttachment::getObjectKey, objectKey.trim())
+                new LambdaQueryWrapper<ProblemAttachment>().eq(ProblemAttachment::getObjectKey, normalizedObjectKey)
         );
         if (!linked.isEmpty()) {
             ProblemAttachment att = linked.get(0);
@@ -173,10 +176,35 @@ public class StorageConsoleServiceImpl implements StorageConsoleService {
             );
         }
 
-        // 无业务引用的孤儿文件，执行物理删除
-        storageService.delete(objectKey.trim());
-        audit.attachmentDeleted(0L);
-        log.info("物理清理孤儿存储对象成功: objectKey={}", objectKey);
+        // 未被题目附件引用的对象由管理员确认后执行物理删除
+        storageService.delete(normalizedObjectKey);
+        log.info("物理删除存储对象成功: objectKey={}", normalizedObjectKey);
+    }
+
+    /**
+     * 标准化并校验手动上传使用的对象前缀。
+     *
+     * @param prefix 管理员输入的对象前缀，允许为空
+     * @return 可安全用于对象 Key 的前缀；为空时返回 manual
+     * @throws BusinessException 当前缀包含空路径段、相对路径或不支持字符时抛出
+     */
+    private String normalizePrefix(String prefix) {
+        if (prefix == null || prefix.isBlank()) return DEFAULT_UPLOAD_PREFIX;
+
+        String candidate = prefix.trim();
+        boolean invalidLength = candidate.length() > MAX_PREFIX_LENGTH;
+        boolean invalidPath = candidate.startsWith("/")
+                || candidate.endsWith("/")
+                || candidate.contains("//")
+                || candidate.contains("..");
+        boolean invalidCharacter = !candidate.matches("[A-Za-z0-9][A-Za-z0-9/_-]*");
+        if (invalidLength || invalidPath || invalidCharacter) {
+            throw new BusinessException(
+                    ErrorCodeEnum.PARAM_INVALID,
+                    "存储前缀仅支持字母、数字、/、_ 和 -，且不能包含空路径段或相对路径"
+            );
+        }
+        return candidate;
     }
 
     private String extractFileName(String objectKey) {

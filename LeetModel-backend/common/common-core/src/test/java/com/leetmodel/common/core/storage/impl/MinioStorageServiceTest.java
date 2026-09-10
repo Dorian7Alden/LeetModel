@@ -16,6 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -72,6 +74,41 @@ class MinioStorageServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> storageService.upload(invalidFile));
         assertTrue(ex.getMessage().contains("不支持的文件类型"));
+    }
+
+    @Test
+    @DisplayName("基础上传入口仍拒绝压缩包")
+    void uploadArchiveWithoutAdditionalTypesThrows() {
+        MultipartFile archiveFile = new MockMultipartFile(
+                "file",
+                "dataset.zip",
+                "application/zip",
+                "zip-data".getBytes()
+        );
+
+        assertThrows(BusinessException.class, () -> storageService.upload(archiveFile));
+    }
+
+    @Test
+    @DisplayName("业务额外白名单允许上传压缩包")
+    void uploadArchiveWithAdditionalTypesSucceeds() throws Exception {
+        MultipartFile archiveFile = new MockMultipartFile(
+                "file",
+                "dataset.zip",
+                "application/zip",
+                "zip-data".getBytes()
+        );
+        when(minioClient.bucketExists(any(BucketExistsArgs.class))).thenReturn(true);
+
+        String objectName = storageService.upload(
+                archiveFile,
+                "problems/1/attachments",
+                Set.of("application/zip")
+        );
+
+        assertTrue(objectName.startsWith("problems/1/attachments/"));
+        assertTrue(objectName.endsWith(".zip"));
+        verify(minioClient).putObject(any(PutObjectArgs.class));
     }
 
     @Test
