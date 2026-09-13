@@ -76,7 +76,8 @@ public class SaTokenConfig {
                         "/api/teams/public/problems/**",
                         "/api/submissions/public/problems/**",
                         // 题目详情页的匿名分数分布聚合数据无需认证
-                        "/api/rankings/public/problems/**",
+                        "/api/rankings/public/**",
+                        "/api/rankings/problems/*",
                         // Knife4j 聚合文档页面与 API 规范端点
                         "/doc.html",
                         "/v3/api-docs/**",

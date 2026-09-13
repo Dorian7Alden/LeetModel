@@ -22,3 +22,10 @@ export function getProblemScoreDistribution(problemId) {
     method: "get",
   });
 }
+
+export function getGlobalRankingStats() {
+  return request({
+    url: "/rankings/public/global-stats",
+    method: "get",
+  });
+}

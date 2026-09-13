@@ -7,6 +7,7 @@ import com.leetmodel.common.cache.HttpCacheSupport;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
 import com.leetmodel.ranking.vo.ProblemScoreDistributionVO;
+import com.leetmodel.ranking.vo.GlobalRankingOverviewVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
@@ -88,5 +89,16 @@ public class RankingController {
     public Result<ProblemScoreDistributionVO> scoreDistribution(
             @PathVariable @Positive(message = "题目标识必须为正整数") Long problemId) {
         return Result.ok(rankingService.getScoreDistribution(problemId));
+    }
+
+    /**
+     * 查询全平台赛题的当前排行概览统计。
+     *
+     * @return 全局排行概览视图对象
+     */
+    @Operation(summary = "查询全局排行概览")
+    @GetMapping("/public/global-stats")
+    public Result<GlobalRankingOverviewVO> globalStats() {
+        return Result.ok(rankingService.getGlobalStats());
     }
 }
