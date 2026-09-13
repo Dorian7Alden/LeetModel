@@ -1,46 +1,51 @@
-# 2025年美国大学生数学建模竞赛（MCM）B题：可持续旅游业管理
+# 2025 MCM
 
-![游轮图片](图片占位符)
+## Problem B: Managing Sustainable Tourism
 
-美国阿拉斯加州朱诺市约有3万居民，2023年该市接待了160万游轮乘客，创下历史纪录。在客流量最大的日子里，朱诺市同时接待多达7艘大型游轮，游客数量超过2万人。虽然这些游客为该市带来了约3.75亿美元的可观收入，但也带来了过度拥挤等问题，促使该市努力限制游客数量。具有讽刺意味的是，朱诺市的主要景点之一门登霍尔冰川一直在退缩，这主要是由气候变化导致的，而过度旅游在一定程度上加剧了气候变暖。自2007年以来，该冰川已经退缩了相当于8个足球场的距离，这让许多当地居民担心，随着冰川的消失，游客和相关收入最终也会随之而去。幸运的是，朱诺市还有其他景点，如观鲸和雨林，只要能制定并实施可持续旅游计划，朱诺市就可以维持其旅游胜地的地位。
 
-最近的报告强调了旅游业的隐性成本，以及越来越有必要考虑和管理这些成本，以保护自然和文化资源，并建立一个可持续的旅游业，世界各地众多社区都依赖这一产业。这些隐性成本包括对当地基础设施的压力，如饮用水供应、垃圾处理，以及旅游目的地整体碳足迹的增加，而许多旅游目的地都位于环境敏感地区。当地居民也因住房供应和成本、过度拥挤以及喧闹的游客而承受压力。人们已经采取了各种措施来试图减轻这些负担，包括提高酒店税、收取游客费用、限制每日游客数量，以及限制酒类销售和消费。税收带来的额外收入被用于支持环境保护、改善基础设施和发展社区项目。虽然许多依赖旅游业的当地居民担心额外收费会把游客吓跑，他们更希望看到游客数量增加，自己的生意也能随之发展，但也有许多其他当地居民感到不满，有的选择离开，有的则抗议游客的到来。
 
-为阿拉斯加州朱诺市构建一个可持续旅游业的模型：你可以考虑游客数量、总收入以及为稳定旅游业而采取的措施等因素。明确指出你正在优化哪些因素，哪些因素作为约束条件。制定额外收入的支出计划，并展示这些支出如何反馈到你的模型中，以促进可持续旅游。进行敏感性分析，并讨论哪些因素最为重要。
+<div align="center">
+<img src="https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/mcm-2025-mcm-b.png" alt="Managing Sustainable Tourism in Juneau, Alaska" style="zoom: 100%;" />
+</div>
 
-展示你的模型如何适用于另一个受过度旅游影响的旅游目的地：目的地的选择对哪些措施最为重要有何影响？你如何利用你的模型来推广游客较少的景点和（或）地区，以实现更好的平衡？
 
-给朱诺市旅游委员会写一份一页纸的备忘录：概述你的预测、各种措施的效果，以及你对如何优化结果的建议。
 
-你的PDF解决方案总页数不得超过25页，应包括：
+Juneau, Alaska, USA with a population of about 30,000 residents, set a record in 2023 with 1.6 million cruise passengers, hosting as many as seven large cruise ships on the busiest days, with upwards of around 20,000 visitors.[1] While these tourists bring in substantial revenue for the city, on the order of $375 million,[2] they also bring issues related to overcrowding that have the city working to limit the number of guests. Ironically, Mendenhall Glacier, one of the premier attractions in Juneau, has been receding, primarily due to warming temperatures caused, in part, by overtourism. The glacier has receded the equivalent of eight football fields since 2007, leading many locals to worry that the tourists and associated revenue will eventually disappear with the glacier.[3] Fortunately, Juneau has other attractions, including whale watching and rain forests, and can maintain their status as a tourist destination, provided they can develop and enact a plan for **sustainable tourism**.
 
-- 一页的摘要页。
-- 目录。
-- 完整的解决方案。
-- 给旅游委员会的一页备忘录。
-- 参考文献列表。
-- AI使用报告（若使用了AI，此报告不计入25页的限制）。
+Recent reports[4] have highlighted the hidden costs of tourism and the growing need to account for and manage these costs to protect natural and cultural resources and build a sustainable tourism industry on which numerous communities around the world depend. These hidden costs include pressure on local infrastructure including drinking water supplies, waste management, and an overall increased **carbon footprint** in tourist destinations, many of which lie in environmentally sensitive regions. Local populations are also under pressure due to housing supplies and costs, overcrowding, and rowdy tourists. Various measures have been enacted to attempt to ease the burden, including increased hotel taxes, visitor fees, caps on the number of daily visitors, and restrictions on alcohol sales and consumption. Additional revenue from taxes have been used to support conservation, make improvements in **infrastructure**, and develop community programs. While many locals that depend on tourism are concerned that additional fees might drive tourists away and would rather see the numbers, and their businesses, grow, many other locals are becoming disgruntled and either leaving or protesting against tourists.
 
-注意：美国大学生数学建模竞赛完整提交的作品没有具体的最低页数要求。你最多可使用25页来展示所有解决方案以及你希望包含的任何其他信息（例如：图纸、图表、计算过程、表格）。部分解决方案也会被接受。我们允许谨慎使用诸如ChatGPT之类的人工智能工具，不过解决此问题并非必须使用。如果你选择使用生成式人工智能，就必须遵循COMAP的人工智能使用政策。这将要求你额外撰写一份AI使用报告，并添加到PDF解决方案文件夹后，且该报告不计入解决方案25页的总页数限制。
+- Build a model for a sustainable tourism industry in Juneau, Alaska. You may want to consider factors such as the number of visitors, overall revenue, and measures enacted to stabilize tourism. State clearly which factors you are optimizing, and which factors serve as constraints. Include a plan for expenditures from any additional revenue and show how these expenditures feed back into your model to promote sustainable tourism. Include a sensitivity analysis and discuss which factors are most important.
+- Choose a different tourist destination in another region of the world (with a similar dynamic of locals facing issues of overtourism versus dependence on tourist revenue). Use your model to analyze this destination. Contrast the situation in this new location with the situation in Juneau, Alaska. Discuss any changes you need to make to your model to capture this new destination.
+- Propose a set of guidelines and key metrics for sustainable tourism for this second tourist destination to provide to local leaders to balance the needs of tourism with the preservation of natural, environmental, and cultural resources.
+- Include a 1-page article for a travel and hospitality industry magazine that summarizes your model and explains how tourism destinations can maintain the tourism on which they depend, while mitigating its negative impact.
 
-## 新增美国大学生数学建模竞赛（MCM）/交叉学科建模竞赛（ICM）：在线提交流程
 
-本文旨在帮助和指导参加高中数学建模竞赛（HiMCM）/初中数学建模竞赛（MidMCM）的学生和指导教师。在本文中，COMAP介绍了使用新在线提交页面（https://forms.comap.org/241335097294056）进行新在线提交流程的相关信息。你需要用到团队控制编号、指导教师ID号以及所选赛题来完成提交。
 
-## 术语表
+## Requirements
 
-- **可持续旅游**：可持续旅游是一个涵盖完整旅游体验的概念，包括对经济、社会和环境问题的关注，以及对提升游客体验和满足旅游目的地区需求的重视。可持续旅游应包含对环境保护、社会公平、生活质量、文化多样性的关注，以及对充满活力且可行的经济的追求，这种经济能够为所有人提供就业机会和繁荣发展。
+Your PDF solution of no more than 25 total pages should include:
+- One-page Summary Sheet.
+- Table of Contents.
+- Your complete solution.
+- One-page article for travel/hospitality magazine.
+- References list.
+- AI Use Report (If used does not count toward the 25-page limit.)
 
-- **碳足迹**：碳足迹（或温室气体足迹）是一个计算得出的值或指数，它使得人们能够比较一项活动、一种产品、一个公司或一个国家排放到大气中的温室气体总量。碳足迹通常以每单位比较量的排放吨数（二氧化碳当量）来报告。
+**Note:** There is no specific required minimum page length for a complete MCM submission. You may use up to 25 total pages for all your solution work and any additional information you want to include (for example: drawings, diagrams, calculations, tables). Partial solutions are accepted. We permit the careful use of AI such as ChatGPT, although it is not necessary to create a solution to this problem. If you choose to utilize a generative AI, you must follow the COMAP AI use policy. This will result in an additional AI use report that you must add to the end of your PDF solution file and does not count toward the 25 total page limit for your solution.
 
-- **基础设施**：社会或企业运作所需的基本物质结构、组织架构和设施（例如建筑物、道路、电力供应）。
 
-## 参考文献
 
-[1] https://abc7.com/post/juneau- alaska- cruise- ship- limits- oyertourism/15048713/
+## References
 
-[2] https://juneau.org/wp- content/uploads/2024/01/CBJ- Cruise- Impacts- 2023- Report- 1.22.24. pdf
+[1] https://abc7.com/post/juneau-alaska-cruise-ship-limits-overtourism/15048713/
+[2] https://www.alaskasnewssource.com/2024/07/04/record-breaking-tourism-summer-anticipated-juneau/
+[3] https://apnews.com/article/alaska-glacier-retreat-climate-change-tourism-juneau-1941e74a81cfdb3c076c483d368e7300
+[4] https://theconversation.com/tourism-has-huge-hidden-costs-for-destinations-heres-how-they-can-make-it-sustainable-234907
 
-[3] https://alaskapublic.org/2023/08/07/crammed- with- tourists- juneau- wonders- what- willhappen- as- mendenhall- glacier- recedes/
 
-[4] https://www.thetravelfoundation.org.uk/invisible- burden/
+
+## Glossary
+
+- **Carbon Footprint:** the total amount of greenhouse gases (including carbon dioxide and methane) that are generated by our actions.
+- **Infrastructure:** the basic physical and organizational structures and facilities (e.g. buildings, roads, power supplies) needed for the operation of a society or enterprise.
+- **Sustainable Tourism:** tourism that takes full account of its current and future economic, social and environmental impacts, addressing the needs of visitors, the industry, the environment and host communities.
