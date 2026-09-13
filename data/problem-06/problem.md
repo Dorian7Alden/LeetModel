@@ -48,9 +48,9 @@ The purpose of this article is to assist and guide students and advisors partici
 
 ## References
 
-[1] https://www.itu.int/epublications/publication/global-cybersecurity-index-2024  
-[2] https://verisframework.org/index.html  
-[3] https://verisframework.org/vcdb.html  
+[1] https://www.itu.int/epublications/publication/global-cybersecurity-index-2024
+[2] https://verisframework.org/index.html
+[3] https://verisframework.org/vcdb.html
 
 
 
