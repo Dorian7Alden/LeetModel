@@ -17,7 +17,43 @@
 
 当前阶段分支：`phase/admin-console-workbench`
 
-当前无进行中的任务卡。阶段分支保留，等待用户验收并确认下一实施点。
+### [~] ADMIN-02 去除管理端无效 Hero
+
+设计依据：[管理端工作台 UIUX 设计](docs/project/04-前端设计/07-业务模块详细设计/管理端工作台%20UIUX%20设计.md)
+
+目标：
+
+删除管理端各工作域中只表达口号、重复标题和装饰色彩的 `domain-hero` 区域，让核心指标、筛选与数据工作面直接进入首屏。
+
+主流程：
+
+1. 删除访问控制、内容中心、业务运营、AI 中枢和审计页的 Hero 标题、眉题、说明和装饰样式。
+2. 访问控制与内容中心的有效管理入口迁入紧凑操作条。
+3. 业务运营与 AI 中枢的刷新动作迁入紧凑工具区；审计页复用现有查询动作，不重复保留刷新。
+4. 桌面与窄屏均优先展示指标、筛选或数据工作面。
+
+完成标准：
+
+- 管理端生产代码不再包含 `domain-hero`、Hero 渐变与装饰圆环。
+- 删除的标题和说明不以另一种大卡片形式回填。
+- 原 Hero 中仍有业务价值的入口与刷新动作可访问，按钮语义和加载反馈保持有效。
+- 页面首屏高度明显回收，桌面与 `390px` 窄屏无新增整页横向溢出。
+- 前端生产构建通过，真实浏览器验证至少覆盖一个多入口页面、一个刷新页面和审计页面。
+
+修改范围：
+
+- `LeetModel-frontend/src/views/admin/pages/AccessControlPage.vue`
+- `LeetModel-frontend/src/views/admin/pages/ContentHubPage.vue`
+- `LeetModel-frontend/src/views/admin/pages/OperationsHubPage.vue`
+- `LeetModel-frontend/src/views/admin/pages/AiCenterPage.vue`
+- `LeetModel-frontend/src/views/admin/pages/AuditPage.vue`
+- `LeetModel-frontend/src/views/admin/style.css`
+- 本反馈形成的长期设计规则
+
+非目标：
+
+- 不在本任务重做各工作域的数据结构、表格、抽屉或后端接口。
+- 不把下一实施点“运行概览”并入本任务。
 
 ## 已确认的系统边界
 
