@@ -252,10 +252,28 @@ public class RankingService {
     }
 
     /**
-     * 聚合所有题目的成功提交量、已完成评审分数与当前上榜队伍数。
-     * 数据来自各 owner 服务的全量事实，不使用管理端最近 N 条快照。
-     */
-    public GlobalRankingOverviewVO getGlobalStats() {
+    * 聚合所有题目的成功提交量、已完成评审分数与当前上榜队伍数。
+    * 数据来自各 owner 服务的全量事实，不使用管理端最近 N 条快照。
+    */
+   public GlobalRankingOverviewVO getGlobalStats() {
+        CacheSpec spec = new CacheSpec(
+                RankingCachePolicy.REGION,
+                "global",
+                RankingCachePolicy.SCHEMA_VERSION,
+                "stats",
+                Duration.ofSeconds(30),
+                Duration.ofMinutes(10),
+                Duration.ofSeconds(10),
+                Duration.ofSeconds(60)
+        );
+        return cache.get(
+                spec,
+                objectMapper.constructType(GlobalRankingOverviewVO.class),
+                this::calculateGlobalStats
+        );
+    }
+
+    private GlobalRankingOverviewVO calculateGlobalStats() {
         List<ProblemSubmissionStatsDTO> submissionStats = requiredData(
                 submissionFeignClient::getProblemSubmissionStats);
         List<ReviewSummaryDTO> completedReviews = requiredData(
