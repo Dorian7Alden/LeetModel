@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="loading" class="team-detail-page">
+  <div v-loading="loading" class="team-detail-page" :class="{ 'is-embedded': embedded }">
     <el-alert
       v-if="refreshAfterCancelError"
       title="申请已取消，但最新队伍状态加载失败"
@@ -12,7 +12,7 @@
       <template #default><el-button type="warning" plain @click="retryRefreshAfterCancel">重新加载</el-button></template>
     </el-alert>
     <template v-if="team">
-      <div class="page-nav">
+      <div v-if="!embedded" class="page-nav">
         <el-button text class="back-button" @click="handleBack">← 返回上一页</el-button>
         <span class="team-id">队伍 ID · {{ team.id }}</span>
       </div>
@@ -253,6 +253,11 @@ import SubmissionSuggestionDialog from '../components/SubmissionSuggestionDialog
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const props = defineProps({
+  teamId: { type: [String, Number], default: null },
+  embedded: { type: Boolean, default: false },
+})
+const emit = defineEmits(['changed', 'transitioned', 'removed'])
 const loading = ref(false)
 const refreshAfterCancelError = ref('')
 const team = ref(null)
@@ -287,6 +292,7 @@ let reviewTimer
 const editForm = reactive({ name: '', description: '' })
 const recruitmentForm = reactive({ needModeler: false, needProgrammer: false, needWriter: false, description: '' })
 const applyForm = reactive({ recruitmentId: null, message: '' })
+const resolvedTeamId = computed(() => String(props.teamId || route.params.id || ''))
 const currentUserId = computed(() => Number(userStore.userId))
 const isLeader = computed(() => team.value?.leaderId === currentUserId.value)
 const isMember = computed(() => team.value?.members.some(member => member.userId === currentUserId.value) || false)
@@ -349,9 +355,14 @@ const v2Findings = computed(() => {
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
 
 async function loadTeam() {
+  if (!resolvedTeamId.value) {
+    team.value = null
+    return false
+  }
   loading.value = true
   try {
-    team.value = (await getTeamDetail(route.params.id)).data
+    team.value = (await getTeamDetail(resolvedTeamId.value)).data
+    emit('changed', team.value)
     problem.value = (await getPublicProblemDetail(team.value.problemId)).data
     const requestedRecruitment = team.value.recruitments?.find(item => String(item.id) === String(route.query.recruitmentId) && item.status === 'OPEN')
     if (route.query.apply === '1' && requestedRecruitment && team.value.canApply) {
@@ -457,6 +468,7 @@ async function handleStartPractice() {
     startingPractice.value = true
     team.value = (await startTeamPractice(team.value.id)).data
     await refreshSubmissionReviews()
+    emit('transitioned', team.value)
     ElMessage.success('限时练习已开始')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '开始练习失败') }
   finally { startingPractice.value = false }
@@ -514,6 +526,7 @@ async function handleUpdate() {
   if (!editForm.name.trim()) return ElMessage.warning('请输入队伍名称')
   try {
     team.value = (await updateTeam(team.value.id, { name: editForm.name.trim(), description: editForm.description.trim() })).data
+    emit('changed', team.value)
     showEditDialog.value = false
     ElMessage.success('队伍资料已更新')
   } catch (error) { ElMessage.error(error.message || '队伍更新失败') }
@@ -535,6 +548,7 @@ async function handleRoleChange(member, field, value) {
     Object.assign(member, (await updateTeamMemberRoles(team.value.id, member.userId, {
       modeler: member.modeler, programmer: member.programmer, writer: member.writer,
     })).data)
+    emit('changed', team.value)
     ElMessage.success('成员分工已更新')
   } catch (error) {
     member[field] = previous
@@ -547,6 +561,7 @@ async function handleSubmissionPermissionChange(member, value) {
   member.canSubmit = value
   try {
     Object.assign(member, (await updateTeamSubmissionPermission(team.value.id, member.userId, value)).data)
+    emit('changed', team.value)
     ElMessage.success(value ? '已授予作品提交权限' : '已撤销作品提交权限')
   } catch (error) {
     member.canSubmit = previous
@@ -559,7 +574,8 @@ async function handleLeave() {
     await ElMessageBox.confirm('确定退出当前队伍吗？', '退出队伍', { type: 'warning' })
     await leaveTeam(team.value.id)
     ElMessage.success('已退出队伍')
-    router.push('/team')
+    if (props.embedded) emit('removed', team.value.id)
+    else router.push('/team')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '退出队伍失败') }
 }
 
@@ -567,7 +583,8 @@ async function handleDissolve() {
   try {
     await ElMessageBox.confirm('解散后将保留历史记录，确定继续吗？', '解散队伍', { type: 'warning' })
     await dissolveTeam(team.value.id)
-    await loadTeam()
+    if (props.embedded) emit('removed', team.value.id)
+    else await loadTeam()
     ElMessage.success('队伍已解散')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '解散队伍失败') }
 }
@@ -588,6 +605,7 @@ async function handleSaveRecruitment() {
       ? updateTeamRecruitment(team.value.id, editingRecruitmentId.value, recruitmentForm)
       : publishTeamRecruitment(team.value.id, recruitmentForm)
     team.value = (await request).data
+    emit('changed', team.value)
     showRecruitmentDialog.value = false
     ElMessage.success(editingRecruitmentId.value ? '招募信息已更新' : '招募已发布')
   } catch (error) { ElMessage.error(error.message || '招募信息保存失败') }
@@ -613,7 +631,8 @@ async function handleCancelApplication() {
     team.value.currentUserRelation = 'none'
     team.value.canApply = openRecruitments.value.length > 0
     try {
-      team.value = (await getTeamDetail(route.params.id)).data
+      team.value = (await getTeamDetail(resolvedTeamId.value)).data
+      emit('changed', team.value)
       problem.value = (await getPublicProblemDetail(team.value.problemId)).data
       ElMessage.success('申请已取消')
     }
@@ -637,13 +656,13 @@ async function handleReview(applicationId, decision) {
 }
 
 onMounted(() => {
-  loadTeam()
   clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
   reviewTimer = window.setInterval(() => {
     if (reviews.value.some(item => ['WAITING', 'RUNNING'].includes(item.status))) loadReviews()
   }, 5000)
 })
 onBeforeUnmount(() => { window.clearInterval(clockTimer); window.clearInterval(reviewTimer) })
+watch(resolvedTeamId, () => { loadTeam() }, { immediate: true })
 watch(remainingSeconds, (value, previous) => {
   if (value === 0 && previous > 0 && team.value?.practiceStatus === 'IN_PROGRESS') loadTeam()
 })
@@ -651,6 +670,17 @@ watch(remainingSeconds, (value, previous) => {
 
 <style scoped>
 @import '../style.css';
+.team-detail-page.is-embedded { max-width: none; padding: 0 0 54px; }
+.team-detail-page.is-embedded .hero-section { overflow: visible; padding: 2px 2px 18px; border: 0; border-bottom: 1px solid var(--lm-border); border-radius: 0; background: transparent; box-shadow: none; color: var(--lm-text-primary); }
+.team-detail-page.is-embedded .hero-section::after { display: none; }
+.team-detail-page.is-embedded .hero-eyebrow { margin-bottom: 5px; color: var(--lm-text-muted); font-size: 9px; }
+.team-detail-page.is-embedded .team-name { margin-bottom: 7px; font-size: 23px; }
+.team-detail-page.is-embedded .team-desc { margin-bottom: 13px; color: var(--lm-text-secondary); font-size: 12px; }
+.team-detail-page.is-embedded .meta-item { color: var(--lm-text-muted); font-size: 10px; }
+.team-detail-page.is-embedded .status-pill { border-color: #dbeafe; background: #eff6ff; color: #2563eb; backdrop-filter: none; }
+.team-detail-page.is-embedded .hero-action .el-button { border-color: var(--lm-border); background: #fff; color: var(--lm-text-primary); }
+.team-detail-page.is-embedded .hero-action .el-button:hover { border-color: var(--lm-primary); background: #f8fafc; color: var(--lm-primary); }
+.team-detail-page.is-embedded .detail-body { margin-top: 18px; }
 .practice-meta { margin: 6px 0; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-table { margin-top: 18px; }
 .score-summary { display: flex; align-items: center; gap: 18px; margin-top: 18px; padding: 16px 18px; border: 1px solid #dbeafe; border-radius: 14px; background: linear-gradient(135deg, #eff6ff, #f8fafc); }

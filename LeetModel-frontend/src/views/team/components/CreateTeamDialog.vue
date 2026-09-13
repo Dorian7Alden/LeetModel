@@ -126,7 +126,7 @@ async function handleCreate() {
     emit('created', response.data)
     emit('update:modelValue', false)
     ElMessage.success(`队伍“${response.data.name}”创建成功`)
-    await router.push('/team')
+    await router.push({ name: 'TeamPreparing', params: { teamId: String(response.data.id) } })
   } catch (error) {
     ElMessage.error(error.message || '队伍创建失败')
   } finally {
