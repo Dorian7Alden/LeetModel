@@ -984,6 +984,9 @@ const rankingError = ref('')
 const myTeams = ref([])
 const highlightedTeamId = ref(null)
 
+// SWR 本地会话缓存 Key
+const CACHE_KEY_GLOBAL_STATS = 'leetmodel_ranking_global_stats_cache'
+
 // 内存级缓存字典：题目详情缓存，二次打开免重复网络请求
 const problemDetailCache = new Map()
 
@@ -1382,6 +1385,13 @@ async function openProblemDrawer(problemId) {
 // ==========================================================================
 function openProblemSelectorModal() {
   pickerModalVisible.value = true
+  if (!filterOptions.value) {
+    getPublicProblemFilterOptions()
+      .then((res) => {
+        filterOptions.value = res.data
+      })
+      .catch(() => {})
+  }
   // 仅在首次打开或列表为空时触发服务端按需拉取
   if (!pickerProblems.value.length) {
     fetchPickerProblems(true)
@@ -1502,18 +1512,39 @@ async function loadProblemsMeta() {
 
 // 总览数据懒加载：仅加载全局指标，不拉取单题数据
 async function loadGlobalStats() {
-  loadingOverview.value = true
+  // 1. 优先使用 SWR 缓存瞬时上屏 (0ms 渲染)
+  if (!globalStats.value) {
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY_GLOBAL_STATS)
+      if (cached) {
+        globalStats.value = JSON.parse(cached)
+      }
+    } catch {
+      // 静默忽略解析异常
+    }
+  }
+
+  if (!globalStats.value) {
+    loadingOverview.value = true
+  }
   rankingError.value = ''
   try {
     const res = await getGlobalRankingStats()
     globalStats.value = res.data
+    try {
+      sessionStorage.setItem(CACHE_KEY_GLOBAL_STATS, JSON.stringify(res.data))
+    } catch {
+      // 静默忽略存储限制
+    }
   } catch {
-    globalStats.value = {
-      problemCount: problems.value.length,
-      rankedTeams: 0,
-      reviewedSubmissions: 0,
-      overallAverageScore: null,
-      items: []
+    if (!globalStats.value) {
+      globalStats.value = {
+        problemCount: 0,
+        rankedTeams: 0,
+        reviewedSubmissions: 0,
+        overallAverageScore: null,
+        items: []
+      }
     }
   } finally {
     loadingOverview.value = false
@@ -1600,7 +1631,6 @@ watch(
 
 onMounted(async () => {
   const qProblemId = route.query.problemId
-  loadProblemsMeta()
 
   if (qProblemId) {
     selectedProblemId.value = Number(qProblemId) || qProblemId
