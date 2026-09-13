@@ -125,12 +125,12 @@
     </el-drawer>
 
     <!-- 页面内容 -->
-    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') || route.path.startsWith('/team') }">
+    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') || route.path.startsWith('/team') || route.path.startsWith('/assistant') }">
       <router-view />
     </main>
 
     <!-- 页脚 -->
-    <footer v-if="route.path !== '/problem' && route.path !== '/problem/problemListPage'" class="footer">
+    <footer v-if="route.path !== '/problem' && route.path !== '/problem/problemListPage' && !route.path.startsWith('/assistant')" class="footer">
       <div class="footer-content">
         <div class="footer-brand">
           <img src="@/assets/images/logo-en.png" alt="LeetModel" class="footer-logo-img" />
