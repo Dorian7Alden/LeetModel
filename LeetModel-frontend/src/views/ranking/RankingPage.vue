@@ -1,82 +1,80 @@
 <template>
   <div class="ranking-page">
-    <!-- 1. 页面级工作台头部 (Academic Workbench Header) -->
-    <header class="ranking-header">
-      <div class="header-main">
-        <div class="header-badge">
-          <el-icon><Trophy /></el-icon>
-          <span>成果榜单 · ACADEMIC LEADERBOARD</span>
-        </div>
-        <h1 class="header-title">题目成果与评审排行</h1>
-        <p class="header-desc">
-          以同一建模赛题为基准，记录各队伍最终学术作品在统一 AI 评审流水线下的竞技成果、得分梯队与技术分布。
-        </p>
-      </div>
-
-      <div class="header-rules" aria-label="榜单排榜准则">
-        <span class="rule-pill">
-          <i class="dot-indicator"></i>
-          仅统计最终提交作品
-        </span>
-        <span class="rule-pill">
-          <i class="dot-indicator"></i>
-          仅纳入已完成评审
-        </span>
-        <span class="rule-pill">
-          <i class="dot-indicator"></i>
-          相同得分按并列计名
-        </span>
-        <span class="rule-pill tech-pill">
-          <i class="dot-indicator blue-dot"></i>
-          快照协商缓存 (ETag)
-        </span>
-      </div>
-    </header>
-
-    <!-- 2. 一体化工具栏 (Sticky Filter Toolbar) -->
-    <section class="toolbar-card" aria-label="排行榜检索与过滤工具栏">
-      <div class="toolbar-row">
-        <!-- 题目选择 -->
-        <div class="toolbar-item problem-selector">
-          <label for="select-problem" class="selector-label">
-            <el-icon><Document /></el-icon>
-            <span>选择赛题</span>
-          </label>
-          <el-select
-            id="select-problem"
-            v-model="selectedProblemId"
-            filterable
-            :loading="loadingProblems"
-            placeholder="输入题号或赛题名称查找"
-            class="problem-select"
-            @change="handleProblemChange"
+    <!-- 顶部工作台导航条 (极简、无冗余宣传文字) -->
+    <nav class="ranking-nav-bar" aria-label="排行榜模式切换">
+      <div class="nav-left">
+        <div class="view-mode-tabs">
+          <button
+            type="button"
+            class="tab-btn"
+            :class="{ active: viewMode === 'overview' }"
+            @click="switchViewMode('overview')"
           >
-            <el-option
-              v-for="problem in problems"
-              :key="problem.id"
-              :label="`题号 ${problem.code || problem.id} · ${problem.title}`"
-              :value="problem.id"
-            >
-              <div class="problem-option-item">
-                <span class="option-code">#{{ problem.code || problem.id }}</span>
-                <span class="option-title">{{ problem.title }}</span>
-                <span v-if="problem.year" class="option-year">{{ problem.year }}</span>
-              </div>
-            </el-option>
-          </el-select>
+            <el-icon><DataAnalysis /></el-icon>
+            <span>赛题总览天梯</span>
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            :class="{ active: viewMode === 'detail' }"
+            @click="switchViewMode('detail')"
+          >
+            <el-icon><Trophy /></el-icon>
+            <span>赛题成果细览</span>
+          </button>
         </div>
 
-        <!-- 队伍搜索框 -->
-        <div class="toolbar-item search-box">
-          <label for="search-team" class="selector-label">
-            <el-icon><Search /></el-icon>
-            <span>搜索队伍</span>
-          </label>
+        <!-- 细览模式下：紧凑下拉切换题目按钮 (替代旧版笨重筛选面板) -->
+        <div v-if="viewMode === 'detail'" class="compact-problem-selector">
+          <el-dropdown trigger="click" max-height="360" @command="handleSelectProblemCommand">
+            <button type="button" class="btn-select-problem" title="切换赛题">
+              <span class="problem-num-tag">#{{ currentProblem?.code || currentProblem?.id || '?' }}</span>
+              <span class="problem-name-text">{{ currentProblem?.title || '选择赛题' }}</span>
+              <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu class="problem-dropdown-menu">
+                <el-dropdown-item
+                  v-for="prob in problems"
+                  :key="prob.id"
+                  :command="prob.id"
+                  :class="{ 'is-selected': String(prob.id) === String(selectedProblemId) }"
+                >
+                  <div class="dropdown-problem-item">
+                    <span class="dp-code">#{{ prob.code || prob.id }}</span>
+                    <span class="dp-title">{{ prob.title }}</span>
+                    <span v-if="prob.year" class="dp-year">{{ prob.year }}</span>
+                    <span class="dp-tag" :class="`diff-${prob.difficulty}`">{{ difficultyLabel(prob.difficulty) }}</span>
+                  </div>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <!-- 临时看一眼题目详情 (轻量抽屉，绝不跳出页面) -->
+          <button
+            v-if="currentProblem"
+            type="button"
+            class="btn-quick-preview"
+            title="查看本题题面与建模要求 (侧边抽屉速览)"
+            @click="openProblemDrawer(currentProblem.id)"
+          >
+            <el-icon><View /></el-icon>
+            <span>赛题速览</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 右侧辅助操作 -->
+      <div class="nav-right">
+        <!-- 细览模式下的队伍搜索 -->
+        <div v-if="viewMode === 'detail'" class="team-search-wrap">
           <el-input
-            id="search-team"
             v-model="keyword"
-            placeholder="输入队伍名称模糊搜索"
+            placeholder="搜索上榜队伍..."
             clearable
+            size="small"
+            class="compact-search-input"
             @keyup.enter="handleSearch"
             @clear="handleClearSearch"
           >
@@ -86,343 +84,355 @@
           </el-input>
         </div>
 
-        <!-- 操作区：定位我的队伍 & 刷新 -->
-        <div class="toolbar-actions">
-          <button
-            v-if="myTeamInCurrentProblem"
-            type="button"
-            class="btn-my-team"
-            :class="{ 'is-ranked': myTeamRankingItem }"
-            :title="myTeamButtonTitle"
-            @click="locateMyTeamAction"
-          >
-            <el-icon><UserFilled /></el-icon>
-            <span class="team-label">我的队伍</span>
-            <strong v-if="myTeamRankingItem" class="team-rank-badge">
-              #{{ myTeamRankingItem.rank }} ({{ formatScore(myTeamRankingItem.score) }}分)
-            </strong>
-            <span v-else class="team-status-badge">实训中</span>
-          </button>
+        <!-- 细览模式下：我的队伍快捷定位 -->
+        <button
+          v-if="viewMode === 'detail' && myTeamInCurrentProblem"
+          type="button"
+          class="btn-my-team-pill"
+          :class="{ 'is-ranked': myTeamRankingItem }"
+          @click="locateMyTeamAction"
+        >
+          <el-icon><UserFilled /></el-icon>
+          <span>我的队伍</span>
+          <strong v-if="myTeamRankingItem">#{{ myTeamRankingItem.rank }} ({{ formatScore(myTeamRankingItem.score) }}分)</strong>
+          <small v-else>实训中</small>
+        </button>
 
-          <button
-            type="button"
-            class="btn-refresh"
-            :disabled="loading"
-            title="刷新榜单数据"
-            @click="handleManualRefresh"
-          >
-            <el-icon :class="{ 'is-spinning': loading }"><Refresh /></el-icon>
-            <span class="btn-text">刷新</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- 当前选中题目元信息速览栏 -->
-      <div v-if="currentProblem" class="problem-meta-strip">
-        <div class="strip-left">
-          <span class="problem-code-badge">#{{ currentProblem.code || currentProblem.id }}</span>
-          <h2 class="problem-strip-title">{{ currentProblem.title }}</h2>
-          <span class="strip-tag contest-tag">{{ currentProblem.contestName || '建模公开赛题' }}</span>
-          <span v-if="currentProblem.year" class="strip-tag">{{ currentProblem.year }} 年</span>
-          <span class="strip-tag">{{ languageLabel(currentProblem.statementLanguage) }}</span>
-          <span class="strip-tag difficulty-tag" :class="`diff-${currentProblem.difficulty}`">
-            {{ difficultyLabel(currentProblem.difficulty) }}
-          </span>
-        </div>
-        <router-link :to="`/problem/${currentProblem.id}`" class="problem-detail-link">
-          <span>阅读题目详情</span>
-          <el-icon><ArrowRight /></el-icon>
-        </router-link>
-      </div>
-    </section>
-
-    <!-- 3. 加载骨架屏 (Skeleton Loading State) -->
-    <section v-if="loading && !overview" class="skeleton-wrapper" aria-label="榜单加载中">
-      <div class="skeleton-metrics">
-        <div v-for="i in 4" :key="`sk-m-${i}`" class="skeleton-card skeleton-pulse"></div>
-      </div>
-      <div class="skeleton-distribution skeleton-card skeleton-pulse"></div>
-      <div class="skeleton-podium">
-        <div v-for="i in 3" :key="`sk-p-${i}`" class="skeleton-podium-card skeleton-pulse"></div>
-      </div>
-      <div class="skeleton-table skeleton-card skeleton-pulse"></div>
-    </section>
-
-    <!-- 4. 接口错误状态 (Error State) -->
-    <section v-else-if="rankingError" class="error-container">
-      <div class="error-card">
-        <el-icon class="error-icon"><Warning /></el-icon>
-        <div class="error-content">
-          <h3>无法获取当前题目排行榜</h3>
-          <p>{{ rankingError }}</p>
-        </div>
-        <button type="button" class="btn-retry" @click="loadData">
-          <el-icon><Refresh /></el-icon>
-          <span>重新加载</span>
+        <!-- 刷新数据 -->
+        <button
+          type="button"
+          class="btn-icon-refresh"
+          :disabled="loading"
+          title="刷新数据"
+          @click="handleManualRefresh"
+        >
+          <el-icon :class="{ 'is-spinning': loading }"><Refresh /></el-icon>
         </button>
       </div>
-    </section>
+    </nav>
 
-    <!-- 5. 榜单主内容区 (Data Content) -->
-    <main v-else-if="overview" class="ranking-main-content">
-      <!-- 5.1 数据看板区：核心指标 + 分数分布直方图 -->
-      <section class="dashboard-grid">
-        <!-- 4 核心指标卡 -->
-        <div class="metrics-grid">
-          <article class="metric-card">
-            <div class="metric-icon-box blue-box">
-              <el-icon><UserFilled /></el-icon>
-            </div>
-            <div class="metric-info">
-              <span class="metric-label">{{ hasActiveKeyword ? '匹配队伍' : '上榜队伍' }}</span>
-              <div class="metric-value-row">
-                <strong class="metric-number">{{ rankingItems.length }}</strong>
-                <span class="metric-unit">支</span>
-              </div>
-              <p class="metric-sub">{{ hasActiveKeyword ? `筛选关键词 “${appliedKeyword}”` : '已完成最终稿评审' }}</p>
-            </div>
-          </article>
+    <!-- 加载骨架屏 -->
+    <div v-if="loading && !overview && !globalStats" class="skeleton-layout">
+      <div class="skeleton-strip skeleton-pulse"></div>
+      <div class="skeleton-grid-boxes">
+        <div v-for="i in 4" :key="`sk-b-${i}`" class="sk-box skeleton-pulse"></div>
+      </div>
+      <div class="skeleton-main-card skeleton-pulse"></div>
+    </div>
 
-          <article class="metric-card">
-            <div class="metric-icon-box gold-box">
-              <el-icon><Trophy /></el-icon>
-            </div>
-            <div class="metric-info">
-              <span class="metric-label">最高作品得分</span>
-              <div class="metric-value-row">
-                <strong class="metric-number">{{ highestScore }}</strong>
-                <span v-if="highestScore !== '-'" class="metric-unit">分</span>
-              </div>
-              <p class="metric-sub">{{ rankingItems.length ? '当前全榜最优成绩' : '等待首支队伍上榜' }}</p>
-            </div>
-          </article>
+    <!-- 错误异常提示 -->
+    <div v-else-if="rankingError" class="error-banner">
+      <el-icon><Warning /></el-icon>
+      <span class="error-msg">{{ rankingError }}</span>
+      <button type="button" class="btn-error-retry" @click="handleManualRefresh">重新加载</button>
+    </div>
 
-          <article class="metric-card">
-            <div class="metric-icon-box green-box">
-              <el-icon><DataAnalysis /></el-icon>
-            </div>
-            <div class="metric-info">
-              <span class="metric-label">平均评审得分</span>
-              <div class="metric-value-row">
-                <strong class="metric-number">{{ averageScore }}</strong>
-                <span v-if="averageScore !== '-'" class="metric-unit">分</span>
-              </div>
-              <p class="metric-sub">{{ rankingItems.length ? `样本基数 ${rankingItems.length} 支队伍` : '暂无评审样本' }}</p>
-            </div>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-icon-box slate-box">
-              <el-icon><Clock /></el-icon>
-            </div>
-            <div class="metric-info">
-              <span class="metric-label">快照生成时间</span>
-              <div class="metric-value-row">
-                <strong class="metric-number metric-time">{{ formatSnapshotTime(overview.computedAt) }}</strong>
-              </div>
-              <p class="metric-sub">权威有效计算批次</p>
-            </div>
-          </article>
+    <!-- 模式一：全平台赛题总览天梯 (Global Overview) -->
+    <main v-else-if="viewMode === 'overview'" class="overview-container">
+      <!-- 全局指标统计卡片 -->
+      <section class="global-metric-strip">
+        <div class="g-metric-card">
+          <span class="gm-label">已纳入赛题</span>
+          <div class="gm-val-row">
+            <strong>{{ globalStats?.problemCount || problems.length }}</strong>
+            <small>道</small>
+          </div>
         </div>
-
-        <!-- 分数分布直方图 (Score Distribution Histogram) -->
-        <div class="distribution-panel" aria-label="分数梯队分布图">
-          <div class="distribution-header">
-            <div class="dist-title-box">
-              <el-icon><DataAnalysis /></el-icon>
-              <h3>分数分布梯队 (0–100 分)</h3>
-            </div>
-            <span class="dist-desc">
-              共统计 {{ totalDistributionTeams }} 支队伍
-              <span v-if="myTeamRankingItem" class="my-score-indicator">
-                · 我的队伍: {{ formatScore(myTeamRankingItem.score) }}分
-              </span>
-            </span>
+        <div class="g-metric-card">
+          <span class="gm-label">上榜建模队伍</span>
+          <div class="gm-val-row">
+            <strong>{{ globalStats?.rankedTeams || 0 }}</strong>
+            <small>支</small>
           </div>
-
-          <div v-if="distributionBuckets.length" class="distribution-chart">
-            <div class="histogram-track">
-              <div
-                v-for="(bucket, idx) in distributionBuckets"
-                :key="`bucket-${idx}`"
-                class="histogram-column"
-                :class="{ 'is-my-bucket': isTeamInBucket(bucket) }"
-              >
-                <!-- 悬停 Tooltip -->
-                <div class="histogram-tooltip">
-                  <div class="tooltip-range">{{ bucket.label }}</div>
-                  <div class="tooltip-count">{{ bucket.count }} 支队伍 ({{ bucket.percentage }}%)</div>
-                  <div v-if="isTeamInBucket(bucket)" class="tooltip-my-team">★ 我的队伍在此分数段</div>
-                </div>
-
-                <!-- 柱顶数值与柱条 -->
-                <div class="bar-container">
-                  <span v-if="bucket.count > 0" class="bar-count-label">{{ bucket.count }}</span>
-                  <div
-                    class="bar-fill"
-                    :style="{ height: `${Math.max(bucket.heightRatio * 100, bucket.count > 0 ? 8 : 2)}%` }"
-                  >
-                    <div v-if="isTeamInBucket(bucket)" class="my-team-dot"></div>
-                  </div>
-                </div>
-
-                <!-- X 轴刻度标签 -->
-                <span class="bar-x-label">{{ bucket.shortLabel }}</span>
-              </div>
-            </div>
+        </div>
+        <div class="g-metric-card">
+          <span class="gm-label">完成最终评审</span>
+          <div class="gm-val-row">
+            <strong>{{ globalStats?.reviewedSubmissions || 0 }}</strong>
+            <small>份</small>
           </div>
-
-          <div v-else class="distribution-empty">
-            <span>暂无足够的分数样本生成梯队分布图</span>
+        </div>
+        <div class="g-metric-card">
+          <span class="gm-label">全平台平均得分</span>
+          <div class="gm-val-row">
+            <strong class="highlight-score">{{ formatScore(globalStats?.overallAverageScore) }}</strong>
+            <small>分</small>
           </div>
         </div>
       </section>
 
-      <!-- 5.2 榜单内容：若有上榜数据 -->
-      <template v-if="rankingItems.length">
-        <!-- 5.2.1 Top 3 荣誉领奖台 (Podium Section) -->
-        <section v-if="!hasActiveKeyword && podiumItems.length" class="podium-section" aria-label="荣誉前三名领奖台">
-          <div class="section-title-row">
-            <div class="title-left">
-              <el-icon class="title-icon"><Medal /></el-icon>
-              <h2>荣誉领奖台 · Top 3</h2>
-              <span class="title-caption">当前赛题评审综合表现最前列的建模队伍</span>
+      <!-- 全平台赛题多维分析可视化 (Diversity Visuals) -->
+      <section v-if="globalStats?.items?.length" class="overview-visuals-grid">
+        <!-- 可视化 1: 各赛题参赛热度与上榜队伍横向对比柱状图 -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <el-icon><DataAnalysis /></el-icon>
+            <h4>各赛题上榜队伍分布对比</h4>
+          </div>
+          <div class="horizontal-bar-chart">
+            <div
+              v-for="item in sortedGlobalProblemsByTeams"
+              :key="`hbar-${item.problemId}`"
+              class="hbar-row"
+              @click="enterDetail(item.problemId)"
+            >
+              <div class="hbar-label" :title="item.problemTitle">
+                <span class="hbar-code">#{{ item.problemCode || item.problemId }}</span>
+                <span class="hbar-title">{{ item.problemTitle }}</span>
+              </div>
+              <div class="hbar-track">
+                <div
+                  class="hbar-fill"
+                  :style="{ width: `${getBarPercent(item.rankedTeamCount, maxGlobalRankedTeams)}%` }"
+                ></div>
+                <span class="hbar-val">{{ item.rankedTeamCount || 0 }} 支</span>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="podium-grid" :class="`podium-size-${podiumItems.length}`">
-            <article
-              v-for="item in podiumItems"
-              :key="item.teamId"
-              class="podium-card"
-              :class="[`podium-rank-${item.rank}`, { 'is-my-team-card': isMyTeam(item.teamId) }]"
-              @click="scrollToTeamRow(item.teamId)"
+        <!-- 可视化 2: 各赛题均分与峰值得分对比区间 -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <el-icon><TrendCharts /></el-icon>
+            <h4>赛题竞技得分梯队区间 (均分 ~ 最高分)</h4>
+          </div>
+          <div class="range-plot-list">
+            <div
+              v-for="item in globalStats.items"
+              :key="`range-${item.problemId}`"
+              class="range-item-row"
+              @click="enterDetail(item.problemId)"
             >
-              <div class="podium-header">
-                <div class="rank-crown">
-                  <span class="crown-badge">{{ getRankLabel(item.rank) }}</span>
-                  <span class="rank-number">#{{ item.rank }}</span>
-                </div>
-                <span v-if="isMyTeam(item.teamId)" class="my-team-pill">我的队伍</span>
+              <div class="range-info">
+                <span class="range-title">#{{ item.problemCode || item.problemId }} {{ item.problemTitle }}</span>
+                <span class="range-badge-scores">
+                  均分 <b>{{ formatScore(item.averageScore) }}</b> · 最高 <b>{{ formatScore(item.highestScore) }}</b>
+                </span>
               </div>
+              <div class="range-track">
+                <div
+                  class="range-bar-span"
+                  :style="{
+                    left: `${Math.max(0, Math.min(Number(item.averageScore) || 0, 100))}%`,
+                    width: `${Math.max(4, Math.min((Number(item.highestScore) || 0) - (Number(item.averageScore) || 0), 100))}%`
+                  }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <div class="podium-body">
-                <div class="podium-avatar">
-                  {{ teamInitial(item.teamName) }}
-                </div>
-                <h3 class="podium-team-name" :title="item.teamName">{{ item.teamName }}</h3>
-                <div class="podium-score-row">
-                  <strong class="podium-score">{{ formatScore(item.score) }}</strong>
-                  <span class="podium-score-unit">分</span>
-                </div>
-              </div>
+      <!-- 全局赛题天梯列表 -->
+      <section class="problem-ladder-section">
+        <div class="ladder-header">
+          <h3>赛题竞赛成果天梯列表</h3>
+          <div class="ladder-sort-group">
+            <span class="sort-label">排序:</span>
+            <button
+              type="button"
+              class="btn-sort"
+              :class="{ active: globalSortBy === 'teams' }"
+              @click="globalSortBy = 'teams'"
+            >
+              队伍数
+            </button>
+            <button
+              type="button"
+              class="btn-sort"
+              :class="{ active: globalSortBy === 'avgScore' }"
+              @click="globalSortBy = 'avgScore'"
+            >
+              平均分
+            </button>
+            <button
+              type="button"
+              class="btn-sort"
+              :class="{ active: globalSortBy === 'maxScore' }"
+              @click="globalSortBy = 'maxScore'"
+            >
+              最高分
+            </button>
+          </div>
+        </div>
 
-              <div class="podium-footer">
-                <div class="footer-item">
-                  <span class="footer-label">评审流水线</span>
-                  <span class="workflow-chip">{{ workflowLabel(item.workflowVersion) }}</span>
-                </div>
-                <div class="footer-item">
-                  <span class="footer-label">最终稿提交</span>
-                  <span class="time-text">{{ formatDate(item.submittedAt) }}</span>
-                </div>
+        <div class="ladder-table-wrap">
+          <div class="ladder-table" role="table">
+            <div class="ladder-tr ladder-th" role="row">
+              <div class="l-cell l-col-prob" role="columnheader">赛题信息</div>
+              <div class="l-cell l-col-num" role="columnheader">上榜队伍</div>
+              <div class="l-cell l-col-score" role="columnheader">最高得分</div>
+              <div class="l-cell l-col-score" role="columnheader">平均得分</div>
+              <div class="l-cell l-col-actions" role="columnheader">操作</div>
+            </div>
+
+            <div
+              v-for="item in sortedGlobalProblems"
+              :key="item.problemId"
+              class="ladder-tr ladder-td-row"
+              role="row"
+              @click="enterDetail(item.problemId)"
+            >
+              <div class="l-cell l-col-prob" role="cell">
+                <span class="prob-tag">#{{ item.problemCode || item.problemId }}</span>
+                <span class="prob-title-text" :title="item.problemTitle">{{ item.problemTitle }}</span>
               </div>
-            </article>
+              <div class="l-cell l-col-num" role="cell">
+                <strong>{{ item.rankedTeamCount || 0 }}</strong> 支队伍
+              </div>
+              <div class="l-cell l-col-score" role="cell">
+                <span class="score-pill-gold">{{ formatScore(item.highestScore) }} 分</span>
+              </div>
+              <div class="l-cell l-col-score" role="cell">
+                <span class="score-pill-plain">{{ formatScore(item.averageScore) }} 分</span>
+              </div>
+              <div class="l-cell l-col-actions" role="cell" @click.stop>
+                <button
+                  type="button"
+                  class="btn-table-action"
+                  title="查看该题题目详情"
+                  @click="openProblemDrawer(item.problemId)"
+                >
+                  <el-icon><View /></el-icon>
+                  <span>速览</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn-table-action primary"
+                  @click="enterDetail(item.problemId)"
+                >
+                  <span>查看细览</span>
+                  <el-icon><ArrowRight /></el-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 模式二：赛题成果细览 (Problem Detail Ranking) -->
+    <main v-else class="detail-container">
+      <!-- 核心指标摘要条 -->
+      <section class="detail-summary-bar">
+        <div class="summary-item">
+          <span class="s-label">上榜队伍</span>
+          <strong class="s-val">{{ rankingItems.length }} <small>支</small></strong>
+        </div>
+        <div class="summary-item">
+          <span class="s-label">榜首最高分</span>
+          <strong class="s-val score-gold">{{ highestScore }} <small v-if="highestScore !== '-'">分</small></strong>
+        </div>
+        <div class="summary-item">
+          <span class="s-label">平均分</span>
+          <strong class="s-val">{{ averageScore }} <small v-if="averageScore !== '-'">分</small></strong>
+        </div>
+        <div class="summary-item">
+          <span class="s-label">前25%高分线(P75)</span>
+          <strong class="s-val">{{ p75Score }} <small v-if="p75Score !== '-'">分</small></strong>
+        </div>
+        <div class="summary-item s-time-item">
+          <span class="s-label">快照批次</span>
+          <span class="s-time">{{ formatSnapshotTime(overview?.computedAt) }}</span>
+        </div>
+      </section>
+
+      <!-- 主次分明：首先呈现核心排名 (Top3 领奖台 + 完整榜单) -->
+      <template v-if="rankingItems.length">
+        <!-- Top 3 领奖台 (主视图) -->
+        <section v-if="!hasActiveKeyword && podiumItems.length" class="podium-strip" aria-label="前三名领奖台">
+          <div
+            v-for="item in podiumItems"
+            :key="`podium-${item.teamId}`"
+            class="podium-mini-card"
+            :class="[`podium-rank-${item.rank}`, { 'is-my-team': isMyTeam(item.teamId) }]"
+            @click="scrollToTeamRow(item.teamId)"
+          >
+            <div class="p-rank-indicator">
+              <span class="p-crown-icon">{{ item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : '🥉' }}</span>
+              <span class="p-rank-text">第 {{ item.rank }} 名</span>
+              <span v-if="isMyTeam(item.teamId)" class="p-my-tag">我的队伍</span>
+            </div>
+            <div class="p-team-row">
+              <span class="p-avatar">{{ teamInitial(item.teamName) }}</span>
+              <span class="p-team-name" :title="item.teamName">{{ item.teamName }}</span>
+            </div>
+            <div class="p-score-row">
+              <strong class="p-score-val">{{ formatScore(item.score) }}</strong>
+              <small>分</small>
+            </div>
           </div>
         </section>
 
-        <!-- 5.2.2 完整排名数据表格 (Full Ranking Table) -->
-        <section class="ranking-table-section" aria-label="完整排名数据表">
-          <div class="table-card-header">
-            <div class="header-info">
-              <h2>{{ hasActiveKeyword ? '筛选匹配结果' : '全题成果排名' }}</h2>
-              <span class="count-tag">共 {{ rankingItems.length }} 支队伍</span>
-              <span v-if="hasActiveKeyword" class="filter-tip">已按队伍名 “{{ appliedKeyword }}” 过滤</span>
+        <!-- 核心排名数据表格 -->
+        <section class="ranking-table-card">
+          <div class="rt-head-bar">
+            <div class="rt-title-area">
+              <h3>成果排名表</h3>
+              <span class="rt-count">共 {{ rankingItems.length }} 支队伍</span>
+              <span v-if="hasActiveKeyword" class="rt-filter-tag">已筛选 “{{ appliedKeyword }}”</span>
             </div>
-            <div class="table-actions">
-              <span class="table-rule-note">排序依据：最终稿 AI 评审得分（从高到低）</span>
-            </div>
+            <div class="rt-rule-hint">排序依据：最终稿评审得分 (从高到低)</div>
           </div>
 
-          <div class="ranking-table-container">
-            <div class="custom-table" role="table">
-              <!-- 表头 -->
-              <div class="table-row table-head-row" role="row">
-                <div class="col-cell col-rank" role="columnheader">排名</div>
-                <div class="col-cell col-team" role="columnheader">参赛队伍</div>
-                <div class="col-cell col-score" role="columnheader">最终得分</div>
-                <div class="col-cell col-review" role="columnheader">AI 评审版本</div>
-                <div class="col-cell col-time" role="columnheader">最终稿提交时间</div>
-                <div class="col-cell col-action" role="columnheader">操作</div>
+          <div class="rt-table-responsive">
+            <div class="rt-table" role="table">
+              <div class="rt-tr rt-th" role="row">
+                <div class="rt-cell rt-col-rank" role="columnheader">排名</div>
+                <div class="rt-cell rt-col-team" role="columnheader">参赛队伍</div>
+                <div class="rt-cell rt-col-score" role="columnheader">最终得分</div>
+                <div class="rt-cell rt-col-workflow" role="columnheader">AI 评审版本</div>
+                <div class="rt-cell rt-col-time" role="columnheader">最终稿提交时间</div>
+                <div class="rt-cell rt-col-action" role="columnheader">操作</div>
               </div>
 
-              <!-- 表体数据行 -->
               <div
                 v-for="item in rankingItems"
                 :id="`team-row-${item.teamId}`"
                 :key="item.teamId"
-                class="table-row table-body-row"
+                class="rt-tr rt-td-row"
                 :class="{
-                  'is-top-three': item.rank <= 3,
-                  'is-current-user-team': isMyTeam(item.teamId),
+                  'is-my-team-row': isMyTeam(item.teamId),
                   'row-highlighted': highlightedTeamId === item.teamId
                 }"
                 role="row"
               >
                 <!-- 排名 -->
-                <div class="col-cell col-rank" role="cell">
-                  <span class="rank-badge" :class="`rank-badge-${item.rank}`">
-                    {{ item.rank }}
+                <div class="rt-cell rt-col-rank" role="cell">
+                  <span class="rank-badge" :class="`rank-badge-${item.rank}`">{{ item.rank }}</span>
+                </div>
+
+                <!-- 队伍 -->
+                <div class="rt-cell rt-col-team" role="cell">
+                  <span class="team-dot-avatar" :class="`avatar-rank-${item.rank <= 3 ? item.rank : 'def'}`">
+                    {{ teamInitial(item.teamName) }}
                   </span>
+                  <strong class="team-title-text" :title="item.teamName">{{ item.teamName }}</strong>
+                  <span v-if="isMyTeam(item.teamId)" class="my-team-badge">我的队伍</span>
                 </div>
 
-                <!-- 队伍名称 & 头像 -->
-                <div class="col-cell col-team" role="cell">
-                  <div class="team-cell-inner">
-                    <span class="team-avatar-icon" :class="`avatar-rank-${item.rank <= 3 ? item.rank : 'default'}`">
-                      {{ teamInitial(item.teamName) }}
-                    </span>
-                    <div class="team-names">
-                      <div class="name-row">
-                        <strong class="team-title" :title="item.teamName">{{ item.teamName }}</strong>
-                        <span v-if="isMyTeam(item.teamId)" class="inline-my-team-tag">我的队伍</span>
-                      </div>
-                      <span class="team-sub-info">已提交最终学术论文成果</span>
-                    </div>
-                  </div>
+                <!-- 得分 -->
+                <div class="rt-cell rt-col-score" role="cell">
+                  <strong class="score-number">{{ formatScore(item.score) }}</strong>
+                  <span class="score-unit">分</span>
                 </div>
 
-                <!-- 最终得分 -->
-                <div class="col-cell col-score" role="cell">
-                  <div class="score-display">
-                    <strong class="score-val">{{ formatScore(item.score) }}</strong>
-                    <span class="score-unit">分</span>
-                  </div>
+                <!-- 评审版本 -->
+                <div class="rt-cell rt-col-workflow" role="cell">
+                  <span class="wf-chip">{{ workflowLabel(item.workflowVersion) }}</span>
                 </div>
 
-                <!-- 评审版本与完成时间 -->
-                <div class="col-cell col-review" role="cell">
-                  <div class="review-meta">
-                    <span class="workflow-badge" :title="item.workflowVersion">
-                      {{ workflowLabel(item.workflowVersion) }}
-                    </span>
-                    <small class="review-date">完成于 {{ formatCompactDate(item.reviewFinishedAt) }}</small>
-                  </div>
+                <!-- 提交时间 -->
+                <div class="rt-cell rt-col-time" role="cell">
+                  <span class="date-text">{{ formatDate(item.submittedAt) }}</span>
                 </div>
 
-                <!-- 最终稿提交时间 -->
-                <div class="col-cell col-time" role="cell">
-                  <div class="time-meta">
-                    <span class="submission-time">{{ formatDate(item.submittedAt) }}</span>
-                    <small class="time-hint">以最终稿参与排榜</small>
-                  </div>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div class="col-cell col-action" role="cell">
+                <!-- 操作 -->
+                <div class="rt-cell rt-col-action" role="cell">
                   <button
                     type="button"
-                    class="action-btn copy-btn"
+                    class="btn-row-action"
                     title="复制队伍名称"
                     @click.stop="copyTeamName(item.teamName)"
                   >
@@ -432,54 +442,166 @@
                   <router-link
                     v-if="item.teamId"
                     :to="`/team/detail/${item.teamId}`"
-                    class="action-btn team-link-btn"
-                    title="查看队伍详情与成员"
+                    class="btn-row-action"
+                    title="查看队伍详情"
                   >
                     <span>队伍</span>
-                    <el-icon><ArrowRight /></el-icon>
                   </router-link>
                 </div>
               </div>
             </div>
           </div>
         </section>
+
+        <!-- 多样化数据分析面板 (位于榜单之后，作为深度分析支撑，不反客为主) -->
+        <section class="analytics-dashboard-panel">
+          <div class="panel-section-title">
+            <el-icon><DataAnalysis /></el-icon>
+            <h3>赛题数据洞察与分布分析</h3>
+          </div>
+
+          <div class="visuals-dual-grid">
+            <!-- 图表 A: 分数梯队直方分布图 (带 Tooltip 与我的队伍标记) -->
+            <div class="visual-sub-card">
+              <div class="sub-card-header">
+                <h4>分数梯队直方分布 (0–100 分)</h4>
+                <span class="sub-card-note">共统计 {{ totalDistributionTeams }} 支队伍</span>
+              </div>
+              <div v-if="distributionBuckets.length" class="histogram-box">
+                <div class="histogram-flex-track">
+                  <div
+                    v-for="(bucket, idx) in distributionBuckets"
+                    :key="`b-${idx}`"
+                    class="hist-bar-col"
+                    :class="{ 'is-my-tier': isTeamInBucket(bucket) }"
+                  >
+                    <!-- Tooltip -->
+                    <div class="hist-tooltip">
+                      <div class="ht-label">{{ bucket.label }}</div>
+                      <div class="ht-val">{{ bucket.count }} 支队伍 ({{ bucket.percentage }}%)</div>
+                      <div v-if="isTeamInBucket(bucket)" class="ht-my">★ 我的队伍在此分数段</div>
+                    </div>
+                    <!-- 柱体 -->
+                    <div class="hist-bar-wrap">
+                      <span v-if="bucket.count > 0" class="hist-count-num">{{ bucket.count }}</span>
+                      <div
+                        class="hist-bar-inner"
+                        :style="{ height: `${Math.max(bucket.heightRatio * 100, bucket.count > 0 ? 8 : 2)}%` }"
+                      >
+                        <div v-if="isTeamInBucket(bucket)" class="my-tier-dot"></div>
+                      </div>
+                    </div>
+                    <span class="hist-x-axis">{{ bucket.shortLabel }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-chart-notice">暂无足够样本生成分布图</div>
+            </div>
+
+            <!-- 图表 B: 竞赛实力分层环形占比 (Donut Breakdown) -->
+            <div class="visual-sub-card">
+              <div class="sub-card-header">
+                <h4>竞技实力层级构成</h4>
+                <span class="sub-card-note">按标准建模评审分段</span>
+              </div>
+              <div v-if="tierBreakdownList.length" class="donut-visual-container">
+                <!-- 纯 SVG 极速轻量 Donut 图 -->
+                <div class="donut-chart-box">
+                  <svg viewBox="0 0 120 120" class="donut-svg">
+                    <circle
+                      v-for="(seg, idx) in donutSegments"
+                      :key="`seg-${idx}`"
+                      cx="60"
+                      cy="60"
+                      r="45"
+                      fill="transparent"
+                      :stroke="seg.color"
+                      stroke-width="16"
+                      :stroke-dasharray="`${seg.dashLength} ${seg.circumference}`"
+                      :stroke-dashoffset="seg.dashOffset"
+                    />
+                  </svg>
+                  <div class="donut-center-text">
+                    <strong>{{ totalDistributionTeams }}</strong>
+                    <small>总作品</small>
+                  </div>
+                </div>
+
+                <!-- 图例与明细列表 -->
+                <div class="donut-legend-list">
+                  <div
+                    v-for="tier in tierBreakdownList"
+                    :key="tier.name"
+                    class="donut-legend-item"
+                  >
+                    <span class="legend-color-dot" :style="{ background: tier.color }"></span>
+                    <span class="legend-name">{{ tier.name }}</span>
+                    <span class="legend-count">{{ tier.count }} 支</span>
+                    <span class="legend-percent">{{ tier.percentage }}%</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-chart-notice">暂无足够样本生成构成图</div>
+            </div>
+          </div>
+        </section>
       </template>
 
-      <!-- 5.3 空状态：搜索无结果 (Search Empty State) -->
-      <section v-else-if="hasActiveKeyword && !loading" class="empty-state-panel">
-        <div class="empty-icon-circle">
-          <el-icon><Search /></el-icon>
-        </div>
-        <h3>未找到匹配的队伍</h3>
-        <p>在当前题目 “{{ currentProblem?.title }}” 的上榜队伍中，没有包含关键词 “{{ appliedKeyword }}” 的结果。</p>
-        <button type="button" class="btn-primary-action" @click="handleClearSearch">
-          清空搜索关键词
-        </button>
+      <!-- 细览空状态：搜索无匹配 -->
+      <section v-else-if="hasActiveKeyword && !loading" class="detail-empty-box">
+        <el-icon class="empty-icon"><Search /></el-icon>
+        <h4>未找到匹配的队伍</h4>
+        <p>在当前赛题中，未检索到包含 “{{ appliedKeyword }}” 的上榜队伍。</p>
+        <button type="button" class="btn-clear-filter" @click="handleClearSearch">清空搜索条件</button>
       </section>
 
-      <!-- 5.4 空状态：题目暂无队伍上榜 (No Submissions Empty State) -->
-      <section v-else-if="!loading" class="empty-state-panel">
-        <div class="empty-icon-circle">
-          <el-icon><Trophy /></el-icon>
-        </div>
-        <h3>该题目还在等待首个上榜成果</h3>
-        <p>队伍在题目下完成建模论文最终稿提交并通过系统 AI 评审后，榜单将自动生成并展示在此。</p>
-        <div class="empty-action-group">
-          <router-link :to="`/problem/${selectedProblemId}`" class="btn-primary-action">
-            前往题目查看详情与开始建模
-          </router-link>
-        </div>
+      <!-- 细览空状态：该题暂无成果上榜 -->
+      <section v-else-if="!loading" class="detail-empty-box">
+        <el-icon class="empty-icon"><Trophy /></el-icon>
+        <h4>该赛题尚无队伍上榜</h4>
+        <p>队伍完成最终学术论文提交并通过 AI 评审后将自动上榜。</p>
+        <button type="button" class="btn-clear-filter" @click="openProblemDrawer(selectedProblemId)">
+          查看本题详情与建模要求
+        </button>
       </section>
     </main>
 
-    <!-- 6. 初始引导态 (未选题目) -->
-    <section v-else-if="!loading" class="empty-state-panel">
-      <div class="empty-icon-circle">
-        <el-icon><Document /></el-icon>
+    <!-- 侧边轻量抽屉：临时看一眼题目详情 (免跳转做题页面) -->
+    <el-drawer
+      v-model="drawerVisible"
+      :title="drawerProblem ? `#${drawerProblem.code || drawerProblem.id} · ${drawerProblem.title}` : '赛题速览'"
+      direction="rtl"
+      size="560px"
+      destroy-on-close
+      class="quick-problem-drawer"
+    >
+      <div v-if="loadingDrawer" class="drawer-loading-box">
+        <el-icon class="is-spinning"><Refresh /></el-icon>
+        <span>正在加载题目内容...</span>
       </div>
-      <h3>请在上方选择赛题</h3>
-      <p>选择一道正在练习或关心的建模题目，即可查看其成果榜单与分数分布梯队。</p>
-    </section>
+      <div v-else-if="drawerProblem" class="drawer-body-wrap">
+        <!-- 标签元信息 -->
+        <div class="drawer-tags-row">
+          <span class="d-tag contest">{{ drawerProblem.contestName || '建模公开赛题' }}</span>
+          <span v-if="drawerProblem.year" class="d-tag">{{ drawerProblem.year }} 年</span>
+          <span class="d-tag">{{ languageLabel(drawerProblem.statementLanguage) }}</span>
+          <span class="d-tag" :class="`diff-${drawerProblem.difficulty}`">
+            {{ difficultyLabel(drawerProblem.difficulty) }}
+          </span>
+        </div>
+
+        <!-- 题面正文渲染 -->
+        <div class="drawer-markdown-content" v-html="drawerMarkdownHtml"></div>
+
+        <!-- 底部快捷操作 -->
+        <div class="drawer-footer-actions">
+          <router-link :to="`/problem/${drawerProblem.id}`" class="btn-to-problem-page">
+            <span>在做题工作台打开完整页面</span>
+            <el-icon><ArrowRight /></el-icon>
+          </router-link>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -488,28 +610,32 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  ArrowDown,
   ArrowRight,
-  Clock,
   CopyDocument,
   DataAnalysis,
-  Document,
-  Medal,
   Refresh,
   Search,
+  TrendCharts,
   Trophy,
   UserFilled,
+  View,
   Warning
 } from '@element-plus/icons-vue'
-import { getPublicProblemList } from '@/api/problem'
-import { getProblemScoreDistribution, getRanking } from '@/api/ranking'
+import { getPublicProblemDetail, getPublicProblemList } from '@/api/problem'
+import { getGlobalRankingStats, getProblemScoreDistribution, getRanking } from '@/api/ranking'
 import { getAllMyTeams } from '@/api/team'
 import { useUserStore } from '@/store/user'
+import { renderSafeMarkdown } from '@/utils/markdown'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// 数据加载与状态
+// 视图模式: 'overview' (全平台总览天梯) | 'detail' (单题成果细览)
+const viewMode = ref('overview')
+
+// 基础数据状态
 const loadingProblems = ref(false)
 const loading = ref(false)
 const problems = ref([])
@@ -518,11 +644,19 @@ const keyword = ref('')
 const appliedKeyword = ref('')
 const overview = ref(null)
 const distribution = ref(null)
+const globalStats = ref(null)
 const rankingError = ref('')
 const myTeams = ref([])
 const highlightedTeamId = ref(null)
+const globalSortBy = ref('teams') // 'teams' | 'avgScore' | 'maxScore'
 
-// 计算属性
+// 抽屉临时速览状态
+const drawerVisible = ref(false)
+const loadingDrawer = ref(false)
+const drawerProblem = ref(null)
+const drawerMarkdownHtml = ref('')
+
+// 计算属性：当前选中赛题
 const currentProblem = computed(() =>
   problems.value.find((item) => String(item.id) === String(selectedProblemId.value))
 )
@@ -530,7 +664,7 @@ const currentProblem = computed(() =>
 const rankingItems = computed(() => overview.value?.items || [])
 const hasActiveKeyword = computed(() => Boolean(appliedKeyword.value))
 
-// 榜单指标
+// 细览榜单指标
 const highestScore = computed(() => {
   if (!rankingItems.value.length) return '-'
   return formatScore(rankingItems.value[0].score)
@@ -546,7 +680,14 @@ const averageScore = computed(() => {
   return (sum / validScores.length).toFixed(1)
 })
 
-// Top 3 领奖台卡片排布（2-1-3 经典领奖台布局）
+const p75Score = computed(() => {
+  if (rankingItems.value.length < 4) return '-'
+  const sorted = [...rankingItems.value].sort((a, b) => Number(b.score) - Number(a.score))
+  const idx = Math.floor(sorted.length * 0.25)
+  return formatScore(sorted[idx]?.score)
+})
+
+// Top 3 领奖台 (2-1-3 经典排布)
 const podiumItems = computed(() => {
   const top = rankingItems.value.slice(0, 3)
   if (top.length === 3 && top[0].rank === 1 && top[1].rank === 2 && top[2].rank === 3) {
@@ -555,7 +696,7 @@ const podiumItems = computed(() => {
   return top
 })
 
-// 当前用户在此题目的队伍
+// 当前用户的队伍检测
 const myTeamInCurrentProblem = computed(() => {
   if (!userStore.isLogin || !selectedProblemId.value || !myTeams.value.length) return null
   return myTeams.value.find((team) => String(team.problemId) === String(selectedProblemId.value))
@@ -566,22 +707,44 @@ const myTeamRankingItem = computed(() => {
   return rankingItems.value.find((item) => String(item.teamId) === String(myTeamInCurrentProblem.value.id))
 })
 
-const myTeamButtonTitle = computed(() => {
-  if (myTeamRankingItem.value) {
-    return `点击在下方榜单中定位我的队伍 (第 #${myTeamRankingItem.value.rank} 名)`
+// 全局赛题排序
+const sortedGlobalProblems = computed(() => {
+  const list = [...(globalStats.value?.items || [])]
+  if (globalSortBy.value === 'teams') {
+    return list.sort((a, b) => (b.rankedTeamCount || 0) - (a.rankedTeamCount || 0))
   }
-  return '队伍当前正在实训中，尚未完成最终稿评审'
+  if (globalSortBy.value === 'avgScore') {
+    return list.sort((a, b) => (Number(b.averageScore) || 0) - (Number(a.averageScore) || 0))
+  }
+  if (globalSortBy.value === 'maxScore') {
+    return list.sort((a, b) => (Number(b.highestScore) || 0) - (Number(a.highestScore) || 0))
+  }
+  return list
 })
 
-// 分数梯队聚合计算 (0-100 分)
+const sortedGlobalProblemsByTeams = computed(() => {
+  return [...(globalStats.value?.items || [])].sort(
+    (a, b) => (b.rankedTeamCount || 0) - (a.rankedTeamCount || 0)
+  ).slice(0, 6)
+})
+
+const maxGlobalRankedTeams = computed(() => {
+  const counts = (globalStats.value?.items || []).map((it) => it.rankedTeamCount || 0)
+  return Math.max(...counts, 1)
+})
+
+function getBarPercent(val, max) {
+  if (!max || !val) return 0
+  return Math.round((val / max) * 100)
+}
+
+// 分数梯队聚合计算 (直方图)
 const distributionBuckets = computed(() => {
   if (!distribution.value?.buckets || !distribution.value.buckets.length) return []
-
   const rawBuckets = distribution.value.buckets
   const totalTeams = rawBuckets.reduce((acc, cur) => acc + (Number(cur.teamCount) || 0), 0)
   if (totalTeams === 0) return []
 
-  // 划分 7 个典型建模竞赛分数梯队
   const tiers = [
     { label: '0–59 分 (需提升)', shortLabel: '<60', min: 0, max: 59 },
     { label: '60–69 分 (及格线)', shortLabel: '60-69', min: 60, max: 69 },
@@ -601,16 +764,10 @@ const distributionBuckets = computed(() => {
       }
     }
     const percentage = totalTeams > 0 ? ((count / totalTeams) * 100).toFixed(1) : '0.0'
-    return {
-      ...tier,
-      count,
-      percentage
-    }
+    return { ...tier, count, percentage }
   })
 
-  // 计算最大桶用于柱高百分比缩放
   const maxCount = Math.max(...bucketStats.map((item) => item.count), 1)
-
   return bucketStats.map((item) => ({
     ...item,
     heightRatio: item.count / maxCount
@@ -622,7 +779,52 @@ const totalDistributionTeams = computed(() => {
   return distribution.value.buckets.reduce((acc, cur) => acc + (Number(cur.teamCount) || 0), 0)
 })
 
-// 辅助方法
+// 图表 B: 实力层级构成 (Donut Breakdown)
+const tierBreakdownList = computed(() => {
+  if (!distributionBuckets.value.length) return []
+  const total = totalDistributionTeams.value
+  if (!total) return []
+
+  const colors = {
+    '95-100': '#eab308', // 金黄 (顶尖)
+    '90-94': '#3b82f6',  // 亮蓝 (领跑)
+    '85-89': '#10b981',  // 翡翠绿 (卓越)
+    '80-84': '#6366f1',  // 靛蓝 (优良)
+    '70-79': '#94a3b8',  // 银灰 (良好)
+    '60-69': '#cbd5e1',  // 浅灰 (及格)
+    '<60': '#f87171'     // 浅红 (待提升)
+  }
+
+  return distributionBuckets.value.map((b) => ({
+    name: b.shortLabel,
+    count: b.count,
+    percentage: b.percentage,
+    color: colors[b.shortLabel] || '#94a3b8'
+  }))
+})
+
+// 纯 SVG Donut 图计算段
+const donutSegments = computed(() => {
+  const list = tierBreakdownList.value
+  if (!list.length) return []
+  const circumference = 2 * Math.PI * 45 // 半径 45，周长约 282.74
+  let accumulatedPercent = 0
+
+  return list.map((item) => {
+    const percent = Number(item.percentage) / 100
+    const dashLength = percent * circumference
+    const dashOffset = -(accumulatedPercent * circumference)
+    accumulatedPercent += percent
+    return {
+      color: item.color,
+      dashLength,
+      dashOffset,
+      circumference
+    }
+  })
+})
+
+// 格式化函数
 function formatScore(val) {
   if (val == null || val === '') return '-'
   const num = Number(val)
@@ -632,11 +834,6 @@ function formatScore(val) {
 function formatDate(val) {
   if (!val) return '-'
   return String(val).replace('T', ' ').slice(0, 16)
-}
-
-function formatCompactDate(val) {
-  if (!val) return '-'
-  return String(val).replace('T', ' ').slice(5, 16)
 }
 
 function formatSnapshotTime(val) {
@@ -650,24 +847,16 @@ function languageLabel(lang) {
 }
 
 function difficultyLabel(diff) {
-  return { 1: '简单', 2: '中等', 3: '困难' }[diff] || '常规难度'
+  return { 1: '简单', 2: '中等', 3: '困难' }[diff] || '中等'
 }
 
 function workflowLabel(ver) {
-  if (!ver) return '基础评审 V1'
-  if (ver === 'BASIC_REVIEW_V1') return '基础评审 V1'
+  if (!ver || ver === 'BASIC_REVIEW_V1') return '基础评审 V1'
   return String(ver).replaceAll('_', ' ')
 }
 
 function teamInitial(name) {
   return String(name || '队').trim().slice(0, 1).toUpperCase()
-}
-
-function getRankLabel(rank) {
-  if (rank === 1) return 'CHAMPION'
-  if (rank === 2) return 'RUNNER-UP'
-  if (rank === 3) return 'THIRD'
-  return `TOP ${rank}`
 }
 
 function isMyTeam(teamId) {
@@ -686,13 +875,13 @@ async function copyTeamName(name) {
   if (!name) return
   try {
     await navigator.clipboard.writeText(name)
-    ElMessage.success(`队伍名称 “${name}” 已复制`)
+    ElMessage.success(`队伍 “${name}” 已复制`)
   } catch {
     ElMessage.info(`队伍名称：${name}`)
   }
 }
 
-// 滚动定位并高亮指定队伍行
+// 平滑滚动高亮
 function scrollToTeamRow(teamId) {
   nextTick(() => {
     const el = document.getElementById(`team-row-${teamId}`)
@@ -700,86 +889,147 @@ function scrollToTeamRow(teamId) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       highlightedTeamId.value = teamId
       setTimeout(() => {
-        if (highlightedTeamId.value === teamId) {
-          highlightedTeamId.value = null
-        }
+        if (highlightedTeamId.value === teamId) highlightedTeamId.value = null
       }, 2500)
     }
   })
 }
 
-// 定位我的队伍操作
 function locateMyTeamAction() {
   if (!myTeamInCurrentProblem.value) return
   if (myTeamRankingItem.value) {
-    // 如果存在搜索筛选，先清空搜索以确保在全榜中能定位到
     if (hasActiveKeyword.value) {
       keyword.value = ''
       appliedKeyword.value = ''
-      loadRanking().then(() => {
-        scrollToTeamRow(myTeamRankingItem.value.teamId)
-      })
+      loadRanking().then(() => scrollToTeamRow(myTeamRankingItem.value.teamId))
     } else {
       scrollToTeamRow(myTeamRankingItem.value.teamId)
     }
   } else {
-    ElMessage.info(`队伍 “${myTeamInCurrentProblem.value.name}” 正在实训中，提交最终论文后将自动参与排名`)
+    ElMessage.info(`队伍 “${myTeamInCurrentProblem.value.name}” 正在实训中，尚未完成最终稿评审`)
   }
 }
 
-// 数据加载核心
+// 临时看一眼题目详情抽屉
+async function openProblemDrawer(problemId) {
+  if (!problemId) return
+  drawerVisible.value = true
+  loadingDrawer.value = true
+  drawerProblem.value = null
+  drawerMarkdownHtml.value = ''
+  try {
+    const res = await getPublicProblemDetail(problemId)
+    drawerProblem.value = res.data
+    drawerMarkdownHtml.value = renderSafeMarkdown(res.data?.contentMarkdown || '暂无题目说明')
+  } catch (error) {
+    ElMessage.error(error.message || '赛题内容加载失败')
+  } finally {
+    loadingDrawer.value = false
+  }
+}
+
+// 切换总览与细览模式
+function switchViewMode(mode) {
+  viewMode.value = mode
+  if (mode === 'overview') {
+    router.replace({ query: {} })
+    loadGlobalStats()
+  } else {
+    if (!selectedProblemId.value && problems.value.length) {
+      selectedProblemId.value = problems.value[0].id
+    }
+    if (selectedProblemId.value) {
+      router.replace({ query: { problemId: String(selectedProblemId.value) } })
+      loadDetailData()
+    }
+  }
+}
+
+// 点击总览中的赛题直接穿透进细览
+function enterDetail(problemId) {
+  selectedProblemId.value = problemId
+  viewMode.value = 'detail'
+  router.replace({ query: { problemId: String(problemId) } })
+  loadDetailData()
+}
+
+// 下拉菜单切换赛题命令
+function handleSelectProblemCommand(problemId) {
+  if (String(problemId) === String(selectedProblemId.value)) return
+  enterDetail(problemId)
+}
+
+// 核心数据加载
 async function loadProblems() {
   loadingProblems.value = true
   try {
     const res = await getPublicProblemList({ page: 1, pageSize: 100 })
     problems.value = res.data?.rows || []
-    const queryProblem = problems.value.find(
-      (item) => String(item.id) === String(route.query.problemId || '')
-    )
-    selectedProblemId.value = queryProblem?.id || problems.value[0]?.id || null
 
-    if (selectedProblemId.value) {
-      await loadData()
+    const qProblemId = route.query.problemId
+    if (qProblemId) {
+      selectedProblemId.value = Number(qProblemId) || qProblemId
+      viewMode.value = 'detail'
+      await loadDetailData()
+    } else {
+      viewMode.value = 'overview'
+      await loadGlobalStats()
     }
   } catch (error) {
-    rankingError.value = error.message || '赛题列表加载失败'
-    ElMessage.error(rankingError.value)
+    rankingError.value = error.message || '加载赛题列表失败'
   } finally {
     loadingProblems.value = false
   }
 }
 
-async function loadMyTeams() {
-  if (!userStore.isLogin) return
+async function loadGlobalStats() {
+  loading.value = true
+  rankingError.value = ''
   try {
-    const res = await getAllMyTeams()
-    myTeams.value = res.rows || []
+    const res = await getGlobalRankingStats()
+    globalStats.value = res.data
   } catch {
-    // 静默降级，不阻断主流程
-    myTeams.value = []
+    // 若后端全局接口未通，由前端题库列表兜底合成基础统计
+    globalStats.value = {
+      problemCount: problems.value.length,
+      rankedTeams: 0,
+      reviewedSubmissions: 0,
+      overallAverageScore: null,
+      items: problems.value.map((p) => ({
+        problemId: p.id,
+        problemCode: p.code,
+        problemTitle: p.title,
+        rankedTeamCount: 0,
+        averageScore: null,
+        highestScore: null
+      }))
+    }
+  } finally {
+    loading.value = false
   }
 }
 
-async function loadData() {
+async function loadDetailData() {
   if (!selectedProblemId.value) return
-  await Promise.all([loadRanking(), loadDistribution(), loadMyTeams()])
+  loading.value = true
+  rankingError.value = ''
+  try {
+    await Promise.all([loadRanking(), loadDistribution(), loadMyTeams()])
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadRanking() {
   if (!selectedProblemId.value) return
-  loading.value = true
-  rankingError.value = ''
   const trimmed = keyword.value.trim()
   try {
     const res = await getRanking(selectedProblemId.value, trimmed)
     overview.value = res.data
     appliedKeyword.value = trimmed
   } catch (error) {
-    rankingError.value = error.message || '排行榜数据加载失败'
+    rankingError.value = error.message || '排行榜加载失败'
     overview.value = null
-    ElMessage.error(rankingError.value)
-  } finally {
-    loading.value = false
   }
 }
 
@@ -793,11 +1043,14 @@ async function loadDistribution() {
   }
 }
 
-async function handleProblemChange() {
-  keyword.value = ''
-  appliedKeyword.value = ''
-  await router.replace({ query: { ...route.query, problemId: String(selectedProblemId.value) } })
-  await loadData()
+async function loadMyTeams() {
+  if (!userStore.isLogin) return
+  try {
+    const res = await getAllMyTeams()
+    myTeams.value = res.rows || []
+  } catch {
+    myTeams.value = []
+  }
 }
 
 async function handleSearch() {
@@ -810,17 +1063,28 @@ async function handleClearSearch() {
 }
 
 async function handleManualRefresh() {
-  await loadData()
-  ElMessage.success('榜单与分数分布已更新')
+  if (viewMode.value === 'overview') {
+    await loadGlobalStats()
+  } else {
+    await loadDetailData()
+  }
+  ElMessage.success('数据已更新')
 }
 
-// 监听路由变化
 watch(
   () => route.query.problemId,
   (newId) => {
-    if (newId && String(newId) !== String(selectedProblemId.value)) {
-      selectedProblemId.value = Number(newId) || newId
-      loadData()
+    if (newId) {
+      if (String(newId) !== String(selectedProblemId.value) || viewMode.value !== 'detail') {
+        selectedProblemId.value = Number(newId) || newId
+        viewMode.value = 'detail'
+        loadDetailData()
+      }
+    } else {
+      if (viewMode.value !== 'overview') {
+        viewMode.value = 'overview'
+        loadGlobalStats()
+      }
     }
   }
 )
@@ -832,182 +1096,169 @@ onMounted(async () => {
 
 <style scoped>
 /* ==========================================================================
-   LeetModel 成果榜单样式系统 (Monochrome & Academic Professional)
+   LeetModel 成果榜单 - 极致专业、紧凑干练的学术工作台
    ========================================================================== */
 
 .ranking-page {
   width: min(100%, 1180px);
   margin: 0 auto;
-  padding: 8px 16px 48px;
+  padding: 4px 16px 40px;
   color: var(--lm-text-primary);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-/* 1. 工作台头部 */
-.ranking-header {
+/* 顶部导航条 (极简、操作集中) */
+.ranking-nav-bar {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
+  border-radius: var(--lm-radius);
   box-shadow: var(--lm-shadow-xs);
-}
-
-.header-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--lm-text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.header-badge .el-icon {
-  font-size: 14px;
-  color: #d97706; /* 琥珀微金 */
-}
-
-.header-title {
-  margin: 2px 0 0;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.25;
-  color: var(--lm-text-primary);
-  letter-spacing: -0.02em;
-}
-
-.header-desc {
-  margin: 6px 0 0;
-  max-width: 820px;
-  color: var(--lm-text-secondary);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.header-rules {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin-top: 4px;
 }
 
-.rule-pill {
-  display: inline-flex;
+.nav-left {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.view-mode-tabs {
+  display: inline-flex;
+  padding: 3px;
   background: var(--lm-bg-secondary);
   border: 1px solid var(--lm-border);
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--lm-text-secondary);
+  border-radius: var(--lm-radius-sm);
+  gap: 2px;
 }
 
-.dot-indicator {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981; /* 活力绿 */
-}
-
-.blue-dot {
-  background: #3b82f6; /* ETag 蓝点 */
-}
-
-/* 2. 一体化工具栏 */
-.toolbar-card {
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  box-shadow: var(--lm-shadow-xs);
-  overflow: hidden;
-}
-
-.toolbar-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  padding: 16px 20px;
-  background: var(--lm-surface);
-}
-
-.toolbar-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.selector-label {
+.tab-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--lm-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--lm-transition);
+}
+
+.tab-btn:hover {
+  color: var(--lm-text-primary);
+}
+
+.tab-btn.active {
+  background: var(--lm-surface);
+  color: var(--lm-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* 紧凑赛题选择器按钮 (替代原占用全行的大面板) */
+.compact-problem-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-select-problem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-sm);
+  color: var(--lm-text-primary);
   font-size: 12px;
   font-weight: 650;
+  cursor: pointer;
+  transition: all var(--lm-transition);
+  max-width: 380px;
+}
+
+.btn-select-problem:hover {
+  border-color: #cbd5e1;
+  background: var(--lm-bg-secondary);
+}
+
+.problem-num-tag {
+  font-family: var(--lm-code-font-family);
+  font-size: 11px;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.problem-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  font-size: 11px;
   color: var(--lm-text-muted);
 }
 
-.problem-selector {
-  flex: 1;
-  min-width: 280px;
-}
-
-.problem-select {
-  width: 100%;
-}
-
-.problem-option-item {
+/* 题目下拉菜单 */
+.dropdown-problem-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  width: 100%;
+  font-size: 12px;
 }
 
-.option-code {
+.dp-code {
   font-family: var(--lm-code-font-family);
   font-weight: 700;
   color: var(--lm-text-muted);
-  font-size: 11px;
 }
 
-.option-title {
+.dp-title {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.option-year {
-  font-size: 11px;
+.dp-year {
+  font-size: 10px;
   color: var(--lm-text-muted);
-  padding: 1px 6px;
-  background: var(--lm-bg-secondary);
-  border-radius: 4px;
 }
 
-.search-box {
-  width: 260px;
+.dp-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-}
+.diff-1 { color: #059669; }
+.diff-2 { color: #d97706; }
+.diff-3 { color: #dc2626; }
 
-.btn-my-team {
+/* 赛题速览按钮 */
+.btn-quick-preview {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: 32px;
-  padding: 0 12px;
+  padding: 0 10px;
   background: var(--lm-bg-secondary);
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius-sm);
@@ -1018,53 +1269,62 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.btn-my-team:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+.btn-quick-preview:hover {
+  background: #e2e8f0;
   color: var(--lm-text-primary);
 }
 
-.btn-my-team.is-ranked {
-  background: rgba(37, 99, 235, 0.06);
-  border-color: rgba(37, 99, 235, 0.3);
-  color: #1d4ed8;
+/* 导航右侧 */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
 }
 
-.team-rank-badge {
-  font-weight: 700;
-  color: #1d4ed8;
+.compact-search-input {
+  width: 170px;
 }
 
-.team-status-badge {
-  font-size: 11px;
-  color: var(--lm-text-muted);
-}
-
-.btn-refresh {
+.btn-my-team-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 32px;
-  padding: 0 12px;
-  background: var(--lm-surface);
+  height: 28px;
+  padding: 0 10px;
+  background: var(--lm-bg-secondary);
   border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-sm);
+  border-radius: 999px;
+  font-size: 11px;
   color: var(--lm-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--lm-transition);
+  white-space: nowrap;
+}
+
+.btn-my-team-pill.is-ranked {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.btn-icon-refresh {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--lm-border);
+  background: var(--lm-surface);
+  border-radius: var(--lm-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lm-text-secondary);
   cursor: pointer;
   transition: all var(--lm-transition);
 }
 
-.btn-refresh:hover:not(:disabled) {
+.btn-icon-refresh:hover:not(:disabled) {
   background: var(--lm-bg-secondary);
   color: var(--lm-text-primary);
-  border-color: #cbd5e1;
-}
-
-.btn-refresh:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .is-spinning {
@@ -1076,84 +1336,11 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
-/* 题目元信息速览条 */
-.problem-meta-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 20px;
-  background: var(--lm-bg-secondary);
-  border-top: 1px solid var(--lm-border);
-}
-
-.strip-left {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.problem-code-badge {
-  font-family: var(--lm-code-font-family);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 6px;
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: 4px;
-  color: var(--lm-text-muted);
-}
-
-.problem-strip-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.strip-tag {
-  font-size: 11px;
-  padding: 2px 7px;
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: 4px;
-  color: var(--lm-text-secondary);
-}
-
-.contest-tag {
-  font-weight: 600;
-  color: var(--lm-text-primary);
-}
-
-.diff-1 { color: #059669; }
-.diff-2 { color: #d97706; }
-.diff-3 { color: #dc2626; }
-
-.problem-detail-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 650;
-  color: #2563eb;
-  white-space: nowrap;
-  transition: color var(--lm-transition);
-}
-
-.problem-detail-link:hover {
-  color: #1d4ed8;
-}
-
-/* 3. 骨架屏 */
-.skeleton-wrapper {
+/* 骨架屏 */
+.skeleton-layout {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .skeleton-pulse {
@@ -1167,259 +1354,849 @@ onMounted(async () => {
   100% { background-position: 0 50%; }
 }
 
-.skeleton-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
+.skeleton-strip { height: 60px; border-radius: var(--lm-radius); }
+.skeleton-grid-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.sk-box { height: 80px; border-radius: var(--lm-radius); }
+.skeleton-main-card { height: 360px; border-radius: var(--lm-radius-lg); }
 
-.skeleton-card {
-  height: 96px;
-  border-radius: var(--lm-radius);
-  border: 1px solid var(--lm-border);
-}
-
-.skeleton-distribution {
-  height: 180px;
-}
-
-.skeleton-podium {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.skeleton-podium-card {
-  height: 220px;
-  border-radius: var(--lm-radius-lg);
-  border: 1px solid var(--lm-border);
-}
-
-.skeleton-table {
-  height: 320px;
-}
-
-/* 4. 错误状态 */
-.error-container {
-  padding: 20px 0;
-}
-
-.error-card {
+/* 错误提示 */
+.error-banner {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
+  gap: 10px;
+  padding: 12px 18px;
   background: #fef2f2;
   border: 1px solid #fecaca;
-  border-radius: var(--lm-radius-lg);
+  border-radius: var(--lm-radius);
   color: #991b1b;
+  font-size: 13px;
 }
 
-.error-icon {
-  font-size: 28px;
-  color: #ef4444;
-}
-
-.error-content h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.error-content p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #b91c1c;
-}
-
-.btn-retry {
+.btn-error-retry {
   margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: #ef4444;
+  padding: 4px 10px;
+  background: #dc2626;
   color: #fff;
   border: none;
-  border-radius: var(--lm-radius-sm);
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 4px;
+  font-size: 11px;
   cursor: pointer;
-  transition: background var(--lm-transition);
 }
 
-.btn-retry:hover {
-  background: #dc2626;
-}
+/* ==========================================================================
+   模式一：赛题总览天梯 (Overview)
+   ========================================================================== */
 
-/* 5. 榜单主内容区 */
-.ranking-main-content {
+.overview-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
 }
 
-/* 5.1 数据看板区：4 指标卡 + 直方图 */
-.dashboard-grid {
+/* 全局指标统计横条 */
+.global-metric-strip {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.25fr);
-  gap: 16px;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
-.metric-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
+.g-metric-card {
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
+  padding: 14px 18px;
   box-shadow: var(--lm-shadow-xs);
-  transition: transform var(--lm-transition), box-shadow var(--lm-transition);
-}
-
-.metric-card:hover {
-  box-shadow: var(--lm-shadow-sm);
-  transform: translateY(-1px);
-}
-
-.metric-icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.blue-box { background: #eff6ff; color: #2563eb; }
-.gold-box { background: #fefce8; color: #ca8a04; }
-.green-box { background: #f0fdf4; color: #16a34a; }
-.slate-box { background: #f8fafc; color: #475569; }
-
-.metric-info {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 4px;
 }
 
-.metric-label {
+.gm-label {
   font-size: 11px;
-  font-weight: 650;
   color: var(--lm-text-muted);
+  font-weight: 600;
 }
 
-.metric-value-row {
+.gm-val-row {
   display: flex;
   align-items: baseline;
   gap: 3px;
-  margin: 2px 0 0;
 }
 
-.metric-number {
-  font-size: 22px;
+.gm-val-row strong {
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--lm-text-primary);
-  line-height: 1.2;
-}
-
-.metric-number.metric-time {
-  font-size: 14px;
-  font-weight: 700;
   font-family: var(--lm-code-font-family);
-  margin-top: 5px;
+  color: var(--lm-text-primary);
+  line-height: 1;
 }
 
-.metric-unit {
+.gm-val-row strong.highlight-score {
+  color: #d97706;
+}
+
+.gm-val-row small {
   font-size: 11px;
   color: var(--lm-text-muted);
-  font-weight: 500;
 }
 
-.metric-sub {
-  margin: 3px 0 0;
-  font-size: 11px;
-  color: var(--lm-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 多样化图表看板 (总览) */
+.overview-visuals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
 }
 
-/* 分数分布直方图 */
-.distribution-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 16px 20px;
+.chart-card {
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
+  padding: 16px 20px;
   box-shadow: var(--lm-shadow-xs);
-}
-
-.distribution-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
-.dist-title-box {
-  display: inline-flex;
+.chart-head {
+  display: flex;
   align-items: center;
   gap: 6px;
   color: var(--lm-text-primary);
 }
 
-.dist-title-box .el-icon {
-  font-size: 16px;
-  color: #2563eb;
-}
-
-.dist-title-box h3 {
+.chart-head h4 {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
 }
 
-.dist-desc {
+.chart-head .el-icon {
+  font-size: 15px;
+  color: #2563eb;
+}
+
+/* 横向对比条形图 */
+.horizontal-bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hbar-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background var(--lm-transition);
+}
+
+.hbar-row:hover {
+  background: var(--lm-bg-secondary);
+}
+
+.hbar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hbar-code {
+  font-family: var(--lm-code-font-family);
+  font-size: 11px;
+  color: var(--lm-text-muted);
+  font-weight: 700;
+}
+
+.hbar-title {
+  font-size: 12px;
+  color: var(--lm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hbar-track {
+  height: 18px;
+  background: var(--lm-bg-secondary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hbar-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.hbar-val {
+  position: absolute;
+  right: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--lm-code-font-family);
+  color: var(--lm-text-secondary);
+}
+
+/* 均分~最高分区间分布图 */
+.range-plot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.range-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background var(--lm-transition);
+}
+
+.range-item-row:hover {
+  background: var(--lm-bg-secondary);
+}
+
+.range-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.range-title {
+  font-weight: 650;
+  color: var(--lm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.range-badge-scores b {
+  color: var(--lm-text-primary);
+}
+
+.range-track {
+  position: relative;
+  height: 8px;
+  background: var(--lm-bg-secondary);
+  border-radius: 4px;
+}
+
+.range-bar-span {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%);
+  border-radius: 4px;
+}
+
+/* 全平台赛题天梯表格 */
+.problem-ladder-section {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-lg);
+  box-shadow: var(--lm-shadow-xs);
+  overflow: hidden;
+}
+
+.ladder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--lm-border);
+}
+
+.ladder-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.ladder-sort-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-label {
   font-size: 11px;
   color: var(--lm-text-muted);
 }
 
-.my-score-indicator {
-  color: #2563eb;
+.btn-sort {
+  border: 1px solid var(--lm-border);
+  background: var(--lm-surface);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  transition: all var(--lm-transition);
+}
+
+.btn-sort.active {
+  background: var(--lm-bg-secondary);
+  color: var(--lm-text-primary);
+  border-color: #cbd5e1;
   font-weight: 700;
 }
 
-.distribution-chart {
-  position: relative;
-  height: 110px;
+.ladder-table {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ladder-tr {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) 140px 140px 140px 160px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--lm-border-light);
+  transition: background var(--lm-transition);
+}
+
+.ladder-th {
+  background: var(--lm-bg-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lm-text-muted);
+}
+
+.ladder-td-row {
+  cursor: pointer;
+}
+
+.ladder-td-row:hover {
+  background: #f8fafc;
+}
+
+.l-cell {
+  display: flex;
+  align-items: center;
+}
+
+.l-col-prob {
+  gap: 8px;
+  min-width: 0;
+}
+
+.prob-tag {
+  font-family: var(--lm-code-font-family);
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.prob-title-text {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--lm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-pill-gold {
+  font-size: 13px;
+  font-family: var(--lm-code-font-family);
+  font-weight: 800;
+  color: #b45309;
+}
+
+.score-pill-plain {
+  font-size: 13px;
+  font-family: var(--lm-code-font-family);
+  font-weight: 700;
+  color: var(--lm-text-secondary);
+}
+
+.l-col-actions {
+  gap: 6px;
+}
+
+.btn-table-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--lm-border);
+  background: var(--lm-surface);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  transition: all var(--lm-transition);
+}
+
+.btn-table-action:hover {
+  background: var(--lm-bg-secondary);
+  color: var(--lm-text-primary);
+}
+
+.btn-table-action.primary {
+  background: var(--lm-bg-secondary);
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.btn-table-action.primary:hover {
+  background: #eff6ff;
+}
+
+/* ==========================================================================
+   模式二：单题细览 (Detail)
+   ========================================================================== */
+
+.detail-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 核心指标横条 (细览) */
+.detail-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) minmax(180px, 1.2fr);
+  gap: 10px;
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
+  padding: 12px 18px;
+  box-shadow: var(--lm-shadow-xs);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.s-label {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+}
+
+.s-val {
+  font-size: 18px;
+  font-family: var(--lm-code-font-family);
+  font-weight: 800;
+  color: var(--lm-text-primary);
+}
+
+.s-val.score-gold {
+  color: #b45309;
+}
+
+.s-val small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lm-text-muted);
+}
+
+.s-time-item {
+  border-left: 1px solid var(--lm-border-light);
+  padding-left: 14px;
+}
+
+.s-time {
+  font-size: 12px;
+  font-family: var(--lm-code-font-family);
+  color: var(--lm-text-secondary);
+  margin-top: 3px;
+}
+
+/* Top 3 领奖台 (主视图) */
+.podium-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.podium-mini-card {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
+  padding: 14px 16px;
+  box-shadow: var(--lm-shadow-xs);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform var(--lm-transition), box-shadow var(--lm-transition);
+}
+
+.podium-mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lm-shadow-sm);
+}
+
+.podium-rank-1 {
+  border-color: rgba(217, 119, 6, 0.35);
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.25) 0%, var(--lm-surface) 50%);
+}
+
+.podium-rank-2 {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.podium-rank-3 {
+  border-color: rgba(202, 138, 4, 0.25);
+}
+
+.p-rank-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.p-my-tag {
+  margin-left: auto;
+  font-size: 9px;
+  background: #2563eb;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+.p-team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--lm-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.podium-rank-1 .p-avatar { background: #fef3c7; color: #b45309; }
+
+.p-team-name {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.p-score-val {
+  font-size: 22px;
+  font-weight: 850;
+  font-family: var(--lm-code-font-family);
+  color: var(--lm-text-primary);
+}
+
+.podium-rank-1 .p-score-val { color: #b45309; }
+
+/* 核心排名表格 */
+.ranking-table-card {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius-lg);
+  box-shadow: var(--lm-shadow-xs);
+  overflow: hidden;
+}
+
+.rt-head-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--lm-border);
+}
+
+.rt-title-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rt-title-area h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.rt-count {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+}
+
+.rt-filter-tag {
+  font-size: 11px;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.rt-rule-hint {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+}
+
+.rt-table-responsive {
+  overflow-x: auto;
+}
+
+.rt-table {
+  width: 100%;
+  min-width: 780px;
+  display: flex;
+  flex-direction: column;
+}
+
+.rt-tr {
+  display: grid;
+  grid-template-columns: 70px minmax(200px, 1.4fr) 110px minmax(140px, 1fr) minmax(160px, 1.1fr) 110px;
+  align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--lm-border-light);
+  transition: background var(--lm-transition);
+}
+
+.rt-th {
+  background: var(--lm-bg-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lm-text-muted);
+  padding: 8px 18px;
+}
+
+.rt-td-row:hover {
+  background: #f8fafc;
+}
+
+.rt-td-row.is-my-team-row {
+  background: rgba(37, 99, 235, 0.03);
+  border-left: 3px solid #2563eb;
+}
+
+/* 高亮动画 */
+.rt-td-row.row-highlighted {
+  animation: pulse-hl 2.5s ease-out;
+}
+
+@keyframes pulse-hl {
+  0% { background: rgba(254, 240, 138, 0.5); }
+  100% { background: transparent; }
+}
+
+.rt-cell {
+  display: flex;
+  align-items: center;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-family: var(--lm-code-font-family);
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--lm-bg-secondary);
+  color: var(--lm-text-secondary);
+}
+
+.rank-badge-1 { background: #fef3c7; color: #b45309; }
+.rank-badge-2 { background: #f1f5f9; color: #475569; }
+.rank-badge-3 { background: #ffedd5; color: #c2410c; }
+
+.team-dot-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--lm-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.avatar-rank-1 { background: #fef3c7; color: #b45309; }
+.avatar-rank-2 { background: #f1f5f9; color: #475569; }
+.avatar-rank-3 { background: #ffedd5; color: #c2410c; }
+
+.team-title-text {
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-team-badge {
+  font-size: 9px;
+  background: #2563eb;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.score-number {
+  font-size: 17px;
+  font-weight: 850;
+  font-family: var(--lm-code-font-family);
+}
+
+.score-unit {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+  margin-left: 2px;
+}
+
+.wf-chip {
+  font-size: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.date-text {
+  font-size: 11px;
+  font-family: var(--lm-code-font-family);
+  color: var(--lm-text-secondary);
+}
+
+.rt-col-action {
+  gap: 4px;
+}
+
+.btn-row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--lm-text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-row-action:hover {
+  background: var(--lm-bg-secondary);
+  color: var(--lm-text-primary);
+}
+
+/* 多样化数据分析面板 (细览后置支撑) */
+.analytics-dashboard-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.panel-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lm-text-secondary);
+}
+
+.panel-section-title h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.visuals-dual-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.visual-sub-card {
+  background: var(--lm-surface);
+  border: 1px solid var(--lm-border);
+  border-radius: var(--lm-radius);
+  padding: 14px 18px;
+  box-shadow: var(--lm-shadow-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sub-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sub-card-header h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sub-card-note {
+  font-size: 11px;
+  color: var(--lm-text-muted);
+}
+
+/* 直方图 */
+.histogram-box {
+  height: 100px;
   display: flex;
   align-items: flex-end;
 }
 
-.histogram-track {
+.histogram-flex-track {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
   border-bottom: 1px solid var(--lm-border);
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
-.histogram-column {
+.hist-bar-col {
   position: relative;
   flex: 1;
   height: 100%;
@@ -1430,762 +2207,319 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.bar-container {
-  position: relative;
+.hist-bar-wrap {
   width: 100%;
-  height: calc(100% - 20px);
+  height: calc(100% - 16px);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
 }
 
-.bar-count-label {
-  font-size: 10px;
+.hist-count-num {
+  font-size: 9px;
   font-family: var(--lm-code-font-family);
-  font-weight: 700;
   color: var(--lm-text-muted);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
-.bar-fill {
+.hist-bar-inner {
   width: 100%;
-  max-width: 32px;
+  max-width: 26px;
   background: #e2e8f0;
-  border-radius: 4px 4px 0 0;
-  transition: height 0.3s ease, background 0.2s ease;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.3s ease;
   position: relative;
 }
 
-.histogram-column:hover .bar-fill {
-  background: #94a3b8;
-}
+.hist-bar-col:hover .hist-bar-inner { background: #94a3b8; }
+.hist-bar-col.is-my-tier .hist-bar-inner { background: #3b82f6; }
 
-.histogram-column.is-my-bucket .bar-fill {
-  background: #3b82f6;
-}
-
-.histogram-column.is-my-bucket:hover .bar-fill {
-  background: #2563eb;
-}
-
-.my-team-dot {
+.my-tier-dot {
   position: absolute;
-  top: -4px;
+  top: -3px;
   left: 50%;
   transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #fbbf24;
-  box-shadow: 0 0 0 2px #fff;
+  background: #f59e0b;
+  box-shadow: 0 0 0 1px #fff;
 }
 
-.bar-x-label {
-  font-size: 10px;
+.hist-x-axis {
+  font-size: 9px;
   font-family: var(--lm-code-font-family);
   color: var(--lm-text-muted);
-  margin-top: 4px;
-  white-space: nowrap;
+  margin-top: 3px;
 }
 
-/* Tooltip */
-.histogram-tooltip {
+/* 直方图 Tooltip */
+.hist-tooltip {
   position: absolute;
-  bottom: calc(100% - 10px);
+  bottom: calc(100% - 6px);
   left: 50%;
   transform: translateX(-50%);
   background: #09090b;
   color: #fff;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 10px;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease;
   white-space: nowrap;
-  z-index: 10;
-  box-shadow: var(--lm-shadow);
+  z-index: 20;
 }
 
-.histogram-column:hover .histogram-tooltip {
+.hist-bar-col:hover .hist-tooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(-4px);
 }
 
-.tooltip-range {
-  font-weight: 700;
-  margin-bottom: 2px;
-}
+.ht-label { font-weight: 700; }
+.ht-val { color: #cbd5e1; }
+.ht-my { color: #fde047; font-weight: 600; }
 
-.tooltip-count {
-  color: #cbd5e1;
-}
-
-.tooltip-my-team {
-  margin-top: 3px;
-  color: #fde047;
-  font-weight: 600;
-}
-
-.distribution-empty {
-  height: 90px;
+/* 环形 Donut 图 */
+.donut-visual-container {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--lm-text-muted);
-  font-size: 12px;
-  border: 1px dashed var(--lm-border);
-  border-radius: var(--lm-radius-sm);
-}
-
-/* 5.2.1 Top 3 领奖台 (Podium) */
-.podium-section {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.section-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.title-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.title-icon {
-  font-size: 18px;
-  color: #d97706;
-}
-
-.title-left h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--lm-text-primary);
-}
-
-.title-caption {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-}
-
-.podium-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  align-items: flex-end;
 }
 
-.podium-card {
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  cursor: pointer;
-  transition: transform var(--lm-transition), box-shadow var(--lm-transition), border-color var(--lm-transition);
+.donut-chart-box {
   position: relative;
-  overflow: hidden;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
 }
 
-.podium-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--lm-shadow);
+.donut-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
 }
 
-/* 冠军卡片突出 */
-.podium-rank-1 {
-  border-color: rgba(217, 119, 6, 0.4);
-  background: linear-gradient(180deg, rgba(254, 243, 199, 0.2) 0%, var(--lm-surface) 35%);
-  box-shadow: 0 4px 20px rgba(217, 119, 6, 0.08);
-  min-height: 240px;
-}
-
-.podium-rank-2 {
-  border-color: rgba(148, 163, 184, 0.45);
-  background: linear-gradient(180deg, rgba(241, 245, 249, 0.5) 0%, var(--lm-surface) 35%);
-  min-height: 220px;
-}
-
-.podium-rank-3 {
-  border-color: rgba(202, 138, 4, 0.3);
-  background: linear-gradient(180deg, rgba(254, 249, 195, 0.3) 0%, var(--lm-surface) 35%);
-  min-height: 220px;
-}
-
-.podium-card.is-my-team-card {
-  outline: 2px solid #2563eb;
-  outline-offset: -1px;
-}
-
-.podium-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.rank-crown {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.crown-badge {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.podium-rank-1 .crown-badge { background: #fef3c7; color: #b45309; }
-.podium-rank-2 .crown-badge { background: #f1f5f9; color: #475569; }
-.podium-rank-3 .crown-badge { background: #ffedd5; color: #c2410c; }
-
-.rank-number {
-  font-size: 18px;
-  font-weight: 800;
-  font-family: var(--lm-code-font-family);
-  color: var(--lm-text-primary);
-}
-
-.my-team-pill {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 7px;
-  background: #2563eb;
-  color: #fff;
-  border-radius: 999px;
-}
-
-.podium-body {
+.donut-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
 }
 
-.podium-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: var(--lm-bg-secondary);
-  border: 2px solid var(--lm-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--lm-text-primary);
-}
-
-.podium-rank-1 .podium-avatar {
-  border-color: #f59e0b;
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.podium-team-name {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 750;
-  color: var(--lm-text-primary);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.podium-score-row {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.podium-score {
-  font-size: 30px;
-  font-weight: 850;
-  letter-spacing: -0.04em;
-  color: var(--lm-text-primary);
+.donut-center-text strong {
+  font-size: 14px;
+  font-family: var(--lm-code-font-family);
   line-height: 1;
 }
 
-.podium-rank-1 .podium-score { color: #b45309; }
-
-.podium-score-unit {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  font-weight: 600;
-}
-
-.podium-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid var(--lm-border-light);
-  font-size: 11px;
-}
-
-.footer-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.footer-label {
+.donut-center-text small {
+  font-size: 9px;
   color: var(--lm-text-muted);
 }
 
-.workflow-chip {
-  font-size: 10px;
-  padding: 1px 6px;
-  background: var(--lm-bg-secondary);
-  border-radius: 4px;
-  color: var(--lm-text-secondary);
-}
-
-.time-text {
-  font-family: var(--lm-code-font-family);
-  color: var(--lm-text-secondary);
-}
-
-/* 5.2.2 完整排名数据表格 */
-.ranking-table-section {
-  display: flex;
-  flex-direction: column;
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  border-radius: var(--lm-radius-lg);
-  box-shadow: var(--lm-shadow-xs);
-  overflow: hidden;
-}
-
-.table-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px;
-  background: var(--lm-surface);
-  border-bottom: 1px solid var(--lm-border);
-}
-
-.header-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-info h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 750;
-  color: var(--lm-text-primary);
-}
-
-.count-tag {
-  font-size: 12px;
-  color: var(--lm-text-muted);
-  padding: 2px 8px;
-  background: var(--lm-bg-secondary);
-  border-radius: 999px;
-}
-
-.filter-tip {
-  font-size: 12px;
-  color: #2563eb;
-}
-
-.table-rule-note {
-  font-size: 11px;
-  color: var(--lm-text-muted);
-}
-
-.ranking-table-container {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.custom-table {
-  width: 100%;
-  min-width: 820px;
-  display: flex;
-  flex-direction: column;
-}
-
-.table-row {
+.donut-legend-list {
   display: grid;
-  grid-template-columns: 80px minmax(220px, 1.4fr) 110px minmax(160px, 1fr) minmax(180px, 1.1fr) 130px;
-  align-items: center;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--lm-border-light);
-  transition: background var(--lm-transition);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 8px;
+  flex: 1;
 }
 
-.table-head-row {
-  background: var(--lm-bg-secondary);
-  border-bottom: 1px solid var(--lm-border);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--lm-text-muted);
-  letter-spacing: 0.04em;
-  padding: 10px 20px;
-}
-
-.table-body-row:hover {
-  background: #f8fafc;
-}
-
-.table-body-row.is-current-user-team {
-  background: rgba(37, 99, 235, 0.03);
-  border-left: 3px solid #2563eb;
-}
-
-/* 高亮定位动画 */
-.table-body-row.row-highlighted {
-  animation: pulse-highlight 2.5s ease-out;
-}
-
-@keyframes pulse-highlight {
-  0% {
-    background: rgba(254, 240, 138, 0.5);
-    box-shadow: 0 0 12px rgba(234, 179, 8, 0.4);
-  }
-  50% {
-    background: rgba(254, 240, 138, 0.25);
-  }
-  100% {
-    background: transparent;
-  }
-}
-
-.col-cell {
+.donut-legend-item {
   display: flex;
   align-items: center;
+  gap: 5px;
+  font-size: 10px;
 }
 
-/* 排名列 */
-.col-rank {
-  justify-content: flex-start;
-}
-
-.rank-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border-radius: 6px;
-  font-family: var(--lm-code-font-family);
-  font-size: 13px;
-  font-weight: 800;
-  background: var(--lm-bg-secondary);
-  color: var(--lm-text-secondary);
-}
-
-.rank-badge-1 { background: #fef3c7; color: #b45309; border: 1px solid rgba(217, 119, 6, 0.3); }
-.rank-badge-2 { background: #f1f5f9; color: #475569; border: 1px solid rgba(148, 163, 184, 0.4); }
-.rank-badge-3 { background: #ffedd5; color: #c2410c; border: 1px solid rgba(194, 65, 12, 0.3); }
-
-/* 队伍列 */
-.team-cell-inner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.team-avatar-icon {
-  width: 34px;
-  height: 34px;
+.legend-color-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--lm-bg-secondary);
-  border: 1px solid var(--lm-border);
+  flex-shrink: 0;
+}
+
+.legend-name { color: var(--lm-text-secondary); width: 34px; }
+.legend-count { font-family: var(--lm-code-font-family); color: var(--lm-text-primary); font-weight: 600; }
+.legend-percent { color: var(--lm-text-muted); margin-left: auto; }
+
+.empty-chart-notice {
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 750;
-  color: var(--lm-text-primary);
-  flex-shrink: 0;
-}
-
-.avatar-rank-1 { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
-.avatar-rank-2 { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
-.avatar-rank-3 { background: #ffedd5; color: #c2410c; border-color: #fdba74; }
-
-.team-names {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.team-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--lm-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.inline-my-team-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  background: #2563eb;
-  color: #fff;
+  font-size: 11px;
+  color: var(--lm-text-muted);
+  border: 1px dashed var(--lm-border);
   border-radius: 4px;
-  flex-shrink: 0;
 }
 
-.team-sub-info {
-  font-size: 11px;
-  color: var(--lm-text-muted);
-  margin-top: 1px;
-}
-
-/* 得分列 */
-.score-display {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.score-val {
-  font-size: 19px;
-  font-weight: 850;
-  font-family: var(--lm-code-font-family);
-  color: var(--lm-text-primary);
-}
-
-.score-unit {
-  font-size: 11px;
-  color: var(--lm-text-muted);
-  font-weight: 500;
-}
-
-/* 评审列 */
-.review-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.workflow-badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 650;
-  color: #1e40af;
-  background: #eff6ff;
-  padding: 2px 7px;
-  border-radius: 4px;
-  border: 1px solid #dbeafe;
-  width: fit-content;
-}
-
-.review-date {
-  font-size: 10px;
-  color: var(--lm-text-muted);
-  font-family: var(--lm-code-font-family);
-}
-
-/* 提交时间列 */
-.time-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.submission-time {
-  font-size: 12px;
-  font-family: var(--lm-code-font-family);
-  color: var(--lm-text-secondary);
-}
-
-.time-hint {
-  font-size: 10px;
-  color: var(--lm-text-muted);
-}
-
-/* 操作列 */
-.col-action {
-  gap: 6px;
-  justify-content: flex-start;
-}
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: var(--lm-radius-sm);
-  cursor: pointer;
-  transition: all var(--lm-transition);
-}
-
-.copy-btn {
-  background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
-  color: var(--lm-text-secondary);
-}
-
-.copy-btn:hover {
-  background: var(--lm-bg-secondary);
-  color: var(--lm-text-primary);
-  border-color: #cbd5e1;
-}
-
-.team-link-btn {
-  background: var(--lm-bg-secondary);
-  border: 1px solid var(--lm-border);
-  color: var(--lm-text-primary);
-}
-
-.team-link-btn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-/* 5.3 & 5.4 空状态通用样式 */
-.empty-state-panel {
+/* 细览空状态 */
+.detail-empty-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 24px;
+  padding: 48px 16px;
   background: var(--lm-surface);
   border: 1px dashed var(--lm-border);
   border-radius: var(--lm-radius-lg);
   text-align: center;
 }
 
-.empty-icon-circle {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: var(--lm-bg-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
+.empty-icon {
+  font-size: 32px;
   color: var(--lm-text-muted);
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
-.empty-state-panel h3 {
+.detail-empty-box h4 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 750;
-  color: var(--lm-text-primary);
+  font-size: 15px;
+  font-weight: 700;
 }
 
-.empty-state-panel p {
-  margin: 8px 0 20px;
-  max-width: 480px;
-  font-size: 13px;
-  line-height: 1.6;
+.detail-empty-box p {
+  margin: 6px 0 16px;
+  font-size: 12px;
   color: var(--lm-text-secondary);
 }
 
-.btn-primary-action {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 18px;
+.btn-clear-filter {
+  padding: 6px 14px;
   background: var(--lm-primary);
   color: #fff;
   border: none;
-  border-radius: var(--lm-radius-sm);
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 4px;
+  font-size: 12px;
   cursor: pointer;
-  transition: background var(--lm-transition);
-  text-decoration: none;
-}
-
-.btn-primary-action:hover {
-  background: var(--lm-primary-light);
-  color: #fff;
 }
 
 /* ==========================================================================
-   响应式断点规则 (Responsive Breakpoints)
+   赛题速览侧边抽屉 (Quick Preview Drawer)
    ========================================================================== */
 
-@media (max-width: 992px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .podium-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .podium-card, .podium-rank-1, .podium-rank-2, .podium-rank-3 {
-    min-height: auto;
-  }
-
-  .podium-rank-1 { order: 1; }
-  .podium-rank-2 { order: 2; }
-  .podium-rank-3 { order: 3; }
+.drawer-loading-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 0;
+  color: var(--lm-text-muted);
+  font-size: 13px;
 }
 
-@media (max-width: 768px) {
-  .toolbar-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
+.drawer-body-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-  .problem-selector, .search-box {
-    width: 100%;
-    min-width: 0;
-  }
+.drawer-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
-  .toolbar-actions {
-    margin-left: 0;
-    justify-content: flex-end;
-  }
+.d-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--lm-bg-secondary);
+  border: 1px solid var(--lm-border);
+  border-radius: 4px;
+  color: var(--lm-text-secondary);
+}
 
-  .problem-meta-strip {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.d-tag.contest { font-weight: 700; color: var(--lm-text-primary); }
 
-  .metrics-grid {
+.drawer-markdown-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--lm-text-primary);
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.drawer-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--lm-border);
+}
+
+.btn-to-problem-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.btn-to-problem-page:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   响应式折叠
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .global-metric-strip, .overview-visuals-grid, .visuals-dual-grid {
     grid-template-columns: 1fr;
   }
 
-  .table-row {
-    grid-template-columns: 50px minmax(160px, 1fr) 80px 100px;
-    gap: 8px;
-    padding: 12px 14px;
+  .ladder-tr {
+    grid-template-columns: 1fr 100px 100px 120px;
   }
 
-  .col-review, .col-time {
+  .l-col-score:nth-child(4) {
+    display: none;
+  }
+
+  .detail-summary-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .s-time-item {
+    grid-column: 1 / 3;
+    border-left: none;
+    padding-left: 0;
+  }
+
+  .podium-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .ranking-nav-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav-right {
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .compact-search-input {
+    width: 100%;
+  }
+
+  .rt-tr {
+    grid-template-columns: 46px minmax(130px, 1fr) 70px 80px;
+    padding: 8px 12px;
+  }
+
+  .rt-col-workflow, .rt-col-time {
     display: none;
   }
 }
