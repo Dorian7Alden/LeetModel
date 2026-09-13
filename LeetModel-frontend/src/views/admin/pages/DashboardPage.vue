@@ -1,285 +1,806 @@
 <template>
-  <div class="dashboard-page" v-loading="loading">
-    <el-alert
-      v-if="partialFailure"
-      title="部分下游服务不可用，以下指标未显示真实数值"
-      type="warning"
-      :closable="false"
-      show-icon
-      class="partial-alert"
-    />
-
-    <div class="panel-heading">
-      <div>
-        <h2 class="page-title">运行概况</h2>
-        <p class="page-subtitle">来自各领域服务的真实统计摘要，更新于 {{ generatedAt }}</p>
+  <div class="dashboard-page">
+    <div class="overview-status-bar" :class="{ warning: loadedOnce && sourceIssues.length }">
+      <div class="status-leading">
+        <AdminStatusBadge
+          :status="!loadedOnce ? 'WAITING' : sourceIssues.length ? 'WARNING' : 'HEALTHY'"
+          :label="availabilityLabel"
+        />
+        <span class="status-time">更新于 {{ dataTimestamp }}</span>
+        <button
+          v-if="loadedOnce && sourceIssues.length"
+          class="issue-toggle"
+          type="button"
+          :aria-expanded="issuesExpanded"
+          aria-controls="overview-source-issues"
+          @click="issuesExpanded = !issuesExpanded"
+        >
+          {{ sourceIssues.length }} 项数据缺失
+          <el-icon><ArrowUp v-if="issuesExpanded" /><ArrowDown v-else /></el-icon>
+        </button>
       </div>
-      <el-button :loading="loading" @click="fetchDashboard">刷新</el-button>
+      <el-button size="small" :loading="loading" @click="loadOverview">
+        <el-icon><Refresh /></el-icon>
+        刷新
+      </el-button>
     </div>
 
-    <div class="metric-grid">
-      <div
-        v-for="item in metricCards"
-        :key="item.key"
-        class="metric-card"
-        :class="{ unavailable: !item.available && !item.loading, loading: item.loading }"
-      >
-        <div class="metric-icon" :style="{ background: item.bgColor, color: item.color }">
-          <el-icon :size="20"><component :is="item.icon" /></el-icon>
+    <div v-if="issuesExpanded && loadedOnce && sourceIssues.length" id="overview-source-issues" class="source-issue-list">
+      <span v-for="item in sourceIssues" :key="item.key">
+        <strong>{{ item.label }}</strong>
+        {{ item.message }}
+      </span>
+    </div>
+
+    <AdminStatePanel
+      v-if="loadedOnce && !hasAnyAvailableSource"
+      type="error"
+      title="概览数据暂不可用"
+      action-label="重新加载"
+      @action="loadOverview"
+    >
+      请检查管理聚合服务和下游数据源。
+    </AdminStatePanel>
+
+    <template v-else>
+      <section class="overview-panel core-panel" v-loading="loading && !loadedOnce">
+        <div class="overview-heading">
+          <h2>核心事实</h2>
+          <span>AI 调用为最近 24 小时，其余为累计或当前值</span>
         </div>
-        <div class="metric-body">
-          <span class="metric-title">{{ item.title }}</span>
-          <strong class="metric-value">{{ item.loading ? '···' : (item.available ? item.value : '--') }}</strong>
-          <span v-if="!item.available" class="metric-message">{{ item.loading ? '加载中' : item.message }}</span>
+        <AdminMetricStrip :items="coreMetrics" :loading="loading && !loadedOnce" @select="openMetric" />
+      </section>
+
+      <div class="overview-focus-grid">
+        <section class="overview-panel attention-panel" v-loading="loading && !loadedOnce">
+          <div class="overview-heading">
+            <h2>待处理</h2>
+            <span>24 小时事实与当前消息水位</span>
+          </div>
+
+          <div v-if="attentionItems.length" class="attention-grid">
+            <button
+              v-for="item in attentionItems"
+              :key="item.key"
+              class="attention-item"
+              :class="`tone-${item.tone}`"
+              type="button"
+              @click="openTarget(item.target)"
+            >
+              <span class="attention-icon"><el-icon><component :is="item.icon" /></el-icon></span>
+              <span class="attention-copy">
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.scope }}</small>
+              </span>
+              <b>{{ item.value }}</b>
+              <el-icon class="attention-arrow"><ArrowRight /></el-icon>
+            </button>
+          </div>
+
+          <div v-else-if="attentionCoverageAvailable" class="attention-empty" role="status">
+            <el-icon><CircleCheck /></el-icon>
+            当前可用口径内没有待处理项
+          </div>
+
+          <AdminStatePanel v-else type="error" title="待处理信息暂不可用" />
+        </section>
+
+        <section class="overview-panel ai-panel" v-loading="loading && !loadedOnce">
+          <div class="overview-heading">
+            <h2>AI 运行</h2>
+            <span>最近 24 小时</span>
+          </div>
+          <div class="ai-fact-grid">
+            <div v-for="item in aiFacts" :key="item.label" class="ai-fact">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+          <button class="production-row" type="button" @click="openTarget(aiTarget)">
+            <span>
+              <small>当前生产工作流</small>
+              <strong>{{ productionLabel }}</strong>
+            </span>
+            <span class="production-version">{{ productionVersion }}</span>
+            <el-icon><ArrowRight /></el-icon>
+          </button>
+        </section>
+      </div>
+
+      <section class="overview-panel" v-loading="loading && !loadedOnce">
+        <div class="overview-heading">
+          <h2>业务流转</h2>
+          <span>无统一时间窗口，仅展示当前或累计量级</span>
         </div>
-      </div>
-    </div>
+        <AdminMetricStrip :items="businessMetrics" :loading="loading && !loadedOnce" @select="openMetric" />
+      </section>
 
-    <div class="health-strip">
-      <div class="health-copy">
-        <span class="health-dot" :class="{ warning: partialFailure }"></span>
-        <span><strong>{{ partialFailure ? '部分服务需要关注' : '聚合链路运行正常' }}</strong><small>{{ availableMetricCount }}/{{ cardConfigs.length }} 个领域指标可用</small></span>
-      </div>
-      <div class="health-progress"><el-progress :percentage="availabilityRate" :stroke-width="7" :show-text="false" :color="partialFailure ? '#d97706' : '#16a34a'" /></div>
-      <div class="health-ai"><small>AI 调用成功率</small><strong>{{ aiSuccessRate }}</strong></div>
-      <div class="health-time"><small>数据时点</small><strong>{{ generatedAt || '等待刷新' }}</strong></div>
-    </div>
-
-    <section class="charts-section">
-      <div class="chart-row">
-        <el-card shadow="never" class="chart-card">
-          <template #header>
-            <div class="chart-head">
-              <h3 class="chart-title">各领域业务量</h3>
-              <span class="chart-sub">来自各服务的真实统计</span>
-            </div>
-          </template>
-          <div ref="metricChartRef" class="chart-container"></div>
-        </el-card>
-
-        <el-card shadow="never" class="chart-card">
-          <template #header>
-            <div class="chart-head">
-              <h3 class="chart-title">AI 调用状态</h3>
-              <span class="chart-sub">最近一次统计结果</span>
-            </div>
-          </template>
-          <div ref="aiChartRef" class="chart-container"></div>
-        </el-card>
-      </div>
-    </section>
-
-    <section class="quick-section">
-      <h3 class="section-title">管理入口</h3>
-      <div class="quick-grid">
-        <router-link v-for="item in quickLinks" :key="item.path" :to="item.path" class="quick-link">
-          <span class="quick-icon"><el-icon :size="19"><component :is="item.icon" /></el-icon></span>
-          <span class="quick-copy"><strong>{{ item.title }}</strong><small>{{ item.description }}</small></span>
-          <el-icon class="quick-arrow"><ArrowRight /></el-icon>
-        </router-link>
-      </div>
-    </section>
+      <section class="overview-panel" v-loading="loading && !loadedOnce">
+        <div class="overview-heading">
+          <h2>AI 资产</h2>
+        </div>
+        <AdminMetricStrip :items="assetMetrics" :loading="loading && !loadedOnce" @select="openMetric" />
+      </section>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { ElMessage } from "element-plus";
-import * as echarts from "echarts";
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { getDashboard } from "@/api/dashboard";
-import { getAdminAiCallStats } from "@/api/admin-ai";
+import {
+  getAdminAiCallStats,
+  getAssistantProductionCurrent,
+  listEvaluationTasks,
+} from "@/api/admin-ai";
+import { getMessagingOverview } from "@/api/admin-messaging";
+import { searchAdminAudit } from "@/api/admin-audit";
+import AdminMetricStrip from "../components/AdminMetricStrip.vue";
+import AdminStatePanel from "../components/AdminStatePanel.vue";
+import AdminStatusBadge from "../components/AdminStatusBadge.vue";
 
+const router = useRouter();
 const loading = ref(false);
+const loadedOnce = ref(false);
+const issuesExpanded = ref(false);
 const metrics = ref({});
-const partialFailure = ref(false);
-const generatedAt = ref("");
+const dashboardAvailable = ref(false);
+const dashboardTimestamp = ref("");
+const refreshedAt = ref("");
 const aiStats = ref(null);
-
-const metricChartRef = ref(null);
-const aiChartRef = ref(null);
-let metricChart = null;
-let aiChart = null;
-
-const cardConfigs = [
-  { key: "users", title: "用户", icon: "User", color: "#2563eb", bgColor: "#eff6ff" },
-  { key: "teams", title: "队伍", icon: "UserFilled", color: "#0891b2", bgColor: "#ecfeff" },
-  { key: "problems", title: "题目", icon: "Document", color: "#16a34a", bgColor: "#f0fdf4" },
-  { key: "submissions", title: "提交", icon: "Upload", color: "#d97706", bgColor: "#fffbeb" },
-  { key: "reviews", title: "评审", icon: "DataAnalysis", color: "#7c3aed", bgColor: "#f5f3ff" },
-  { key: "suggestions", title: "建议", icon: "ChatDotRound", color: "#db2777", bgColor: "#fdf2f8" },
-  { key: "rankings", title: "排行", icon: "Trophy", color: "#d97706", bgColor: "#fffbeb" },
-  { key: "assistantConversations", title: "客服会话", icon: "PieChart", color: "#0d9488", bgColor: "#f0fdfa" },
-  { key: "evaluationTasks", title: "质量评价", icon: "Histogram", color: "#475569", bgColor: "#f8fafc" },
-  { key: "aiCalls", title: "AI 调用", icon: "Cpu", color: "#2563eb", bgColor: "#eff6ff" },
-];
-
-const quickLinks = [
-  { path: "/admin/access", title: "访问控制", description: "用户、角色与授权策略", icon: "Lock" },
-  { path: "/admin/content", title: "内容中心", description: "题目、标签与赛事语境", icon: "Reading" },
-  { path: "/admin/operations", title: "业务运营", description: "组队、提交、评审与排行", icon: "TrendCharts" },
-  { path: "/admin/ai", title: "AI 中枢", description: "调用、评价与版本治理", icon: "Cpu" },
-];
-
-const availableMetricCount = computed(() => cardConfigs.filter((config) => metrics.value[config.key]?.available !== false && metrics.value[config.key]).length);
-const availabilityRate = computed(() => Math.round((availableMetricCount.value / cardConfigs.length) * 100));
-const aiSuccessRate = computed(() => {
-  const total = Number(aiStats.value?.totalCount || 0);
-  return total ? `${Math.round(Number(aiStats.value?.successCount || 0) / total * 1000) / 10}%` : "—";
+const evaluations = ref([]);
+const messaging = ref({ services: [], unavailableServices: [] });
+const failedAudits = ref({ returned: 0, hasMore: false });
+const production = ref(null);
+const sourceAvailability = ref({
+  ai: false,
+  evaluations: false,
+  messaging: false,
+  audit: false,
+  production: false,
 });
 
-const metricCards = computed(() =>
-  cardConfigs.map((config) => {
-    const metric = metrics.value[config.key];
-    if (!metric) return { ...config, available: false, loading: loading.value, value: "--", message: "暂不可用" };
-    return {
-      ...config,
-      available: metric.available !== false,
-      value: metric.value,
-      message: metric.message || "暂不可用",
-    };
-  }),
-);
+const metricConfigs = [
+  { key: "users", label: "用户服务" },
+  { key: "teams", label: "队伍服务" },
+  { key: "problems", label: "题目服务" },
+  { key: "submissions", label: "提交服务" },
+  { key: "reviews", label: "评审服务" },
+  { key: "suggestions", label: "建议服务" },
+  { key: "rankings", label: "排行服务" },
+  { key: "assistantConversations", label: "客服服务" },
+  { key: "evaluationTasks", label: "质量评价服务" },
+  { key: "aiCalls", label: "AI 网关" },
+];
 
-async function fetchDashboard() {
-  loading.value = true;
-  try {
-    const res = await getDashboard();
-    metrics.value = res.data?.metrics || {};
-    partialFailure.value = !!res.data?.partialFailure;
-    if (res.data?.generatedAt) {
-      generatedAt.value = String(res.data.generatedAt).replace("T", " ").slice(0, 19);
-    }
-  } catch (error) {
-    ElMessage.error(error.message || "概览数据加载失败");
-    metrics.value = {};
-  } finally {
-    loading.value = false;
+const terminalEvaluationStatuses = new Set(["COMPLETED", "CANCELLED"]);
+const operationsTarget = { path: "/admin/operations" };
+const aiTarget = { path: "/admin/ai", query: { view: "production" } };
+
+const availableMetricCount = computed(() => metricConfigs.filter((item) => isMetricAvailable(item.key)).length);
+const availabilityLabel = computed(() => loadedOnce.value
+  ? `${availableMetricCount.value}/${metricConfigs.length} 领域指标可用`
+  : "正在加载概览");
+const dataTimestamp = computed(() => dashboardTimestamp.value || refreshedAt.value || "等待刷新");
+const hasAnyAvailableSource = computed(() => dashboardAvailable.value
+  || Object.values(sourceAvailability.value).some(Boolean));
+const attentionCoverageAvailable = computed(() => sourceAvailability.value.ai
+  || sourceAvailability.value.evaluations
+  || sourceAvailability.value.messaging
+  || sourceAvailability.value.audit);
+
+const sourceIssues = computed(() => {
+  const issues = [];
+  if (!dashboardAvailable.value) {
+    issues.push({ key: "dashboard", label: "概览聚合", message: "暂不可用" });
+  } else {
+    metricConfigs.forEach((item) => {
+      const metric = metrics.value[item.key];
+      if (!metric || metric.available === false) {
+        issues.push({ key: item.key, label: item.label, message: metric?.message || "暂不可用" });
+      }
+    });
   }
-}
 
-async function loadAiStats() {
-  try {
-    aiStats.value = (await getAdminAiCallStats()).data;
-  } catch {
-    aiStats.value = null;
-  }
-}
-
-function renderCharts() {
-  nextTick(() => {
-    // 各领域业务量柱状图
-    if (metricChartRef.value) {
-      metricChart = metricChart ? metricChart : echarts.init(metricChartRef.value);
-      const data = cardConfigs
-        .map((config) => {
-          const metric = metrics.value[config.key];
-          const available = metric && metric.available !== false;
-          return { name: config.title, value: available ? (metric.value ?? 0) : 0, color: config.color, show: available };
-        })
-        .filter((item) => item.show);
-      metricChart.setOption({
-        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-        grid: { left: "3%", right: "4%", bottom: "10%", top: "12%", containLabel: true },
-        xAxis: {
-          type: "category",
-          data: data.map((d) => d.name),
-          axisLabel: { color: "#64748b", fontSize: 10, interval: 0, rotate: 24, hideOverlap: false },
-        },
-        yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#f1f5f9" } } },
-        series: [{
-          type: "bar",
-          data: data.map((d) => ({ value: d.value, itemStyle: { color: d.color, borderRadius: [4, 4, 0, 0] } })),
-          barWidth: "52%",
-        }],
-      }, true);
-    }
-
-    // AI 调用状态环形图
-    if (aiChartRef.value) {
-      aiChart = aiChart ? aiChart : echarts.init(aiChartRef.value);
-      const stats = aiStats.value;
-      const success = stats?.successCount ?? 0;
-      const failed = stats?.failureCount ?? 0;
-      aiChart.setOption({
-        tooltip: { trigger: "item" },
-        legend: { bottom: 4, textStyle: { color: "#64748b" } },
-        series: [{
-          type: "pie",
-          radius: ["52%", "74%"],
-          center: ["50%", "44%"],
-          avoidLabelOverlap: false,
-          label: { show: false },
-          emphasis: { label: { show: true, fontSize: 16, fontWeight: "bold" } },
-          data: [
-            { name: "成功", value: success, itemStyle: { color: "#16a34a" } },
-            { name: "失败", value: failed, itemStyle: { color: "#dc2626" } },
-          ],
-        }],
-      }, true);
+  const supplementalSources = [
+    ["ai", "24 小时 AI 统计"],
+    ["evaluations", "最近评价任务"],
+    ["messaging", "消息运维概览"],
+    ["audit", "失败审计查询"],
+    ["production", "生产版本"],
+  ];
+  supplementalSources.forEach(([key, label]) => {
+    if (!sourceAvailability.value[key]) {
+      issues.push({ key: `supplemental-${key}`, label, message: "暂不可用" });
     }
   });
-}
-
-function handleResize() {
-  metricChart?.resize();
-  aiChart?.resize();
-}
-
-onMounted(async () => {
-  await fetchDashboard();
-  await loadAiStats();
-  renderCharts();
-  window.addEventListener("resize", handleResize);
+  (messaging.value.unavailableServices || []).forEach((service) => {
+    issues.push({ key: `messaging-${service}`, label: service, message: "消息运维端点不可用" });
+  });
+  return issues;
 });
 
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", handleResize);
-  metricChart?.dispose();
-  aiChart?.dispose();
-  metricChart = null;
-  aiChart = null;
+const coreMetrics = computed(() => [
+  dashboardMetric("users", "用户", "累计", "/admin/access"),
+  dashboardMetric("problems", "题目", "累计", "/admin/content"),
+  dashboardMetric("teams", "进行中队伍", "当前", operationsTarget),
+  dashboardMetric("submissions", "提交", "累计", operationsTarget),
+  {
+    key: "ai-calls-24h",
+    label: "AI 调用",
+    value: aiStats.value?.totalCount,
+    available: sourceAvailability.value.ai,
+    meta: "最近 24 小时",
+    clickable: true,
+    target: { path: "/admin/ai", query: { view: "calls" } },
+  },
+]);
+
+const businessMetrics = computed(() => [
+  dashboardMetric("teams", "进行中队伍", "当前", { path: "/admin/operations", query: { view: "teams" } }),
+  dashboardMetric("submissions", "提交", "累计", { path: "/admin/operations", query: { view: "submissions" } }),
+  dashboardMetric("reviews", "评审", "累计", { path: "/admin/operations", query: { view: "reviews" } }),
+  dashboardMetric("suggestions", "改进建议", "累计", { path: "/admin/operations", query: { view: "suggestions" } }),
+  dashboardMetric("rankings", "排行记录", "当前", { path: "/admin/operations", query: { view: "rankings" } }),
+]);
+
+const assetMetrics = computed(() => [
+  dashboardMetric("assistantConversations", "客服会话", "累计", { path: "/admin/ai", query: { view: "calls" } }),
+  dashboardMetric("evaluationTasks", "评价任务", "累计", { path: "/admin/ai", query: { view: "evaluations" } }),
+]);
+
+const messagingSnapshot = computed(() => {
+  const services = messaging.value.services || [];
+  let pending = 0;
+  let blocked = 0;
+  let oldestPendingSeconds = 0;
+  let alertingServices = 0;
+
+  services.forEach((service) => {
+    const servicePending = number(service.outbox?.PENDING) + number(service.outbox?.SENDING);
+    const serviceBlocked = number(service.outbox?.BLOCKED);
+    const serviceOldest = number(service.oldestPendingSeconds);
+    const hasPausedConsumer = (service.consumers || []).some((consumer) => consumer.paused);
+    pending += servicePending;
+    blocked += serviceBlocked;
+    oldestPendingSeconds = Math.max(oldestPendingSeconds, serviceOldest);
+    if (serviceBlocked > 0 || serviceOldest >= 30 || servicePending >= 200 || hasPausedConsumer) {
+      alertingServices += 1;
+    }
+  });
+
+  return { pending, blocked, oldestPendingSeconds, alertingServices };
 });
+
+const attentionItems = computed(() => {
+  const items = [];
+  if (sourceAvailability.value.ai && number(aiStats.value?.failureCount) > 0) {
+    items.push({
+      key: "ai-failures",
+      label: "AI 调用失败",
+      value: formatNumber(aiStats.value.failureCount),
+      scope: "最近 24 小时",
+      tone: "danger",
+      icon: "WarningFilled",
+      target: { path: "/admin/ai", query: { view: "calls" } },
+    });
+  }
+
+  if (sourceAvailability.value.evaluations) {
+    const actionable = evaluations.value.filter((item) => !terminalEvaluationStatuses.has(item.status));
+    if (actionable.length > 0) {
+      items.push({
+        key: "evaluations",
+        label: "待处理评价",
+        value: formatNumber(actionable.length),
+        scope: "最近 100 项检查",
+        tone: actionable.some((item) => item.status === "FAILED") ? "danger" : "warning",
+        icon: "Histogram",
+        target: { path: "/admin/ai", query: { view: "evaluations" } },
+      });
+    }
+  }
+
+  if (sourceAvailability.value.messaging && messagingSnapshot.value.alertingServices > 0) {
+    const snapshot = messagingSnapshot.value;
+    items.push({
+      key: "messaging",
+      label: "消息链路需关注",
+      value: `${snapshot.alertingServices} 个服务`,
+      scope: snapshot.blocked > 0
+        ? `${formatNumber(snapshot.blocked)} 条阻塞`
+        : `${formatNumber(snapshot.pending)} 条待投递 · 最老 ${formatDuration(snapshot.oldestPendingSeconds)}`,
+      tone: snapshot.blocked > 0 || snapshot.oldestPendingSeconds >= 300 ? "danger" : "warning",
+      icon: "Connection",
+      target: { path: "/admin/ai", query: { view: "messaging" } },
+    });
+  }
+
+  if (sourceAvailability.value.audit && number(failedAudits.value.returned) > 0) {
+    items.push({
+      key: "audit-failures",
+      label: "失败治理操作",
+      value: failedAudits.value.hasMore ? "100+" : formatNumber(failedAudits.value.returned),
+      scope: "最近 24 小时",
+      tone: "danger",
+      icon: "DocumentChecked",
+      target: { path: "/admin/audit", query: { outcome: "FAILED" } },
+    });
+  }
+  return items;
+});
+
+const aiFacts = computed(() => [
+  { label: "成功率", value: sourceAvailability.value.ai ? successRate(aiStats.value) : "—" },
+  { label: "失败", value: sourceAvailability.value.ai ? formatNumber(aiStats.value?.failureCount) : "—" },
+  {
+    label: "平均耗时",
+    value: sourceAvailability.value.ai && number(aiStats.value?.totalCount) > 0
+      ? formatMilliseconds(aiStats.value?.averageTotalMs)
+      : "—",
+  },
+  { label: "Tokens", value: sourceAvailability.value.ai ? formatNumber(aiStats.value?.totalTokens) : "—" },
+]);
+
+const productionLabel = computed(() => sourceAvailability.value.production
+  ? production.value?.workflowName || production.value?.workflowVersion || "未配置"
+  : "暂不可用");
+const productionVersion = computed(() => {
+  if (!sourceAvailability.value.production) return "—";
+  const version = production.value?.workflowVersion || production.value?.productionConfigVersion || "—";
+  const revision = production.value?.revision;
+  return revision === null || revision === undefined ? version : `${version} · r${revision}`;
+});
+
+function dashboardMetric(key, label, meta, target) {
+  const metric = metrics.value[key];
+  return {
+    key,
+    label,
+    value: metric?.value,
+    available: isMetricAvailable(key),
+    meta,
+    clickable: true,
+    target,
+  };
+}
+
+function isMetricAvailable(key) {
+  const metric = metrics.value[key];
+  return dashboardAvailable.value && !!metric && metric.available !== false;
+}
+
+function number(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString("zh-CN") : "—";
+}
+
+function formatMilliseconds(value) {
+  return Number.isFinite(Number(value)) ? `${Number(value).toLocaleString("zh-CN")} ms` : "—";
+}
+
+function formatDuration(seconds) {
+  const value = number(seconds);
+  if (value < 60) return `${value} 秒`;
+  if (value < 3600) return `${Math.floor(value / 60)} 分钟`;
+  return `${Math.floor(value / 3600)} 小时`;
+}
+
+function successRate(stats) {
+  const total = number(stats?.totalCount);
+  if (total === 0) return "—";
+  return `${Math.round(number(stats?.successCount) / total * 1000) / 10}%`;
+}
+
+function formatTimestamp(value) {
+  if (!value) return "";
+  return String(value).replace("T", " ").replace("Z", "").slice(0, 19);
+}
+
+function localDateTime(value) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 19);
+}
+
+function timeRange() {
+  const to = new Date();
+  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+  return {
+    ai: { createdFrom: localDateTime(from), createdTo: localDateTime(to) },
+    audit: { from: from.toISOString(), to: to.toISOString() },
+  };
+}
+
+function openMetric(item) {
+  openTarget(item.target);
+}
+
+function openTarget(target) {
+  if (target) router.push(target);
+}
+
+async function loadOverview() {
+  if (loading.value) return;
+  loading.value = true;
+  const range = timeRange();
+  const results = await Promise.allSettled([
+    getDashboard(),
+    getAdminAiCallStats(range.ai),
+    listEvaluationTasks(100),
+    getMessagingOverview(),
+    searchAdminAudit({ ...range.audit, outcome: "FAILED", limit: 100 }),
+    getAssistantProductionCurrent(),
+  ]);
+
+  const dashboardResult = results[0];
+  dashboardAvailable.value = dashboardResult.status === "fulfilled";
+  if (dashboardAvailable.value) {
+    metrics.value = dashboardResult.value.data?.metrics || {};
+    dashboardTimestamp.value = formatTimestamp(dashboardResult.value.data?.generatedAt);
+  } else {
+    metrics.value = {};
+    dashboardTimestamp.value = "";
+  }
+
+  sourceAvailability.value = {
+    ai: results[1].status === "fulfilled",
+    evaluations: results[2].status === "fulfilled",
+    messaging: results[3].status === "fulfilled",
+    audit: results[4].status === "fulfilled",
+    production: results[5].status === "fulfilled",
+  };
+  aiStats.value = results[1].status === "fulfilled" ? results[1].value.data : null;
+  evaluations.value = results[2].status === "fulfilled" ? results[2].value.data || [] : [];
+  messaging.value = results[3].status === "fulfilled"
+    ? results[3].value.data || { services: [], unavailableServices: [] }
+    : { services: [], unavailableServices: [] };
+  failedAudits.value = results[4].status === "fulfilled"
+    ? results[4].value.data || { returned: 0, hasMore: false }
+    : { returned: 0, hasMore: false };
+  production.value = results[5].status === "fulfilled" ? results[5].value.data : null;
+
+  refreshedAt.value = formatTimestamp(localDateTime(new Date()));
+  issuesExpanded.value = false;
+  loadedOnce.value = true;
+  loading.value = false;
+}
+
+onMounted(loadOverview);
 </script>
 
 <style scoped>
-.dashboard-page { padding: 0; }
-.partial-alert { margin-bottom: 20px; }
-.panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.page-title { margin: 0; font-size: 22px; color: var(--lm-text-primary); }
-.page-subtitle { margin: 6px 0 0; font-size: 13px; color: var(--lm-text-muted); }
-.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
-.metric-card { display: flex; align-items: center; gap: 14px; padding: 18px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 12px; }
-.metric-card.unavailable { border-style: dashed; background: var(--lm-bg-secondary); }
-.metric-icon { display: flex; width: 42px; height: 42px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; }
-.metric-body { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.metric-title { font-size: 12px; color: var(--lm-text-muted); }
-.metric-value { font-size: 24px; line-height: 1.2; color: var(--lm-text-primary); }
-.metric-message { font-size: 11px; color: var(--lm-warning); }
-.health-strip { display: grid; grid-template-columns: minmax(210px, 1.2fr) minmax(150px, 1fr) minmax(120px, .6fr) minmax(170px, .8fr); align-items: center; gap: 18px; margin-top: 14px; padding: 13px 18px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 11px; }
-.health-copy { display: flex; align-items: center; gap: 10px; }
-.health-copy > span:last-child, .health-ai, .health-time { display: flex; flex-direction: column; }
-.health-copy strong, .health-ai strong, .health-time strong { color: var(--lm-text-primary); font-size: 12px; }
-.health-copy small, .health-ai small, .health-time small { color: var(--lm-text-muted); font-size: 10px; }
-.health-dot { width: 9px; height: 9px; flex: 0 0 9px; background: var(--lm-success); border-radius: 50%; box-shadow: 0 0 0 5px var(--lm-success-bg); }
-.health-dot.warning { background: var(--lm-warning); box-shadow: 0 0 0 5px var(--lm-warning-bg); }
-.charts-section { margin-top: 28px; }
-.chart-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.chart-card :deep(.el-card__header) { padding: 14px 18px; }
-.chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.chart-title { margin: 0; font-size: 16px; color: var(--lm-text-primary); }
-.chart-sub { color: var(--lm-text-muted); font-size: 12px; }
-.chart-container { width: 100%; height: 260px; }
-.quick-section { margin-top: 32px; }
-.section-title { margin: 0 0 14px; font-size: 16px; color: var(--lm-text-primary); }
-.quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.quick-link { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 16px; color: var(--lm-text-secondary); background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 11px; text-decoration: none; transition: border-color var(--lm-transition), transform var(--lm-transition), box-shadow var(--lm-transition); }
-.quick-link:hover { color: var(--lm-primary); border-color: #bfdbfe; box-shadow: var(--lm-shadow-sm); transform: translateY(-1px); }
-.quick-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; color: var(--lm-primary); background: var(--lm-primary-bg); border-radius: 9px; }
-.quick-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
-.quick-copy strong { color: var(--lm-text-primary); font-size: 13px; }
-.quick-copy small { margin-top: 3px; overflow: hidden; color: var(--lm-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.quick-arrow { color: var(--lm-text-muted); }
-@media (max-width: 1200px) { .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .health-strip { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1200px) { .chart-row { grid-template-columns: 1fr; } }
-@media (max-width: 720px) { .metric-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-status-bar {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 12px;
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-panel);
+}
+
+.overview-status-bar.warning {
+  border-color: #fde68a;
+}
+
+.status-leading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-time {
+  color: var(--lm-admin-text-muted);
+  font-size: 11px;
+}
+
+.issue-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  color: var(--lm-admin-warning);
+  background: transparent;
+  border: 0;
+  border-radius: var(--lm-admin-radius-control);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.issue-toggle:hover,
+.issue-toggle:focus-visible {
+  background: #fffbeb;
+}
+
+.issue-toggle:focus-visible,
+.attention-item:focus-visible,
+.production-row:focus-visible {
+  outline: 2px solid var(--lm-admin-primary);
+  outline-offset: 2px;
+}
+
+.source-issue-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 16px;
+  padding: 10px 12px;
+  color: var(--lm-admin-text-muted);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--lm-admin-radius-panel);
+  font-size: 11px;
+}
+
+.source-issue-list strong {
+  margin-right: 4px;
+  color: var(--lm-admin-warning);
+}
+
+.overview-panel {
+  min-width: 0;
+  padding: 12px;
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-panel);
+}
+
+.overview-heading {
+  display: flex;
+  min-height: 28px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overview-heading h2 {
+  margin: 0;
+  color: var(--lm-admin-text-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.overview-heading span {
+  color: var(--lm-admin-text-muted);
+  font-size: 10px;
+  text-align: right;
+}
+
+.overview-focus-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+  gap: 12px;
+}
+
+.attention-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.attention-item {
+  --attention-color: var(--lm-admin-warning);
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  color: var(--lm-admin-text-default);
+  text-align: left;
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-left: 3px solid var(--attention-color);
+  border-radius: var(--lm-admin-radius-control);
+  cursor: pointer;
+  transition: background var(--lm-admin-transition-fast), border-color var(--lm-admin-transition-fast);
+}
+
+.attention-item:hover {
+  background: var(--lm-admin-surface-subtle);
+  border-color: var(--lm-admin-border-strong);
+  border-left-color: var(--attention-color);
+}
+
+.attention-item.tone-danger {
+  --attention-color: var(--lm-admin-danger);
+}
+
+.attention-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  color: var(--attention-color);
+  background: color-mix(in srgb, var(--attention-color) 9%, white);
+  border-radius: var(--lm-admin-radius-control);
+}
+
+.attention-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.attention-copy strong {
+  overflow: hidden;
+  color: var(--lm-admin-text-strong);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-copy small {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--lm-admin-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-item b {
+  flex: 0 0 auto;
+  color: var(--attention-color);
+  font-size: 15px;
+}
+
+.attention-arrow {
+  flex: 0 0 auto;
+  color: var(--lm-admin-text-muted);
+  font-size: 12px;
+}
+
+.attention-empty {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 8px;
+  color: var(--lm-admin-success);
+  font-size: 12px;
+}
+
+.ai-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-control);
+}
+
+.ai-fact {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  justify-content: center;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-right: 1px solid var(--lm-admin-border);
+}
+
+.ai-fact:last-child {
+  border-right: 0;
+}
+
+.ai-fact span,
+.production-row small {
+  color: var(--lm-admin-text-muted);
+  font-size: 10px;
+}
+
+.ai-fact strong {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--lm-admin-text-strong);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.production-row {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  color: var(--lm-admin-text-default);
+  text-align: left;
+  background: var(--lm-admin-surface-subtle);
+  border: 0;
+  border-radius: var(--lm-admin-radius-control);
+  cursor: pointer;
+}
+
+.production-row > span:first-child {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.production-row strong,
+.production-version {
+  overflow: hidden;
+  color: var(--lm-admin-text-strong);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.production-version {
+  max-width: 42%;
+  color: var(--lm-admin-text-muted);
+}
+
+@media (max-width: 1100px) {
+  .overview-focus-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-page {
+    gap: 8px;
+  }
+
+  .overview-status-bar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .status-leading {
+    width: calc(100% - 70px);
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+  }
+
+  .overview-panel {
+    padding: 10px;
+  }
+
+  .overview-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1px;
+    margin-bottom: 6px;
+  }
+
+  .overview-heading span {
+    text-align: left;
+  }
+
+  .attention-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-fact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-fact:nth-child(2) {
+    border-right: 0;
+  }
+
+  .ai-fact:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--lm-admin-border);
+  }
+}
 </style>
