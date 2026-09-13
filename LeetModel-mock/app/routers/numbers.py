@@ -35,3 +35,12 @@ def ids(
     count: int = Query(10, ge=1, le=10000, description="生成数量"),
 ):
     return ok(generators.gen_ids(start, count))
+
+
+@router.get("/snowflake-ids", summary="生成雪花算法 ID", description="基于 64 位雪花算法生成唯一分布式 Long ID。")
+def snowflake_ids(
+    count: int = Query(10, ge=1, le=10000, description="生成数量"),
+    datacenter_id: int = Query(1, ge=0, le=31, description="数据中心 ID (0-31)"),
+    worker_id: int = Query(1, ge=0, le=31, description="机器节点 ID (0-31)"),
+):
+    return ok(generators.gen_snowflake_ids(count, datacenter_id, worker_id))
