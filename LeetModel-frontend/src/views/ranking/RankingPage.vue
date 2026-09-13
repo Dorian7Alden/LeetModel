@@ -31,33 +31,32 @@
           </button>
         </div>
 
-        <!-- 细览模式：当前赛题徽章与快速可视化切换按钮 -->
+        <!-- 细览模式：当前赛题胶囊 (点击唤起服务端按需筛选中心) -->
         <div v-if="viewMode === 'detail'" class="current-problem-pill-group">
           <button
             type="button"
             class="btn-trigger-picker"
-            title="点击打开赛题可视化筛选中心"
+            title="点击打开赛题可视化筛选中心 (按需检索海量题库)"
             @click="openProblemSelectorModal"
           >
-            <span class="pill-code">#{{ currentProblem?.code || currentProblem?.id || '?' }}</span>
-            <span class="pill-title">{{ currentProblem?.title || '点击选择赛题' }}</span>
+            <span class="pill-code">#{{ currentProblemCode }}</span>
+            <span class="pill-title">{{ currentProblemTitle }}</span>
             <el-icon class="pill-icon-switch"><Switch /></el-icon>
           </button>
 
-          <!-- 临时看一眼题目详情 (侧边抽屉速览，绝不跳出) -->
+          <!-- 临时看一眼题目详情 (带内存缓存的轻量抽屉，免跳出) -->
           <button
-            v-if="currentProblem"
             type="button"
             class="btn-peek-drawer"
-            title="免跳转侧边抽屉速览题面与建模要求"
-            @click="openProblemDrawer(currentProblem.id)"
+            title="免跳转侧边抽屉速览题面 (秒级缓存呈现)"
+            @click="openProblemDrawer(selectedProblemId)"
           >
             <el-icon><View /></el-icon>
             <span>题面速览</span>
           </button>
         </div>
 
-        <!-- 总览模式：可视化筛选触发按钮 -->
+        <!-- 总览模式：可视化赛题筛选器入口 -->
         <button
           v-else
           type="button"
@@ -66,21 +65,20 @@
         >
           <el-icon><Filter /></el-icon>
           <span>多维赛题筛选器</span>
-          <span v-if="hasActiveProblemFilters" class="filter-count-dot"></span>
         </button>
       </div>
 
       <div class="header-right">
-        <!-- 细览模式下的队伍模糊搜索 -->
+        <!-- 细览模式：队伍即时防抖搜索 -->
         <div v-if="viewMode === 'detail'" class="search-field-box">
           <el-input
             v-model="keyword"
-            placeholder="搜索队伍..."
+            placeholder="搜索上榜队伍..."
             clearable
             size="small"
             class="search-input"
-            @keyup.enter="handleSearch"
-            @clear="handleClearSearch"
+            @input="onSearchInputDebounced"
+            @clear="onSearchClear"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -109,26 +107,17 @@
         <button
           type="button"
           class="btn-refresh-circle"
-          :disabled="loading"
-          title="刷新最新快照数据"
+          :disabled="isAnyLoading"
+          title="刷新数据"
           @click="handleManualRefresh"
         >
-          <el-icon :class="{ 'spin-anim': loading }"><Refresh /></el-icon>
+          <el-icon :class="{ 'spin-anim': isAnyLoading }"><Refresh /></el-icon>
         </button>
       </div>
     </header>
 
-    <!-- 加载骨架屏 -->
-    <div v-if="loading && !overview && !globalStats" class="skeleton-surface">
-      <div class="sk-header-row skeleton-pulse"></div>
-      <div class="sk-metrics-row">
-        <div v-for="i in 4" :key="`sk-c-${i}`" class="sk-card skeleton-pulse"></div>
-      </div>
-      <div class="sk-table-board skeleton-pulse"></div>
-    </div>
-
     <!-- 错误异常提示 -->
-    <div v-else-if="rankingError" class="ranking-error-card">
+    <div v-if="rankingError" class="ranking-error-card">
       <el-icon class="error-warn-icon"><Warning /></el-icon>
       <div class="error-texts">
         <h4>数据加载受阻</h4>
@@ -140,7 +129,7 @@
     <!-- ====================================================================
          2. 模式一：全平台赛题总览天梯 (Global Overview)
          ==================================================================== -->
-    <main v-else-if="viewMode === 'overview'" class="overview-content">
+    <main v-if="viewMode === 'overview'" class="overview-content">
       <!-- 2.1 全局数据指标大盘 -->
       <section class="overview-metrics-grid">
         <div class="stat-card">
@@ -148,9 +137,9 @@
             <el-icon><Document /></el-icon>
           </div>
           <div class="stat-meta">
-            <span class="stat-title">已发布赛题</span>
+            <span class="stat-title">已纳入赛题</span>
             <div class="stat-number-row">
-              <span class="stat-num">{{ globalStats?.problemCount || problems.length }}</span>
+              <span class="stat-num">{{ globalStats?.problemCount || 0 }}</span>
               <span class="stat-unit">道</span>
             </div>
           </div>
@@ -196,13 +185,12 @@
         </div>
       </section>
 
-      <!-- 2.2 全平台多维对比可视化看板 -->
+      <!-- 2.2 全平台多维对比可视化看板 (图表渐进渲染) -->
       <section v-if="globalStats?.items?.length" class="overview-charts-grid">
-        <!-- 图表 1: 热门赛题上榜队伍对比横向柱状图 -->
         <div class="visual-card">
           <div class="visual-header">
             <el-icon class="vh-icon"><Histogram /></el-icon>
-            <h4>各赛题队伍参与规模</h4>
+            <h4>各赛题队伍参与规模对比</h4>
           </div>
           <div class="h-bar-chart-container">
             <div
@@ -226,7 +214,6 @@
           </div>
         </div>
 
-        <!-- 图表 2: 赛题难度与得分梯队区间跨度图 -->
         <div class="visual-card">
           <div class="visual-header">
             <el-icon class="vh-icon"><TrendCharts /></el-icon>
@@ -305,8 +292,13 @@
           </div>
         </div>
 
+        <!-- 局部骨架加载态 -->
+        <div v-if="loadingOverview" class="ladder-skeleton-box">
+          <div v-for="i in 5" :key="`sk-lad-${i}`" class="sk-row-strip skeleton-pulse"></div>
+        </div>
+
         <!-- 赛题天梯表格 -->
-        <div class="ladder-table-responsive">
+        <div v-else class="ladder-table-responsive">
           <table class="ladder-table">
             <thead>
               <tr>
@@ -424,9 +416,15 @@
         </div>
       </section>
 
+      <!-- 细览主榜单局部骨架加载态 -->
+      <div v-if="loadingRankTable" class="detail-skeleton-box">
+        <div class="sk-podium-row skeleton-pulse"></div>
+        <div class="sk-table-box skeleton-pulse"></div>
+      </div>
+
       <!-- 3.2 若有上榜队伍：主次分明优先呈现榜单 -->
-      <template v-if="rankingItems.length">
-        <!-- 3.2.1 Top 3 荣誉领奖台 (精心雕琢阶梯感与质感) -->
+      <template v-else-if="rankingItems.length">
+        <!-- 3.2.1 Top 3 荣誉领奖台 -->
         <section v-if="!hasActiveKeyword && podiumItems.length" class="podium-card-deck" aria-label="荣誉前三名领奖台">
           <div
             v-for="item in podiumItems"
@@ -563,14 +561,24 @@
           </div>
         </section>
 
-        <!-- 3.2.3 赛题多维数据分析看板 (后置作为深度洞察支撑，不反客为主) -->
+        <!-- 3.2.3 赛题多维数据分析看板 (渐进式懒加载，不阻断核心榜单首屏) -->
         <section class="detail-analytics-deck">
           <div class="deck-header">
             <el-icon><DataAnalysis /></el-icon>
             <h3>赛题成果多维数据分析</h3>
+            <span v-if="loadingAnalytics" class="loading-tag-inline">
+              <el-icon class="spin-anim"><Refresh /></el-icon>
+              <span>正在计算分布样本...</span>
+            </span>
           </div>
 
-          <div class="deck-cards-grid">
+          <!-- 分析图表局部骨架 -->
+          <div v-if="loadingAnalytics" class="deck-skeleton-row">
+            <div class="sk-deck-card skeleton-pulse"></div>
+            <div class="sk-deck-card skeleton-pulse"></div>
+          </div>
+
+          <div v-else class="deck-cards-grid">
             <!-- 分析图表 A: 分数梯队直方图 (Histogram) -->
             <div class="analytics-card">
               <div class="ac-head">
@@ -585,13 +593,11 @@
                     class="hist-col-group"
                     :class="{ 'is-my-score-tier': isTeamInBucket(bucket) }"
                   >
-                    <!-- 柱体悬停 Tooltip -->
                     <div class="hist-popover">
                       <div class="hp-tier-name">{{ bucket.label }}</div>
                       <div class="hp-count">{{ bucket.count }} 支队伍 ({{ bucket.percentage }}%)</div>
                       <div v-if="isTeamInBucket(bucket)" class="hp-my-mark">★ 我的队伍在此区间</div>
                     </div>
-                    <!-- 柱条 -->
                     <div class="hist-bar-outer">
                       <span v-if="bucket.count > 0" class="hist-val-top">{{ bucket.count }}</span>
                       <div
@@ -656,15 +662,15 @@
       </template>
 
       <!-- 3.3 细览空状态：搜索无结果 -->
-      <section v-else-if="hasActiveKeyword && !loading" class="empty-state-card">
+      <section v-else-if="hasActiveKeyword && !loadingRankTable" class="empty-state-card">
         <el-icon class="empty-watermark-icon"><Search /></el-icon>
         <h4>未找到匹配队伍</h4>
-        <p>在当前赛题 “{{ currentProblem?.title }}” 下，未匹配到包含 “{{ appliedKeyword }}” 的上榜队伍。</p>
-        <button type="button" class="btn-clear-empty" @click="handleClearSearch">清空搜索条件</button>
+        <p>在当前赛题下，未匹配到包含 “{{ appliedKeyword }}” 的上榜队伍。</p>
+        <button type="button" class="btn-clear-empty" @click="onSearchClear">清空搜索条件</button>
       </section>
 
       <!-- 3.4 细览空状态：题目暂无队伍上榜 -->
-      <section v-else-if="!loading" class="empty-state-card">
+      <section v-else-if="!loadingRankTable" class="empty-state-card">
         <el-icon class="empty-watermark-icon"><Trophy /></el-icon>
         <h4>该赛题尚无队伍上榜</h4>
         <p>参赛队伍完成建模学术作品提交并通过系统 AI 评审后，榜单将自动计算呈现。</p>
@@ -675,7 +681,7 @@
     </main>
 
     <!-- ====================================================================
-         4. 模态窗口：海量赛题快速可视化筛选中心 (Visual Problem Selector Modal)
+         4. 模态窗口：海量赛题服务端按需分页与防抖懒加载筛选中心
          ==================================================================== -->
     <el-dialog
       v-model="pickerModalVisible"
@@ -689,9 +695,10 @@
         <div class="picker-search-bar">
           <el-input
             v-model="pickerKeyword"
-            placeholder="输入题号、赛题关键词即时检索..."
+            placeholder="输入题号、赛题关键词即时按需检索..."
             clearable
-            @input="handlePickerFilterChange"
+            @input="onPickerSearchInputDebounced"
+            @clear="fetchPickerProblems(true)"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -704,13 +711,13 @@
             @click="resetPickerFilters"
           >
             <el-icon><Refresh /></el-icon>
-            <span>重置全部筛选</span>
+            <span>重置筛选</span>
           </button>
         </div>
 
         <!-- 多维可视化矩阵胶囊 (Filter Matrix Chips) -->
         <div class="picker-matrix-filters">
-          <!-- 赛事体系筛选 -->
+          <!-- 赛事体系 -->
           <div class="matrix-filter-row">
             <span class="mf-label">赛事体系:</span>
             <div class="mf-chips-scroll">
@@ -760,7 +767,7 @@
             </div>
           </div>
 
-          <!-- 难度梯度筛选 -->
+          <!-- 难度梯度 -->
           <div class="matrix-filter-row">
             <span class="mf-label">难度梯度:</span>
             <div class="mf-chips-scroll">
@@ -800,19 +807,31 @@
           </div>
         </div>
 
-        <!-- 匹配的赛题卡片列表与分页 -->
+        <!-- 匹配的赛题卡片列表与服务端分页 -->
         <div class="picker-results-section">
           <div class="results-header">
-            <span class="results-count-text">匹配到 <strong>{{ filteredPickerProblems.length }}</strong> 道赛题</span>
+            <span class="results-count-text">
+              服务端匹配到 <strong>{{ pickerTotal }}</strong> 道赛题
+            </span>
+            <span v-if="loadingPicker" class="loading-tag-inline">
+              <el-icon class="spin-anim"><Refresh /></el-icon>
+              <span>正在拉取最新切片...</span>
+            </span>
           </div>
 
-          <div v-if="filteredPickerProblems.length" class="picker-cards-grid">
+          <!-- 弹窗卡片骨架 -->
+          <div v-if="loadingPicker && !pickerProblems.length" class="picker-skeleton-grid">
+            <div v-for="i in 6" :key="`sk-pp-${i}`" class="sk-picker-card skeleton-pulse"></div>
+          </div>
+
+          <!-- 真实服务端分页赛题卡片流 -->
+          <div v-else-if="pickerProblems.length" class="picker-cards-grid">
             <div
-              v-for="prob in paginatedPickerProblems"
+              v-for="prob in pickerProblems"
               :key="`pick-${prob.id}`"
               class="picker-problem-card"
               :class="{ 'is-active-problem': String(prob.id) === String(selectedProblemId) }"
-              @click="chooseProblemFromPicker(prob.id)"
+              @click="chooseProblemFromPicker(prob)"
             >
               <div class="pp-card-head">
                 <span class="pp-code">#{{ prob.code || prob.id }}</span>
@@ -838,7 +857,7 @@
                   <button
                     type="button"
                     class="btn-pp-select"
-                    @click="chooseProblemFromPicker(prob.id)"
+                    @click="chooseProblemFromPicker(prob)"
                   >
                     <span>进入细览</span>
                     <el-icon><ArrowRight /></el-icon>
@@ -850,17 +869,18 @@
 
           <div v-else class="picker-empty-results">
             <el-icon><Search /></el-icon>
-            <p>未找到符合条件的赛题，请尝试调整筛选条件或重置。</p>
+            <p>未检索到符合条件的赛题，请调整筛选条件或重置。</p>
           </div>
 
-          <!-- 弹窗内的赛题分页器 -->
-          <div v-if="filteredPickerProblems.length > pickerPageSize" class="picker-pagination-wrap">
+          <!-- 弹窗内的服务端分页器 -->
+          <div v-if="pickerTotal > pickerPageSize" class="picker-pagination-wrap">
             <el-pagination
               v-model:current-page="pickerPage"
               :page-size="pickerPageSize"
-              :total="filteredPickerProblems.length"
+              :total="pickerTotal"
               layout="prev, pager, next"
               background
+              @current-change="handlePickerPageChange"
             />
           </div>
         </div>
@@ -868,7 +888,7 @@
     </el-dialog>
 
     <!-- ====================================================================
-         5. 侧边抽屉：临时看一眼题目详情 (免跳转看题，保持看榜心流)
+         5. 侧边抽屉：临时看一眼题目详情 (带前端内存级 LRU 缓存，免跳出)
          ==================================================================== -->
     <el-drawer
       v-model="drawerVisible"
@@ -906,7 +926,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -939,10 +959,20 @@ const userStore = useUserStore()
 // 视图模式: 'overview' (全平台总览天梯) | 'detail' (单题成果细览)
 const viewMode = ref('overview')
 
-// 基础数据状态
-const loadingProblems = ref(false)
-const loading = ref(false)
-const problems = ref([])
+// 细粒度异步加载控制状态 (杜绝一刀切白屏)
+const loadingOverview = ref(false)
+const loadingRankTable = ref(false)
+const loadingAnalytics = ref(false)
+const loadingPicker = ref(false)
+const loadingDrawer = ref(false)
+
+const isAnyLoading = computed(() =>
+  loadingOverview.value || loadingRankTable.value || loadingAnalytics.value
+)
+
+// 数据状态
+const problems = ref([]) // 赛题基础池
+const currentProblemMeta = ref(null) // 当前细览赛题对象
 const filterOptions = ref(null)
 const selectedProblemId = ref(null)
 const keyword = ref('')
@@ -954,14 +984,17 @@ const rankingError = ref('')
 const myTeams = ref([])
 const highlightedTeamId = ref(null)
 
-// 排序与分页
-const globalSortBy = ref('teams') // 'teams' | 'avgScore' | 'maxScore'
+// 内存级缓存字典：题目详情缓存，二次打开免重复网络请求
+const problemDetailCache = new Map()
+
+// 排序与客户端分页 (总览 & 细览)
+const globalSortBy = ref('teams')
 const globalPage = ref(1)
 const globalPageSize = ref(10)
 const detailPage = ref(1)
 const detailPageSize = ref(10)
 
-// 赛题可视化筛选中心 (Picker Modal) 状态
+// 模态筛选中心 (Server-side Paginated Lazy Load) 状态
 const pickerModalVisible = ref(false)
 const pickerKeyword = ref('')
 const pickerContestId = ref(null)
@@ -969,17 +1002,28 @@ const pickerYear = ref(null)
 const pickerDifficulty = ref(null)
 const pickerPage = ref(1)
 const pickerPageSize = ref(6)
+const pickerProblems = ref([])
+const pickerTotal = ref(0)
+let pickerSearchTimer = null
+let teamSearchTimer = null
 
 // 抽屉临时速览状态
 const drawerVisible = ref(false)
-const loadingDrawer = ref(false)
 const drawerProblem = ref(null)
 const drawerMarkdownHtml = ref('')
 
 // 计算属性：当前选中赛题
-const currentProblem = computed(() =>
-  problems.value.find((item) => String(item.id) === String(selectedProblemId.value))
-)
+const currentProblemCode = computed(() => {
+  if (currentProblemMeta.value?.code) return currentProblemMeta.value.code
+  const found = problems.value.find((it) => String(it.id) === String(selectedProblemId.value))
+  return found?.code || selectedProblemId.value || '?'
+})
+
+const currentProblemTitle = computed(() => {
+  if (currentProblemMeta.value?.title) return currentProblemMeta.value.title
+  const found = problems.value.find((it) => String(it.id) === String(selectedProblemId.value))
+  return found?.title || '点击选择赛题'
+})
 
 const rankingItems = computed(() => overview.value?.items || [])
 const hasActiveKeyword = computed(() => Boolean(appliedKeyword.value))
@@ -1011,7 +1055,7 @@ const p75Score = computed(() => {
 const podiumItems = computed(() => {
   const top = rankingItems.value.slice(0, 3)
   if (top.length === 3 && top[0].rank === 1 && top[1].rank === 2 && top[2].rank === 3) {
-    return [top[1], top[0], top[2]] // 亚军、冠军、季军
+    return [top[1], top[0], top[2]]
   }
   return top
 })
@@ -1081,12 +1125,11 @@ function getProblemTeamCount(probId) {
   return item?.rankedTeamCount || 0
 }
 
-// 快速可视化筛选中心：可选项提取
+// 可视化筛选中心筛选项提取
 const availableContests = computed(() => {
   if (filterOptions.value?.contests?.length) {
     return filterOptions.value.contests
   }
-  // 从已加载题目中自适应去重聚合
   const map = new Map()
   for (const p of problems.value) {
     if (p.contestId && p.contestName && !map.has(p.contestId)) {
@@ -1097,45 +1140,20 @@ const availableContests = computed(() => {
 })
 
 const availableYears = computed(() => {
-  const set = new Set()
+  const years = [2026, 2025, 2024, 2023, 2022, 2021]
   for (const p of problems.value) {
-    if (p.year) set.add(p.year)
+    if (p.year && !years.includes(p.year)) years.push(p.year)
   }
-  return Array.from(set).sort((a, b) => b - a)
+  return years.sort((a, b) => b - a)
 })
 
 const hasActiveProblemFilters = computed(() => {
-  return Boolean(pickerKeyword.value.trim() || pickerContestId.value !== null || pickerYear.value !== null || pickerDifficulty.value !== null)
-})
-
-// 快速筛选中心结果过滤
-const filteredPickerProblems = computed(() => {
-  let list = problems.value
-
-  if (pickerContestId.value !== null) {
-    list = list.filter((p) => String(p.contestId) === String(pickerContestId.value))
-  }
-  if (pickerYear.value !== null) {
-    list = list.filter((p) => p.year === pickerYear.value)
-  }
-  if (pickerDifficulty.value !== null) {
-    list = list.filter((p) => p.difficulty === pickerDifficulty.value)
-  }
-  if (pickerKeyword.value.trim()) {
-    const kw = pickerKeyword.value.trim().toLowerCase()
-    list = list.filter(
-      (p) =>
-        String(p.code || '').toLowerCase().includes(kw) ||
-        String(p.title || '').toLowerCase().includes(kw) ||
-        String(p.contestName || '').toLowerCase().includes(kw)
-    )
-  }
-  return list
-})
-
-const paginatedPickerProblems = computed(() => {
-  const start = (pickerPage.value - 1) * pickerPageSize.value
-  return filteredPickerProblems.value.slice(start, start + pickerPageSize.value)
+  return Boolean(
+    pickerKeyword.value.trim() ||
+    pickerContestId.value !== null ||
+    pickerYear.value !== null ||
+    pickerDifficulty.value !== null
+  )
 })
 
 // 分数梯队聚合计算 (直方图)
@@ -1186,13 +1204,13 @@ const tierBreakdownList = computed(() => {
   if (!total) return []
 
   const colors = {
-    '95-100': '#eab308', // 金黄
-    '90-94': '#3b82f6',  // 亮蓝
-    '85-89': '#10b981',  // 翡翠绿
-    '80-84': '#6366f1',  // 靛蓝
-    '70-79': '#94a3b8',  // 银灰
-    '60-69': '#cbd5e1',  // 浅灰
-    '<60': '#f87171'     // 浅红
+    '95-100': '#eab308',
+    '90-94': '#3b82f6',
+    '85-89': '#10b981',
+    '80-84': '#6366f1',
+    '70-79': '#94a3b8',
+    '60-69': '#cbd5e1',
+    '<60': '#f87171'
   }
 
   return distributionBuckets.value.map((b) => ({
@@ -1279,9 +1297,23 @@ async function copyTeamName(name) {
   }
 }
 
-// 队伍平滑滚动定位（智能自动翻到队伍所在页）
+// 细览队伍搜索防抖
+function onSearchInputDebounced() {
+  clearTimeout(teamSearchTimer)
+  teamSearchTimer = setTimeout(() => {
+    appliedKeyword.value = keyword.value.trim()
+    detailPage.value = 1
+  }, 250)
+}
+
+function onSearchClear() {
+  keyword.value = ''
+  appliedKeyword.value = ''
+  detailPage.value = 1
+}
+
+// 跨页平滑定位高亮
 function scrollToTeamRow(teamId) {
-  // 查找队伍在 filteredRankingItems 中的索引
   const targetIndex = filteredRankingItems.value.findIndex((it) => String(it.teamId) === String(teamId))
   if (targetIndex !== -1) {
     const targetPage = Math.floor(targetIndex / detailPageSize.value) + 1
@@ -1305,27 +1337,39 @@ function scrollToTeamRow(teamId) {
 function locateMyTeamAction() {
   if (!myTeamInCurrentProblem.value) return
   if (myTeamRankingItem.value) {
-    if (hasActiveKeyword.value) {
-      keyword.value = ''
-      appliedKeyword.value = ''
-    }
+    if (hasActiveKeyword.value) onSearchClear()
     scrollToTeamRow(myTeamRankingItem.value.teamId)
   } else {
     ElMessage.info(`队伍 “${myTeamInCurrentProblem.value.name}” 正在实训中，尚未完成最终稿评审`)
   }
 }
 
-// 免跳转题面速览抽屉
+// 免跳转题面速览抽屉 (内存缓存优先，杜绝重复网络请求)
 async function openProblemDrawer(problemId) {
   if (!problemId) return
   drawerVisible.value = true
+
+  // 1. 检查内存缓存
+  if (problemDetailCache.has(problemId)) {
+    const cached = problemDetailCache.get(problemId)
+    drawerProblem.value = cached
+    drawerMarkdownHtml.value = cached._html
+    loadingDrawer.value = false
+    return
+  }
+
+  // 2. 无缓存时异步拉取
   loadingDrawer.value = true
   drawerProblem.value = null
   drawerMarkdownHtml.value = ''
   try {
     const res = await getPublicProblemDetail(problemId)
-    drawerProblem.value = res.data
-    drawerMarkdownHtml.value = renderSafeMarkdown(res.data?.contentMarkdown || '暂无题目说明')
+    const data = res.data
+    const html = renderSafeMarkdown(data?.contentMarkdown || '暂无题目说明')
+    data._html = html
+    problemDetailCache.set(problemId, data)
+    drawerProblem.value = data
+    drawerMarkdownHtml.value = html
   } catch (error) {
     ElMessage.error(error.message || '赛题内容加载失败')
   } finally {
@@ -1333,29 +1377,40 @@ async function openProblemDrawer(problemId) {
   }
 }
 
-// 快速可视化赛题筛选中心 (Picker Modal)
+// ==========================================================================
+// 4. 赛题筛选中心：纯服务端按需懒加载 (Server-side Paginated Lazy Query)
+// ==========================================================================
 function openProblemSelectorModal() {
   pickerModalVisible.value = true
-  pickerPage.value = 1
+  // 仅在首次打开或列表为空时触发服务端按需拉取
+  if (!pickerProblems.value.length) {
+    fetchPickerProblems(true)
+  }
+}
+
+function onPickerSearchInputDebounced() {
+  clearTimeout(pickerSearchTimer)
+  pickerSearchTimer = setTimeout(() => {
+    fetchPickerProblems(true)
+  }, 300)
 }
 
 function setPickerContest(id) {
+  if (pickerContestId.value === id) return
   pickerContestId.value = id
-  pickerPage.value = 1
+  fetchPickerProblems(true)
 }
 
 function setPickerYear(year) {
+  if (pickerYear.value === year) return
   pickerYear.value = year
-  pickerPage.value = 1
+  fetchPickerProblems(true)
 }
 
 function setPickerDifficulty(diff) {
+  if (pickerDifficulty.value === diff) return
   pickerDifficulty.value = diff
-  pickerPage.value = 1
-}
-
-function handlePickerFilterChange() {
-  pickerPage.value = 1
+  fetchPickerProblems(true)
 }
 
 function resetPickerFilters() {
@@ -1363,15 +1418,50 @@ function resetPickerFilters() {
   pickerContestId.value = null
   pickerYear.value = null
   pickerDifficulty.value = null
-  pickerPage.value = 1
+  fetchPickerProblems(true)
 }
 
-function chooseProblemFromPicker(problemId) {
+function handlePickerPageChange(page) {
+  pickerPage.value = page
+  fetchPickerProblems(false)
+}
+
+// 服务端按需分页请求：绝不一次性拉取整个题库
+async function fetchPickerProblems(resetPage = false) {
+  if (resetPage) pickerPage.value = 1
+  loadingPicker.value = true
+
+  const params = {
+    page: pickerPage.value,
+    pageSize: pickerPageSize.value
+  }
+  if (pickerKeyword.value.trim()) params.keyword = pickerKeyword.value.trim()
+  if (pickerContestId.value !== null) params.contestId = pickerContestId.value
+  if (pickerYear.value !== null) params.year = pickerYear.value
+  if (pickerDifficulty.value !== null) params.difficulty = pickerDifficulty.value
+
+  try {
+    const res = await getPublicProblemList(params)
+    pickerProblems.value = res.data?.rows || []
+    pickerTotal.value = res.data?.total || 0
+  } catch (error) {
+    ElMessage.error(error.message || '检索赛题失败')
+    pickerProblems.value = []
+    pickerTotal.value = 0
+  } finally {
+    loadingPicker.value = false
+  }
+}
+
+function chooseProblemFromPicker(prob) {
   pickerModalVisible.value = false
-  enterDetail(problemId)
+  currentProblemMeta.value = prob
+  enterDetail(prob.id)
 }
 
-// 模式切换
+// ==========================================================================
+// 模式与数据生命周期控制
+// ==========================================================================
 function switchViewMode(mode) {
   viewMode.value = mode
   if (mode === 'overview') {
@@ -1383,7 +1473,7 @@ function switchViewMode(mode) {
     }
     if (selectedProblemId.value) {
       router.replace({ query: { problemId: String(selectedProblemId.value) } })
-      loadDetailData()
+      loadDetailData(selectedProblemId.value)
     }
   }
 }
@@ -1393,38 +1483,26 @@ function enterDetail(problemId) {
   viewMode.value = 'detail'
   detailPage.value = 1
   router.replace({ query: { problemId: String(problemId) } })
-  loadDetailData()
+  loadDetailData(problemId)
 }
 
-// 数据加载核心
-async function loadProblems() {
-  loadingProblems.value = true
+// 加载赛题基础简明元数据 (轻量首屏分页，不加载大内容)
+async function loadProblemsMeta() {
   try {
     const [listRes, filterRes] = await Promise.all([
-      getPublicProblemList({ page: 1, pageSize: 200 }),
+      getPublicProblemList({ page: 1, pageSize: 20 }), // 只拉取前20道用于细览快速回落，不拉200道
       getPublicProblemFilterOptions().catch(() => null)
     ])
     problems.value = listRes.data?.rows || []
     filterOptions.value = filterRes?.data || null
-
-    const qProblemId = route.query.problemId
-    if (qProblemId) {
-      selectedProblemId.value = Number(qProblemId) || qProblemId
-      viewMode.value = 'detail'
-      await loadDetailData()
-    } else {
-      viewMode.value = 'overview'
-      await loadGlobalStats()
-    }
-  } catch (error) {
-    rankingError.value = error.message || '加载赛题列表失败'
-  } finally {
-    loadingProblems.value = false
+  } catch {
+    // 允许静默失败
   }
 }
 
+// 总览数据懒加载：仅加载全局指标，不拉取单题数据
 async function loadGlobalStats() {
-  loading.value = true
+  loadingOverview.value = true
   rankingError.value = ''
   try {
     const res = await getGlobalRankingStats()
@@ -1435,54 +1513,51 @@ async function loadGlobalStats() {
       rankedTeams: 0,
       reviewedSubmissions: 0,
       overallAverageScore: null,
-      items: problems.value.map((p) => ({
-        problemId: p.id,
-        problemCode: p.code,
-        problemTitle: p.title,
-        rankedTeamCount: 0,
-        averageScore: null,
-        highestScore: null
-      }))
+      items: []
     }
   } finally {
-    loading.value = false
+    loadingOverview.value = false
   }
 }
 
-async function loadDetailData() {
-  if (!selectedProblemId.value) return
-  loading.value = true
+// 细览数据按需与渐进式加载 (Progressive Loading)
+async function loadDetailData(problemId) {
+  if (!problemId) return
   rankingError.value = ''
   detailPage.value = 1
-  try {
-    await Promise.all([loadRanking(), loadDistribution(), loadMyTeams()])
-  } finally {
-    loading.value = false
-  }
-}
 
-async function loadRanking() {
-  if (!selectedProblemId.value) return
-  const trimmed = keyword.value.trim()
-  try {
-    const res = await getRanking(selectedProblemId.value, trimmed)
-    overview.value = res.data
-    appliedKeyword.value = trimmed
-    detailPage.value = 1
-  } catch (error) {
-    rankingError.value = error.message || '排行榜加载失败'
-    overview.value = null
-  }
-}
+  // 阶段 1: 优先秒级出榜单表格与队伍状态
+  loadingRankTable.value = true
+  const p1 = getRanking(problemId, '')
+    .then((res) => {
+      overview.value = res.data
+      appliedKeyword.value = ''
+    })
+    .catch((err) => {
+      rankingError.value = err.message || '排行榜加载失败'
+      overview.value = null
+    })
+    .finally(() => {
+      loadingRankTable.value = false
+    })
 
-async function loadDistribution() {
-  if (!selectedProblemId.value) return
-  try {
-    const res = await getProblemScoreDistribution(selectedProblemId.value)
-    distribution.value = res.data
-  } catch {
-    distribution.value = null
-  }
+  // 我的队伍状态并发同步
+  loadMyTeams()
+
+  // 阶段 2: 渐进式异步拉取多维分析分布 (不阻断核心榜单首屏显示)
+  loadingAnalytics.value = true
+  const p2 = getProblemScoreDistribution(problemId)
+    .then((res) => {
+      distribution.value = res.data
+    })
+    .catch(() => {
+      distribution.value = null
+    })
+    .finally(() => {
+      loadingAnalytics.value = false
+    })
+
+  await Promise.all([p1, p2])
 }
 
 async function loadMyTeams() {
@@ -1495,24 +1570,16 @@ async function loadMyTeams() {
   }
 }
 
-async function handleSearch() {
-  await loadRanking()
-}
-
-async function handleClearSearch() {
-  keyword.value = ''
-  await loadRanking()
-}
-
 async function handleManualRefresh() {
   if (viewMode.value === 'overview') {
     await loadGlobalStats()
-  } else {
-    await loadDetailData()
+  } else if (selectedProblemId.value) {
+    await loadDetailData(selectedProblemId.value)
   }
-  ElMessage.success('数据已更新')
+  ElMessage.success('最新数据已同步')
 }
 
+// 路由监听
 watch(
   () => route.query.problemId,
   (newId) => {
@@ -1520,7 +1587,7 @@ watch(
       if (String(newId) !== String(selectedProblemId.value) || viewMode.value !== 'detail') {
         selectedProblemId.value = Number(newId) || newId
         viewMode.value = 'detail'
-        loadDetailData()
+        loadDetailData(selectedProblemId.value)
       }
     } else {
       if (viewMode.value !== 'overview') {
@@ -1532,13 +1599,28 @@ watch(
 )
 
 onMounted(async () => {
-  await loadProblems()
+  const qProblemId = route.query.problemId
+  loadProblemsMeta()
+
+  if (qProblemId) {
+    selectedProblemId.value = Number(qProblemId) || qProblemId
+    viewMode.value = 'detail'
+    loadDetailData(selectedProblemId.value)
+  } else {
+    viewMode.value = 'overview'
+    loadGlobalStats()
+  }
+})
+
+onUnmounted(() => {
+  clearTimeout(pickerSearchTimer)
+  clearTimeout(teamSearchTimer)
 })
 </script>
 
 <style scoped>
 /* ==========================================================================
-   LeetModel 成果榜单 - 顶级设计感、高密度专业学术科技工作台
+   LeetModel 成果榜单 - 顶级设计感、渐进式懒加载学术工作台
    ========================================================================== */
 
 .ranking-workspace {
@@ -1574,7 +1656,6 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-/* 视图模式分段控制器 */
 .segmented-control {
   display: inline-flex;
   padding: 3px;
@@ -1609,7 +1690,6 @@ onMounted(async () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* 细览赛题胶囊 */
 .current-problem-pill-group {
   display: inline-flex;
   align-items: center;
@@ -1641,13 +1721,6 @@ onMounted(async () => {
 
 .overview-picker-btn {
   color: var(--lm-text-secondary);
-}
-
-.filter-count-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #2563eb;
 }
 
 .pill-code {
@@ -1692,7 +1765,6 @@ onMounted(async () => {
   color: var(--lm-text-primary);
 }
 
-/* 控制栏右侧 */
 .header-right {
   display: flex;
   align-items: center;
@@ -1768,13 +1840,7 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
-/* 骨架屏 */
-.skeleton-surface {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
+/* 局部与整页流光占位动画 */
 .skeleton-pulse {
   background: linear-gradient(90deg, #f4f4f5 25%, #e4e4e7 37%, #f4f4f5 63%);
   background-size: 400% 100%;
@@ -1786,12 +1852,21 @@ onMounted(async () => {
   100% { background-position: 0 50%; }
 }
 
-.sk-header-row { height: 48px; border-radius: 10px; }
-.sk-metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.sk-card { height: 90px; border-radius: 10px; }
-.sk-table-board { height: 380px; border-radius: 12px; }
+.ladder-skeleton-box, .detail-skeleton-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
 
-/* 错误提示 */
+.sk-row-strip { height: 42px; border-radius: 6px; }
+.sk-podium-row { height: 160px; border-radius: 12px; }
+.sk-table-box { height: 280px; border-radius: 12px; }
+.sk-deck-card { height: 140px; border-radius: 12px; flex: 1; }
+.deck-skeleton-row { display: flex; gap: 12px; }
+.loading-tag-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--lm-text-muted); margin-left: auto; }
+
+/* 错误卡片 */
 .ranking-error-card {
   display: flex;
   align-items: center;
@@ -1832,7 +1907,6 @@ onMounted(async () => {
   gap: 18px;
 }
 
-/* 2.1 全局数据大盘卡片 */
 .overview-metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1907,7 +1981,6 @@ onMounted(async () => {
   color: var(--lm-text-muted);
 }
 
-/* 2.2 多维对比图表看板 */
 .overview-charts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1942,7 +2015,6 @@ onMounted(async () => {
   color: #2563eb;
 }
 
-/* 横向柱状图 */
 .h-bar-chart-container {
   display: flex;
   flex-direction: column;
@@ -2013,7 +2085,6 @@ onMounted(async () => {
   color: var(--lm-text-secondary);
 }
 
-/* 均分~最高分区间分布 */
 .range-spectrum-container {
   display: flex;
   flex-direction: column;
@@ -2068,7 +2139,6 @@ onMounted(async () => {
   border-radius: 999px;
 }
 
-/* 2.3 赛题天梯数据表卡片 */
 .ladder-card-wrapper {
   background: #ffffff;
   border: 1px solid var(--lm-border);
@@ -2290,7 +2360,6 @@ onMounted(async () => {
   gap: 16px;
 }
 
-/* 3.1 核心指标横条 */
 .detail-summary-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr) minmax(180px, 1.2fr);
@@ -2348,7 +2417,6 @@ onMounted(async () => {
   margin-top: 2px;
 }
 
-/* 3.2.1 Top 3 荣誉领奖台 */
 .podium-card-deck {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2486,7 +2554,6 @@ onMounted(async () => {
   color: var(--lm-text-muted);
 }
 
-/* 3.2.2 核心成果排名表格 */
 .ranking-table-board {
   background: #ffffff;
   border: 1px solid var(--lm-border);
@@ -2569,7 +2636,6 @@ onMounted(async () => {
   border-left: 3px solid #2563eb;
 }
 
-/* 行高亮动画 */
 .board-row.row-highlighted {
   animation: pulse-glow 2.5s ease-out;
 }
@@ -2741,7 +2807,6 @@ onMounted(async () => {
 .ac-head h4 { margin: 0; font-size: 12px; font-weight: 750; }
 .ac-sub { font-size: 11px; color: var(--lm-text-muted); }
 
-/* 直方图 */
 .histogram-viewport {
   height: 106px;
   display: flex;
@@ -2816,7 +2881,6 @@ onMounted(async () => {
   margin-top: 3px;
 }
 
-/* 直方图 Popover */
 .hist-popover {
   position: absolute;
   bottom: calc(100% - 6px);
@@ -2844,7 +2908,6 @@ onMounted(async () => {
 .hp-count { color: #cbd5e1; }
 .hp-my-mark { color: #fde047; font-weight: 600; }
 
-/* 环形 Donut 图 */
 .donut-chart-flex {
   display: flex;
   align-items: center;
@@ -2921,7 +2984,6 @@ onMounted(async () => {
   border-radius: 6px;
 }
 
-/* 细览空状态卡片 */
 .empty-state-card {
   display: flex;
   flex-direction: column;
@@ -2956,7 +3018,7 @@ onMounted(async () => {
 
 /* ==========================================================================
    4. 模态窗口：赛题可视化筛选中心 (Visual Problem Selector Modal)
-   ========================================================================== */
+   ========================================================================= */
 .picker-dialog-body {
   display: flex;
   flex-direction: column;
@@ -3057,6 +3119,17 @@ onMounted(async () => {
 
 .results-count-text strong {
   color: var(--lm-text-primary);
+}
+
+.picker-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.sk-picker-card {
+  height: 88px;
+  border-radius: 8px;
 }
 
 .picker-cards-grid {
@@ -3195,7 +3268,7 @@ onMounted(async () => {
 }
 
 /* ==========================================================================
-   5. 侧边抽屉：题面速览 (Quick Peek Drawer)
+   5. 侧边抽屉：题面速览
    ========================================================================== */
 .drawer-loading-center {
   display: flex;
