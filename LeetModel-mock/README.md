@@ -12,6 +12,7 @@
 LeetModel-mock/
 ├── app/
 │   ├── main.py                  # FastAPI 入口
+│   ├── snowflake.py             # 64位雪花算法生成器 (对齐 MyBatis-Plus 与 Twitter 规范)
 │   ├── generators.py            # 基础数据生成器
 │   └── routers/
 │       ├── names.py             # 中英文名字接口
@@ -24,7 +25,9 @@ LeetModel-mock/
 │   ├── generate_user_service_demo.py        # 场景脚本：组装 user-service 演示数据
 │   ├── generate_team_service_demo.py        # 场景脚本：组装 team-service 演示数据
 │   ├── generate_problem_service_demo.py     # 场景脚本：组装 problem-service 题库演示数据
-│   └── generate_submission_service_demo.py  # 场景脚本：组装提交、评审与排行榜全量演示数据
+│   ├── generate_submission_service_demo.py  # 场景脚本：组装提交、评审与排行榜全量演示数据
+│   ├── adaptive_mock_generator.py           # 自适应脚本：根据数据库已有真题动态批量生成多场景测试数据
+│   └── generate_massive_submissions.py      # 赛题级规模提交流水线生成脚本（单题约500次提交与评审）
 ├── requirements.txt
 └── README.md
 ```
@@ -64,6 +67,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | `GET /api/v1/numbers/integers` | `count`、`min`、`max`、`seed` |
 | `GET /api/v1/numbers/decimals` | `count`、`min`、`max`、`precision`、`seed` |
 | `GET /api/v1/numbers/ids` | `start`、`count` |
+| `GET /api/v1/numbers/snowflake-ids` | `count`、`datacenter_id`、`worker_id` |
 
 ### 日期时间
 
@@ -146,7 +150,7 @@ team-service 演示数据复用 user-service V3 中的正常用户：
 python3 scripts/generate_team_service_demo.py
 ```
 
-脚本基于当前 team-service 表结构生成组建中、练习中、练习结束、已解散、开放招募位置及申请审核场景，并输出：
+脚本基于 2025 美赛真题与当前 team-service 表结构生成组建中、练习中、练习结束、已解散、开放招募位置及申请审核场景（雪花 ID 驱动），并输出：
 
 ```text
 LeetModel-backend/team-service/src/main/resources/db/migration/V8__refresh_team_demo_data.sql
@@ -166,7 +170,7 @@ python3 scripts/generate_problem_service_demo.py
 LeetModel-backend/problem-service/src/main/resources/db/migration/V6__insert_mock_problems.sql
 ```
 
-submission-service、ai-review-service 与 ranking-service 演示数据覆盖多版本提交、最终稿锁定、全分段（0-59、60-69、70-79、80-89、90-100）评审结果与当前排行榜快照：
+基于 2025 美赛 6 道真题（A-F），submission-service、ai-review-service 与 ranking-service 演示数据覆盖多版本提交、最终稿锁定、领域语义评审报告、全分段（0-59、60-69、70-79、80-89、90-100）评审结果与当前排行榜快照，全部主键与外键由标准雪花算法动态生成：
 
 ```bash
 python3 scripts/generate_submission_service_demo.py
@@ -181,6 +185,53 @@ LeetModel-backend/submission-service/src/main/resources/db/migration/V2__insert_
 LeetModel-backend/ai-review-service/src/main/resources/db/migration/V3__insert_mock_reviews.sql
 LeetModel-backend/ranking-service/src/main/resources/db/migration/V2__insert_mock_rankings.sql
 ```
+
+## 自适应真题数据批量生成
+
+针对平台中手动录入或从外部导入的各类往年真题（涵盖国赛 CUMCM、美赛 MCM/ICM 各年份全题号），使用自适应生成脚本：
+
+```bash
+# 自动探测数据库中所有尚未构建参赛数据的题目，自适应提取领域关键词并批量生成
+python3 scripts/adaptive_mock_generator.py
+
+# 仅预览不实际写入数据库
+python3 scripts/adaptive_mock_generator.py --dry-run
+
+# 强制为全部真题重新生成数据
+python3 scripts/adaptive_mock_generator.py --force-all
+
+# 为特定题目 ID 单独生成
+python3 scripts/adaptive_mock_generator.py --problem-id 2097517597995253761
+```
+
+特点：
+- **自适应探测**：自动识别赛题中英文语言、年份、题面背景，提取专属的领域模型方法关键词。
+- **概率分布驱动**：基于 Beta 分布拟合真实竞赛奖项梯队（O/M/H/S/需改进）与四维度评分波动。
+- **多场景生命周期**：每道题涵盖组建中（带招募与申请）、练习中（倒计时中）、练习结束（锁定终稿与完整榜单）。
+- **标准雪花算法**：所有用户、队伍、成员、提交、评审、排行榜 ID 均由 64 位雪花算法动态生成。
+
+## 赛题级大规模提交流水线生成
+
+针对平台前台实训、版本迭代轨迹展示、压测与分页演示，可使用规模化生成脚本：
+
+```bash
+# 为全量已发布真题生成约 500 次/题的提交与深度评审（平均约 500 条/题，覆盖各队伍演进曲线）
+python3 scripts/generate_massive_submissions.py --target all
+
+# 仅为 2025 美赛赛题生成（约 500 条/题）
+python3 scripts/generate_massive_submissions.py --target 2025
+
+# 指定单道题目与自定义提交量
+python3 scripts/generate_massive_submissions.py --problem-id 2097509647494889474 --count 500
+
+# 仅演练不实际写入
+python3 scripts/generate_massive_submissions.py --dry-run
+```
+
+特点：
+- **题目级总量控制**：每道题目产生约 500 个提交与评审结果（485~515 条），自然分配至该题各参赛队伍。
+- **S型演进曲线**：单队从初稿（40~60 分）经过中段迭代（70~80 分）平滑收敛至终稿目标分，为图表提供完美学习曲线。
+- **全闭环保障**：自动写入 `submission`、`review_task`、`review_v1_result`、第 N 版 `submission_lock` 以及排行榜快照刷新。
 
 ## 演示账号
 
