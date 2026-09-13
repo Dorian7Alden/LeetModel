@@ -1,72 +1,117 @@
 <template>
-  <el-container class="layout-container">
-    <el-aside :width="isCollapse ? '72px' : '248px'" class="aside">
-      <router-link to="/admin/dashboard" class="logo" :class="{ collapsed: isCollapse }">
-        <span class="logo-mark"><img src="@/assets/images/logo.png" alt="" /></span>
-        <span v-show="!isCollapse" class="logo-copy">
-          <strong>LeetModel</strong>
-          <small>ADMIN CONSOLE</small>
-        </span>
+  <el-container class="admin-shell">
+    <button
+      v-if="isMobile && sidebarOpen"
+      class="nav-scrim"
+      type="button"
+      aria-label="关闭管理端导航"
+      @click="closeMobileNavigation"
+    ></button>
+
+    <el-aside
+      :width="sidebarWidth"
+      class="admin-sidebar"
+      :class="{ collapsed: sidebarCollapsed && !isMobile, open: sidebarOpen }"
+    >
+      <router-link to="/admin/dashboard" class="admin-brand" @click="closeMobileNavigation">
+        <span class="brand-mark"><img src="@/assets/images/logo.png" alt="" /></span>
+        <span v-if="!sidebarCollapsed || isMobile" class="brand-name">LeetModel</span>
       </router-link>
 
-      <div v-show="!isCollapse" class="nav-label">工作空间</div>
-      <div class="nav-scroll">
-        <el-menu :default-active="$route.path" class="el-menu-vertical" :collapse="isCollapse" :collapse-transition="false" router>
-          <el-menu-item v-for="item in navigation" :key="item.path" :index="`/admin/${item.path}`">
+      <nav class="admin-navigation" aria-label="管理端一级导航">
+        <el-menu
+          :default-active="$route.path"
+          class="admin-menu"
+          :collapse="sidebarCollapsed && !isMobile"
+          :collapse-transition="false"
+          router
+        >
+          <el-menu-item
+            v-for="item in navigation"
+            :key="item.path"
+            :index="`/admin/${item.path}`"
+            @click="closeMobileNavigation"
+          >
             <el-icon><component :is="item.meta.icon" /></el-icon>
-            <template #title>
-              <span class="nav-copy">
-                <strong>{{ item.meta.navTitle || item.meta.title }}</strong>
-                <small>{{ item.meta.description }}</small>
-              </span>
-            </template>
+            <template #title>{{ item.meta.navTitle || item.meta.title }}</template>
           </el-menu-item>
         </el-menu>
-      </div>
+      </nav>
 
-      <div class="aside-footer" :class="{ collapsed: isCollapse }">
-        <span class="status-dot"></span>
-        <span v-show="!isCollapse" class="aside-status">
-          <strong>管理端已连接</strong>
-          <small>数据来自实时服务</small>
-        </span>
-      </div>
+      <button
+        v-if="!isMobile"
+        class="sidebar-toggle"
+        type="button"
+        :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+        :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
+        @click="toggleSidebar"
+      >
+        <el-icon><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
+        <span v-if="!sidebarCollapsed">收起导航</span>
+      </button>
     </el-aside>
 
-    <el-container class="workspace">
-      <el-header class="header">
-        <div class="header-left">
-          <button class="collapse-btn" @click="toggleCollapse" :title="isCollapse ? '展开侧栏' : '收起侧栏'">
-            <el-icon :size="18"><Expand v-if="isCollapse" /><Fold v-else /></el-icon>
+    <el-container class="admin-workspace">
+      <el-header class="admin-topbar">
+        <div class="topbar-leading">
+          <button
+            v-if="isMobile"
+            class="icon-button"
+            type="button"
+            aria-label="打开管理端导航"
+            :aria-expanded="sidebarOpen"
+            @click="sidebarOpen = true"
+          >
+            <el-icon><Menu /></el-icon>
           </button>
-          <div class="route-heading">
-            <h1>{{ currentTitle }}</h1>
-            <p>{{ currentDescription }}</p>
-          </div>
+          <h1>{{ currentTitle }}</h1>
         </div>
-        <div class="header-right">
-          <router-link to="/home" class="back-home-link">
-            <el-icon :size="16"><HomeFilled /></el-icon><span>返回站点</span>
+
+        <div class="topbar-actions">
+          <span v-if="!isOnline" class="network-state" role="status">
+            <el-icon><WarningFilled /></el-icon>
+            网络已断开
+          </span>
+          <router-link to="/home" class="site-link" aria-label="返回站点">
+            <el-icon><HomeFilled /></el-icon>
+            <span>返回站点</span>
           </router-link>
-          <span class="header-divider"></span>
           <el-dropdown trigger="click">
-            <span class="user-dropdown">
-              <el-avatar :size="34" class="user-avatar" :src="userStore.avatarUrl || undefined">{{ (userStore.username || '管').charAt(0) }}</el-avatar>
-              <span class="user-meta"><strong>{{ userStore.username || '管理员' }}</strong><small>{{ roleLabel }}</small></span>
-              <el-icon :size="14" class="arrow-icon"><ArrowDown /></el-icon>
-            </span>
+            <button class="account-button" type="button">
+              <el-avatar :size="28" class="account-avatar" :src="userStore.avatarUrl || undefined">
+                {{ (userStore.username || "管").charAt(0) }}
+              </el-avatar>
+              <span class="account-name">{{ userStore.username || "管理员" }}</span>
+              <el-icon class="account-arrow"><ArrowDown /></el-icon>
+            </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <div class="dropdown-greeting"><p class="greeting-name">{{ greeting }}</p><p class="greeting-role">{{ roleLabel }}</p></div>
-                <el-dropdown-item divided @click="handleLogout"><el-icon :size="14"><SwitchButton /></el-icon>退出登录</el-dropdown-item>
+                <div class="account-summary">
+                  <strong>{{ userStore.username || "管理员" }}</strong>
+                  <span>{{ roleLabel }}</span>
+                </div>
+                <el-dropdown-item divided @click="handleLogout">
+                  <el-icon><SwitchButton /></el-icon>
+                  退出登录
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
       </el-header>
 
-      <el-main class="main-content">
-        <router-view v-slot="{ Component }"><keep-alive><component :is="Component" /></keep-alive></router-view>
+      <div v-if="!isOnline" class="offline-banner" role="alert">
+        当前处于离线状态，数据可能不是最新。网络恢复后请重新加载。
+      </div>
+
+      <el-main class="admin-main">
+        <router-view v-slot="{ Component, route: viewRoute }">
+          <transition name="admin-view" mode="out-in">
+            <keep-alive>
+              <component :is="Component" :key="viewRoute.name" />
+            </keep-alive>
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
@@ -78,29 +123,66 @@ import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "@/store/user";
 import { useAuth } from "@/composables/useAuth";
 
-const isCollapse = ref(false);
+const SIDEBAR_STORAGE_KEY = "lm-admin-sidebar-collapsed";
+const MOBILE_BREAKPOINT = 768;
+
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const { handleLogout } = useAuth();
+const viewportWidth = ref(window.innerWidth);
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
+const sidebarOpen = ref(false);
+const isOnline = ref(navigator.onLine);
+
+const isMobile = computed(() => viewportWidth.value < MOBILE_BREAKPOINT);
+const sidebarWidth = computed(() => {
+  if (isMobile.value) return "224px";
+  return sidebarCollapsed.value ? "56px" : "224px";
+});
 const navigation = computed(() => {
   const adminRoute = router.options.routes.find((item) => item.path === "/admin");
   return (adminRoute?.children || []).filter((item) => !item.meta?.hidden && item.component);
 });
-const currentTitle = computed(() => route.meta?.title || "管理控制台");
-const currentDescription = computed(() => route.meta?.description || "LeetModel 管理工作空间");
+const currentTitle = computed(() => route.meta?.navTitle || route.meta?.title || "管理控制台");
 const roleLabel = computed(() => userStore.roleLabel);
-const greeting = computed(() => {
-  const hour = new Date().getHours();
-  const prefix = hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
-  return `${prefix}，${userStore.username || "管理员"}`;
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarCollapsed.value));
+}
+
+function closeMobileNavigation() {
+  if (isMobile.value) sidebarOpen.value = false;
+}
+
+function syncViewport() {
+  viewportWidth.value = window.innerWidth;
+  if (!isMobile.value) sidebarOpen.value = false;
+}
+
+function markOnline() {
+  isOnline.value = true;
+}
+
+function markOffline() {
+  isOnline.value = false;
+}
+
+onMounted(() => {
+  syncViewport();
+  window.addEventListener("resize", syncViewport);
+  window.addEventListener("online", markOnline);
+  window.addEventListener("offline", markOffline);
 });
-function syncViewport() { if (window.innerWidth < 1100) isCollapse.value = true; }
-function toggleCollapse() { isCollapse.value = !isCollapse.value; }
-onMounted(() => { syncViewport(); window.addEventListener("resize", syncViewport); });
-onBeforeUnmount(() => window.removeEventListener("resize", syncViewport));
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", syncViewport);
+  window.removeEventListener("online", markOnline);
+  window.removeEventListener("offline", markOffline);
+});
 </script>
 
 <style scoped>
-@import './style.css';
+@import "./style.css";
 </style>
