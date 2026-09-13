@@ -125,7 +125,7 @@
     </el-drawer>
 
     <!-- 页面内容 -->
-    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') }">
+    <main class="content" :class="{ 'content-flush': route.path.startsWith('/problem') || route.path.startsWith('/team') }">
       <router-view />
     </main>
 

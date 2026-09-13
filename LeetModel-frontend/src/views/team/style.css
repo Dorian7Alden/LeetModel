@@ -1,7 +1,9 @@
 .team-page {
-  padding: 30px 60px;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
+  padding: 24px 28px 64px;
+  box-sizing: border-box;
 }
 
 .search-input {
@@ -36,7 +38,7 @@
 
 @media (max-width: 768px) {
   .team-page {
-    padding: 20px;
+    padding: 18px 14px 40px;
   }
   .teams-grid {
     grid-template-columns: 1fr;
