@@ -1,15 +1,8 @@
 <template>
   <div class="domain-page operations-hub-page">
-    <section class="domain-hero domain-hero-orange">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">BUSINESS OPERATIONS</span>
-        <h2>沿真实业务链观察，而不是逐表巡检</h2>
-        <p>把队伍、提交、评审、改进建议和排行串成同一条运营链，先判断流转是否顺畅，再进入明细处理。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新链路</el-button>
-      </div>
-    </section>
+    <div class="domain-command-bar">
+      <el-button :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新</el-button>
+    </div>
 
     <div class="operation-flow" v-loading="summaryLoading">
       <template v-for="(item, index) in flowItems" :key="item.key">

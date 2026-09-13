@@ -1,18 +1,11 @@
 <template>
   <div class="domain-page content-hub-page">
-    <section class="domain-hero domain-hero-emerald">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">CONTENT WORKSPACE</span>
-        <h2>从题面到分类语境，一处完成</h2>
-        <p>题目是核心内容；标签负责描述建模领域和方法，赛事提供来源上下文，不再拆成彼此孤立的管理页。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" @click="openTool('storage')"><el-icon><Coin /></el-icon>存储资产</el-button>
-        <el-button class="hero-button" @click="openTool('contests')"><el-icon><Trophy /></el-icon>赛事数据</el-button>
-        <el-button class="hero-button" @click="openTool('knowledge')"><el-icon><Notebook /></el-icon>知识库管理</el-button>
-        <el-button type="primary" class="hero-primary emerald" @click="openTool('tags')"><el-icon><CollectionTag /></el-icon>维护标签</el-button>
-      </div>
-    </section>
+    <nav class="domain-command-bar" aria-label="内容资产工具">
+      <el-button @click="openTool('storage')"><el-icon><Coin /></el-icon>存储资产</el-button>
+      <el-button @click="openTool('contests')"><el-icon><Trophy /></el-icon>赛事数据</el-button>
+      <el-button @click="openTool('knowledge')"><el-icon><Notebook /></el-icon>知识库管理</el-button>
+      <el-button type="primary" @click="openTool('tags')"><el-icon><CollectionTag /></el-icon>维护标签</el-button>
+    </nav>
 
     <div class="domain-metrics" v-loading="summaryLoading">
       <div v-for="item in summaryCards" :key="item.label" class="domain-metric">

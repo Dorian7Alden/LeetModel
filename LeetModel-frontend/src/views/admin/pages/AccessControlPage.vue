@@ -1,17 +1,10 @@
 <template>
   <div class="domain-page access-control-page">
-    <section class="domain-hero domain-hero-blue">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">IDENTITY & ACCESS</span>
-        <h2>让人员与权限在一个工作面闭环</h2>
-        <p>以用户为主线处理账号状态和角色分配；低频的角色、权限与授权策略作为辅助任务随时展开。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" @click="openTool('roles')"><el-icon><UserFilled /></el-icon>角色设置</el-button>
-        <el-button class="hero-button" @click="openTool('permissions')"><el-icon><Key /></el-icon>权限目录</el-button>
-        <el-button type="primary" class="hero-primary" @click="openTool('authorization')"><el-icon><Connection /></el-icon>角色授权</el-button>
-      </div>
-    </section>
+    <nav class="domain-command-bar" aria-label="访问控制工具">
+      <el-button @click="openTool('roles')"><el-icon><UserFilled /></el-icon>角色设置</el-button>
+      <el-button @click="openTool('permissions')"><el-icon><Key /></el-icon>权限目录</el-button>
+      <el-button type="primary" @click="openTool('authorization')"><el-icon><Connection /></el-icon>角色授权</el-button>
+    </nav>
 
     <div class="domain-metrics" v-loading="summaryLoading">
       <div v-for="item in summaryCards" :key="item.label" class="domain-metric">

@@ -1,15 +1,8 @@
 <template>
   <div class="domain-page ai-center-page">
-    <section class="domain-hero domain-hero-violet">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">AI CONTROL PLANE</span>
-        <h2>从可观测到可评价，再到安全上线</h2>
-        <p>调用事实回答“运行得怎样”，质量评价回答“版本是否更好”，生产版本治理决定“真实流量使用什么”。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新状态</el-button>
-      </div>
-    </section>
+    <div class="domain-command-bar">
+      <el-button :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新</el-button>
+    </div>
 
     <div class="ai-posture-grid" v-loading="summaryLoading">
       <div class="ai-posture-card emphasis">

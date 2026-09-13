@@ -1,16 +1,5 @@
 <template>
   <div class="domain-page audit-page">
-    <section class="domain-hero domain-hero-slate">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">OPERATION AUDIT</span>
-        <h2>把每一次高风险操作还原成可核验的时间线</h2>
-        <p>审计页只读中央归档，展示阶段、目标和白名单摘要；它不直接修改业务，也不复制领域数据库。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" :loading="loading" @click="load"><el-icon><Refresh /></el-icon>刷新审计</el-button>
-      </div>
-    </section>
-
     <section class="domain-section audit-filters">
       <el-form :model="filters" inline @submit.prevent="load" class="audit-filter-form">
         <div class="filters-row filters-main">
