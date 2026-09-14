@@ -16,6 +16,8 @@ public class KnowledgeTreeNodeVO {
     private String title;
     private String description;
     private int documentCount;
+    private int directDocumentCount;
+    private boolean virtual;
     private List<String> tags = new ArrayList<>();
     private List<KnowledgeTreeNodeVO> children = new ArrayList<>();
     private List<KnowledgeDocumentItemVO> documents = new ArrayList<>();
