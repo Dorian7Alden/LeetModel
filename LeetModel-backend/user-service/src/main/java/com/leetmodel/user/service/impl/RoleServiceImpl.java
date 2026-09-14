@@ -16,6 +16,7 @@ import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.RolePermissionMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
+import com.leetmodel.user.mapper.model.RoleUserCountRow;
 import com.leetmodel.user.service.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -98,8 +100,23 @@ public class RoleServiceImpl implements RoleService {
      */
     @Override
     public List<RoleVO> listRoles() {
-        return roleMapper.selectList(null).stream()
-                .map(this::toVO)
+        List<Role> roles = roleMapper.selectList(null);
+        if (roles.isEmpty()) return List.of();
+
+        List<Long> roleIds = roles.stream().map(Role::getId).toList();
+        Map<Long, Long> userCounts = userRoleMapper.countActiveUsersByRoleIds(roleIds).stream()
+                .collect(Collectors.toMap(RoleUserCountRow::getRoleId, RoleUserCountRow::getUserCount));
+        Map<Long, Long> permissionCounts = rolePermissionMapper.selectList(
+                        new LambdaQueryWrapper<RolePermission>().in(RolePermission::getRoleId, roleIds)
+                ).stream()
+                .collect(Collectors.groupingBy(RolePermission::getRoleId, Collectors.counting()));
+
+        return roles.stream()
+                .map(role -> toVO(
+                        role,
+                        userCounts.getOrDefault(role.getId(), 0L),
+                        permissionCounts.getOrDefault(role.getId(), 0L)
+                ))
                 .toList();
     }
 
@@ -114,7 +131,7 @@ public class RoleServiceImpl implements RoleService {
     public RoleVO getRoleById(Long roleId) {
         Role role = roleMapper.selectById(roleId);
         BusinessException.throwIf(role == null, UserErrorCode.ROLE_NOT_FOUND);
-        return toVO(role);
+        return toVO(role, countRoleUsers(roleId), countRolePermissions(roleId));
     }
 
     /**
@@ -138,7 +155,7 @@ public class RoleServiceImpl implements RoleService {
         roleMapper.insert(role);
 
         log.info("创建角色完成: id={}", role.getId());
-        return toVO(role);
+        return toVO(role, 0L, 0L);
     }
 
     /**
@@ -171,7 +188,7 @@ public class RoleServiceImpl implements RoleService {
         roleMapper.updateById(role);
 
         log.info("更新角色完成: id={}", roleId);
-        return toVO(role);
+        return toVO(role, countRoleUsers(roleId), countRolePermissions(roleId));
     }
 
     /**
@@ -296,7 +313,7 @@ public class RoleServiceImpl implements RoleService {
      * @param role 角色实体
      * @return 角色 VO
      */
-    private RoleVO toVO(Role role) {
+    private RoleVO toVO(Role role, long userCount, long permissionCount) {
         return RoleVO.builder()
                 .id(role.getId())
                 .code(role.getCode())
@@ -304,7 +321,35 @@ public class RoleServiceImpl implements RoleService {
                 .description(role.getDescription())
                 .createTime(role.getCreateTime())
                 .updateTime(role.getUpdateTime())
+                .userCount(userCount)
+                .permissionCount(permissionCount)
+                .system(SYSTEM_ROLE_CODES.contains(role.getCode()))
                 .build();
+    }
+
+    /**
+     * 统计角色当前关联的用户数。
+     *
+     * @param roleId 角色 ID
+     * @return 用户关联数
+     */
+    private long countRoleUsers(Long roleId) {
+        return userRoleMapper.countActiveUsersByRoleIds(List.of(roleId)).stream()
+                .findFirst()
+                .map(RoleUserCountRow::getUserCount)
+                .orElse(0L);
+    }
+
+    /**
+     * 统计角色当前关联的权限数。
+     *
+     * @param roleId 角色 ID
+     * @return 权限关联数
+     */
+    private long countRolePermissions(Long roleId) {
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getRoleId, roleId);
+        return rolePermissionMapper.selectCount(wrapper);
     }
 
     /**
@@ -321,6 +366,7 @@ public class RoleServiceImpl implements RoleService {
                 .description(permission.getDescription())
                 .createTime(permission.getCreateTime())
                 .updateTime(permission.getUpdateTime())
+                .roleCount(null)
                 .build();
     }
 

@@ -176,18 +176,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public IPage<UserAdminVO> listUsers(UserPageQuery query) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
 
-        // 关键词搜索：匹配用户名或昵称
+        // 关键词搜索：匹配用户名、昵称或邮箱
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             wrapper.and(w -> w
                 .like(User::getUsername, query.getKeyword())
                 .or()
                 .like(User::getNickname, query.getKeyword())
+                .or()
+                .like(User::getEmail, query.getKeyword())
             );
         }
 
         // 状态筛选
         if (query.getStatus() != null) {
             wrapper.eq(User::getStatus, query.getStatus());
+        }
+
+        // 角色筛选只使用通过数字类型校验的 roleId，避免字符串拼接注入。
+        if (query.getRoleId() != null) {
+            wrapper.inSql(
+                    User::getId,
+                    "SELECT user_id FROM user_role WHERE role_id = " + query.getRoleId()
+            );
         }
 
         // 按创建时间降序排序
