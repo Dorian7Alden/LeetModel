@@ -1,10 +1,11 @@
 <template>
-  <el-card shadow="never" class="storage-console-card">
+  <div class="storage-console-card">
     <div class="toolbar">
-      <div>
-        <span class="eyebrow">FILE ASSET WORKSPACE</span>
-        <h2 class="panel-title">文件资产</h2>
-        <p class="panel-subtitle">文件名用于识别，文件 ID 用于引用，MinIO 对象路径仅在技术详情中展示。</p>
+      <div class="storage-facts" aria-label="文件资产统计">
+        <span><strong>{{ summary.totalFiles }}</strong> 个文件</span>
+        <span><strong>{{ formatFileSize(summary.totalBytes) }}</strong></span>
+        <span>手动 {{ summary.manualFiles }}</span>
+        <span>只读 {{ summary.discoveredFiles }}</span>
       </div>
       <div class="toolbar-actions">
         <el-button :loading="reconciling" @click="reconcile"><el-icon><RefreshRight /></el-icon>盘点历史</el-button>
@@ -13,18 +14,23 @@
       </div>
     </div>
 
-    <div class="storage-stat-grid">
-      <div class="stat-box"><span class="stat-label">纳管文件</span><strong>{{ summary.totalFiles }}</strong></div>
-      <div class="stat-box"><span class="stat-label">登记容量</span><strong>{{ formatFileSize(summary.totalBytes) }}</strong></div>
-      <div class="stat-box"><span class="stat-label">手动上传</span><strong>{{ summary.manualFiles }}</strong></div>
-      <div class="stat-box"><span class="stat-label">历史盘点（只读）</span><strong>{{ summary.discoveredFiles }}</strong></div>
+    <div v-if="uploadQueue.length && !uploadDialogVisible" class="persistent-upload-state" role="status">
+      <span>上传队列：{{ uploadQueue.length }} 个，{{ pendingUploadCount }} 个待处理<span v-if="uploadErrorCount">，{{ uploadErrorCount }} 个失败</span></span>
+      <el-button link type="primary" @click="uploadDialogVisible = true">查看队列</el-button>
     </div>
+
+    <AdminStatePanel
+      v-if="loadError && !assets.length"
+      type="error"
+      title="文件资产加载失败"
+      action-label="重新加载"
+      @action="loadData"
+    />
 
     <div class="storage-workspace">
       <aside class="storage-group-panel">
         <div class="group-panel-heading">
           <span>分组</span>
-          <small>按逻辑分组浏览，不暴露物理路径</small>
         </div>
         <button
           v-for="group in groups"
@@ -52,10 +58,7 @@
           <el-button @click="search">搜索</el-button>
         </div>
 
-        <div class="reference-boundary-tip">
-          <el-icon><WarningFilled /></el-icon>
-          <span>历史盘点文件为只读；手动上传文件删除后会先进入宽限期，后台再执行物理清理。</span>
-        </div>
+        <div v-if="loadError" class="reference-boundary-tip"><el-icon><WarningFilled /></el-icon><span>刷新失败，当前保留上次取得的数据</span></div>
 
         <el-table :data="assets" v-loading="loading" stripe style="width: 100%" class="storage-table">
           <el-table-column label="文件" min-width="280">
@@ -95,15 +98,15 @@
             <template #default="{ row }">{{ formatTime(row.updateTime || row.createTime) }}</template>
           </el-table-column>
 
-          <el-table-column label="操作" width="270" fixed="right">
+          <el-table-column label="操作" width="120" fixed="right" align="right">
             <template #default="{ row }">
-              <el-button link size="small" @click="openPreview(row)"><el-icon><View /></el-icon>预览</el-button>
-              <el-button link size="small" @click="downloadFile(row)"><el-icon><Download /></el-icon>下载</el-button>
-              <el-button link size="small" @click="copyFileId(row)"><el-icon><CopyDocument /></el-icon>复制 ID</el-button>
+              <el-button link type="primary" @click="openPreview(row)">预览</el-button>
               <el-dropdown @command="command => handleCommand(command, row)">
-                <el-button link size="small">更多</el-button>
+                <el-button link>更多</el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
+                    <el-dropdown-item command="download">下载文件</el-dropdown-item>
+                    <el-dropdown-item command="copy-id">复制文件 ID</el-dropdown-item>
                     <el-dropdown-item command="copy-link">复制临时链接</el-dropdown-item>
                     <el-dropdown-item command="details">技术详情</el-dropdown-item>
                     <el-dropdown-item command="delete" divided :disabled="!row.deletable">申请删除</el-dropdown-item>
@@ -187,7 +190,6 @@
     </el-drawer>
 
     <el-drawer v-model="uploadDialogVisible" title="上传文件" size="min(620px, 92vw)" destroy-on-close>
-      <div class="upload-intro">先选择目标分组，再添加文件。文件名会原样保存，系统用文件 ID 区分同名文件。</div>
       <el-form label-position="top">
         <el-form-item label="保存到分组">
           <div class="group-picker">
@@ -237,14 +239,15 @@
         <el-button type="primary" :loading="uploading" :disabled="!pendingUploadCount" @click="submitUpload">开始上传</el-button>
       </template>
     </el-drawer>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { renderSafeMarkdown } from "@/utils/markdown";
-import { Document, Folder, Upload, RefreshRight, WarningFilled, View, Download, CopyDocument, Close, Picture } from "@element-plus/icons-vue";
+import { Document, Folder, Upload, RefreshRight, WarningFilled, Close, Picture } from "@element-plus/icons-vue";
+import AdminStatePanel from "../components/AdminStatePanel.vue";
 import {
   createAdminStorageAccessUrl,
   createAdminStoragePreviewUrl,
@@ -254,6 +257,7 @@ import {
   uploadAdminStorageObject,
 } from "@/api/storage";
 
+const emit = defineEmits(["changed"]);
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const acceptedExtensions = ".txt,.md,.markdown,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip,.rar,.7z,.tar,.gz,.tgz,.bz2,.xz";
 const allowedExtensions = new Set(acceptedExtensions.split(",").map(value => value.slice(1)));
@@ -262,6 +266,7 @@ const assets = ref([]);
 const rawGroups = ref([]);
 const summary = ref({ totalFiles: 0, totalBytes: 0, manualFiles: 0, discoveredFiles: 0 });
 const loading = ref(false);
+const loadError = ref(false);
 const reconciling = ref(false);
 const searchKeyword = ref("");
 const appliedKeyword = ref("");
@@ -360,7 +365,9 @@ function fileTypeLabel(row) {
 }
 
 async function loadData() {
+  if (loading.value) return;
   loading.value = true;
+  loadError.value = false;
   try {
     const params = { page: page.value, size: pageSize.value };
     if (activeGroup.value !== "__all__") params.groupPath = activeGroup.value;
@@ -377,7 +384,8 @@ async function loadData() {
       discoveredFiles: data.discoveredFiles || 0,
     };
   } catch (error) {
-    ElMessage.error(error.message || "获取文件资产失败");
+    loadError.value = true;
+    if (assets.value.length) ElMessage.error(error.message || "文件资产刷新失败");
   } finally {
     loading.value = false;
   }
@@ -408,6 +416,7 @@ async function reconcile() {
     ElMessage.success(`盘点完成：扫描 ${result.scanned || 0} 个，新登记 ${result.created || 0} 个`);
     page.value = 1;
     await loadData();
+    emit("changed");
   } catch (error) {
     ElMessage.error(error.message || "历史对象盘点失败");
   } finally {
@@ -420,14 +429,12 @@ function openUploadDialog() {
   customGroup.value = "";
   useCustomGroup.value = false;
   groupError.value = "";
-  uploadQueue.value = [];
   uploadDialogVisible.value = true;
 }
 
 function closeUploadDialog() {
   if (uploading.value) return;
   uploadDialogVisible.value = false;
-  uploadQueue.value = [];
   if (fileRef.value) fileRef.value.value = "";
 }
 
@@ -511,6 +518,7 @@ async function submitUpload() {
       page.value = 1;
       await loadData();
       uploadQueue.value = [];
+      emit("changed");
     } else {
       ElMessage.warning(`${successCount} 个成功，${failedCount} 个失败，可重试失败项`);
       await loadData();
@@ -600,6 +608,8 @@ async function copyText(value) {
 }
 
 async function handleCommand(command, row) {
+  if (command === "download") return downloadFile(row);
+  if (command === "copy-id") return copyFileId(row);
   if (command === "copy-link") return copyLink(row);
   if (command === "details") {
     await openPreview(row);
@@ -618,6 +628,7 @@ async function handleDelete(row) {
     await deleteAdminStorageObject(row.id);
     ElMessage.success("已进入等待清理状态");
     await loadData();
+    emit("changed");
   } catch (error) {
     if (error !== "cancel") ElMessage.error(error.message || "删除失败");
   }
@@ -627,27 +638,23 @@ onMounted(loadData);
 </script>
 
 <style scoped>
-.storage-console-card { border: none; box-shadow: none; }
-.toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.eyebrow { display: block; margin-bottom: 4px; color: var(--lm-text-muted); font-size: 10px; letter-spacing: .12em; }
+.storage-console-card { min-width: 0; padding: var(--lm-admin-space-3); }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: var(--lm-admin-space-3); }
 .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.panel-title { margin: 0; font-size: 20px; }
-.panel-subtitle { margin: 6px 0 0; color: var(--lm-text-muted); font-size: 13px; }
-.storage-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
-.stat-box { display: flex; flex-direction: column; gap: 4px; padding: 13px 16px; background: #fafafa; border: 1px solid var(--lm-border); border-radius: var(--lm-radius-sm); }
-.stat-box strong { font-size: 21px; font-family: var(--lm-code-font-family); }
-.stat-label { color: var(--lm-text-muted); font-size: 11px; }
+.storage-facts { display: flex; align-items: center; gap: 14px; color: var(--lm-admin-text-muted); font-size: 12px; }
+.storage-facts span + span { padding-left: 14px; border-left: 1px solid var(--lm-admin-border); }
+.storage-facts strong { color: var(--lm-admin-text-strong); font-size: 14px; }
+.persistent-upload-state { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: var(--lm-admin-space-3); padding: 8px 10px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
 .storage-workspace { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; align-items: start; }
 .storage-group-panel { padding: 10px; border: 1px solid var(--lm-border); border-radius: var(--lm-radius-sm); background: #fafafa; }
-.group-panel-heading { display: flex; flex-direction: column; gap: 3px; padding: 4px 6px 10px; font-size: 13px; font-weight: 600; }
-.group-panel-heading small { color: var(--lm-text-muted); font-size: 11px; font-weight: 400; }
+.group-panel-heading { padding: 4px 6px 10px; color: var(--lm-admin-text-strong); font-size: 12px; font-weight: 700; }
 .storage-group-item { display: flex; flex-direction: column; width: 100%; gap: 3px; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--lm-text-secondary); cursor: pointer; text-align: left; }
 .storage-group-item:hover { background: #f1f5f9; }
 .storage-group-item.active { background: color-mix(in srgb, var(--lm-primary) 10%, white); color: var(--lm-primary); }
 .group-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; font-weight: 600; }
 .group-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-meta { padding-left: 20px; color: var(--lm-text-muted); font-size: 10.5px; }
-.storage-object-panel { min-width: 0; }
+.storage-object-panel { min-width: 0; overflow: hidden; }
 .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .filter-bar .el-input { flex: 1; }
 .reference-boundary-tip { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 12px; padding: 9px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; color: #92400e; font-size: 12px; line-height: 1.5; }
@@ -687,7 +694,6 @@ onMounted(loadData);
 .technical-details dt { color: var(--lm-text-muted); }
 .technical-details dd { margin: 0; word-break: break-word; }
 .technical-value { font-family: var(--lm-code-font-family); }
-.upload-intro { margin-bottom: 18px; color: var(--lm-text-secondary); font-size: 13px; line-height: 1.6; }
 .group-picker { display: flex; gap: 8px; }
 .group-select { flex: 1; }
 .group-breadcrumb { margin-top: 8px; color: var(--lm-text-muted); font-size: 12px; }
@@ -704,9 +710,4 @@ onMounted(loadData);
 .upload-item-main .el-progress { margin-top: 7px; }
 .upload-summary { display: flex; justify-content: space-between; margin-top: 12px; color: var(--lm-text-muted); font-size: 12px; }
 .validation-error { color: #b91c1c; }
-@media (max-width: 900px) {
-  .storage-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .storage-workspace { grid-template-columns: 1fr; }
-  .toolbar { flex-direction: column; }
-}
 </style>

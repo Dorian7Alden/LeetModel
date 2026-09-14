@@ -1,104 +1,106 @@
 <template>
-  <div class="domain-page content-hub-page">
-    <nav class="domain-command-bar" aria-label="内容资产工具">
-      <el-button @click="openTool('storage')"><el-icon><Coin /></el-icon>存储资产</el-button>
-      <el-button @click="openTool('contests')"><el-icon><Trophy /></el-icon>赛事数据</el-button>
-      <el-button @click="openTool('knowledge')"><el-icon><Notebook /></el-icon>知识库管理</el-button>
-      <el-button type="primary" @click="openTool('tags')"><el-icon><CollectionTag /></el-icon>维护标签</el-button>
-    </nav>
-
-    <div class="domain-metrics" v-loading="summaryLoading">
-      <div v-for="item in summaryCards" :key="item.label" class="domain-metric">
-        <span class="domain-metric-icon" :class="item.tone"><el-icon><component :is="item.icon" /></el-icon></span>
-        <span><small>{{ item.label }}</small><strong>{{ item.value }}</strong></span>
-      </div>
-      <div class="domain-guidance">
-        <el-icon><View /></el-icon>
-        <span><strong>所见即所得预览</strong><small>在题目行点击“预览”，可直接检查发布后的 Markdown 呈现。</small></span>
-      </div>
+  <div class="content-hub-page">
+    <div class="content-nav-panel">
+      <AdminSubnav
+        :model-value="activeView"
+        :items="navigationItems"
+        aria-label="内容中心工作面"
+        @update:model-value="selectView"
+      />
     </div>
 
-    <section class="domain-section">
-      <div class="domain-section-heading">
-        <div><span class="section-kicker">主要工作面</span><h3>题目内容</h3></div>
-        <span class="section-help">创建、编辑、预览并关联标签</span>
-      </div>
-      <ProblemListPage />
+    <section class="content-view" :aria-label="activeViewLabel">
+      <component :is="activeComponent" :key="activeView" @changed="loadCounts" />
     </section>
-
-    <el-drawer v-model="toolVisible" :title="activeToolTitle" size="min(900px, 86vw)" destroy-on-close class="admin-tool-drawer">
-      <div class="drawer-intro">
-        <el-icon :size="20"><component :is="activeToolMeta.icon" /></el-icon>
-        <span><strong>{{ activeToolMeta.title }}</strong><small>{{ activeToolMeta.description }}</small></span>
-      </div>
-      <component :is="activeToolComponent" v-if="activeToolComponent" />
-    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import AdminSubnav from "../components/AdminSubnav.vue";
 import ProblemListPage from "./ProblemListPage.vue";
-import TagListPage from "./TagListPage.vue";
 import ContestListPage from "./ContestListPage.vue";
-import KnowledgeManagerPage from "./KnowledgeManagerPage.vue";
+import TagListPage from "./TagListPage.vue";
 import StorageConsolePage from "./StorageConsolePage.vue";
-import { Coin, Notebook } from "@element-plus/icons-vue";
+import KnowledgeManagerPage from "./KnowledgeManagerPage.vue";
 import { getAdminContentContests, getAdminContentProblems, getAdminContentTags } from "@/api/problem";
 
 const route = useRoute();
 const router = useRouter();
-const summaryLoading = ref(false);
-const summary = ref({ problems: "—", tags: "—", contests: "—" });
-const activeTool = ref("");
-const tools = {
-  storage: { title: "文件资产管理", description: "通过 file-service 按逻辑分组管理文件，支持手动上传、历史盘点、临时链接与延迟清理。", icon: "Coin", component: StorageConsolePage },
-  tags: { title: "标签体系", description: "维护题目使用的领域、题型与算法标签。", icon: "CollectionTag", component: TagListPage },
-  contests: { title: "赛事基础数据", description: "查看题目可归属的赛事来源。", icon: "Trophy", component: ContestListPage },
-  knowledge: { title: "知识库管理", description: "浏览目录与多维标签树、一键导出自包含 ZIP、导入知识包与监控物理索引。", icon: "Notebook", component: KnowledgeManagerPage },
+const counts = ref({ problems: undefined, contests: undefined, tags: undefined });
+const views = {
+  problems: { label: "题目", icon: "Document", component: ProblemListPage },
+  contests: { label: "赛事", icon: "Trophy", component: ContestListPage },
+  tags: { label: "标签", icon: "CollectionTag", component: TagListPage },
+  files: { label: "文件", icon: "FolderOpened", component: StorageConsolePage },
+  knowledge: { label: "知识库", icon: "Notebook", component: KnowledgeManagerPage },
 };
-const toolVisible = computed({ get: () => !!activeTool.value, set: (value) => { if (!value) closeTool(); } });
-const activeToolMeta = computed(() => tools[activeTool.value] || { title: "", description: "", icon: "Setting" });
-const activeToolTitle = computed(() => activeToolMeta.value.title);
-const activeToolComponent = computed(() => activeToolMeta.value.component);
-const summaryCards = computed(() => [
-  { label: "题目总数", value: summary.value.problems, icon: "Document", tone: "emerald" },
-  { label: "标签数量", value: summary.value.tags, icon: "CollectionTag", tone: "violet" },
-  { label: "赛事来源", value: summary.value.contests, icon: "Trophy", tone: "amber" },
-]);
 
-function openTool(key) {
-  if (!tools[key]) return;
-  activeTool.value = key;
-  router.replace({ query: { ...route.query, view: key } });
+const activeView = computed(() => normalizeView(route.query.view));
+const activeComponent = computed(() => views[activeView.value].component);
+const activeViewLabel = computed(() => views[activeView.value].label);
+const navigationItems = computed(() => Object.entries(views).map(([value, item]) => ({
+  value,
+  label: item.label,
+  icon: item.icon,
+  count: counts.value[value],
+})));
+
+function normalizeView(value) {
+  if (value === "storage") return "files";
+  return typeof value === "string" && views[value] ? value : "problems";
 }
-function closeTool() {
-  activeTool.value = "";
-  const query = { ...route.query };
-  delete query.view;
+
+function selectView(value) {
+  if (value === activeView.value) return;
+  const query = { ...route.query, view: value };
+  if (value === "problems") delete query.view;
   router.replace({ query });
 }
-function syncLegacyView(value) { if (tools[value]) activeTool.value = value; }
-async function loadSummary() {
-  summaryLoading.value = true;
-  const [problemResult, tagResult, contestResult] = await Promise.allSettled([
+
+async function loadCounts() {
+  const results = await Promise.allSettled([
     getAdminContentProblems({ page: 1, pageSize: 1 }),
-    getAdminContentTags(),
     getAdminContentContests(),
+    getAdminContentTags(),
   ]);
-  summary.value = {
-    problems: problemResult.status === "fulfilled" ? (problemResult.value.data?.total ?? 0) : "—",
-    tags: tagResult.status === "fulfilled" ? (tagResult.value.data?.length ?? 0) : "—",
-    contests: contestResult.status === "fulfilled" ? (contestResult.value.data?.length ?? 0) : "—",
+  counts.value = {
+    problems: results[0].status === "fulfilled" ? Number(results[0].value.data?.total || 0) : undefined,
+    contests: results[1].status === "fulfilled" ? (results[1].value.data || []).length : undefined,
+    tags: results[2].status === "fulfilled" ? (results[2].value.data || []).length : undefined,
   };
-  summaryLoading.value = false;
 }
 
-watch(() => route.query.view, syncLegacyView, { immediate: true });
-onMounted(loadSummary);
+onMounted(() => {
+  if (route.query.view === "storage") {
+    router.replace({ query: { ...route.query, view: "files" } });
+  }
+  loadCounts();
+});
 </script>
 
 <style scoped>
-@import '../style.css';
+.content-hub-page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--lm-admin-space-3);
+}
+
+.content-nav-panel,
+.content-view {
+  min-width: 0;
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-panel);
+}
+
+.content-nav-panel {
+  padding: 0 var(--lm-admin-space-2);
+}
+
+.content-view {
+  overflow: hidden;
+}
 </style>

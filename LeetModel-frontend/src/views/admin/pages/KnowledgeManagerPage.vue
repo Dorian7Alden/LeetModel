@@ -1,293 +1,222 @@
 <template>
-  <div class="knowledge-manager-page">
-    <!-- 顶部状态卡片 -->
-    <div class="metrics-grid">
-      <div class="metric-box">
-        <span class="label">物理索引别名</span>
-        <strong class="value text-primary">{{ indexStatus.indexAlias || "leetmodel-rag-v1-read" }}</strong>
-      </div>
-      <div class="metric-box">
-        <span class="label">索引快照版本</span>
-        <strong class="value font-mono">{{ indexStatus.activeIndexVersion || "MANIFEST_..." }}</strong>
-      </div>
-      <div class="metric-box">
-        <span class="label">原子文档总量</span>
-        <strong class="value">{{ indexStatus.totalDocuments || treeData.reduce((acc, d) => acc + (d.documentCount || 0), 0) }} 篇</strong>
-      </div>
-      <div class="metric-box">
-        <span class="label">索引运行状态</span>
-        <el-tag :type="indexStatus.healthy ? 'success' : 'warning'" effect="light">
-          {{ indexStatus.healthy ? '健康 (就绪)' : '离线' }}
-        </el-tag>
-      </div>
-    </div>
-
-    <!-- 操作工具条 -->
-    <div class="toolbar">
-      <div class="search-filter">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索目录、文档或算法标签..."
-          clearable
-          style="width: 280px"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-      </div>
-      <div class="action-buttons">
-        <el-button :loading="exporting" type="primary" plain @click="handleExport">
-          <el-icon><Download /></el-icon>导出自包含 ZIP
-        </el-button>
-        <el-upload
-          :show-file-list="false"
-          :before-upload="handleBeforeUpload"
-          accept=".zip"
-          style="display: inline-block"
-        >
-          <el-button :loading="importing" type="success" plain>
-            <el-icon><Upload /></el-icon>上传 ZIP 导入
-          </el-button>
+  <div class="knowledge-console">
+    <div class="knowledge-toolbar">
+      <el-input v-model="searchKeyword" placeholder="目录 / 文档 / 标签" clearable class="knowledge-search">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <div class="toolbar-actions">
+        <el-button :loading="exporting" :disabled="treeState !== 'ready'" @click="handleExport"><el-icon><Download /></el-icon>导出 ZIP</el-button>
+        <el-upload :show-file-list="false" :before-upload="handleBeforeUpload" accept=".zip">
+          <el-button :loading="importing"><el-icon><Upload /></el-icon>导入 ZIP</el-button>
         </el-upload>
-        <el-button :loading="rebuilding" type="warning" plain @click="handleRebuild">
-          <el-icon><Refresh /></el-icon>重建物理索引
-        </el-button>
-        <el-button circle @click="loadData">
-          <el-icon><RefreshRight /></el-icon>
-        </el-button>
+        <el-button :loading="rebuilding" :disabled="indexState !== 'ready'" @click="handleRebuild"><el-icon><Refresh /></el-icon>重建索引</el-button>
+        <el-button :loading="loading" @click="loadData"><el-icon><RefreshRight /></el-icon>刷新</el-button>
       </div>
     </div>
 
-    <!-- 目录导航与文档卡片 -->
-    <el-card shadow="never" class="knowledge-browser" v-loading="loading">
-      <template #header>
-        <div class="card-header">
-          <span><strong>知识库目录与文档</strong> · {{ filteredTreeData.length }} 个主题目录</span>
-          <span class="sub-text">目录负责组织，标签负责描述，卡片用于快速识别文档</span>
-        </div>
+    <div class="index-strip" :class="`is-${indexState}`" aria-live="polite">
+      <template v-if="indexState === 'ready'">
+        <span><small>索引</small><strong>{{ indexStatus.indexAlias || '—' }}</strong></span>
+        <span><small>版本</small><code>{{ indexStatus.activeIndexVersion || '—' }}</code></span>
+        <span><small>文档</small><strong>{{ formatCount(indexStatus.totalDocuments) }}</strong></span>
+        <span><small>分块</small><strong>{{ formatCount(indexStatus.totalChunks) }}</strong></span>
+        <AdminStatusBadge :status="indexStatus.healthy === true ? 'HEALTHY' : indexStatus.healthy === false ? 'FAILED' : 'UNKNOWN'" :label="healthLabel" />
       </template>
+      <template v-else-if="indexState === 'loading'">
+        <el-icon class="is-loading"><Loading /></el-icon><span>正在读取索引状态</span>
+      </template>
+      <template v-else>
+        <el-icon><WarningFilled /></el-icon><span>索引状态未取得</span><el-button link type="primary" @click="loadIndexStatus">重试</el-button>
+      </template>
+    </div>
 
-      <div v-if="currentDirectory" class="browser-layout">
+    <AdminStatePanel
+      v-if="treeState === 'error' && !treeData.length"
+      type="error"
+      title="知识库目录加载失败"
+      action-label="重新加载"
+      @action="loadTree"
+    />
+
+    <template v-else>
+      <div v-if="treeState === 'error'" class="inline-warning" role="alert">
+        <el-icon><WarningFilled /></el-icon>目录刷新失败，当前保留上次取得的数据
+      </div>
+      <div class="knowledge-workspace" v-loading="treeState === 'loading'">
         <aside class="directory-panel" aria-label="知识库目录">
-          <div class="panel-heading">
-            <span class="panel-kicker">BROWSE</span>
-            <strong>目录导航</strong>
-          </div>
+          <div class="directory-summary">{{ filteredTreeData.length }} 个目录</div>
           <button
-            v-for="dir in filteredTreeData"
-            :key="dir.path"
+            v-for="directory in filteredTreeData"
+            :key="directory.path"
             type="button"
             class="directory-item"
-            :class="{ 'is-active': dir.path === currentDirectory.path }"
-            @click="selectDirectory(dir.path)"
+            :class="{ active: directory.path === currentDirectory?.path }"
+            @click="selectDirectory(directory.path)"
           >
-            <span class="directory-icon"><el-icon><Folder /></el-icon></span>
-            <span class="directory-copy">
-              <strong>{{ dir.title || dir.name }}</strong>
-              <small>{{ dir.documentCount || dir.documents?.length || 0 }} 篇文档</small>
-            </span>
-            <span class="directory-arrow">›</span>
+            <el-icon><Folder /></el-icon>
+            <span><strong>{{ directory.title || directory.name }}</strong><small>{{ directory.documents?.length || directory.documentCount || 0 }} 篇</small></span>
           </button>
+          <div v-if="treeState === 'ready' && !filteredTreeData.length" class="directory-empty">没有匹配目录</div>
         </aside>
 
         <section class="document-panel" aria-label="知识库文档">
-          <div class="document-panel-header">
-            <div>
-              <span class="panel-kicker">CURRENT DIRECTORY</span>
-              <h3>{{ currentDirectory.title || currentDirectory.name }}</h3>
-              <code>{{ currentDirectory.path }}</code>
+          <template v-if="currentDirectory">
+            <div class="directory-context">
+              <div><strong>{{ currentDirectory.title || currentDirectory.name }}</strong><code>{{ currentDirectory.path }}</code></div>
+              <div class="directory-tags">
+                <el-tag v-for="tag in directoryTags(currentDirectory).slice(0, 6)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+              </div>
             </div>
-            <el-tag type="info" effect="plain">
-              {{ currentDirectory.documents?.length || 0 }} 篇文档
-            </el-tag>
-          </div>
-
-          <div v-if="directoryTags(currentDirectory).length" class="directory-tags">
-            <span class="tag-label">目录标签</span>
-            <el-tag
-              v-for="tag in directoryTags(currentDirectory)"
-              :key="tag"
-              size="small"
-              effect="plain"
-            >{{ tag }}</el-tag>
-          </div>
-
-          <div v-if="currentDirectory.documents?.length" class="document-grid">
-            <article
-              v-for="doc in currentDirectory.documents"
-              :key="doc.file"
-              class="document-card"
-              tabindex="0"
-              @click="showDocDetail(doc, currentDirectory)"
-              @keydown.enter="showDocDetail(doc, currentDirectory)"
-            >
-              <div class="document-card-topline">
-                <span class="document-type-icon"><el-icon><Document /></el-icon></span>
-                <el-tag :type="authorityTagType(doc.authorityLevel)" size="small">
-                  {{ doc.authorityLevel || 'L4' }}
-                </el-tag>
-              </div>
-              <h4>{{ doc.title || doc.file }}</h4>
-              <code class="document-file">{{ doc.file }}</code>
-              <p class="doc-summary">{{ doc.summary || '暂无摘要' }}</p>
-              <div v-if="documentTags(doc).length" class="document-tags">
-                <el-tag
-                  v-for="tag in documentTags(doc).slice(0, 5)"
-                  :key="tag"
-                  size="small"
-                  effect="plain"
-                >{{ tag }}</el-tag>
-                <span v-if="documentTags(doc).length > 5" class="more-tags">
-                  +{{ documentTags(doc).length - 5 }}
-                </span>
-              </div>
-              <div class="document-card-footer">
-                <span>{{ doc.estimatedTokens ? `约 ${doc.estimatedTokens} tokens` : '原子文档' }}</span>
-                <span class="detail-link">查看详情 ›</span>
-              </div>
-            </article>
-          </div>
-          <el-empty v-else description="当前目录没有匹配的文档" />
+            <div class="document-table-scroll">
+              <el-table :data="currentDirectory.documents || []" row-key="file" table-layout="fixed">
+                <el-table-column label="文档" min-width="290">
+                  <template #default="{ row }">
+                    <button class="document-link" type="button" @click="showDocDetail(row, currentDirectory)">
+                      <strong>{{ row.title || row.file }}</strong><code>{{ row.file }}</code>
+                    </button>
+                  </template>
+                </el-table-column>
+                <el-table-column label="权威" width="74">
+                  <template #default="{ row }"><el-tag :type="authorityTagType(row.authorityLevel)" size="small">{{ row.authorityLevel || '未知' }}</el-tag></template>
+                </el-table-column>
+                <el-table-column label="标签 / 方法" min-width="250">
+                  <template #default="{ row }">
+                    <div class="document-tags">
+                      <el-tag v-for="tag in documentTags(row).slice(0, 3)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+                      <span v-if="documentTags(row).length > 3">+{{ documentTags(row).length - 3 }}</span>
+                      <span v-if="!documentTags(row).length">—</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="预估 Token" width="110" align="right">
+                  <template #default="{ row }">{{ formatCount(row.estimatedTokens) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="72" align="right">
+                  <template #default="{ row }"><el-button link type="primary" @click="showDocDetail(row, currentDirectory)">详情</el-button></template>
+                </el-table-column>
+                <template #empty><div class="table-empty">当前目录没有匹配文档</div></template>
+              </el-table>
+            </div>
+          </template>
+          <div v-else class="workspace-empty">{{ searchKeyword ? '没有匹配的目录或文档' : '知识库暂无目录' }}</div>
         </section>
       </div>
-      <el-empty v-else description="未找到匹配的知识库目录或文档" />
-    </el-card>
+    </template>
 
-    <!-- 文档详情查看弹窗 -->
-    <el-dialog v-model="detailVisible" :title="selectedDoc?.title || '文档详情'" width="640px" destroy-on-close>
-      <div v-if="selectedDoc" class="detail-content">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="所属目录">{{ selectedDir?.title }} ({{ selectedDir?.name }})</el-descriptions-item>
-          <el-descriptions-item label="相对路径">{{ selectedDoc.path || selectedDoc.file }}</el-descriptions-item>
-          <el-descriptions-item label="权威层级">
-            <el-tag :type="authorityTagType(selectedDoc.authorityLevel)">{{ selectedDoc.authorityLevel }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="预估 Token">{{ selectedDoc.estimatedTokens || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="专有标签" :span="2">
-            <el-tag v-for="t in selectedDoc.docTags" :key="t" size="small" class="mr-1">{{ t }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="算法方法" :span="2">
-            <el-tag v-for="m in selectedDoc.methods" :key="m" size="small" type="success" class="mr-1">{{ m }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="一句话摘要" :span="2">
-            <p class="summary-box">{{ selectedDoc.summary }}</p>
-          </el-descriptions-item>
-        </el-descriptions>
-      </div>
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
+    <el-drawer v-model="detailVisible" :title="selectedDoc?.title || selectedDoc?.file || '文档详情'" size="520px" destroy-on-close>
+      <dl v-if="selectedDoc" class="detail-list">
+        <div><dt>所属目录</dt><dd>{{ selectedDir?.title || selectedDir?.name || '—' }}</dd></div>
+        <div><dt>相对路径</dt><dd><code>{{ selectedDoc.path || selectedDoc.file || '—' }}</code></dd></div>
+        <div><dt>权威层级</dt><dd><el-tag :type="authorityTagType(selectedDoc.authorityLevel)" size="small">{{ selectedDoc.authorityLevel || '未知' }}</el-tag></dd></div>
+        <div><dt>预估 Token</dt><dd>{{ formatCount(selectedDoc.estimatedTokens) }}</dd></div>
+        <div><dt>标签</dt><dd><el-tag v-for="tag in selectedDoc.docTags || []" :key="tag" size="small" effect="plain">{{ tag }}</el-tag><span v-if="!selectedDoc.docTags?.length">—</span></dd></div>
+        <div><dt>方法</dt><dd><el-tag v-for="method in selectedDoc.methods || []" :key="method" size="small" type="success" effect="plain">{{ method }}</el-tag><span v-if="!selectedDoc.methods?.length">—</span></dd></div>
+        <div><dt>摘要</dt><dd>{{ selectedDoc.summary || '—' }}</dd></div>
+      </dl>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Search, Download, Upload, Refresh, RefreshRight, Folder, Document } from "@element-plus/icons-vue";
-import {
-  getKnowledgeTree,
-  exportKnowledgeZip,
-  importKnowledgeZip,
-  getKnowledgeIndexStatus,
-  rebuildKnowledgeIndex,
-} from "@/api/knowledge";
+import AdminStatePanel from "../components/AdminStatePanel.vue";
+import AdminStatusBadge from "../components/AdminStatusBadge.vue";
+import { exportKnowledgeZip, getKnowledgeIndexStatus, getKnowledgeTree, importKnowledgeZip, rebuildKnowledgeIndex } from "@/api/knowledge";
 
-const loading = ref(false);
+const emit = defineEmits(["changed"]);
+const treeState = ref("loading");
+const indexState = ref("loading");
 const exporting = ref(false);
 const importing = ref(false);
 const rebuilding = ref(false);
 const searchKeyword = ref("");
 const treeData = ref([]);
-const indexStatus = ref({
-  indexAlias: "leetmodel-rag-v1-read",
-  activeIndexVersion: "MANIFEST_...",
-  totalDocuments: 0,
-  totalChunks: 0,
-  healthy: true,
-});
+const indexStatus = ref({});
 const selectedDirectoryPath = ref("");
 const detailVisible = ref(false);
 const selectedDoc = ref(null);
 const selectedDir = ref(null);
 
-const currentDirectory = computed(() => {
-  return filteredTreeData.value.find((dir) => dir.path === selectedDirectoryPath.value)
-    || filteredTreeData.value[0]
-    || null;
-});
-
+const loading = computed(() => treeState.value === "loading" || indexState.value === "loading");
+const healthLabel = computed(() => indexStatus.value.healthy === true ? "就绪" : indexStatus.value.healthy === false ? "异常" : "未知");
 const filteredTreeData = computed(() => {
-  const kw = (searchKeyword.value || "").trim().toLowerCase();
-  if (!kw) return treeData.value;
-  return treeData.value
-    .map((dir) => {
-      const dirMatches = (dir.title || "").toLowerCase().includes(kw) ||
-        (dir.name || "").toLowerCase().includes(kw) ||
-        (dir.tags || []).some((t) => t.toLowerCase().includes(kw));
-      const matchedDocs = (dir.documents || []).filter((doc) =>
-        (doc.title || "").toLowerCase().includes(kw) ||
-        (doc.file || "").toLowerCase().includes(kw) ||
-        (doc.summary || "").toLowerCase().includes(kw) ||
-        (doc.docTags || []).some((t) => t.toLowerCase().includes(kw)) ||
-        (doc.methods || []).some((m) => m.toLowerCase().includes(kw))
-      );
-      if (dirMatches || matchedDocs.length > 0) {
-        return { ...dir, documents: dirMatches ? dir.documents : matchedDocs };
-      }
-      return null;
-    })
-    .filter(Boolean);
+  const keyword = searchKeyword.value.trim().toLowerCase();
+  if (!keyword) return treeData.value;
+  return treeData.value.map((directory) => {
+    const directoryMatched = [directory.title, directory.name, ...(directory.tags || [])]
+      .some((value) => String(value || "").toLowerCase().includes(keyword));
+    const documents = (directory.documents || []).filter((document) => [
+      document.title,
+      document.file,
+      document.summary,
+      ...(document.docTags || []),
+      ...(document.methods || []),
+    ].some((value) => String(value || "").toLowerCase().includes(keyword)));
+    if (!directoryMatched && !documents.length) return null;
+    return { ...directory, documents: directoryMatched ? directory.documents : documents };
+  }).filter(Boolean);
 });
+const currentDirectory = computed(() => filteredTreeData.value.find((directory) => directory.path === selectedDirectoryPath.value)
+  || filteredTreeData.value[0]
+  || null);
 
-function authorityTagType(level) {
-  switch (level) {
-    case "L1":
-    case "L2": return "danger";
-    case "L3": return "warning";
-    case "L4": return "primary";
-    default: return "info";
-  }
+function formatCount(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString("zh-CN") : "—";
 }
 
-function selectDirectory(path) {
-  selectedDirectoryPath.value = path;
+function authorityTagType(level) {
+  return { L1: "danger", L2: "danger", L3: "warning", L4: "primary" }[level] || "info";
 }
 
 function directoryTags(directory) {
   return [...new Set(directory?.tags || [])].filter(Boolean);
 }
 
-function documentTags(doc) {
-  return [...new Set([...(doc?.docTags || []), ...(doc?.methods || [])])].filter(Boolean);
+function documentTags(document) {
+  return [...new Set([...(document?.docTags || []), ...(document?.methods || [])])].filter(Boolean);
 }
 
-function showDocDetail(doc, dir) {
-  selectedDoc.value = doc;
-  selectedDir.value = dir;
+function selectDirectory(path) {
+  selectedDirectoryPath.value = path;
+}
+
+function showDocDetail(document, directory) {
+  selectedDoc.value = document;
+  selectedDir.value = directory;
   detailVisible.value = true;
 }
 
-async function loadData() {
-  loading.value = true;
+async function loadTree() {
+  treeState.value = "loading";
   try {
-    const [treeRes, statusRes] = await Promise.allSettled([
-      getKnowledgeTree(),
-      getKnowledgeIndexStatus(),
-    ]);
-    if (treeRes.status === "fulfilled" && treeRes.value.data) {
-      treeData.value = treeRes.value.data;
-      if (!selectedDirectoryPath.value && treeData.value.length > 0) {
-        selectedDirectoryPath.value = treeData.value[0].path;
-      }
+    const response = await getKnowledgeTree();
+    treeData.value = Array.isArray(response.data) ? response.data : [];
+    if (!treeData.value.some((directory) => directory.path === selectedDirectoryPath.value)) {
+      selectedDirectoryPath.value = treeData.value[0]?.path || "";
     }
-    if (statusRes.status === "fulfilled" && statusRes.value.data) {
-      indexStatus.value = statusRes.value.data;
-    }
-  } catch (e) {
-    ElMessage.error("加载知识库数据失败: " + e.message);
-  } finally {
-    loading.value = false;
+    treeState.value = "ready";
+  } catch (error) {
+    treeState.value = "error";
+    if (treeData.value.length) ElMessage.error(error.message || "知识库目录刷新失败");
   }
+}
+
+async function loadIndexStatus() {
+  indexState.value = "loading";
+  try {
+    const response = await getKnowledgeIndexStatus();
+    if (!response.data) throw new Error("索引状态为空");
+    indexStatus.value = response.data;
+    indexState.value = "ready";
+  } catch (error) {
+    indexStatus.value = {};
+    indexState.value = "error";
+  }
+}
+
+async function loadData() {
+  await Promise.all([loadTree(), loadIndexStatus()]);
 }
 
 async function handleExport() {
@@ -297,76 +226,59 @@ async function handleExport() {
     const url = window.URL.createObjectURL(new Blob([blob]));
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "knowledge-base-self-contained.zip");
+    link.download = "knowledge-base-self-contained.zip";
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     window.URL.revokeObjectURL(url);
-    ElMessage.success("知识库自包含 ZIP 打包导出成功");
-  } catch (e) {
-    ElMessage.error("导出知识包失败: " + (e.message || "网络异常"));
+    ElMessage.success("知识库已导出");
+  } catch (error) {
+    ElMessage.error(error.message || "知识库导出失败");
   } finally {
     exporting.value = false;
   }
 }
 
 async function handleBeforeUpload(file) {
-  if (!file.name.endsWith(".zip")) {
-    ElMessage.error("只能上传 .zip 格式的知识库归档包");
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    ElMessage.error("请选择 ZIP 知识包");
     return false;
   }
   try {
-    await ElMessageBox.confirm(
-      `确定要上传并无损导入知识包「${file.name}」吗？系统将校验 README.yaml 并更新内存 Manifest。`,
-      "导入确认",
-      { confirmButtonText: "确认导入", cancelButtonText: "取消", type: "warning" }
-    );
+    await ElMessageBox.confirm(`导入“${file.name}”将校验并更新知识库 Manifest。`, "导入知识包？", { type: "warning", confirmButtonText: "开始导入", cancelButtonText: "取消" });
   } catch {
     return false;
   }
-
   importing.value = true;
   const formData = new FormData();
   formData.append("file", file);
   try {
-    const res = await importKnowledgeZip(formData);
-    if (res.code === 200 || res.data) {
-      const report = res.data;
-      ElMessage.success(
-        `导入成功！解析目录 ${report.totalDirectories} 个，文档 ${report.totalDocuments} 篇，新版本 ${report.manifestVersion}`
-      );
-      await loadData();
-    } else {
-      ElMessage.error(res.message || "导入失败");
-    }
-  } catch (e) {
-    ElMessage.error("导入知识包失败: " + (e.message || "网络异常"));
+    await importKnowledgeZip(formData);
+    ElMessage.success("知识包已导入");
+    await loadData();
+    emit("changed");
+  } catch (error) {
+    ElMessage.error(error.message || "知识包导入失败");
   } finally {
     importing.value = false;
   }
-  return false; // 阻止 el-upload 自带提交
+  return false;
 }
 
 async function handleRebuild() {
   try {
-    await ElMessageBox.confirm(
-      "手动触发全量蓝绿重建将对当前知识库所有文档重新执行分块切片并原子切换别名，确定继续吗？",
-      "重建索引确认",
-      { confirmButtonText: "确认重建", cancelButtonText: "取消", type: "warning" }
-    );
+    await ElMessageBox.confirm("将对全部知识文档重新分块并切换物理索引。", "重建索引？", { type: "warning", confirmButtonText: "开始重建", cancelButtonText: "取消" });
   } catch {
     return;
   }
-
   rebuilding.value = true;
   try {
-    const res = await rebuildKnowledgeIndex();
-    if (res.code === 200 || res.data) {
-      ElMessage.success("索引蓝绿重建已完成！" + (res.data?.message || ""));
-      await loadData();
-    }
-  } catch (e) {
-    ElMessage.error("触发索引重建失败: " + (e.message || "网络异常"));
+    await rebuildKnowledgeIndex();
+    ElMessage.success("索引重建已完成");
+    await loadIndexStatus();
+    emit("changed");
+  } catch (error) {
+    ElMessage.error(error.message || "索引重建失败");
   } finally {
     rebuilding.value = false;
   }
@@ -376,350 +288,46 @@ onMounted(loadData);
 </script>
 
 <style scoped>
-.knowledge-manager-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.metric-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.metric-box .label {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.metric-box .value {
-  font-size: 15px;
-  color: #0f172a;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.knowledge-browser {
-  border-radius: 6px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-header .sub-text {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.browser-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 20px;
-  min-height: 520px;
-}
-
-.directory-panel {
-  border-right: 1px solid #e2e8f0;
-  padding-right: 16px;
-}
-
-.panel-heading,
-.document-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.panel-heading {
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 4px 8px 12px;
-  color: #0f172a;
-}
-
-.panel-kicker {
-  display: block;
-  margin-bottom: 5px;
-  color: #94a3b8;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.directory-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 10px;
-  padding: 10px 8px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: #334155;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.directory-item:hover {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
-.directory-item.is-active {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #0f172a;
-}
-
-.directory-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.directory-item.is-active .directory-icon {
-  background: #0f172a;
-  color: #fff;
-}
-
-.directory-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.directory-copy strong,
-.directory-copy small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.directory-copy strong {
-  font-size: 13px;
-}
-
-.directory-copy small {
-  margin-top: 3px;
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.directory-arrow {
-  color: #94a3b8;
-  font-size: 18px;
-}
-
-.document-panel {
-  min-width: 0;
-}
-
-.document-panel-header {
-  align-items: flex-start;
-  padding: 4px 0 14px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.document-panel-header h3 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 20px;
-  line-height: 1.3;
-}
-
-.document-panel-header code {
-  display: block;
-  margin-top: 6px;
-  overflow: hidden;
-  color: #64748b;
-  font-family: var(--lm-code-font-family);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.directory-tags {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px 0 4px;
-}
-
-.tag-label {
-  margin-right: 2px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.document-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding-top: 14px;
-}
-
-.document-card {
-  display: flex;
-  min-height: 218px;
-  flex-direction: column;
-  padding: 15px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-  cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-
-.document-card:hover,
-.document-card:focus-visible {
-  border-color: #94a3b8;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
-  outline: none;
-  transform: translateY(-1px);
-}
-
-.document-card-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.document-type-icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.document-card h4 {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 14px 0 5px;
-  color: #0f172a;
-  font-size: 14px;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.document-file {
-  overflow: hidden;
-  color: #94a3b8;
-  font-family: var(--lm-code-font-family);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.doc-summary {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 10px 0 12px;
-  color: #64748b;
-  font-size: 12px;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.document-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: auto;
-}
-
-.more-tags {
-  align-self: center;
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.document-card-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.detail-link {
-  color: #475569;
-  font-weight: 600;
-}
-
-.detail-content .summary-box {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #334155;
-}
-
-.mr-1 {
-  margin-right: 4px;
-}
-
-@media (max-width: 768px) {
-  .metrics-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .browser-layout {
-    grid-template-columns: 1fr;
-  }
-  .directory-panel {
-    border-right: 0;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 0 0 12px;
-  }
-  .directory-item {
-    display: inline-flex;
-    width: calc(50% - 4px);
-    margin-right: 4px;
-  }
-  .document-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.knowledge-console { min-width: 0; padding: var(--lm-admin-space-3); }
+.knowledge-toolbar, .toolbar-actions, .index-strip, .index-strip > span, .inline-warning, .directory-context, .directory-tags, .document-tags { display: flex; align-items: center; }
+.knowledge-toolbar { justify-content: space-between; gap: var(--lm-admin-space-3); margin-bottom: var(--lm-admin-space-3); }
+.knowledge-search { width: 300px; }
+.toolbar-actions { gap: var(--lm-admin-space-2); }
+.index-strip { min-height: 42px; gap: 18px; margin-bottom: var(--lm-admin-space-3); padding: 7px 10px; background: var(--lm-admin-surface-subtle); border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); font-size: 12px; }
+.index-strip > span { gap: 6px; }
+.index-strip small { color: var(--lm-admin-text-muted); }
+.index-strip strong, .index-strip code { color: var(--lm-admin-text-strong); font-size: 12px; }
+.index-strip.is-error { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.knowledge-workspace { display: grid; min-height: 500px; grid-template-columns: 220px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.directory-panel { min-width: 0; padding: 8px; background: var(--lm-admin-surface-subtle); border-right: 1px solid var(--lm-admin-border); }
+.directory-summary { padding: 4px 8px 8px; color: var(--lm-admin-text-muted); font-size: 11px; }
+.directory-item { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 8px; color: var(--lm-admin-text-default); background: transparent; border: 0; border-radius: var(--lm-admin-radius-control); cursor: pointer; text-align: left; }
+.directory-item:hover { background: #fff; }
+.directory-item.active { color: var(--lm-admin-primary); background: #eaf2ff; }
+.directory-item > span { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: space-between; gap: 8px; }
+.directory-item strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.directory-item small { flex: 0 0 auto; color: var(--lm-admin-text-muted); font-size: 10px; }
+.directory-empty { padding: 26px 8px; color: var(--lm-admin-text-muted); font-size: 12px; text-align: center; }
+.document-panel { min-width: 0; padding: 12px; }
+.directory-context { min-height: 36px; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.directory-context > div:first-child { min-width: 0; }
+.directory-context strong, .directory-context code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.directory-context strong { color: var(--lm-admin-text-strong); font-size: 13px; }
+.directory-context code { margin-top: 2px; color: var(--lm-admin-text-muted); font-size: 10px; }
+.directory-tags, .document-tags { gap: 4px; }
+.document-table-scroll { min-width: 0; overflow-x: auto; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.document-table-scroll :deep(.el-table) { min-width: 780px; }
+.document-link { display: flex; max-width: 100%; flex-direction: column; padding: 0; color: inherit; background: transparent; border: 0; cursor: pointer; text-align: left; }
+.document-link strong, .document-link code { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.document-link strong { color: var(--lm-admin-text-strong); font-size: 12px; }
+.document-link code { margin-top: 2px; color: var(--lm-admin-text-muted); font-size: 10px; }
+.document-link:hover strong { color: var(--lm-admin-primary); }
+.document-tags span { color: var(--lm-admin-text-muted); font-size: 10px; }
+.workspace-empty { display: grid; min-height: 420px; place-items: center; color: var(--lm-admin-text-muted); font-size: 12px; }
+.detail-list { margin: 0; }
+.detail-list > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--lm-admin-border); font-size: 12px; }
+.detail-list dt { color: var(--lm-admin-text-muted); }
+.detail-list dd { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; color: var(--lm-admin-text-strong); line-height: 1.6; word-break: break-word; }
+.inline-warning { gap: 6px; margin-bottom: 8px; padding: 8px 10px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
+.table-empty { padding: 34px 0; color: var(--lm-admin-text-muted); font-size: 12px; }
 </style>
