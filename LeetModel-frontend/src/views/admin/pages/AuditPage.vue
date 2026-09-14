@@ -139,26 +139,30 @@
       </el-form>
     </section>
 
-    <section v-if="unavailable" class="audit-unavailable">
-      <el-icon><WarningFilled /></el-icon><div><strong>中央审计暂不可用</strong><p>{{ unavailable }}</p><small>页面不会用空集合伪装成功；请按 Runbook 检查 audit-service、Broker 和本地 Outbox。</small></div>
-    </section>
+    <AdminStatePanel v-if="unavailable" type="error" title="中央审计暂不可用" action-label="重新查询" @action="load">{{ unavailable }}</AdminStatePanel>
 
     <section class="domain-section audit-table-section" v-loading="loading">
-      <div class="section-heading"><div><span class="section-kicker">IMMUTABLE ARCHIVE</span><h3>操作事件</h3></div><span class="result-count">本页 {{ events.length }} 条<span v-if="page?.hasMore"> · 还有更多</span></span></div>
+      <div class="result-bar"><span>最近 {{ events.length }} 条</span><strong v-if="page?.hasMore">仍有更早记录，可缩小筛选范围</strong></div>
       <el-table v-if="events.length" :data="events" row-key="auditEventId" @row-click="openDetail">
         <el-table-column label="发生时间" min-width="170"><template #default="{ row }">{{ formatTime(row.occurredAt) }}</template></el-table-column>
-        <el-table-column label="操作 / 阶段" min-width="220"><template #default="{ row }"><strong>{{ row.operationCode }}</strong><br /><el-tag size="small" effect="plain">{{ row.phase }} · {{ row.outcome }}</el-tag></template></el-table-column>
-        <el-table-column prop="sourceService" label="来源服务" min-width="150" />
-        <el-table-column label="目标" min-width="180"><template #default="{ row }">{{ row.targetType }}<br /><code>{{ row.targetId || '—' }}</code></template></el-table-column>
-        <el-table-column label="操作者" min-width="150"><template #default="{ row }">{{ row.actorId || '—' }}<br /><small>{{ row.actorType || '—' }}</small></template></el-table-column>
-        <el-table-column label="关联" min-width="150"><template #default="{ row }"><el-button v-if="row.traceId || row.swTraceId" link type="primary" @click.stop="copyTrace(row)">{{ row.swTraceId ? '复制 SkyWalking Trace' : '复制 Trace' }}</el-button><span v-else>—</span></template></el-table-column>
+        <el-table-column label="操作" min-width="240"><template #default="{ row }"><strong class="primary-cell">{{ row.operationCode }}</strong><span class="secondary-cell">{{ row.sourceService }} · {{ row.phase }}</span></template></el-table-column>
+        <el-table-column label="结果" width="106"><template #default="{ row }"><AdminStatusBadge :status="row.outcome || 'UNKNOWN'" :label="outcomeLabel(row.outcome)" /></template></el-table-column>
+        <el-table-column label="目标" min-width="190"><template #default="{ row }"><strong class="primary-cell">{{ row.targetType || '—' }}</strong><span class="secondary-cell">{{ row.targetId || '—' }}</span></template></el-table-column>
+        <el-table-column label="操作者" min-width="150"><template #default="{ row }"><strong class="primary-cell">{{ row.actorId || '—' }}</strong><span class="secondary-cell">{{ row.actorType || '—' }}</span></template></el-table-column>
+        <el-table-column label="" width="62" align="right"><template #default="{ row }"><el-button link type="primary" @click.stop="openDetail(row)">详情</el-button></template></el-table-column>
       </el-table>
-      <el-empty v-else description="暂无符合条件的审计事件" />
+      <AdminStatePanel v-else :type="hasFilters ? 'filtered' : 'empty'" :title="hasFilters ? '没有符合条件的审计事件' : '暂无审计事件'" />
     </section>
 
     <el-drawer v-model="detailVisible" title="操作时间线" size="560px">
       <template v-if="selected">
-        <div class="audit-detail-head"><el-tag :type="selected.outcome === 'FAILED' ? 'danger' : 'success'">{{ selected.outcome }}</el-tag><strong>{{ selected.operationCode }}</strong><span>{{ selected.sourceService }}</span></div>
+        <div class="audit-detail-head"><AdminStatusBadge :status="selected.outcome || 'UNKNOWN'" :label="outcomeLabel(selected.outcome)" /><strong>{{ selected.operationCode }}</strong><span>{{ selected.sourceService }}</span></div>
+        <el-alert v-if="detailError" :title="detailError" type="warning" :closable="false" show-icon />
+        <el-timeline v-if="detailEvents.length > 1" v-loading="detailLoading" class="operation-timeline">
+          <el-timeline-item v-for="event in detailEvents" :key="event.auditEventId" :timestamp="formatTime(event.occurredAt)" placement="top" :type="event.outcome === 'FAILED' ? 'danger' : event.outcome === 'SUCCEEDED' ? 'success' : 'primary'">
+            <button type="button" :class="{ active: event.auditEventId === selected.auditEventId }" @click="selected = event"><strong>{{ event.phase }}</strong><span>{{ outcomeLabel(event.outcome) }}</span></button>
+          </el-timeline-item>
+        </el-timeline>
         <el-descriptions :column="1" border>
           <el-descriptions-item label="操作 ID"><code>{{ selected.operationId }}</code></el-descriptions-item>
           <el-descriptions-item label="目标">{{ selected.targetType }} / {{ selected.targetId || '—' }}</el-descriptions-item>
@@ -166,8 +170,13 @@
           <el-descriptions-item label="原因">{{ selected.reason || '—' }}</el-descriptions-item>
           <el-descriptions-item label="失败码">{{ selected.failureCode || '—' }}</el-descriptions-item>
         </el-descriptions>
-        <h4>白名单摘要差异</h4><div class="summary-diff"><pre>{{ JSON.stringify({ before: selected.beforeSummary, after: selected.afterSummary }, null, 2) }}</pre></div>
-        <div class="detail-links"><el-button v-if="selected.traceId" link type="primary" @click="copyText(selected.traceId)">复制 Trace ID</el-button><el-button v-if="selected.swTraceId" link type="primary" @click="copyText(selected.swTraceId)">复制 SkyWalking ID</el-button></div>
+        <h4>摘要差异</h4>
+        <div v-if="summaryRows.length" class="summary-diff">
+          <div class="diff-head"><span>字段</span><span>变更前</span><span>变更后</span></div>
+          <div v-for="row in summaryRows" :key="row.key" class="diff-row" :class="{ changed: row.before !== row.after }"><strong>{{ row.key }}</strong><span>{{ row.before }}</span><span>{{ row.after }}</span></div>
+        </div>
+        <AdminStatePanel v-else type="empty" title="此阶段没有摘要字段" />
+        <div class="detail-links"><el-button v-if="selected.traceId" @click="copyText(selected.traceId)">复制 Trace ID</el-button><el-button v-if="selected.swTraceId" @click="copyText(selected.swTraceId)">复制 SkyWalking ID</el-button></div>
       </template>
     </el-drawer>
   </div>
@@ -176,6 +185,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
+import AdminStatePanel from "../components/AdminStatePanel.vue";
+import AdminStatusBadge from "../components/AdminStatusBadge.vue";
 import { searchAdminAudit } from "@/api/admin-audit";
 
 const loading = ref(false);
@@ -184,6 +195,9 @@ const events = ref([]);
 const page = ref(null);
 const selected = ref(null);
 const detailVisible = ref(false);
+const detailLoading = ref(false);
+const detailError = ref("");
+const detailEvents = ref([]);
 const showAdvanced = ref(false);
 
 const timeRange = ref([]);
@@ -309,6 +323,16 @@ const filteredOperationOptions = computed(() => {
   }
   return [...matched, ...others];
 });
+const hasFilters = computed(() => Object.values(filters).some(Boolean));
+const summaryRows = computed(() => {
+  const before = selected.value?.beforeSummary || {};
+  const after = selected.value?.afterSummary || {};
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort().map(key => ({
+    key,
+    before: displaySummaryValue(before[key]),
+    after: displaySummaryValue(after[key]),
+  }));
+});
 
 function onTimeRangeChange(val) {
   if (val && val.length === 2) {
@@ -322,6 +346,15 @@ function onTimeRangeChange(val) {
 
 function formatTime(value) {
   return value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+}
+
+function outcomeLabel(value) {
+  return ({ SUCCEEDED: "成功", FAILED: "失败", PENDING: "处理中", REJECTED: "已拒绝" })[value] || "未知";
+}
+
+function displaySummaryValue(value) {
+  if (value == null || value === "") return "—";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 function query() {
@@ -361,8 +394,6 @@ async function load() {
     events.value = eventList;
     enrichOptionsFromEvents(eventList);
   } catch (error) {
-    events.value = [];
-    page.value = null;
     unavailable.value = error.message || "audit-service 查询失败";
   } finally {
     loading.value = false;
@@ -377,9 +408,23 @@ function reset() {
   load();
 }
 
-function openDetail(row) {
+async function openDetail(row) {
   selected.value = row;
+  detailEvents.value = [row];
+  detailError.value = "";
   detailVisible.value = true;
+  if (!row.operationId) return;
+  detailLoading.value = true;
+  try {
+    const result = await searchAdminAudit({ operationId: row.operationId, limit: 100 });
+    const stages = result.data?.events || [];
+    detailEvents.value = stages.sort((left, right) => new Date(left.occurredAt) - new Date(right.occurredAt));
+    selected.value = detailEvents.value.find(event => event.auditEventId === row.auditEventId) || row;
+  } catch (error) {
+    detailError.value = error.message || "操作阶段加载失败";
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 async function copyText(value) {
@@ -391,31 +436,36 @@ async function copyText(value) {
   }
 }
 
-function copyTrace(row) {
-  copyText(row.swTraceId || row.traceId);
-}
-
 onMounted(load);
 </script>
 
 <style scoped>
 @import '../style.css';
-.audit-filters { padding: 18px 24px 8px; }
+.audit-page { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.audit-filters { padding: 12px 12px 0; }
 .audit-filter-form { width: 100%; }
 .filters-row { display: flex; flex-wrap: wrap; align-items: center; }
 .filters-main { gap: 2px 8px; }
-.filters-advanced { gap: 2px 8px; margin-top: 10px; padding-top: 14px; border-top: 1px dashed #e2e8f0; }
+.filters-advanced { gap: 2px 8px; margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--lm-admin-border); }
+.audit-filter-form :deep(.el-form-item) { margin-right: 0; margin-bottom: 10px; }
 .opt-label { float: left; }
 .opt-service { float: right; color: #94a3b8; font-size: 11px; margin-left: 12px; }
 .toggle-adv-btn { margin-left: 6px; font-size: 13px; }
-.audit-table-section { margin-top: 18px; }
-.section-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 16px; }
-.section-heading h3 { margin: 4px 0 0; }
-.section-kicker { color: #64748b; font-size: 11px; letter-spacing: .12em; }
-.result-count { color: #64748b; font-size: 13px; }
-.audit-unavailable { display: flex; gap: 14px; align-items: flex-start; margin: 18px 0; padding: 16px 20px; border: 1px solid #fed7aa; border-radius: 14px; background: #fff7ed; color: #9a3412; }
-.audit-unavailable .el-icon { font-size: 22px; margin-top: 2px; }.audit-unavailable p { margin: 4px 0; }.audit-unavailable small { color: #c2410c; }
+.audit-table-section { min-width: 0; overflow: hidden; }
+.result-bar { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; color: var(--lm-admin-text-muted); background: var(--lm-admin-surface-subtle); border-bottom: 1px solid var(--lm-admin-border); font-size: 11px; }
+.result-bar strong { color: var(--lm-admin-warning); font-weight: 600; }
+.audit-table-section :deep(.el-table__row) { cursor: pointer; }
+.primary-cell, .secondary-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.primary-cell { color: var(--lm-admin-text-strong); font-size: 12px; }.secondary-cell { margin-top: 2px; color: var(--lm-admin-text-muted); font-size: 10px; }
 .audit-detail-head { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }.audit-detail-head span { color: #64748b; margin-left: auto; }
-.summary-diff { border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 10px; overflow: auto; }.summary-diff pre { margin: 0; font-size: 12px; }
+.operation-timeline { margin: 16px 0 4px; padding-left: 6px; }
+.operation-timeline button { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 8px 10px; color: var(--lm-admin-text-default); background: var(--lm-admin-surface-subtle); border: 1px solid transparent; border-radius: var(--lm-admin-radius-control); cursor: pointer; text-align: left; }
+.operation-timeline button.active { color: var(--lm-admin-primary); background: #eff6ff; border-color: #bfdbfe; }.operation-timeline button span { color: var(--lm-admin-text-muted); font-size: 11px; }
+.summary-diff { overflow: hidden; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.diff-head, .diff-row { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(0, 1fr) minmax(0, 1fr); }
+.diff-head { color: var(--lm-admin-text-muted); background: var(--lm-admin-surface-subtle); font-size: 10px; }
+.diff-head span, .diff-row > * { min-width: 0; padding: 8px 10px; border-right: 1px solid var(--lm-admin-border); }.diff-head span:last-child, .diff-row > *:last-child { border-right: 0; }
+.diff-row { border-top: 1px solid var(--lm-admin-border); font-size: 11px; }.diff-row > span { overflow-wrap: anywhere; }.diff-row.changed { background: #fffbeb; }.diff-row strong { color: var(--lm-admin-text-strong); }
 .detail-links { margin-top: 18px; }
+@media (max-width: 1100px) { .filter-actions { width: 100%; }.result-bar { align-items: flex-start; flex-direction: column; } }
 </style>
