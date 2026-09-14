@@ -1,8 +1,8 @@
 .operation-page { min-width: 0; padding: var(--lm-admin-space-3); }
-.operation-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: var(--lm-admin-space-3); }
+.operation-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin-bottom: var(--lm-admin-space-3); }
 .result-scope { display: flex; flex: 0 0 auto; align-items: baseline; gap: 6px; color: var(--lm-admin-text-muted); font-size: 11px; }
 .result-scope strong { color: var(--lm-admin-text-strong); font-size: 16px; font-variant-numeric: tabular-nums; }
-.filter-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 8px; }
+.filter-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .filter-actions .el-input { width: 250px; }
 .filter-actions .el-select { width: 132px; }
 .operation-table { width: 100%; }

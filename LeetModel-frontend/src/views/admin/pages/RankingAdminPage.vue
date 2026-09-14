@@ -170,11 +170,11 @@ onBeforeUnmount(() => { window.removeEventListener("resize", resizeCharts); disp
 <style scoped>
 @import './operations-workspace.css';
 .ranking-page { min-width: 0; padding: var(--lm-admin-space-3); }
-.ranking-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: var(--lm-admin-space-3); }
+.ranking-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin-bottom: var(--lm-admin-space-3); }
 .metric-strip { display: flex; min-width: 0; align-items: center; gap: 13px; color: var(--lm-admin-text-muted); font-size: 11px; white-space: nowrap; }
 .metric-strip span + span { padding-left: 13px; border-left: 1px solid var(--lm-admin-border); }
 .metric-strip strong { color: var(--lm-admin-text-strong); font-size: 15px; font-variant-numeric: tabular-nums; }
-.ranking-actions { display: flex; min-width: 0; justify-content: flex-end; gap: 8px; }
+.ranking-actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .ranking-actions .el-select { width: 310px; }
 .ranking-actions .el-input { width: 170px; }
 .analysis-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr); gap: 12px; margin-bottom: 12px; }
