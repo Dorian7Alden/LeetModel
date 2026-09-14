@@ -3,6 +3,7 @@ package com.leetmodel.knowledge.controller;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.knowledge.archive.KnowledgeExportService;
 import com.leetmodel.knowledge.archive.KnowledgeImportService;
+import com.leetmodel.knowledge.archive.KnowledgeTreeAssembler;
 import com.leetmodel.knowledge.archive.vo.KnowledgeImportSummaryVO;
 import com.leetmodel.knowledge.archive.vo.KnowledgeIndexRebuildVO;
 import com.leetmodel.knowledge.archive.vo.KnowledgeIndexStatusVO;
@@ -10,8 +11,6 @@ import com.leetmodel.knowledge.archive.vo.KnowledgeTreeNodeVO;
 import com.leetmodel.knowledge.config.KnowledgeRetrievalProperties;
 import com.leetmodel.knowledge.manifest.YamlKnowledgeManifestLoader;
 import com.leetmodel.knowledge.manifest.model.KnowledgeManifest;
-import com.leetmodel.knowledge.manifest.model.ManifestDirectory;
-import com.leetmodel.knowledge.manifest.model.ManifestDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -26,7 +25,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -42,6 +40,7 @@ public class AdminKnowledgeController {
     private final YamlKnowledgeManifestLoader manifestLoader;
     private final KnowledgeExportService exportService;
     private final KnowledgeImportService importService;
+    private final KnowledgeTreeAssembler treeAssembler;
 
     /**
      * 查询知识库层级大纲树与多维标签。
@@ -51,35 +50,7 @@ public class AdminKnowledgeController {
         Path root = Path.of(properties.getKnowledgeBasePath()).toAbsolutePath().normalize();
         KnowledgeManifest manifest = manifestLoader.loadRoot(root);
 
-        List<KnowledgeTreeNodeVO> tree = new ArrayList<>();
-        for (ManifestDirectory dir : manifest.getDirectories()) {
-            KnowledgeTreeNodeVO node = new KnowledgeTreeNodeVO();
-            node.setName(dir.directoryName());
-            node.setPath(dir.path());
-            node.setTitle(dir.title());
-            node.setDescription(dir.description());
-            node.setDocumentCount(dir.documents().size());
-            if (dir.tags() != null && dir.tags().getMethods() != null) {
-                node.setTags(new ArrayList<>(dir.tags().getMethods()));
-            }
-
-            List<KnowledgeTreeNodeVO.KnowledgeDocumentItemVO> docItems = new ArrayList<>();
-            for (ManifestDocument doc : dir.documents()) {
-                KnowledgeTreeNodeVO.KnowledgeDocumentItemVO item = new KnowledgeTreeNodeVO.KnowledgeDocumentItemVO();
-                item.setFile(doc.file());
-                item.setPath(doc.relativePath());
-                item.setTitle(doc.title());
-                item.setSummary(doc.summary());
-                item.setAuthorityLevel(doc.authorityLevel());
-                item.setDocTags(doc.docTags());
-                item.setMethods(doc.methods());
-                item.setEstimatedTokens(doc.estimatedTokens() != null ? doc.estimatedTokens() : 0);
-                docItems.add(item);
-            }
-            node.setDocuments(docItems);
-            tree.add(node);
-        }
-        return Result.ok(tree);
+        return Result.ok(treeAssembler.assemble(manifest.getDirectories()));
     }
 
     /**

@@ -15,7 +15,7 @@
 
 ## 当前状态
 
-当前阶段分支：`phase/admin-console-workbench`
+当前阶段分支：`phase/admin-knowledge-tree`
 
 ## 已确认的系统边界
 
