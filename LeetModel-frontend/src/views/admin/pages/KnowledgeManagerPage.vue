@@ -93,17 +93,17 @@
             </div>
             <div class="document-table-scroll">
               <el-table :data="currentDirectory.documents || []" row-key="file" table-layout="fixed">
-                <el-table-column label="文件名" min-width="280">
+                <el-table-column label="文件名" min-width="180">
                   <template #default="{ row }">
                     <button class="document-link" type="button" @click="showDocDetail(row, currentDirectory)">
                       <strong>{{ row.file }}</strong><span v-if="row.title && row.title !== row.file">{{ row.title }}</span>
                     </button>
                   </template>
                 </el-table-column>
-                <el-table-column label="权威" width="74">
+                <el-table-column label="权威" width="54">
                   <template #default="{ row }"><el-tag :type="authorityTagType(row.authorityLevel)" size="small">{{ row.authorityLevel || '未知' }}</el-tag></template>
                 </el-table-column>
-                <el-table-column label="标签 / 方法" min-width="250">
+                <el-table-column label="标签 / 方法" min-width="150">
                   <template #default="{ row }">
                     <div class="document-tags">
                       <el-tag v-for="tag in documentTags(row).slice(0, 3)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
@@ -112,11 +112,8 @@
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column label="预估 Token" width="110" align="right">
+                <el-table-column label="Token" width="78" align="right">
                   <template #default="{ row }">{{ formatCount(row.estimatedTokens) }}</template>
-                </el-table-column>
-                <el-table-column label="操作" width="72" align="right">
-                  <template #default="{ row }"><el-button link type="primary" @click="showDocDetail(row, currentDirectory)">详情</el-button></template>
                 </el-table-column>
                 <template #empty>
                   <div class="table-empty">
@@ -498,7 +495,7 @@ onMounted(loadData);
 .directory-meta { flex: 0 0 auto; gap: 8px; color: var(--lm-admin-text-muted); font-size: 11px; }
 .directory-tags, .document-tags { gap: 4px; }
 .document-table-scroll { min-width: 0; overflow-x: auto; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
-.document-table-scroll :deep(.el-table) { min-width: 780px; }
+.document-table-scroll :deep(.el-table) { min-width: 460px; }
 .document-link { display: flex; max-width: 100%; flex-direction: column; padding: 0; color: inherit; background: transparent; border: 0; cursor: pointer; text-align: left; }
 .document-link strong, .document-link span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .document-link strong { color: var(--lm-admin-text-strong); font-size: 12px; }
@@ -512,4 +509,8 @@ onMounted(loadData);
 .detail-list dd { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; color: var(--lm-admin-text-strong); line-height: 1.6; word-break: break-word; }
 .inline-warning { gap: 6px; margin-bottom: 8px; padding: 8px 10px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
 .table-empty { padding: 34px 0; color: var(--lm-admin-text-muted); font-size: 12px; }
+
+@media (max-width: 1200px) {
+  .knowledge-workspace { grid-template-columns: 220px minmax(0, 1fr); }
+}
 </style>
