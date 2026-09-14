@@ -48,6 +48,15 @@ public interface TeamFeignClient {
     @GetMapping("/internal/teams/recent")
     Result<List<TeamDTO>> listRecent(@RequestParam("limit") Integer limit);
 
+    /**
+     * 按标识批量获取队伍业务摘要。
+     *
+     * @param teamIds 队伍 ID 集合
+     * @return 已存在的队伍摘要
+     */
+    @GetMapping("/internal/teams/summaries")
+    Result<List<TeamDTO>> listSummaries(@RequestParam("teamIds") List<Long> teamIds);
+
     @GetMapping("/internal/teams/practice/expired")
     Result<List<TeamDTO>> listExpiredPractices();
 
