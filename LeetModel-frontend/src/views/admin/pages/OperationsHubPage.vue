@@ -1,33 +1,28 @@
 <template>
-  <div class="domain-page operations-hub-page">
-    <section class="domain-hero domain-hero-orange">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">BUSINESS OPERATIONS</span>
-        <h2>沿真实业务链观察，而不是逐表巡检</h2>
-        <p>把队伍、提交、评审、改进建议和排行串成同一条运营链，先判断流转是否顺畅，再进入明细处理。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新链路</el-button>
-      </div>
-    </section>
-
-    <div class="operation-flow" v-loading="summaryLoading">
-      <template v-for="(item, index) in flowItems" :key="item.key">
-        <button class="flow-node" :class="{ active: activeView === item.key }" @click="setView(item.key)">
-          <span class="flow-icon"><el-icon><component :is="item.icon" /></el-icon></span>
-          <span class="flow-copy"><small>{{ item.step }}</small><strong>{{ item.title }}</strong><em>{{ item.value }}</em></span>
-        </button>
-        <span v-if="index < flowItems.length - 1" class="flow-arrow"><el-icon><ArrowRight /></el-icon></span>
-      </template>
+  <div class="operations-hub-page">
+    <div class="operations-nav-panel">
+      <AdminSubnav
+        :model-value="activeView"
+        :items="navigationItems"
+        aria-label="业务运营工作面"
+        @update:model-value="selectView"
+      />
     </div>
 
-    <section class="domain-section hub-section">
-      <el-tabs v-model="activeView" class="domain-tabs" @tab-change="handleTabChange">
-        <el-tab-pane v-for="item in views" :key="item.key" :name="item.key">
-          <template #label><span class="domain-tab-label"><el-icon><component :is="item.icon" /></el-icon>{{ item.label }}</span></template>
-          <component :is="item.component" v-if="activeView === item.key" />
-        </el-tab-pane>
-      </el-tabs>
+    <div v-if="referenceIssue" class="reference-warning" role="status">
+      <el-icon><WarningFilled /></el-icon>
+      <span>部分队伍或题目名称未取得，相关位置暂显示为“—”</span>
+      <el-button link type="primary" :loading="referenceLoading" @click="loadReferences">重试</el-button>
+    </div>
+
+    <section class="operations-view" :aria-label="activeViewLabel">
+      <component
+        :is="activeComponent"
+        :key="activeView"
+        :team-map="teamMap"
+        :problem-map="problemMap"
+        @reference-ids="loadTeamReferences"
+      />
     </section>
   </div>
 </template>
@@ -35,51 +30,102 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import AdminSubnav from "../components/AdminSubnav.vue";
 import SubmissionListPage from "./SubmissionListPage.vue";
 import TeamListPage from "./TeamListPage.vue";
 import ReviewListPage from "./ReviewListPage.vue";
 import SuggestionListPage from "./SuggestionListPage.vue";
 import RankingAdminPage from "./RankingAdminPage.vue";
-import { getAdminReviews, getAdminSubmissions, getAdminSuggestions, getAdminTeams } from "@/api/admin-ops";
+import { getAdminTeamReferences } from "@/api/admin-ops";
+import { getPublicProblemList } from "@/api/problem";
 
 const route = useRoute();
 const router = useRouter();
-const summaryLoading = ref(false);
-const counts = ref({ teams: "—", submissions: "—", reviews: "—", suggestions: "—" });
-const views = [
-  { key: "teams", label: "队伍", icon: "UserFilled", component: TeamListPage },
-  { key: "submissions", label: "提交", icon: "UploadFilled", component: SubmissionListPage },
-  { key: "reviews", label: "评审", icon: "DataAnalysis", component: ReviewListPage },
-  { key: "suggestions", label: "建议", icon: "ChatLineSquare", component: SuggestionListPage },
-  { key: "rankings", label: "排行", icon: "Trophy", component: RankingAdminPage },
-];
-const validViews = new Set(views.map((item) => item.key));
-const activeView = ref(validViews.has(route.query.view) ? route.query.view : "submissions");
-const flowItems = computed(() => [
-  { key: "teams", step: "01", title: "组建队伍", value: formatCount(counts.value.teams), icon: "UserFilled" },
-  { key: "submissions", step: "02", title: "提交论文", value: formatCount(counts.value.submissions), icon: "UploadFilled" },
-  { key: "reviews", step: "03", title: "AI 评审", value: formatCount(counts.value.reviews), icon: "DataAnalysis" },
-  { key: "suggestions", step: "04", title: "改进建议", value: formatCount(counts.value.suggestions), icon: "ChatLineSquare" },
-  { key: "rankings", step: "05", title: "形成排行", value: "按题目查看", icon: "Trophy" },
-]);
+const referenceRequests = ref(0);
+const teamReferenceError = ref(false);
+const problemReferenceError = ref(false);
+const requestedTeamIds = ref([]);
+const teamMap = ref({});
+const problemMap = ref({});
+const referenceLoading = computed(() => referenceRequests.value > 0);
+const referenceIssue = computed(() => teamReferenceError.value || problemReferenceError.value);
 
-function formatCount(value) { return value === "—" ? value : `${value} 条近期记录`; }
-function setView(key) { activeView.value = key; handleTabChange(key); }
-function handleTabChange(key) { router.replace({ query: { ...route.query, view: key } }); }
-async function loadSummary() {
-  summaryLoading.value = true;
-  const results = await Promise.allSettled([
-    getAdminTeams(50), getAdminSubmissions(50), getAdminReviews(50), getAdminSuggestions(50),
-  ]);
-  const readLength = (result) => result.status === "fulfilled" ? (result.value.data?.length ?? 0) : "—";
-  counts.value = { teams: readLength(results[0]), submissions: readLength(results[1]), reviews: readLength(results[2]), suggestions: readLength(results[3]) };
-  summaryLoading.value = false;
+const views = {
+  submissions: { label: "提交", icon: "UploadFilled", component: SubmissionListPage },
+  teams: { label: "队伍", icon: "UserFilled", component: TeamListPage },
+  reviews: { label: "评审", icon: "DataAnalysis", component: ReviewListPage },
+  suggestions: { label: "建议", icon: "ChatLineSquare", component: SuggestionListPage },
+  rankings: { label: "排行", icon: "Trophy", component: RankingAdminPage },
+};
+
+const activeView = computed(() => typeof route.query.view === "string" && views[route.query.view]
+  ? route.query.view
+  : "submissions");
+const activeComponent = computed(() => views[activeView.value].component);
+const activeViewLabel = computed(() => views[activeView.value].label);
+const navigationItems = Object.entries(views).map(([value, item]) => ({
+  value,
+  label: item.label,
+  icon: item.icon,
+}));
+
+function selectView(value) {
+  if (value === activeView.value) return;
+  const query = { ...route.query, view: value };
+  if (value === "submissions") delete query.view;
+  router.replace({ query });
 }
 
-watch(() => route.query.view, (value) => { if (validViews.has(value)) activeView.value = value; });
-onMounted(loadSummary);
+async function loadProblemReferences() {
+  referenceRequests.value += 1;
+  problemReferenceError.value = false;
+  try {
+    const response = await getPublicProblemList({ page: 1, pageSize: 100 });
+    problemMap.value = Object.fromEntries((response.data?.rows || []).map(item => [String(item.id), item]));
+  } catch {
+    problemReferenceError.value = true;
+  } finally {
+    referenceRequests.value -= 1;
+  }
+}
+
+async function loadTeamReferences(teamIds, force = false) {
+  const normalizedIds = [...new Set((teamIds || []).filter(Boolean).map(String))];
+  requestedTeamIds.value = [...new Set([...requestedTeamIds.value, ...normalizedIds])];
+  const targetIds = force ? normalizedIds : normalizedIds.filter(id => !teamMap.value[id]);
+  if (!targetIds.length) return;
+  referenceRequests.value += 1;
+  teamReferenceError.value = false;
+  try {
+    const response = await getAdminTeamReferences(targetIds);
+    const additions = Object.fromEntries((response.data || []).map(item => [String(item.id), item]));
+    teamMap.value = { ...teamMap.value, ...additions };
+  } catch {
+    teamReferenceError.value = true;
+  } finally {
+    referenceRequests.value -= 1;
+  }
+}
+
+async function loadReferences() {
+  await Promise.all([
+    loadProblemReferences(),
+    loadTeamReferences(requestedTeamIds.value, true),
+  ]);
+}
+
+watch(() => route.query.view, value => {
+  if (value && !views[value]) router.replace({ query: { ...route.query, view: undefined } });
+});
+
+onMounted(loadProblemReferences);
 </script>
 
 <style scoped>
-@import '../style.css';
+.operations-hub-page { display: flex; min-width: 0; flex-direction: column; gap: var(--lm-admin-space-3); }
+.operations-nav-panel, .operations-view { min-width: 0; background: var(--lm-admin-surface); border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-panel); }
+.operations-nav-panel { padding: 0 var(--lm-admin-space-2); }
+.operations-view { overflow: hidden; }
+.reference-warning { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
+.reference-warning span { flex: 1; }
 </style>

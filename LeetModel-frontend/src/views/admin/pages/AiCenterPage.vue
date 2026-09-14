@@ -1,36 +1,28 @@
 <template>
-  <div class="domain-page ai-center-page">
-    <section class="domain-hero domain-hero-violet">
-      <div class="domain-hero-copy">
-        <span class="domain-eyebrow">AI CONTROL PLANE</span>
-        <h2>从可观测到可评价，再到安全上线</h2>
-        <p>调用事实回答“运行得怎样”，质量评价回答“版本是否更好”，生产版本治理决定“真实流量使用什么”。</p>
-      </div>
-      <div class="domain-actions">
-        <el-button class="hero-button" :loading="summaryLoading" @click="loadSummary"><el-icon><Refresh /></el-icon>刷新状态</el-button>
-      </div>
-    </section>
+  <div class="ai-center-page">
+    <AdminMetricStrip :items="summaryItems" :loading="summaryLoading && !summaryLoaded" />
 
-    <div class="ai-posture-grid" v-loading="summaryLoading">
-      <div class="ai-posture-card emphasis">
-        <span class="posture-label">调用成功率</span>
-        <strong>{{ successRate }}</strong>
-        <el-progress :percentage="successPercentage" :stroke-width="6" :show-text="false" color="#8b5cf6" />
-        <small>{{ summary.success }} 成功 / {{ summary.total }} 次调用</small>
-      </div>
-      <div class="ai-posture-card"><span class="posture-label">累计 Tokens</span><strong>{{ formatNumber(summary.tokens) }}</strong><small>来自网关计量事实</small></div>
-      <div class="ai-posture-card"><span class="posture-label">平均耗时</span><strong>{{ summary.latency === '—' ? '—' : `${summary.latency} ms` }}</strong><small>端到端调用耗时</small></div>
-      <div class="ai-posture-card"><span class="posture-label">评价任务</span><strong>{{ summary.evaluations }}</strong><small>最近可见实验任务</small></div>
-      <div class="ai-posture-card production"><span class="posture-label">生产工作流</span><strong>{{ summary.production }}</strong><small>{{ summary.revision }}</small></div>
+    <div v-if="summaryIssue" class="summary-warning" role="status">
+      <el-icon><WarningFilled /></el-icon>
+      <span>{{ summaryIssue }}</span>
+      <el-button link type="primary" :loading="summaryLoading" @click="loadSummary">重试</el-button>
     </div>
 
-    <section class="domain-section hub-section">
-      <el-tabs v-model="activeView" class="domain-tabs" @tab-change="handleTabChange">
-        <el-tab-pane v-for="item in views" :key="item.key" :name="item.key">
-          <template #label><span class="domain-tab-label"><el-icon><component :is="item.icon" /></el-icon>{{ item.label }}<small>{{ item.hint }}</small></span></template>
-          <component :is="item.component" v-if="activeView === item.key" />
-        </el-tab-pane>
-      </el-tabs>
+    <div class="ai-nav-panel">
+      <AdminSubnav
+        :model-value="activeView"
+        :items="navigationItems"
+        aria-label="AI 中枢工作面"
+        @update:model-value="selectView"
+      />
+      <el-button class="refresh-button" link :loading="summaryLoading" @click="loadSummary">
+        <el-icon><Refresh /></el-icon>
+        刷新
+      </el-button>
+    </div>
+
+    <section class="ai-view" :aria-label="activeViewLabel">
+      <component :is="activeComponent" :key="activeView" />
     </section>
   </div>
 </template>
@@ -38,58 +30,166 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import AdminMetricStrip from "../components/AdminMetricStrip.vue";
+import AdminSubnav from "../components/AdminSubnav.vue";
 import AiCallListPage from "./AiCallListPage.vue";
 import EvaluationPage from "./EvaluationPage.vue";
 import ProductionWorkflowPage from "./ProductionWorkflowPage.vue";
 import AiVersionCatalogPage from "./AiVersionCatalogPage.vue";
 import MessagingOperationsPage from "./MessagingOperationsPage.vue";
-import { getAdminAiCallStats, getAssistantProductionCurrent, listEvaluationTasks } from "@/api/admin-ai";
+import { getAdminAiCallStats, getAssistantProductionCurrent } from "@/api/admin-ai";
 
 const route = useRoute();
 const router = useRouter();
 const summaryLoading = ref(false);
-const summary = ref({ total: "—", success: "—", tokens: "—", latency: "—", evaluations: "—", production: "暂不可用", revision: "未取得生产快照" });
-const views = [
-  { key: "calls", label: "调用观测", hint: "事实", icon: "DataLine", component: AiCallListPage },
-  { key: "versions", label: "版本目录", hint: "查询", icon: "Tickets", component: AiVersionCatalogPage },
-  { key: "evaluations", label: "质量评价", hint: "实验", icon: "Histogram", component: EvaluationPage },
-  { key: "production", label: "生产版本", hint: "治理", icon: "SetUp", component: ProductionWorkflowPage },
-  { key: "messaging", label: "消息运维", hint: "可靠性", icon: "Connection", component: MessagingOperationsPage },
-];
-const validViews = new Set(views.map((item) => item.key));
-const activeView = ref(validViews.has(route.query.view) ? route.query.view : "calls");
-const successPercentage = computed(() => {
-  const total = Number(summary.value.total);
-  const success = Number(summary.value.success);
-  return total > 0 ? Math.round(success / total * 1000) / 10 : 0;
+const summaryLoaded = ref(false);
+const statsAvailable = ref(false);
+const productionAvailable = ref(false);
+const summary = ref({
+  successRate: "—",
+  failures: "—",
+  tokens: "—",
+  latency: "—",
+  production: "—",
 });
-const successRate = computed(() => summary.value.total === "—" ? "—" : `${successPercentage.value}%`);
 
-function formatNumber(value) { return typeof value === "number" ? value.toLocaleString("zh-CN") : value; }
-function handleTabChange(key) { router.replace({ query: { ...route.query, view: key } }); }
+const views = {
+  calls: { label: "调用", icon: "DataLine", component: AiCallListPage },
+  versions: { label: "版本", icon: "Tickets", component: AiVersionCatalogPage },
+  evaluations: { label: "质量评价", icon: "Histogram", component: EvaluationPage },
+  production: { label: "生产版本", icon: "SetUp", component: ProductionWorkflowPage },
+  messaging: { label: "消息运维", icon: "Connection", component: MessagingOperationsPage },
+};
+
+const activeView = computed(() => typeof route.query.view === "string" && views[route.query.view]
+  ? route.query.view
+  : "calls");
+const activeComponent = computed(() => views[activeView.value].component);
+const activeViewLabel = computed(() => views[activeView.value].label);
+const navigationItems = Object.entries(views).map(([value, item]) => ({
+  value,
+  label: item.label,
+  icon: item.icon,
+}));
+const summaryItems = computed(() => [
+  { key: "success", label: "成功率", value: summary.value.successRate, available: statsAvailable.value },
+  { key: "failures", label: "失败调用", value: summary.value.failures, available: statsAvailable.value },
+  { key: "latency", label: "平均耗时", value: summary.value.latency, available: statsAvailable.value },
+  { key: "tokens", label: "Tokens", value: summary.value.tokens, available: statsAvailable.value },
+  { key: "production", label: "当前生产版本", value: summary.value.production, available: productionAvailable.value },
+]);
+const summaryIssue = computed(() => {
+  if (!summaryLoaded.value || (statsAvailable.value && productionAvailable.value)) return "";
+  if (!statsAvailable.value && !productionAvailable.value) return "运行指标与生产版本暂不可用";
+  return statsAvailable.value ? "当前生产版本暂不可用" : "运行指标暂不可用";
+});
+
+function selectView(value) {
+  if (value === activeView.value) return;
+  const query = { ...route.query, view: value };
+  if (value === "calls") delete query.view;
+  router.replace({ query });
+}
+
 async function loadSummary() {
   summaryLoading.value = true;
-  const [statsResult, taskResult, productionResult] = await Promise.allSettled([
-    getAdminAiCallStats(), listEvaluationTasks(50), getAssistantProductionCurrent(),
+  const [statsResult, productionResult] = await Promise.allSettled([
+    getAdminAiCallStats(),
+    getAssistantProductionCurrent(),
   ]);
-  const stats = statsResult.status === "fulfilled" ? statsResult.value.data : null;
-  const production = productionResult.status === "fulfilled" ? productionResult.value.data : null;
-  summary.value = {
-    total: stats?.totalCount ?? "—",
-    success: stats?.successCount ?? "—",
-    tokens: stats?.totalTokens ?? "—",
-    latency: stats?.averageTotalMs ?? "—",
-    evaluations: taskResult.status === "fulfilled" ? (taskResult.value.data?.length ?? 0) : "—",
-    production: production?.workflowName || "暂不可用",
-    revision: production ? `${production.workflowVersion} · revision ${production.revision}` : "未取得生产快照",
-  };
+
+  statsAvailable.value = statsResult.status === "fulfilled";
+  productionAvailable.value = productionResult.status === "fulfilled";
+
+  if (statsAvailable.value) {
+    const stats = statsResult.value.data || {};
+    const total = Number(stats.totalCount || 0);
+    const success = Number(stats.successCount || 0);
+    summary.value.successRate = total > 0 ? `${Math.round(success / total * 1000) / 10}%` : "0%";
+    summary.value.failures = Number(stats.failureCount || 0);
+    summary.value.tokens = Number(stats.totalTokens || 0).toLocaleString("zh-CN");
+    summary.value.latency = stats.averageTotalMs == null ? "—" : `${stats.averageTotalMs} ms`;
+  }
+
+  if (productionAvailable.value) {
+    const production = productionResult.value.data;
+    summary.value.production = production?.workflowName || production?.workflowVersion || "—";
+  }
+
+  summaryLoaded.value = true;
   summaryLoading.value = false;
 }
 
-watch(() => route.query.view, (value) => { if (validViews.has(value)) activeView.value = value; });
+watch(() => route.query.view, value => {
+  if (value && !views[value]) router.replace({ query: { ...route.query, view: undefined } });
+});
+
 onMounted(loadSummary);
 </script>
 
 <style scoped>
-@import '../style.css';
+.ai-center-page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--lm-admin-space-3);
+}
+
+.ai-nav-panel,
+.ai-view {
+  min-width: 0;
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-panel);
+}
+
+.ai-nav-panel {
+  display: flex;
+  align-items: center;
+  padding-left: var(--lm-admin-space-2);
+}
+
+.ai-nav-panel :deep(.admin-subnav) {
+  min-width: 0;
+  flex: 1;
+  border-bottom: 0;
+}
+
+.refresh-button {
+  flex: 0 0 auto;
+  margin: 0 10px;
+}
+
+.ai-view {
+  overflow: hidden;
+}
+
+.summary-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--lm-admin-radius-control);
+  font-size: 12px;
+}
+
+.summary-warning span {
+  flex: 1;
+}
+
+.ai-view > :deep(*) {
+  animation: ai-view-enter var(--lm-admin-transition);
+}
+
+@keyframes ai-view-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-view > :deep(*) { animation: none; }
+}
 </style>

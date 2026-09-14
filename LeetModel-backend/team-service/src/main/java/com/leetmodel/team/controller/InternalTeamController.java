@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -123,6 +125,34 @@ public class InternalTeamController {
                     (int) memberCount, team.getProblemId(), team.getPracticeStatus(),
                     team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt());
         }).toList());
+    }
+
+    /**
+     * 按标识批量查询队伍业务摘要，供管理聚合层补全关联名称。
+     *
+     * @param teamIds 队伍 ID 集合
+     * @return 已存在的队伍摘要
+     */
+    @Operation(summary = "批量查询队伍摘要")
+    @GetMapping("/summaries")
+    public Result<List<TeamDTO>> listSummaries(
+            @RequestParam
+            @Size(min = 1, max = 100, message = "队伍数量必须在1到100之间")
+            List<@Positive Long> teamIds) {
+        List<Long> distinctIds = teamIds.stream().distinct().toList();
+        List<Team> teams = teamService.listByIds(distinctIds);
+        return Result.ok(teams.stream().map(team -> new TeamDTO(
+                team.getId(),
+                team.getName(),
+                team.getLeaderId(),
+                team.getStatus(),
+                null,
+                team.getProblemId(),
+                team.getPracticeStatus(),
+                team.getStartedAt(),
+                team.getDeadlineAt(),
+                team.getEndedAt()
+        )).toList());
     }
 
     /**

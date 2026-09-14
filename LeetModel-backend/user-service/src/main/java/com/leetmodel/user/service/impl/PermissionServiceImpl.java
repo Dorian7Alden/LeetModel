@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 权限管理服务实现。
@@ -36,8 +38,21 @@ public class PermissionServiceImpl implements PermissionService {
      */
     @Override
     public List<PermissionVO> listPermissions() {
-        return permissionMapper.selectList(null).stream()
-                .map(this::toVO)
+        List<Permission> permissions = permissionMapper.selectList(null);
+        if (permissions.isEmpty()) return List.of();
+
+        List<Long> permissionIds = permissions.stream().map(Permission::getId).toList();
+        Map<Long, Long> roleCounts = rolePermissionMapper.selectList(
+                        new LambdaQueryWrapper<RolePermission>()
+                                .in(RolePermission::getPermissionId, permissionIds)
+                ).stream()
+                .collect(Collectors.groupingBy(RolePermission::getPermissionId, Collectors.counting()));
+
+        return permissions.stream()
+                .map(permission -> toVO(
+                        permission,
+                        roleCounts.getOrDefault(permission.getId(), 0L)
+                ))
                 .toList();
     }
 
@@ -51,7 +66,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     public PermissionVO getPermissionById(Long permissionId) {
         Permission permission = getExistingPermission(permissionId);
-        return toVO(permission);
+        return toVO(permission, countPermissionRoles(permissionId));
     }
 
     /**
@@ -76,7 +91,7 @@ public class PermissionServiceImpl implements PermissionService {
         permissionMapper.insert(permission);
 
         log.info("创建权限完成: id={}", permission.getId());
-        return toVO(permission);
+        return toVO(permission, 0L);
     }
 
     /**
@@ -104,7 +119,7 @@ public class PermissionServiceImpl implements PermissionService {
         permissionMapper.updateById(permission);
 
         log.info("更新权限完成: id={}", permissionId);
-        return toVO(permission);
+        return toVO(permission, countPermissionRoles(permissionId));
     }
 
     /**
@@ -180,7 +195,7 @@ public class PermissionServiceImpl implements PermissionService {
      * @param permission 权限实体
      * @return 权限视图对象
      */
-    private PermissionVO toVO(Permission permission) {
+    private PermissionVO toVO(Permission permission, long roleCount) {
         return PermissionVO.builder()
                 .id(permission.getId())
                 .code(permission.getCode())
@@ -188,6 +203,19 @@ public class PermissionServiceImpl implements PermissionService {
                 .description(permission.getDescription())
                 .createTime(permission.getCreateTime())
                 .updateTime(permission.getUpdateTime())
+                .roleCount(roleCount)
                 .build();
+    }
+
+    /**
+     * 统计权限当前关联的角色数。
+     *
+     * @param permissionId 权限 ID
+     * @return 角色关联数
+     */
+    private long countPermissionRoles(Long permissionId) {
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getPermissionId, permissionId);
+        return rolePermissionMapper.selectCount(wrapper);
     }
 }

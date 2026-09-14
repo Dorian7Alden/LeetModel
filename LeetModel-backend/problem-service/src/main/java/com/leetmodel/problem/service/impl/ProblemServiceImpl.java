@@ -742,6 +742,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         if (tagIds.isEmpty()) return List.of();
         return tagMapper.selectBatchIds(tagIds).stream()
                 .map(tag -> ProblemVO.TagVO.builder()
+                        .id(tag.getId())
                         .name(tag.getName())
                         .type(tag.getType())
                         .build())

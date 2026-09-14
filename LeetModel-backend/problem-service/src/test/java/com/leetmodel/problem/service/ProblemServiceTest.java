@@ -14,6 +14,7 @@ import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.entity.ProblemAttachment;
+import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ContestMapper;
@@ -246,6 +247,24 @@ class ProblemServiceTest {
         assertEquals("B", result.getProblemNumber());
         assertEquals(2, result.getAttachments().size());
         assertEquals("data.xlsx", result.getAttachments().get(0).getFileName());
+    }
+
+    @Test
+    @DisplayName("题目详情返回可用于编辑的标签标识")
+    void getProblemDetailReturnsTagIds() {
+        ProblemTag relation = new ProblemTag();
+        relation.setProblemId(1L);
+        relation.setTagId(6201L);
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(relation));
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(tag(6201L, "回归分析", "MODEL_ALGORITHM")));
+        when(problemAttachmentMapper.selectList(any())).thenReturn(List.of());
+
+        ProblemVO result = problemService.getProblemDetail(1L);
+
+        assertEquals(1, result.getTags().size());
+        assertEquals(6201L, result.getTags().get(0).getId());
+        assertEquals("回归分析", result.getTags().get(0).getName());
     }
 
     @Test

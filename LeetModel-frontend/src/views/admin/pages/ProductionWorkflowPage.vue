@@ -1,14 +1,7 @@
 <template>
   <div class="production-page" v-loading="loading">
-    <div class="page-heading">
-      <div>
-        <p class="eyebrow">AI 客服治理</p>
-        <h1>生产工作流版本</h1>
-        <p class="page-description">实验候选用于隔离评价，只有当前指针引用的配置才是生产生效版本。</p>
-      </div>
-      <el-button :loading="loading" @click="loadAll">刷新事实</el-button>
-    </div>
-
+    <div class="production-toolbar"><el-button :loading="loading" @click="loadAll"><el-icon><Refresh /></el-icon>刷新</el-button></div>
+    <el-alert v-if="loadError" title="生产版本刷新失败，已保留最近结果" type="warning" :closable="false" show-icon />
     <el-alert
       v-if="lastResult"
       :title="resultTitle"
@@ -19,38 +12,24 @@
       @close="lastResult = null"
     />
 
-    <section class="current-card" v-if="current">
-      <div class="current-header">
-        <div>
-          <span class="status-kicker">生产生效</span>
-          <h2>{{ current.workflowName }}</h2>
-          <code>{{ current.productionConfigVersion }}</code>
-        </div>
-        <el-tag type="success" effect="dark">revision {{ current.revision }}</el-tag>
+    <section v-if="current" class="current-strip">
+      <div class="current-identity">
+        <AdminStatusBadge status="HEALTHY" label="生产生效" />
+        <strong>{{ current.workflowName }}</strong>
+        <code>{{ current.workflowVersion }}</code>
       </div>
-      <div class="fact-grid">
-        <div><span>工作流</span><strong>{{ current.workflowVersion }}</strong></div>
-        <div><span>Prompt</span><strong>{{ current.promptVersion }}</strong></div>
-        <div><span>模型配置</span><strong>{{ current.modelExecutionConfigVersion }}</strong></div>
-        <div><span>RAG 模式</span><strong>{{ current.ragMode }}</strong></div>
-        <div><span>物理索引</span><strong>{{ current.ragIndexVersion || "不适用" }}</strong></div>
-        <div><span>生效操作者</span><strong>{{ current.activatedBy ?? "系统" }}</strong></div>
-      </div>
-      <div class="observation-line">
-        <span>生效时间：{{ formatTime(current.activatedAt) }}</span>
-        <span>观察至：{{ formatTime(current.observationUntil) }}</span>
-      </div>
+      <dl class="current-facts">
+        <div><dt>revision</dt><dd>{{ current.revision }}</dd></div>
+        <div><dt>Prompt</dt><dd>{{ current.promptVersion }}</dd></div>
+        <div><dt>模型配置</dt><dd>{{ current.modelExecutionConfigVersion }}</dd></div>
+        <div><dt>RAG</dt><dd>{{ current.ragMode }}</dd></div>
+        <div><dt>生效时间</dt><dd>{{ formatTime(current.activatedAt) }}</dd></div>
+      </dl>
     </section>
 
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div class="section-heading">
-          <div>
-            <h2>实验候选工作流</h2>
-            <p>候选身份不代表生产资格；激活前仍由业务服务重检模型配置与固定索引。</p>
-          </div>
-        </div>
-      </template>
+    <AdminSubnav v-model="activeSection" :items="productionViews" aria-label="生产版本资源" />
+
+    <section v-if="activeSection === 'candidates'" class="production-panel">
       <el-table :data="workflows" stripe>
         <el-table-column prop="name" label="工作流" min-width="180" />
         <el-table-column prop="workflowVersion" label="版本" min-width="210" />
@@ -77,17 +56,9 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </section>
 
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div class="section-heading">
-          <div>
-            <h2>历史生产配置</h2>
-            <p>回滚只选择曾经生效的不可变配置，并走与激活相同的预览与确认协议。</p>
-          </div>
-        </div>
-      </template>
+    <section v-else-if="activeSection === 'history'" class="production-panel">
       <el-table :data="configs" stripe>
         <el-table-column prop="productionConfigVersion" label="配置版本" min-width="230" />
         <el-table-column prop="workflowName" label="工作流" min-width="170" />
@@ -112,10 +83,9 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </section>
 
-    <el-card shadow="never" class="section-card">
-      <template #header><div class="section-heading"><h2>成功变更审计</h2></div></template>
+    <section v-else class="production-panel">
       <el-table :data="audits" stripe>
         <el-table-column label="动作" width="100">
           <template #default="{ row }">
@@ -134,7 +104,7 @@
           <template #default="{ row }">{{ formatTime(row.changedAt) }}</template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </section>
 
     <el-dialog v-model="editVisible" :title="changeForm.action === 'ACTIVATE' ? '准备激活生产版本' : '准备回滚生产版本'" width="560px">
       <el-form label-position="top">
@@ -189,6 +159,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
+import AdminStatusBadge from "../components/AdminStatusBadge.vue";
+import AdminSubnav from "../components/AdminSubnav.vue";
 import {
   applyAssistantProductionChange,
   getAssistantProductionCurrent,
@@ -199,6 +171,13 @@ import {
 } from "@/api/admin-ai";
 
 const loading = ref(false);
+const loadError = ref(false);
+const activeSection = ref("candidates");
+const productionViews = [
+  { value: "candidates", label: "候选工作流", icon: "SetUp" },
+  { value: "history", label: "历史配置", icon: "Clock" },
+  { value: "audits", label: "变更审计", icon: "DocumentChecked" },
+];
 const previewing = ref(false);
 const applying = ref(false);
 const editVisible = ref(false);
@@ -223,6 +202,7 @@ function formatTime(value) {
 
 async function loadAll() {
   loading.value = true;
+  loadError.value = false;
   try {
     const [workflowResult, currentResult, configResult, auditResult] = await Promise.all([
       listAssistantProductionWorkflows(),
@@ -235,6 +215,7 @@ async function loadAll() {
     configs.value = configResult.data || [];
     audits.value = auditResult.data || [];
   } catch (error) {
+    loadError.value = true;
     ElMessage.error(error.message || "生产版本事实加载失败");
   } finally {
     loading.value = false;
@@ -314,24 +295,15 @@ onMounted(loadAll);
 </script>
 
 <style scoped>
-.production-page { display: flex; flex-direction: column; gap: 20px; max-width: 1500px; margin: 0 auto; }
-.page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.page-heading h1 { margin: 2px 0 8px; color: var(--lm-text-primary); font-size: 28px; }
-.eyebrow { margin: 0; color: var(--lm-primary); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.page-description, .section-heading p { margin: 0; color: var(--lm-text-secondary); }
-.current-card { padding: 24px; color: #eff6ff; background: linear-gradient(125deg, #172554, #1d4ed8 62%, #0f766e); border-radius: 16px; box-shadow: 0 14px 30px rgba(30, 64, 175, .18); }
-.current-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.current-header h2 { margin: 7px 0 5px; font-size: 24px; }
-.current-header code { color: #bfdbfe; }
-.status-kicker { font-size: 12px; font-weight: 800; letter-spacing: .12em; }
-.fact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
-.fact-grid div { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 12px; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
-.fact-grid span, .observation-line { color: #bfdbfe; font-size: 12px; }
-.fact-grid strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.observation-line { display: flex; gap: 28px; margin-top: 14px; }
-.section-card { border-radius: 14px; }
-.section-heading { display: flex; align-items: center; justify-content: space-between; }
-.section-heading h2 { margin: 0 0 5px; font-size: 18px; }
+.production-page { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 12px; }
+.production-toolbar { display: flex; justify-content: flex-end; }
+.current-strip { display: flex; min-width: 0; align-items: center; gap: 16px; padding: 12px; background: var(--lm-admin-surface-subtle); border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.current-identity { display: flex; min-width: 210px; flex-direction: column; gap: 3px; padding-right: 16px; border-right: 1px solid var(--lm-admin-border); }
+.current-identity strong { color: var(--lm-admin-text-strong); font-size: 14px; }.current-identity code { color: var(--lm-admin-text-muted); font-size: 10px; }
+.current-facts { display: grid; min-width: 0; flex: 1; grid-template-columns: .6fr 1fr 1.45fr .7fr 1fr; gap: 12px; margin: 0; }
+.current-facts > div { min-width: 0; }.current-facts dt { color: var(--lm-admin-text-muted); font-size: 10px; }.current-facts dd { overflow: hidden; margin: 3px 0 0; color: var(--lm-admin-text-strong); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.production-page > :deep(.admin-subnav) { padding: 0 8px; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.production-panel { min-width: 0; overflow: hidden; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
 .target-summary { display: flex; flex-direction: column; gap: 4px; }
 .target-summary code, .confirm-route code { color: var(--lm-text-secondary); }
 .confirm-content { display: flex; flex-direction: column; gap: 18px; }
@@ -344,8 +316,9 @@ onMounted(loadAll);
 .confirm-meta, .muted { color: var(--lm-text-muted); font-size: 12px; }
 code { font-family: var(--lm-code-font-family); }
 @media (max-width: 900px) {
-  .fact-grid { grid-template-columns: 1fr; }
-  .page-heading, .observation-line { flex-direction: column; gap: 10px; }
+  .current-strip { align-items: stretch; flex-direction: column; }
+  .current-identity { border-right: 0; border-bottom: 1px solid var(--lm-admin-border); padding: 0 0 10px; }
+  .current-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .confirm-route { grid-template-columns: 1fr; }
   .route-arrow { transform: rotate(90deg); justify-self: center; }
 }

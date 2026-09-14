@@ -50,6 +50,14 @@ public class AdminOperationController {
         return executor.forward("队伍服务", () -> teamClient.listRecent(limit));
     }
 
+    @GetMapping("/api/admin/teams/references")
+    public Result<List<TeamDTO>> teamReferences(
+            @RequestParam
+            @Size(min = 1, max = 100)
+            List<@Positive Long> teamIds) {
+        return executor.forward("队伍服务", () -> teamClient.listSummaries(teamIds));
+    }
+
     @GetMapping("/api/admin/submissions")
     public Result<List<SubmissionSnapshotDTO>> submissions(
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) Integer limit) {

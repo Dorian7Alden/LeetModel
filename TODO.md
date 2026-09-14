@@ -15,7 +15,7 @@
 
 ## 当前状态
 
-当前无进行中的任务卡。
+当前阶段分支：`phase/admin-console-workbench`
 
 ## 已确认的系统边界
 

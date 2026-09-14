@@ -1,5 +1,10 @@
 package com.leetmodel.user.service;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
@@ -18,7 +23,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -66,6 +73,10 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "user-service-test"),
+                User.class
+        );
         // MyBatis-Plus ServiceImpl 的 baseMapper 通过 @Autowired 注入，Mockito 的 @InjectMocks
         // 不会注入父类字段，需手动设置。
         ReflectionTestUtils.setField(userService, "baseMapper", userMapper);
@@ -195,6 +206,24 @@ class UserServiceTest {
 
         verify(userRoleMapper).delete(any());
         verify(userRoleMapper, times(2)).insert(any(UserRole.class));
+    }
+
+    @Test
+    @DisplayName("管理端用户查询支持邮箱关键字和角色筛选")
+    void listUsersSupportsEmailKeywordAndRoleFilter() {
+        UserPageQuery query = new UserPageQuery();
+        query.setKeyword("example.com");
+        query.setRoleId(3L);
+        when(userMapper.selectPage(any(Page.class), any())).thenReturn(new Page<>(1, 20, 0));
+
+        userService.listUsers(query);
+
+        ArgumentCaptor<Wrapper<User>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(userMapper).selectPage(any(Page.class), wrapperCaptor.capture());
+        String sqlSegment = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sqlSegment.contains("email"));
+        assertTrue(sqlSegment.contains("user_role"));
+        assertTrue(sqlSegment.contains("role_id = 3"));
     }
 
     @Test

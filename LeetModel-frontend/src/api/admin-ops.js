@@ -4,6 +4,14 @@ export function getAdminTeams(limit = 20) {
   return request({ url: "/admin/teams", method: "get", params: { limit } });
 }
 
+export function getAdminTeamReferences(teamIds) {
+  return request({
+    url: "/admin/teams/references",
+    method: "get",
+    params: { teamIds: teamIds.join(",") },
+  });
+}
+
 export function getAdminSubmissions(limit = 20) {
   return request({ url: "/admin/submissions", method: "get", params: { limit } });
 }

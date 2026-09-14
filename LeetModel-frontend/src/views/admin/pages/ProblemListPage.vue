@@ -1,86 +1,119 @@
 <template>
   <div class="problem-list">
-    <el-card shadow="never">
-      <div class="action-bar">
+    <div class="action-bar">
+      <div class="primary-filters">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索题目"
-          style="width: 300px"
+          placeholder="题目编码 / 标题"
+          class="problem-search"
           prefix-icon="Search"
           clearable
-          @clear="fetchList"
-          @keyup.enter="fetchList"
+          @clear="applyFilters"
+          @keyup.enter="applyFilters"
         />
-        <el-button type="primary" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon> 新增题目
-        </el-button>
+        <el-select v-model="filters.contestId" placeholder="全部赛事" clearable class="filter-select" @change="applyFilters">
+          <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
+        </el-select>
+        <el-input-number v-model="filters.year" :min="2000" :max="2100" :controls="false" placeholder="年份" class="year-filter" @change="applyFilters" />
+        <el-select v-model="filters.statementLanguage" placeholder="全部题面" clearable class="short-filter" @change="applyFilters">
+          <el-option label="中文" value="ZH" /><el-option label="英文" value="EN" />
+        </el-select>
+        <el-select v-model="filters.difficulty" placeholder="全部难度" clearable class="short-filter" @change="applyFilters">
+          <el-option label="简单" :value="1" /><el-option label="中等" :value="2" /><el-option label="困难" :value="3" />
+        </el-select>
+        <el-select v-model="filters.status" placeholder="全部状态" clearable class="short-filter" @change="applyFilters">
+          <el-option v-for="(item, value) in statusMap" :key="value" :label="item.label" :value="Number(value)" />
+        </el-select>
       </div>
+      <div class="toolbar-actions">
+        <span class="result-count">{{ total }} 项</span>
+        <el-button v-if="hasFilters" link @click="clearFilters">清除筛选</el-button>
+        <el-button :loading="tableLoading" @click="fetchList"><el-icon><Refresh /></el-icon>刷新</el-button>
+        <el-button type="primary" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增题目</el-button>
+      </div>
+    </div>
 
-      <el-table :data="tableData" style="width: 100%" stripe v-loading="tableLoading">
-        <el-table-column label="题号" width="90">
+    <AdminStatePanel
+      v-if="loadError && !tableData.length"
+      type="error"
+      title="题目列表加载失败"
+      action-label="重新加载"
+      @action="fetchList"
+    />
+
+    <template v-else>
+      <div v-if="loadError" class="inline-warning" role="alert">
+        <el-icon><WarningFilled /></el-icon>刷新失败，当前保留上次取得的数据
+      </div>
+      <div class="problem-table-scroll">
+      <el-table :data="tableData" stripe v-loading="tableLoading" row-key="id" table-layout="fixed">
+        <el-table-column label="编码" width="96">
           <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
         </el-table-column>
-        <el-table-column prop="problemNumber" label="赛事题号" width="90">
-          <template #default="scope">{{ formatProblemNumber(scope.row.problemNumber) }}</template>
-        </el-table-column>
-        <el-table-column prop="title" label="题目名称" min-width="220">
+        <el-table-column prop="title" label="题目" min-width="260">
           <template #default="scope">
             <button class="problem-title-link" @click="openPreview(scope.row)">{{ scope.row.title }}</button>
+            <span class="problem-number">{{ formatProblemNumber(scope.row.problemNumber) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="contestName" label="赛事" width="180" />
-        <el-table-column prop="year" label="年份" width="80" />
-        <el-table-column prop="statementLanguage" label="题面" width="70"><template #default="scope">{{ scope.row.statementLanguage === 'EN' ? '英文' : '中文' }}</template></el-table-column>
-        <el-table-column prop="difficulty" label="难度" width="80">
+        <el-table-column prop="contestName" label="赛事" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="year" label="年份" width="72" />
+        <el-table-column prop="statementLanguage" label="题面" width="64"><template #default="scope">{{ scope.row.statementLanguage === 'EN' ? '英文' : '中文' }}</template></el-table-column>
+        <el-table-column prop="difficulty" label="难度" width="72">
           <template #default="scope">{{ getDifficultyLabel(scope.row.difficulty) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="88">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="180">
-          <template #default="scope">{{ formatTime(scope.row.createTime) }}</template>
-        </el-table-column>
-        <el-table-column label="更新时间" width="180">
+        <el-table-column label="最近更新" width="150">
           <template #default="scope">{{ formatTime(scope.row.updateTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right" align="right">
           <template #default="scope">
-            <el-button size="small" type="success" link @click="openPreview(scope.row)">预览</el-button>
-            <el-button size="small" type="primary" link @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+            <div class="row-actions">
+              <el-button type="primary" link @click="openPreview(scope.row)">预览</el-button>
+              <el-dropdown trigger="click" @command="handleRowCommand($event, scope.row)">
+                <button class="more-button" type="button" :aria-label="`${scope.row.title} 更多操作`"><el-icon><MoreFilled /></el-icon></button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit">编辑题目</el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>删除题目</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
-        <template #empty>
-          <el-empty description="暂无题目数据" />
-        </template>
+        <template #empty><div class="table-empty">{{ hasFilters ? '没有符合条件的题目' : '暂无题目' }}</div></template>
       </el-table>
+      </div>
 
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           background
-          layout="prev, pager, next, total"
+          layout="total, sizes, prev, pager, next"
+          :page-sizes="[10, 20, 50]"
           :total="total"
           @current-change="fetchList"
           @size-change="fetchList"
         />
       </div>
-    </el-card>
+    </template>
 
-    <el-dialog
+    <el-drawer
       v-model="dialogVisible"
       :title="isEdit ? '编辑题目' : '新增题目'"
-      width="680px"
-      top="6vh"
+      size="640px"
       destroy-on-close
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" class="problem-dialog-form">
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="problem-dialog-form">
         <el-form-item label="题目标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入题目标题" />
         </el-form-item>
@@ -124,7 +157,7 @@
 
         <el-form-item label="标签">
           <el-select v-model="form.tagIds" multiple clearable placeholder="请选择标签" style="width: 100%">
-            <el-option v-for="tag in tags" :key="tag.id" :label="`${tag.name}（${tag.type}）`" :value="tag.id" />
+            <el-option v-for="tag in tags" :key="tag.id" :label="`${tag.name}（${tagTypeLabel(tag.type)}）`" :value="String(tag.id)" />
           </el-select>
         </el-form-item>
 
@@ -140,10 +173,7 @@
         <!-- 题目附件与数据集管理区 -->
         <div class="form-attachment-section">
           <div class="attachment-section-header">
-            <div>
-              <span class="attachment-title">题目附件与数据集</span>
-              <span class="attachment-subtitle">支持 ZIP、RAR、7Z、TAR.GZ 等压缩包，以及 CSV、XLSX、PDF 等题目材料</span>
-            </div>
+            <span class="attachment-title">附件与数据集</span>
             <div>
               <input
                 ref="fileInputRef"
@@ -209,12 +239,11 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitLoading" @click="onSubmit">保存</el-button>
       </template>
-    </el-dialog>
+    </el-drawer>
 
     <el-drawer v-model="previewVisible" size="min(860px, 76vw)" class="problem-preview-drawer" destroy-on-close>
       <template #header>
         <div class="preview-drawer-title">
-          <span class="preview-kicker">题目发布预览</span>
           <strong>{{ previewProblem?.title || '加载中' }}</strong>
         </div>
       </template>
@@ -274,6 +303,7 @@ const formatTime = (val) => {
 };
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Plus, Upload } from '@element-plus/icons-vue';
+import AdminStatePanel from '../components/AdminStatePanel.vue';
 import { renderSafeMarkdown } from '@/utils/markdown';
 import {
   getAdminContentProblems,
@@ -287,9 +317,12 @@ import {
   getAdminContentTags,
 } from '@/api/problem';
 
+const emit = defineEmits(['changed']);
 const searchQuery = ref('');
+const filters = reactive({ contestId: null, year: null, statementLanguage: '', difficulty: null, status: null });
 const tableData = ref([]);
 const tableLoading = ref(false);
+const loadError = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
@@ -303,6 +336,14 @@ const previewTagNames = computed(() => {
   const value = previewProblem.value?.tagNames || previewProblem.value?.tags || [];
   return value.map((item) => typeof item === 'string' ? item : item.name).filter(Boolean);
 });
+const hasFilters = computed(() => Boolean(
+  searchQuery.value.trim()
+  || filters.contestId
+  || filters.year
+  || filters.statementLanguage
+  || filters.difficulty
+  || filters.status !== null,
+));
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -414,6 +455,7 @@ const statusMap = {
 const getStatusLabel = (status) => statusMap[status]?.label || '未知';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 const getDifficultyLabel = (difficulty) => ({ 1: '简单', 2: '中等', 3: '困难' })[difficulty] || '未知';
+const tagTypeLabel = (type) => ({ BACKGROUND_DOMAIN: '背景领域', PROBLEM_TYPE: '题目类型', MODEL_ALGORITHM: '模型算法' })[type] || type || '其他';
 const problemNumberOptions = [
   { value: 'A', label: 'A 题' },
   { value: 'B', label: 'B 题' },
@@ -425,23 +467,39 @@ const problemNumberOptions = [
 ];
 const formatProblemNumber = (value) => problemNumberOptions.find(item => item.value === value)?.label || 'X 题';
 
+const applyFilters = () => {
+  currentPage.value = 1;
+  fetchList();
+};
+
+const clearFilters = () => {
+  searchQuery.value = '';
+  Object.assign(filters, { contestId: null, year: null, statementLanguage: '', difficulty: null, status: null });
+  applyFilters();
+};
+
 const fetchList = async () => {
+  if (tableLoading.value) return;
   tableLoading.value = true;
+  loadError.value = false;
   try {
     const params = { page: currentPage.value, pageSize: pageSize.value };
     if (searchQuery.value.trim()) {
       params.keyword = searchQuery.value.trim();
     }
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== null && value !== '') params[key] = value;
+    });
     const res = await getAdminContentProblems(params);
     if (res.code === 20000 && res.data) {
       tableData.value = res.data.rows || [];
       total.value = res.data.total || 0;
     } else {
-      ElMessage.error(res.msg || '获取题目列表失败');
+      throw new Error(res.msg || '获取题目列表失败');
     }
   } catch (error) {
-    console.error('获取题目列表失败', error);
-    ElMessage.error('获取题目列表失败');
+    loadError.value = true;
+    if (tableData.value.length) ElMessage.error(error.message || '题目列表刷新失败');
   } finally {
     tableLoading.value = false;
   }
@@ -491,7 +549,7 @@ const openEditDialog = async (row) => {
       form.durationMinutes = d.durationMinutes;
       form.difficulty = d.difficulty;
       form.status = d.status;
-      form.tagIds = d.tagIds || [];
+      form.tagIds = (d.tags || []).map(tag => String(tag.id)).filter(Boolean);
       existingAttachments.value = d.attachments || [];
       pendingAttachments.value = [];
     } else {
@@ -507,20 +565,26 @@ const openEditDialog = async (row) => {
 };
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除题目「${row.title}」吗？`, '确认删除', {
-    confirmButtonText: '确定',
+  ElMessageBox.confirm(`删除“${row.title}”后将不再出现在题库中，操作不可恢复。`, '删除题目？', {
+    confirmButtonText: '删除题目',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(async () => {
     try {
       await deleteAdminContentProblem(row.id);
-      ElMessage.success('删除成功');
-      fetchList();
+      ElMessage.success('题目已删除');
+      await fetchList();
+      emit('changed');
     } catch (error) {
       console.error('删除题目失败', error);
       ElMessage.error('删除题目失败');
     }
   }).catch(() => {});
+};
+
+const handleRowCommand = (command, row) => {
+  if (command === 'edit') openEditDialog(row);
+  if (command === 'delete') handleDelete(row);
 };
 
 const resetForm = () => {
@@ -559,8 +623,7 @@ const onSubmit = async () => {
       difficulty: form.difficulty,
       status: form.status,
     };
-    // 详情接口仅返回 tagNames，编辑时未选择标签则不带 tagIds，避免误清空既有标签
-    if (!isEdit.value || form.tagIds.length > 0) payload.tagIds = form.tagIds;
+    payload.tagIds = form.tagIds;
     if (isEdit.value) {
       await updateAdminContentProblem(editId.value, payload);
       ElMessage.success('更新成功');
@@ -587,7 +650,8 @@ const onSubmit = async () => {
       }
     }
     dialogVisible.value = false;
-    fetchList();
+    await fetchList();
+    emit('changed');
   } catch (error) {
     console.error('保存题目失败', error);
     ElMessage.error('保存题目失败');
@@ -605,13 +669,27 @@ onMounted(() => {
 
 <style scoped>
 @import 'github-markdown-css/github-markdown-light.css';
+.problem-list { min-width: 0; padding: var(--lm-admin-space-3); }
 .action-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: var(--lm-admin-space-3);
+  margin-bottom: var(--lm-admin-space-3);
 }
+.primary-filters, .toolbar-actions, .row-actions, .inline-warning { display: flex; align-items: center; }
+.primary-filters { min-width: 0; flex: 1; flex-wrap: wrap; gap: var(--lm-admin-space-2); }
+.toolbar-actions, .row-actions { flex: 0 0 auto; gap: var(--lm-admin-space-2); }
+.problem-search { width: 230px; }
+.filter-select { width: 160px; }
+.short-filter { width: 112px; }
+.year-filter { width: 88px; }
+.result-count { color: var(--lm-admin-text-muted); font-size: 12px; white-space: nowrap; }
+.problem-table-scroll { min-width: 0; overflow-x: auto; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.problem-table-scroll :deep(.el-table) { min-width: 1080px; }
+.problem-table-scroll :deep(.el-table__row) { height: 42px; }
 .pagination-container {
-  margin-top: 20px;
+  margin-top: var(--lm-admin-space-3);
   display: flex;
   justify-content: flex-end;
 }
@@ -625,8 +703,13 @@ onMounted(() => {
   font-size: 13px;
 }
 .field-tip { margin-left: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
-.problem-title-link { max-width: 100%; overflow: hidden; padding: 0; color: var(--lm-text-primary); background: transparent; border: 0; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.problem-title-link:hover { color: var(--lm-primary); }
+.problem-title-link { display: inline-block; max-width: calc(100% - 42px); overflow: hidden; padding: 0; color: var(--lm-admin-text-strong); background: transparent; border: 0; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; cursor: pointer; }
+.problem-title-link:hover { color: var(--lm-admin-primary); }
+.problem-number { display: inline-block; margin-left: 6px; color: var(--lm-admin-text-muted); font-size: 10px; vertical-align: middle; }
+.more-button { display: grid; width: 28px; height: 28px; place-items: center; color: var(--lm-admin-text-muted); background: transparent; border: 0; border-radius: var(--lm-admin-radius-control); cursor: pointer; }
+.more-button:hover { color: var(--lm-admin-text-strong); background: var(--lm-admin-surface-subtle); }
+.inline-warning { gap: 6px; margin-bottom: 8px; padding: 8px 10px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
+.table-empty { padding: 34px 0; color: var(--lm-admin-text-muted); font-size: 12px; }
 .preview-drawer-title { display: flex; min-width: 0; flex-direction: column; }
 .preview-drawer-title .preview-kicker { margin-bottom: 4px; color: var(--lm-primary); font-size: 10px; font-weight: 800; letter-spacing: 1px; }
 .preview-drawer-title strong { overflow: hidden; color: var(--lm-text-primary); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
@@ -645,7 +728,7 @@ onMounted(() => {
 
 /* 题目表单附件区段 */
 .problem-dialog-form {
-  max-height: 68vh;
+  max-height: calc(100vh - 150px);
   overflow-y: auto;
   padding-right: 8px;
 }

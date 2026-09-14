@@ -4,6 +4,7 @@ import com.leetmodel.common.api.dto.PermissionRequest;
 import com.leetmodel.common.api.vo.PermissionVO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.user.entity.Permission;
+import com.leetmodel.user.entity.RolePermission;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RolePermissionMapper;
@@ -62,11 +63,16 @@ class PermissionServiceTest {
     @DisplayName("获取权限列表成功")
     void listPermissionsSuccess() {
         when(permissionMapper.selectList(null)).thenReturn(List.of(permission));
+        RolePermission rolePermission = new RolePermission();
+        rolePermission.setRoleId(1L);
+        rolePermission.setPermissionId(1L);
+        when(rolePermissionMapper.selectList(any())).thenReturn(List.of(rolePermission));
 
         List<PermissionVO> permissions = permissionService.listPermissions();
 
         assertEquals(1, permissions.size());
         assertEquals("user:read", permissions.get(0).getCode());
+        assertEquals(1L, permissions.get(0).getRoleCount());
         assertNotNull(permissions.get(0).getUpdateTime());
     }
 

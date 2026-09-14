@@ -95,6 +95,8 @@ public class ProblemVO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TagVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
         private String name;
         private String type;
     }

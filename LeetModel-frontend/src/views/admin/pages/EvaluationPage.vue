@@ -1,17 +1,18 @@
 <template>
   <div class="evaluation-page">
+    <el-alert v-if="loadError" title="质量评价数据刷新失败，已保留最近结果" type="warning" :closable="false" show-icon />
     <el-tabs v-model="activeTab">
       <el-tab-pane label="测试集" name="datasets">
         <div class="pane-toolbar">
-          <h2 class="panel-title">固定评价测试集</h2>
           <el-button type="primary" :loading="loadingSubmissions" @click="openCreateDataset">新建测试集</el-button>
         </div>
         <el-table :data="datasets" stripe v-loading="loading" style="width: 100%">
-          <el-table-column prop="datasetId" label="ID" width="120" />
+          <el-table-column label="测试集" min-width="210">
+            <template #default="{ row }"><strong class="primary-cell">{{ row.name }}</strong><span class="secondary-cell">{{ row.datasetVersion || '历史数据集' }}</span></template>
+          </el-table-column>
           <el-table-column label="功能" width="110">
             <template #default="{ row }">{{ featureLabel(row.featureCode || 'REVIEW') }}</template>
           </el-table-column>
-          <el-table-column prop="name" label="名称" min-width="180" />
           <el-table-column prop="description" label="说明" min-width="240" show-overflow-tooltip />
           <el-table-column label="样本数" width="90" align="center">
             <template #default="{ row }">{{ row.sampleCount || row.samples?.length || 0 }}</template>
@@ -28,16 +29,13 @@
 
       <el-tab-pane label="评价任务" name="tasks">
         <div class="pane-toolbar">
-          <h2 class="panel-title">评价任务</h2>
           <el-button type="primary" @click="openCreateTask">新建评价任务</el-button>
         </div>
-        <el-table :data="tasks" stripe v-loading="loading" style="width: 100%">
-          <el-table-column prop="taskId" label="任务 ID" width="120" />
-          <el-table-column prop="datasetId" label="测试集" width="90" />
-          <el-table-column label="功能" width="100">
-            <template #default="{ row }">{{ featureLabel(row.featureCode || 'REVIEW') }}</template>
+        <el-table class="task-table" :data="tasks" stripe v-loading="loading" style="width: 100%" @row-click="showTask">
+          <el-table-column label="评价对象" min-width="210">
+            <template #default="{ row }"><strong class="primary-cell">{{ featureLabel(row.featureCode || 'REVIEW') }}</strong><span class="secondary-cell">{{ datasetName(row.datasetId) }}</span></template>
           </el-table-column>
-          <el-table-column prop="workflowVersion" label="工作流版本" width="170" />
+          <el-table-column prop="workflowVersion" label="工作流版本" min-width="190" />
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small" effect="light">{{ statusLabel(row.status) }}</el-tag>
@@ -52,13 +50,9 @@
           <el-table-column label="创建时间" width="170">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
+          <el-table-column label="" width="62" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" @click="showTask(row)">详情</el-button>
-              <el-button v-if="row.status === 'FAILED'" link type="warning" @click="retryTask(row)">重试</el-button>
-              <el-button v-if="['WAITING', 'RUNNING'].includes(row.status)" link type="warning" @click="controlTask(row, 'pause')">暂停</el-button>
-              <el-button v-if="row.status === 'PAUSED'" link type="primary" @click="controlTask(row, 'resume')">恢复</el-button>
-              <el-button v-if="['WAITING', 'RUNNING', 'PAUSED', 'FAILED'].includes(row.status)" link type="danger" @click="controlTask(row, 'cancel')">取消</el-button>
+              <el-button link type="primary" @click.stop="showTask(row)">详情</el-button>
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无评价任务" /></template>
@@ -201,6 +195,18 @@
 
     <!-- 任务详情 -->
     <el-dialog v-model="taskDetailVisible" title="评价任务详情" width="min(1180px, 94vw)">
+      <div v-if="taskDetail" class="task-detail-bar">
+        <div>
+          <strong>{{ featureLabel(taskDetail.featureCode || 'REVIEW') }} · {{ taskDetail.workflowVersion }}</strong>
+          <code>{{ taskDetail.taskId }}</code>
+        </div>
+        <div class="task-detail-actions">
+          <el-button v-if="taskDetail.status === 'FAILED'" type="warning" plain @click="handleDetailAction('retry')">重试</el-button>
+          <el-button v-if="['WAITING', 'RUNNING'].includes(taskDetail.status)" type="warning" plain @click="handleDetailAction('pause')">暂停</el-button>
+          <el-button v-if="taskDetail.status === 'PAUSED'" type="primary" plain @click="handleDetailAction('resume')">恢复</el-button>
+          <el-button v-if="['WAITING', 'RUNNING', 'PAUSED', 'FAILED'].includes(taskDetail.status)" type="danger" plain @click="handleDetailAction('cancel')">取消任务</el-button>
+        </div>
+      </div>
       <el-descriptions v-if="taskDetail" :column="3" border size="small">
         <el-descriptions-item label="状态">{{ statusLabel(taskDetail.status) }}</el-descriptions-item>
         <el-descriptions-item label="功能">{{ featureLabel(taskDetail.featureCode || 'REVIEW') }}</el-descriptions-item>
@@ -405,6 +411,7 @@ import {
 const userStore = useUserStore();
 const activeTab = ref("datasets");
 const loading = ref(false);
+const loadError = ref(false);
 const datasets = ref([]);
 const tasks = ref([]);
 const submissions = ref([]);
@@ -461,6 +468,10 @@ const taskForm = reactive({
 
 function featureLabel(code) {
   return features.value.find((feature) => feature.featureCode === code)?.name || code;
+}
+
+function datasetName(datasetId) {
+  return datasets.value.find((dataset) => String(dataset.datasetId) === String(datasetId))?.name || "测试集资料未取得";
 }
 
 function formatTime(value) {
@@ -548,6 +559,7 @@ function isHighCost(estimate) {
 
 async function loadDatasets() {
   loading.value = true;
+  loadError.value = false;
   try {
     datasets.value = (await listEvaluationDatasets()).data || [];
     const [taskResponse, featureResponse, weightResponse] = await Promise.all([
@@ -557,6 +569,7 @@ async function loadDatasets() {
     features.value = featureResponse.data || [];
     weightSchemes.value = weightResponse.data || [];
   } catch (error) {
+    loadError.value = true;
     ElMessage.error(error.message || "评价数据加载失败");
   } finally {
     loading.value = false;
@@ -805,8 +818,10 @@ async function retryTask(row) {
     await retryEvaluationTask(row.taskId);
     ElMessage.success("已重新排队");
     await loadDatasets();
+    return true;
   } catch (error) {
     ElMessage.error(error.message || "重试失败");
+    return false;
   }
 }
 
@@ -822,10 +837,19 @@ async function controlTask(row, action) {
     await operations[action](row.taskId);
     ElMessage.success(`任务已${labels[action]}`);
     await loadDatasets();
+    return true;
   } catch (error) {
-    if (error === "cancel" || error === "close") return;
+    if (error === "cancel" || error === "close") return false;
     ElMessage.error(error.message || `${labels[action]}任务失败`);
+    return false;
   }
+}
+
+async function handleDetailAction(action) {
+  const completed = action === "retry"
+    ? await retryTask(taskDetail.value)
+    : await controlTask(taskDetail.value, action);
+  if (completed) taskDetail.value = (await getEvaluationTask(taskDetail.value.taskId)).data;
 }
 
 async function runCompare() {
@@ -846,8 +870,19 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pane-toolbar, .compare-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.panel-title { margin: 0; font-size: 18px; }
+.evaluation-page { min-width: 0; padding: 0 12px 12px; }
+.evaluation-page :deep(.el-tabs__header) { margin: 0 0 12px; }
+.evaluation-page :deep(.el-tabs__content) { overflow: visible; }
+.pane-toolbar, .compare-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.compare-toolbar { justify-content: flex-start; }
+.primary-cell, .secondary-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.primary-cell { color: var(--lm-admin-text-strong); font-size: 12px; }
+.secondary-cell { margin-top: 2px; color: var(--lm-admin-text-muted); font-size: 10px; }
+.task-table :deep(.el-table__row) { cursor: pointer; }
+.task-detail-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 12px; background: var(--lm-admin-surface-subtle); border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.task-detail-bar > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.task-detail-bar code { overflow-wrap: anywhere; color: var(--lm-admin-text-muted); font-size: 10px; }
+.task-detail-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 8px; }
 .detail-title { margin: 20px 0 12px; font-size: 16px; }
 .metric-descriptions { margin-top: 12px; }
 .sample-statistics { margin-top: 16px; }
@@ -856,4 +891,5 @@ onMounted(() => {
 .recalculate-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .score-results, .contribution-table, .call-table, .section-alert { margin-top: 16px; }
 .score-result-title { font-weight: 600; }
+@media (max-width: 760px) { .task-detail-bar { flex-direction: column; }.task-detail-actions { width: 100%; } }
 </style>

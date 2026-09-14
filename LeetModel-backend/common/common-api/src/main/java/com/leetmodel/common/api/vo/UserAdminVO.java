@@ -1,5 +1,7 @@
 package com.leetmodel.common.api.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +19,7 @@ import java.util.List;
 @AllArgsConstructor
 public class UserAdminVO {
 
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
     private String username;
     private String nickname;
@@ -37,6 +40,7 @@ public class UserAdminVO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RoleSimpleVO {
+        @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
         private String code;
         private String name;
