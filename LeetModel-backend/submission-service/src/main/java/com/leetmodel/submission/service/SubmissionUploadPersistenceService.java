@@ -66,7 +66,7 @@ public class SubmissionUploadPersistenceService {
         return submission;
     }
 
-    private void enqueueReviewTask(Submission submission) {
+    public void enqueueReviewTask(Submission submission) {
         ReviewTaskReadyPayload payload = new ReviewTaskReadyPayload(
                 submission.getId(), submission.getTeamId(), submission.getProblemId(),
                 ReviewTaskMessageContract.WORKFLOW_VERSION);

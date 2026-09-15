@@ -92,8 +92,16 @@ export function getAdminContentContests() {
   return request({ url: "/admin/content/contests", method: "get" });
 }
 
+export function createAdminContentContest(data) {
+  return request({ url: "/admin/content/contests", method: "post", data });
+}
+
 export function updateAdminContentContest(contestId, data) {
   return request({ url: `/admin/content/contests/${contestId}`, method: "put", data });
+}
+
+export function deleteAdminContentContest(contestId) {
+  return request({ url: `/admin/content/contests/${contestId}`, method: "delete" });
 }
 
 export function uploadAdminAttachment(problemId, file, options = {}) {

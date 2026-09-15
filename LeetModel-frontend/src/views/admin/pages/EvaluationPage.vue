@@ -6,7 +6,7 @@
         <div class="pane-toolbar">
           <el-button type="primary" :loading="loadingSubmissions" @click="openCreateDataset">新建测试集</el-button>
         </div>
-        <el-table :data="datasets" stripe v-loading="loading" style="width: 100%">
+        <el-table :data="pagedDatasets" stripe v-loading="loading" style="width: 100%">
           <el-table-column label="测试集" min-width="210">
             <template #default="{ row }"><strong class="primary-cell">{{ row.name }}</strong><span class="secondary-cell">{{ row.datasetVersion || '历史数据集' }}</span></template>
           </el-table-column>
@@ -25,13 +25,22 @@
           </el-table-column>
           <template #empty><el-empty description="暂无测试集" /></template>
         </el-table>
+        <div class="pagination-bar" v-if="datasets.length > 0">
+          <el-pagination
+            v-model:current-page="datasetPage"
+            v-model:page-size="datasetPageSize"
+            :page-sizes="[10, 20, 50]"
+            :total="datasets.length"
+            layout="total, sizes, prev, pager, next, jumper"
+          />
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="评价任务" name="tasks">
         <div class="pane-toolbar">
           <el-button type="primary" @click="openCreateTask">新建评价任务</el-button>
         </div>
-        <el-table class="task-table" :data="tasks" stripe v-loading="loading" style="width: 100%" @row-click="showTask">
+        <el-table class="task-table" :data="pagedTasks" stripe v-loading="loading" style="width: 100%" @row-click="showTask">
           <el-table-column label="评价对象" min-width="210">
             <template #default="{ row }"><strong class="primary-cell">{{ featureLabel(row.featureCode || 'REVIEW') }}</strong><span class="secondary-cell">{{ datasetName(row.datasetId) }}</span></template>
           </el-table-column>
@@ -57,6 +66,15 @@
           </el-table-column>
           <template #empty><el-empty description="暂无评价任务" /></template>
         </el-table>
+        <div class="pagination-bar" v-if="tasks.length > 0">
+          <el-pagination
+            v-model:current-page="taskPage"
+            v-model:page-size="taskPageSize"
+            :page-sizes="[10, 20, 50]"
+            :total="tasks.length"
+            layout="total, sizes, prev, pager, next, jumper"
+          />
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="版本对比" name="compare">
@@ -76,6 +94,12 @@
           :closable="false"
           show-icon
         />
+        <!-- 多版本综合质量雷达图 -->
+        <div v-if="comparison && comparison.versions && comparison.versions.length" class="compare-chart-card">
+          <div class="compare-chart-title">各版本关键指标综合评测雷达对比</div>
+          <div ref="compareRadarRef" class="compare-radar-chart"></div>
+        </div>
+
         <el-table v-if="comparison" :data="comparison.versions || []" stripe v-loading="comparing" style="width: 100%; margin-top: 16px">
           <el-table-column prop="workflowVersion" label="工作流版本" width="170" />
           <el-table-column prop="modelExecutionConfigVersion" label="执行配置" min-width="210" show-overflow-tooltip />
@@ -396,7 +420,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import * as echarts from "echarts";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useUserStore } from "@/store/user";
 import { getAdminSubmissions } from "@/api/admin-ops";
@@ -410,6 +435,19 @@ import {
 
 const userStore = useUserStore();
 const activeTab = ref("datasets");
+const datasetPage = ref(1);
+const datasetPageSize = ref(10);
+const pagedDatasets = computed(() => {
+  const start = (datasetPage.value - 1) * datasetPageSize.value;
+  return datasets.value.slice(start, start + datasetPageSize.value);
+});
+
+const taskPage = ref(1);
+const taskPageSize = ref(10);
+const pagedTasks = computed(() => {
+  const start = (taskPage.value - 1) * taskPageSize.value;
+  return tasks.value.slice(start, start + taskPageSize.value);
+});
 const loading = ref(false);
 const loadError = ref(false);
 const datasets = ref([]);
@@ -420,6 +458,59 @@ const savingDataset = ref(false);
 const savingTask = ref(false);
 const estimatingTask = ref(false);
 const comparing = ref(false);
+const compareRadarRef = ref(null);
+let compareRadarChart = null;
+
+function renderCompareRadar() {
+  nextTick(() => {
+    const el = compareRadarRef.value || document.querySelector(".compare-radar-chart");
+    if (!el || !comparison.value?.versions?.length) return;
+    compareRadarChart = compareRadarChart || echarts.init(el);
+    
+    const colors = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+    const seriesData = comparison.value.versions.map((v, i) => {
+      // 指标：版本选择指数, 成功率, 规范有效率, 耗时得分(越短分越高)
+      const durationScore = v.avgDurationMs ? Math.max(0, Math.min(100, Math.round(100 - v.avgDurationMs / 100))) : 80;
+      return {
+        value: [
+          v.versionSelectionIndex != null ? Math.round(v.versionSelectionIndex) : 70,
+          v.successRate != null ? Math.round(v.successRate) : 80,
+          v.validityScore != null ? Math.round(v.validityScore) : 85,
+          durationScore,
+          v.overallScore != null ? Math.round(v.overallScore) : 75
+        ],
+        name: v.workflowVersion || `版本 ${i + 1}`,
+        itemStyle: { color: colors[i % colors.length] },
+        areaStyle: { color: colors[i % colors.length], opacity: 0.15 }
+      };
+    });
+
+    compareRadarChart.setOption({
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", textStyle: { fontSize: 11 } },
+      radar: {
+        indicator: [
+          { name: "选择指数 (VSI)", max: 100 },
+          { name: "运行成功率", max: 100 },
+          { name: "格式/证据有效性", max: 100 },
+          { name: "时延表现 (Latency)", max: 100 },
+          { name: "综合得分 (Overall)", max: 100 }
+        ],
+        radius: "65%",
+        axisName: { color: "#475569", fontSize: 11 }
+      },
+      series: [{
+        type: "radar",
+        data: seriesData
+      }]
+    }, true);
+  });
+}
+
+function resizeCompareRadar() {
+  compareRadarChart?.resize();
+}
+
 const datasetDialogVisible = ref(false);
 const taskDialogVisible = ref(false);
 const taskDetailVisible = ref(false);
@@ -857,6 +948,7 @@ async function runCompare() {
   comparing.value = true;
   try {
     comparison.value = (await compareEvaluation(compareDatasetId.value, compareRepeat.value)).data;
+    setTimeout(renderCompareRadar, 100);
   } catch (error) {
     ElMessage.error(error.message || "对比数据加载失败");
   } finally {
@@ -865,7 +957,14 @@ async function runCompare() {
 }
 
 onMounted(() => {
+  window.addEventListener("resize", resizeCompareRadar);
   loadDatasets();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", resizeCompareRadar);
+  compareRadarChart?.dispose();
+  compareRadarChart = null;
 });
 </script>
 
@@ -883,6 +982,9 @@ onMounted(() => {
 .task-detail-bar > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .task-detail-bar code { overflow-wrap: anywhere; color: var(--lm-admin-text-muted); font-size: 10px; }
 .task-detail-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 8px; }
+.compare-chart-card { margin-top: 14px; padding: 14px; background: #fff; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
+.compare-chart-title { font-size: 13px; font-weight: 600; color: var(--lm-admin-text-strong); margin-bottom: 8px; }
+.compare-radar-chart { width: 100%; height: 260px; }
 .detail-title { margin: 20px 0 12px; font-size: 16px; }
 .metric-descriptions { margin-top: 12px; }
 .sample-statistics { margin-top: 16px; }
@@ -892,4 +994,14 @@ onMounted(() => {
 .score-results, .contribution-table, .call-table, .section-alert { margin-top: 16px; }
 .score-result-title { font-weight: 600; }
 @media (max-width: 760px) { .task-detail-bar { flex-direction: column; }.task-detail-actions { width: 100%; } }
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--lm-admin-border);
+  border-top: 0;
+  border-radius: 0 0 var(--lm-admin-radius-control) var(--lm-admin-radius-control);
+}
 </style>

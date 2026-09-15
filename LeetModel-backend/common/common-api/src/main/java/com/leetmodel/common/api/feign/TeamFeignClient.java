@@ -1,12 +1,23 @@
 package com.leetmodel.common.api.feign;
 
+import com.leetmodel.common.api.dto.AdminTeamCreateDTO;
+import com.leetmodel.common.api.dto.AdminTeamPageQuery;
+import com.leetmodel.common.api.dto.AdminTeamPracticeStatusDTO;
+import com.leetmodel.common.api.dto.AdminTeamStatsDTO;
+import com.leetmodel.common.api.dto.AdminTeamUpdateDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.vo.TeamAdminVO;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.cloud.openfeign.SpringQueryMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -62,4 +73,25 @@ public interface TeamFeignClient {
 
     @GetMapping("/internal/teams/users/{userId}/current")
     Result<TeamDTO> getUserCurrentTeam(@PathVariable Long userId);
+
+    @GetMapping("/internal/teams/admin/page")
+    Result<PageResult<TeamAdminVO>> pageAdminTeams(@SpringQueryMap AdminTeamPageQuery query);
+
+    @GetMapping("/internal/teams/admin/stats")
+    Result<AdminTeamStatsDTO> getAdminStats();
+
+    @GetMapping("/internal/teams/{teamId}/admin/detail")
+    Result<TeamAdminVO> getAdminDetail(@PathVariable("teamId") Long teamId);
+
+    @PostMapping("/internal/teams/admin")
+    Result<TeamAdminVO> adminCreateTeam(@RequestBody AdminTeamCreateDTO request);
+
+    @PutMapping("/internal/teams/{teamId}/admin")
+    Result<TeamAdminVO> adminUpdateTeam(@PathVariable("teamId") Long teamId, @RequestBody AdminTeamUpdateDTO request);
+
+    @PutMapping("/internal/teams/{teamId}/admin/practice-status")
+    Result<TeamAdminVO> adminUpdatePracticeStatus(@PathVariable("teamId") Long teamId, @RequestBody AdminTeamPracticeStatusDTO request);
+
+    @DeleteMapping("/internal/teams/{teamId}/admin")
+    Result<Void> adminDissolveTeam(@PathVariable("teamId") Long teamId, @RequestParam(value = "reason", required = false) String reason);
 }
