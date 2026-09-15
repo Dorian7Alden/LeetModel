@@ -10,6 +10,7 @@ import com.leetmodel.common.ai.model.AiCallContext;
 import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * AI 客服首版文本对话与受控题目候选注入工作流。
@@ -92,6 +94,37 @@ public class AssistantWorkflow {
      * @param candidates 受控题目候选，非选题问题时为 null；空列表表示题库没有候选
      * @return AI 网关响应
      */
+    /**
+     * 流式生成一次客服回复。
+     *
+     * @param history 最近已完成消息
+     * @param currentUserMessage 当前用户消息
+     * @param candidates 受控题目候选
+     * @param snapshot 不可变生产快照
+     * @param onChunk 增量回调处理器
+     * @return AI 网关最终响应
+     */
+    public AiChatResponse streamReply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
+                                      List<ProblemOptionDTO> candidates,
+                                      AssistantProductionSnapshot snapshot,
+                                      Consumer<AiChatStreamChunk> onChunk) throws JsonProcessingException {
+        List<AiMessage> messages = productionMessages(history, currentUserMessage,
+                candidates, snapshot);
+        String taskId = currentUserMessage.getId() == null
+                ? "transient:" + UUID.randomUUID() : "message:" + currentUserMessage.getId();
+        AiCallContext context = new AiCallContext(
+                "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
+                taskId, snapshot.workflowVersion(), snapshot.promptVersion(),
+                snapshot.modelExecutionConfigVersion(), null, snapshot.ragIndexVersion(), AiCallPriority.P0,
+                "assistant:" + taskId, Instant.now().plusSeconds(240));
+        AiChatResponse response = aiClient.streamChat(new AiChatRequest(
+                AiModality.TEXT, context, messages, 1500, 0.2, AiResponseFormat.TEXT, false), onChunk);
+        if (response == null || response.content() == null || response.content().isBlank()) {
+            throw new IllegalArgumentException("AI 网关未返回客服回复");
+        }
+        return response;
+    }
+
     public AiChatResponse reply(List<AssistantMessage> history, AssistantMessage currentUserMessage,
                                 List<ProblemOptionDTO> candidates,
                                 AssistantProductionSnapshot snapshot) throws JsonProcessingException {
@@ -144,6 +177,33 @@ public class AssistantWorkflow {
                                    AssistantMessage currentUserMessage, Long assistantMessageId,
                                    int attemptNo, int chatSequence, Instant deadline,
                                    AssistantProductionSnapshot snapshot) {
+        AiChatResponse response = aiClient.chat(toolRequest(messages, tools, currentUserMessage,
+                assistantMessageId, attemptNo, chatSequence, deadline, snapshot));
+        return requireToolResponse(response);
+    }
+
+    /**
+     * 流式执行工具循环中的一次规划或最终回答调用。
+     *
+     * <p>规划阶段通常只产生结构化工具调用；最终回答一旦产生文本增量，就立即交给上层透传。</p>
+     */
+    public AiChatResponse toolStreamChat(List<AiMessage> messages, List<AiToolDefinition> tools,
+                                         AssistantMessage currentUserMessage,
+                                         Long assistantMessageId,
+                                         int attemptNo, int chatSequence, Instant deadline,
+                                         AssistantProductionSnapshot snapshot,
+                                         Consumer<AiChatStreamChunk> onChunk) {
+        AiChatResponse response = aiClient.streamChat(toolRequest(messages, tools,
+                currentUserMessage, assistantMessageId, attemptNo, chatSequence,
+                deadline, snapshot), onChunk);
+        return requireToolResponse(response);
+    }
+
+    private AiChatRequest toolRequest(List<AiMessage> messages, List<AiToolDefinition> tools,
+                                      AssistantMessage currentUserMessage,
+                                      Long assistantMessageId,
+                                      int attemptNo, int chatSequence, Instant deadline,
+                                      AssistantProductionSnapshot snapshot) {
         String taskId = "message:" + currentUserMessage.getId();
         AiCallContext context = new AiCallContext(
                 "ai-assistant-service", AiFeatureCode.AI_ASSISTANT, AiOperationCode.CHAT_REPLY,
@@ -153,10 +213,13 @@ public class AssistantWorkflow {
                 "assistant:" + assistantMessageId + ":attempt:" + attemptNo
                         + ":chat:" + chatSequence,
                 deadline);
-        AiChatResponse response = aiClient.chat(new AiChatRequest(
+        return new AiChatRequest(
                 AiModality.TEXT, context, List.copyOf(messages), 1500, 0.2,
                 AiResponseFormat.TEXT, false, tools,
-                new AiToolChoice(AiToolChoiceType.AUTO, null)));
+                new AiToolChoice(AiToolChoiceType.AUTO, null));
+    }
+
+    private AiChatResponse requireToolResponse(AiChatResponse response) {
         boolean hasToolCalls = response != null && response.toolCalls() != null
                 && !response.toolCalls().isEmpty();
         boolean hasContent = response != null && response.content() != null

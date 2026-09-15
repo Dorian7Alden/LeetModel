@@ -9,6 +9,7 @@ import com.leetmodel.assistant.service.AssistantToolAuditService;
 import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
@@ -24,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * 单客服工作流内的受控工具执行循环。
@@ -75,6 +77,35 @@ public class AssistantToolOrchestrator {
                                       String toolsetVersion,
                                       int attemptNo,
                                       Instant deadline) throws JsonProcessingException {
+        return runInternal(history, currentUserMessage, assistantMessage, snapshot,
+                toolsetVersion, attemptNo, deadline, null);
+    }
+
+    /**
+     * 运行工具循环，并立即透传每次模型调用产生的文本增量。
+     */
+    public AssistantToolRunResult runStreaming(List<AssistantMessage> history,
+                                               AssistantMessage currentUserMessage,
+                                               AssistantMessage assistantMessage,
+                                               AssistantProductionSnapshot snapshot,
+                                               String toolsetVersion,
+                                               int attemptNo,
+                                               Instant deadline,
+                                               Consumer<AiChatStreamChunk> onChunk)
+            throws JsonProcessingException {
+        return runInternal(history, currentUserMessage, assistantMessage, snapshot,
+                toolsetVersion, attemptNo, deadline, onChunk);
+    }
+
+    private AssistantToolRunResult runInternal(List<AssistantMessage> history,
+                                               AssistantMessage currentUserMessage,
+                                               AssistantMessage assistantMessage,
+                                               AssistantProductionSnapshot snapshot,
+                                               String toolsetVersion,
+                                               int attemptNo,
+                                               Instant deadline,
+                                               Consumer<AiChatStreamChunk> onChunk)
+            throws JsonProcessingException {
         // 开始时一次性解析工具集和生产消息，循环中不读取当前生产指针
         List<AiToolDefinition> definitions = registry.definitions(
                 toolsetVersion, snapshot.workflowVersion());
@@ -84,8 +115,8 @@ public class AssistantToolOrchestrator {
         List<Map<String, Object>> toolContexts = new ArrayList<>();
         int executed = 0;
         int chatSequence = 1;
-        AiChatResponse response = workflow.toolChat(messages, definitions, currentUserMessage,
-                assistantMessage.getId(), attemptNo, chatSequence, deadline, snapshot);
+        AiChatResponse response = callModel(messages, definitions, currentUserMessage,
+                assistantMessage, attemptNo, chatSequence, deadline, snapshot, onChunk);
 
         while (true) {
             List<AiToolCall> calls = response.toolCalls() == null
@@ -164,6 +195,10 @@ public class AssistantToolOrchestrator {
                 if (terminal == null || terminal.content() == null || terminal.content().isBlank()) {
                     throw new AssistantToolException("TOOL_RESULT_INVALID", "终止型工具未返回客服回答");
                 }
+                if (onChunk != null) {
+                    onChunk.accept(new AiChatStreamChunk(
+                            terminal.callId(), terminal.content(), null, null));
+                }
                 return new AssistantToolRunResult(terminal, contextJson(toolContexts), executed);
             }
 
@@ -172,9 +207,26 @@ public class AssistantToolOrchestrator {
             messages.add(toolResultMessage(modelCall, output.modelResultJson()));
             messages.add(textMessage(AiRole.SYSTEM, TOOL_RESULT_INSTRUCTION));
             chatSequence++;
-            response = workflow.toolChat(messages, definitions, currentUserMessage,
+            response = callModel(messages, definitions, currentUserMessage,
+                    assistantMessage, attemptNo, chatSequence, deadline, snapshot, onChunk);
+        }
+    }
+
+    private AiChatResponse callModel(List<AiMessage> messages,
+                                     List<AiToolDefinition> definitions,
+                                     AssistantMessage currentUserMessage,
+                                     AssistantMessage assistantMessage,
+                                     int attemptNo,
+                                     int chatSequence,
+                                     Instant deadline,
+                                     AssistantProductionSnapshot snapshot,
+                                     Consumer<AiChatStreamChunk> onChunk) {
+        if (onChunk == null) {
+            return workflow.toolChat(messages, definitions, currentUserMessage,
                     assistantMessage.getId(), attemptNo, chatSequence, deadline, snapshot);
         }
+        return workflow.toolStreamChat(messages, definitions, currentUserMessage,
+                assistantMessage.getId(), attemptNo, chatSequence, deadline, snapshot, onChunk);
     }
 
     /** 把同一响应中的每项并行调用都保存为 REJECTED 事实。 */
