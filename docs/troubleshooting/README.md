@@ -28,3 +28,4 @@
 | [review服务启动报Flyway迁移V9超长失败.md](review服务启动报Flyway迁移V9超长失败.md) | ai-review-service 启动报 Flyway 异常与 sqlSessionTemplate 依赖失败 | V9 脚本向 review_version 插入 23 位版本契约值，超出 VARCHAR(20) 限制导致迁移失败并残留阻断记录 |
 | [三级缓存与HTTP协商缓存导致数据库变更后前端展示未更新.md](三级缓存与HTTP协商缓存导致数据库变更后前端展示未更新.md) | 数据库插入多题目标签后，curl 能返回新数据，但浏览器页面仍只展示单标签 | 客户端携带旧 ETag 触发 304 命中浏览器磁盘缓存 + 直接改库未触发多级缓存代际推进与失效通知 |
 | [file-service资产列表返回系统内部错误.md](file-service资产列表返回系统内部错误.md) | 管理端存储资产列表提示“系统内部错误”，接口返回 50001 | 历史资产 MIME 类型为空时，压缩包 MIME 集合的 contains(null) 抛出 NullPointerException |
+| [真实V3评审与建议链路多阶段失败.md](真实V3评审与建议链路多阶段失败.md) | V3 配置不匹配、Outbox 永久 PENDING、消费者 ClassCastException、30 秒异步超时和建议类别拒绝连续出现 | V3 误用旧配置、自动配置条件顺序、消息转换边界、Servlet 与业务超时窗口不一致及同义枚举未规范化 |

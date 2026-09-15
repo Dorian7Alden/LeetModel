@@ -6,6 +6,8 @@ ai-suggestion-service 负责将题目要求、某一论文版本的结构化解�
 
 > 分层定位：AI 业务能力层。已完成 V3 双阶段动态任务流水线、按需精准 RAG 与 Markdown 富文本产物落地，MQ4 已完成可靠消息唤醒与租约恢复；隔离评价与生产版本切换不在本服务范围。
 
+V3 文本调用锁定 `MODEL_CFG_SUGGESTION_TEXT_0003`，规划、子任务与汇总统一使用 8192 输出 Token、0.15 温度和 `gemini-3.8-flash-high`。输出仍严格保存已发布 Schema 的类别枚举；模型常见同义类别 `ALGORITHM` 在服务端确定性归一化为 `SOLUTION`，其他未知类别继续拒绝。
+
 
 ### 整体结构与工作流
 
@@ -102,6 +104,8 @@ ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有建议版本�
 | 崩溃恢复 | MQ4 已实现 | 120 秒租约、20 秒 heartbeat、逐任务 fencing、稳定 attempt 幂等键和 AI UNKNOWN 保护 |
 | 版本目录 | 已实现 | Flyway 发布 `GROUNDED_SUGGESTION_V3`，保留 V1/V2 历史可读 |
 | 隔离实验与质量评价 | 尚未实现 | 后续通过新版本接入，不修改已发布版本 |
+
+2026 年 9 月 15 日使用 2025 MCM A 完整题面、匹配的 25 页论文 PDF 与已完成 `DEEP_EVIDENCE_REVIEW_V3` 结果完成真实演练。最终任务包含 7 个成功子任务和 5 条建议，优先级、修改动作、验收条件、三类依据链与页码范围均通过结构校验。
 
 
 ### MQ4 运行策略
