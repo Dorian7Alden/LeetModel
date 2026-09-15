@@ -147,110 +147,151 @@
           </div>
         </div>
 
-        <div class="result-preview-shell" aria-label="真实 AI 评审与建议结果预览">
-          <header class="result-preview-shell__header">
-            <div>
-              <span>FULL WORKFLOW / COMPLETED</span>
-              <strong>题目、论文、评审与建议已完成一次端到端演练</strong>
+        <div class="product-shot-stage">
+          <div class="product-shot-label"><span></span>LeetModel 产品界面实景预览</div>
+
+          <figure class="product-shot" aria-label="LeetModel AI 论文评审详情页面预览">
+            <div class="product-shot__chrome" aria-hidden="true">
+              <div class="product-shot__traffic"><i></i><i></i><i></i></div>
+              <div class="product-shot__address"><ShieldCheck :size="12" />app.leetmodel.cn / review / result</div>
+              <div class="product-shot__privacy">真实结果 · 已脱敏</div>
             </div>
-            <span class="result-run-status"><i></i>真实运行结果</span>
-          </header>
 
-          <div class="result-preview-grid">
-            <article class="review-result-card" aria-labelledby="review-result-title">
-              <header class="result-card-heading">
-                <div>
-                  <span>AI REVIEW / V3</span>
-                  <h3 id="review-result-title">证据化评审结果</h3>
-                </div>
-                <span class="result-card-state"><Check :size="14" aria-hidden="true" />已完成</span>
-              </header>
+            <div class="product-shot__app">
+              <aside class="product-shot__sidebar" aria-label="产品导航预览">
+                <div class="shot-brand"><img src="@/assets/images/logo-en.png" alt="LeetModel" /></div>
+                <nav>
+                  <span><LayoutDashboard :size="15" aria-hidden="true" />实训概览</span>
+                  <span><LibraryBig :size="15" aria-hidden="true" />赛题与队伍</span>
+                  <span><FileText :size="15" aria-hidden="true" />论文提交</span>
+                  <span class="is-active"><FileCheck2 :size="15" aria-hidden="true" />AI 评审</span>
+                </nav>
+                <div class="shot-profile"><i>LM</i><span>演练队伍<small>三职责已就绪</small></span></div>
+              </aside>
 
-              <div class="review-score-summary">
-                <div class="review-score-main">
-                  <strong>45.0</strong>
-                  <span>/ 100</span>
-                  <small>平台训练评分</small>
-                </div>
-                <dl class="review-score-facts">
-                  <div>
-                    <dt>13</dt>
-                    <dd>结构化发现</dd>
+              <div class="product-shot__workspace">
+                <header class="shot-appbar">
+                  <span>实训工作台&nbsp; / &nbsp;提交记录&nbsp; / &nbsp;<strong>AI 评审详情</strong></span>
+                  <div><span class="shot-appbar__status"><i></i>服务正常</span><i class="shot-avatar">A</i></div>
+                </header>
+
+                <div class="shot-page">
+                  <header class="shot-report-heading">
+                    <div class="shot-report-file">
+                      <span><FileText :size="18" aria-hidden="true" /></span>
+                      <div>
+                        <p>2025 MCM Problem A</p>
+                        <h3>论文 AI 深度评审</h3>
+                        <small>submission.pdf · 25 页 · 完整论文演练</small>
+                      </div>
+                    </div>
+                    <span class="shot-completed"><Check :size="14" aria-hidden="true" />评审已完成</span>
+                  </header>
+
+                  <div class="shot-tabs" aria-label="结果页面标签预览">
+                    <span class="is-active">评审结果</span>
+                    <span>改进建议 <i>5</i></span>
+                    <span>论文证据 <i>13</i></span>
                   </div>
-                  <div>
-                    <dt>13</dt>
-                    <dd>论文证据锚点</dd>
-                  </div>
-                </dl>
-              </div>
 
-              <div class="dimension-list" aria-label="五维评审得分">
-                <div v-for="dimension in reviewDimensions" :key="dimension.label" class="dimension-row">
-                  <div>
-                    <span>{{ dimension.label }}</span>
-                    <strong>{{ dimension.score }}<small>/{{ dimension.max }}</small></strong>
+                  <div class="shot-dashboard">
+                    <section class="shot-review-panel" aria-labelledby="review-result-title">
+                      <div class="shot-panel-heading">
+                        <div>
+                          <span>DEEP EVIDENCE REVIEW · V3</span>
+                          <h3 id="review-result-title">综合评审结果</h3>
+                        </div>
+                        <span>13 条发现</span>
+                      </div>
+
+                      <div class="shot-score-row">
+                        <div class="shot-score">
+                          <strong>45.0</strong><span>/ 100</span>
+                          <small>平台训练评分</small>
+                        </div>
+                        <p>模型框架已经成形，但关键机理、参数辨识与结果验证仍需补全证据闭环。</p>
+                      </div>
+
+                      <div class="shot-dimensions" aria-label="五维评审得分">
+                        <div v-for="dimension in reviewDimensions" :key="dimension.label" class="shot-dimension">
+                          <span>{{ dimension.label }}</span>
+                          <progress
+                            :value="dimension.score"
+                            :max="dimension.max"
+                            :aria-label="`${dimension.label} ${dimension.score} 分，满分 ${dimension.max} 分`"
+                          ></progress>
+                          <strong>{{ dimension.score }}<small>/{{ dimension.max }}</small></strong>
+                        </div>
+                      </div>
+
+                      <div class="shot-findings-heading">
+                        <h4>需要优先处理的问题</h4>
+                        <span>按影响程度排序</span>
+                      </div>
+
+                      <div class="shot-finding-list">
+                        <article>
+                          <span class="shot-severity">HIGH</span>
+                          <div>
+                            <h4>关键机理与参数来源缺少完整论证</h4>
+                            <p>现有推导尚未把状态变量、边界条件和参数辨识过程串成可复算链路。</p>
+                            <small><MapPinned :size="12" aria-hidden="true" />论文第 4 页 · 数学建模</small>
+                          </div>
+                          <span class="shot-impact">影响 8.0 分</span>
+                        </article>
+                        <article>
+                          <span class="shot-severity shot-severity--medium">MEDIUM</span>
+                          <div>
+                            <h4>验证结果与核心结论的对应关系不足</h4>
+                            <p>需要补充可复算的误差指标，并说明验证结果如何支持最终结论。</p>
+                            <small><MapPinned :size="12" aria-hidden="true" />论文证据锚点 · 结果与验证</small>
+                          </div>
+                          <span class="shot-impact">影响 5.0 分</span>
+                        </article>
+                      </div>
+                    </section>
+
+                    <aside class="shot-suggestion-panel" aria-labelledby="suggestion-result-title">
+                      <div class="shot-suggestion-heading">
+                        <span><Sparkles :size="14" aria-hidden="true" />AI 改进建议</span>
+                        <small>7 / 7 子任务完成</small>
+                      </div>
+
+                      <span class="shot-priority">P1 · 关键修改</span>
+                      <h3 id="suggestion-result-title">把损伤机理推进为可计算、可验证的模型</h3>
+                      <p>针对当前评审问题，优先补齐模型定义、求解依据与验证闭环。</p>
+
+                      <ol class="shot-action-list">
+                        <li v-for="(action, index) in suggestionActions" :key="action">
+                          <span>{{ index + 1 }}</span>
+                          <p>{{ action }}</p>
+                        </li>
+                      </ol>
+
+                      <div class="shot-acceptance">
+                        <span><ListChecks :size="14" aria-hidden="true" />验收标准</span>
+                        <p>方程、参数来源、求解日志与验证图表能够互相对应，关键误差指标可复算。</p>
+                      </div>
+
+                      <div class="shot-evidence">
+                        <span>建议依据链</span>
+                        <div><FileSearch :size="13" aria-hidden="true" />论文第 5 页</div>
+                        <i></i>
+                        <div><Crosshair :size="13" aria-hidden="true" />评审发现</div>
+                        <i></i>
+                        <div><BookOpenCheck :size="13" aria-hidden="true" />知识依据</div>
+                      </div>
+                    </aside>
                   </div>
-                  <progress
-                    :value="dimension.score"
-                    :max="dimension.max"
-                    :aria-label="`${dimension.label} ${dimension.score} 分，满分 ${dimension.max} 分`"
-                  ></progress>
+
+                  <footer class="shot-disclaimer">
+                    <BadgeCheck :size="14" aria-hidden="true" />
+                    基于真实完整论文运行结果生成；展示内容已脱敏与概括，训练评分不代表赛事官方结果。
+                  </footer>
                 </div>
               </div>
-
-              <div class="finding-preview">
-                <span><Crosshair :size="15" aria-hidden="true" />评审结论摘要</span>
-                <p>模型框架已经成形，但关键机理、参数辨识与结果验证仍缺少能够互相印证的完整证据闭环。</p>
-                <small>原始论文内容、队伍信息与完整模型回答未公开。</small>
-              </div>
-            </article>
-
-            <article class="suggestion-result-card" aria-labelledby="suggestion-result-title">
-              <header class="result-card-heading">
-                <div>
-                  <span>AI COACH / V3</span>
-                  <h3 id="suggestion-result-title">可执行建议结果</h3>
-                </div>
-                <span class="result-card-state result-card-state--dark">7 / 7 子任务完成</span>
-              </header>
-
-              <div class="suggestion-priority">
-                <span>P1 · 关键修改</span>
-                <small>建模与求解</small>
-              </div>
-
-              <h4>把损伤机理推进为可计算、可验证的模型</h4>
-              <p class="suggestion-diagnosis">
-                当前推导需要进一步明确状态变量、参数来源和边界条件，并让求解过程与验证结果形成对应关系。
-              </p>
-
-              <ol class="suggestion-actions">
-                <li v-for="(action, index) in suggestionActions" :key="action">
-                  <span>{{ String(index + 1).padStart(2, '0') }}</span>
-                  <p>{{ action }}</p>
-                </li>
-              </ol>
-
-              <div class="acceptance-preview">
-                <span><ListChecks :size="16" aria-hidden="true" />验收标准</span>
-                <p>方程、参数来源、求解日志与验证图表能够互相对应，关键误差指标可复算。</p>
-              </div>
-
-              <div class="evidence-chain-preview" aria-label="建议依据链">
-                <span><FileSearch :size="14" aria-hidden="true" />论文第 5 页</span>
-                <i></i>
-                <span><MapPinned :size="14" aria-hidden="true" />评审发现</span>
-                <i></i>
-                <span><BookOpenCheck :size="14" aria-hidden="true" />知识依据</span>
-              </div>
-            </article>
-          </div>
-
-          <footer class="result-preview-shell__footer">
-            <span>DEEP_EVIDENCE_REVIEW_V3</span>
-            <span>GROUNDED_SUGGESTION_V3</span>
-            <p>训练评分用于模拟与改进，不代表具体赛事官方结果。</p>
-          </footer>
+            </div>
+          </figure>
         </div>
       </section>
 
@@ -372,13 +413,16 @@ import {
   Crosshair,
   FileCheck2,
   FileSearch,
+  FileText,
   GitCompareArrows,
+  LayoutDashboard,
   LibraryBig,
   ListChecks,
   MapPinned,
   Route,
   ScanSearch,
   ShieldCheck,
+  Sparkles,
   UploadCloud,
   UsersRound,
 } from '@lucide/vue'
