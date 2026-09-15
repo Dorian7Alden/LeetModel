@@ -9,15 +9,15 @@
         </router-link>
 
         <nav class="official-nav" aria-label="官网主导航">
-          <a href="#workflow">实训闭环</a>
-          <a href="#results">真实结果</a>
-          <a href="#capabilities">核心能力</a>
+          <a href="#results">AI 评审结果</a>
+          <a href="#review">评审维度</a>
+          <a href="#workflow">使用流程</a>
         </nav>
 
         <div class="official-header__actions">
           <router-link v-if="!userStore.isLogin" to="/login" class="header-text-action">登录</router-link>
           <router-link :to="primaryRoute" class="header-primary-action">
-            {{ userStore.isLogin ? '进入工作台' : '开始实训' }}
+            {{ userStore.isLogin ? '进入评审工作台' : '开始论文 AI 评审' }}
             <ArrowUpRight :size="15" aria-hidden="true" />
           </router-link>
         </div>
@@ -29,58 +29,56 @@
         <div class="hero-copy">
           <div class="hero-kicker">
             <span></span>
-            数学建模赛前全真演练场
+            数学建模论文 AI 评审与修改建议
           </div>
           <h1 id="official-heading">
-            从一道真题，
-            <span>到一份经得起追问的论文。</span>
+            AI 评审数学建模论文，
+            <span>定位问题并给出修改建议。</span>
           </h1>
           <p>
-            在真正比赛前，把选题、三职责就绪、限时交卷与 AI 深度评审完整跑一遍。
-            LeetModel 帮你提前发现格式雷区、模型断点和证据缺口。
+            上传完整的数学建模竞赛论文，LeetModel 从结构表达、题意假设、数学建模、算法求解和结果验证五个维度评分，
+            定位论文问题与证据，并生成可执行的修改步骤和验收标准。
           </p>
 
           <div class="hero-actions">
             <router-link :to="primaryRoute" class="official-action official-action--primary">
-              {{ userStore.isLogin ? '继续我的实训' : '免费开始一次演练' }}
+              {{ userStore.isLogin ? '进入评审工作台' : '开始论文 AI 评审' }}
               <ArrowRight :size="18" aria-hidden="true" />
             </router-link>
-            <router-link to="/problem" class="official-action official-action--secondary">
-              先浏览历年真题
-            </router-link>
+            <a href="#results" class="official-action official-action--secondary">查看真实评审结果</a>
           </div>
 
-          <ul class="hero-assurances" aria-label="平台核心能力">
-            <li><UsersRound :size="15" aria-hidden="true" />三职责协作</li>
-            <li><UploadCloud :size="15" aria-hidden="true" />50MB 分片交卷</li>
-            <li><FileCheck2 :size="15" aria-hidden="true" />版本化 AI 评审</li>
+          <ul class="hero-assurances" aria-label="AI 论文评审核心能力">
+            <li><FileCheck2 :size="15" aria-hidden="true" />五维论文评分</li>
+            <li><MapPinned :size="15" aria-hidden="true" />问题定位到论文证据</li>
+            <li><ListChecks :size="15" aria-hidden="true" />生成可执行修改建议</li>
           </ul>
         </div>
 
-        <div class="preflight-stage" aria-label="论文 AI 预审流程预览">
-          <div class="stage-coordinate stage-coordinate--x">MODEL / PAPER / EVIDENCE</div>
-          <div class="stage-coordinate stage-coordinate--y">PRE-FLIGHT 01</div>
+        <div class="preflight-stage" aria-label="数学建模论文 AI 评审流程预览">
+          <div class="stage-coordinate stage-coordinate--x">PAPER / MODEL / EVIDENCE</div>
+          <div class="stage-coordinate stage-coordinate--y">AI REVIEW 01</div>
 
           <article class="paper-preview">
             <header class="paper-preview__header">
               <div>
-                <span>PAPER / PRE-FLIGHT</span>
-                <strong>论文体检正在形成证据链</strong>
+                <span>MATHEMATICAL MODELING PAPER</span>
+                <strong>AI 正在评审你的数学建模论文</strong>
               </div>
-              <span class="paper-status"><i></i>结构化评审</span>
+              <span class="paper-status"><i></i>论文 AI 评审</span>
             </header>
 
             <div class="paper-title-block">
-              <span>ABSTRACT</span>
-              <strong>赛题要求、模型假设与结论是否真正闭环？</strong>
-              <p>不是只给一个分数，而是回到论文页码与推导证据。</p>
+              <span>REVIEW SCOPE</span>
+              <strong>从模型假设到结果验证，逐项定位论文问题</strong>
+              <p>输出五维评分、证据化评语和可执行修改建议。</p>
             </div>
 
             <div class="review-lanes">
               <div class="review-lane review-lane--complete">
                 <span class="lane-index">01</span>
                 <div>
-                  <strong>结构规范审查</strong>
+                  <strong>论文结构与规范评审</strong>
                   <small>摘要 · 符号 · 图表 · 引用</small>
                 </div>
                 <Check :size="17" aria-hidden="true" />
@@ -88,62 +86,41 @@
               <div class="review-lane review-lane--active">
                 <span class="lane-index">02</span>
                 <div>
-                  <strong>建模推演复核</strong>
-                  <small>小题覆盖 · 假设 · 求解 · 验证</small>
+                  <strong>模型与算法求解评审</strong>
+                  <small>题意 · 假设 · 建模 · 算法</small>
                 </div>
                 <ScanSearch :size="17" aria-hidden="true" />
               </div>
               <div class="review-lane">
                 <span class="lane-index">03</span>
                 <div>
-                  <strong>提分路径生成</strong>
-                  <small>扣分证据 · 改写范例 · 公式建议</small>
+                  <strong>结果验证与修改建议</strong>
+                  <small>误差检验 · 修改步骤 · 验收标准</small>
                 </div>
                 <Route :size="17" aria-hidden="true" />
               </div>
             </div>
 
             <footer class="paper-preview__footer">
-              <span>评审不是终点</span>
-              <strong>每个问题都要能继续修改</strong>
+              <span>评审结果可追溯</span>
+              <strong>每条问题关联论文证据与修改方案</strong>
             </footer>
           </article>
 
-          <div class="annotation annotation--top">先查致命格式风险</div>
-          <div class="annotation annotation--bottom">再追问模型是否自洽</div>
+          <div class="annotation annotation--top">定位论文问题</div>
+          <div class="annotation annotation--bottom">生成修改建议</div>
         </div>
-      </section>
-
-      <section id="workflow" class="workflow-section official-section" aria-labelledby="workflow-heading">
-        <div class="section-heading section-heading--split">
-          <div>
-            <span class="section-kicker">ONE COMPLETE REHEARSAL</span>
-            <h2 id="workflow-heading">一次模拟，跑通整场比赛。</h2>
-          </div>
-          <p>不做日常打卡，不堆无关功能。只把比赛前真正需要经历的四个动作连成闭环。</p>
-        </div>
-
-        <ol class="workflow-track">
-          <li v-for="step in workflowSteps" :key="step.code">
-            <div class="workflow-marker">
-              <component :is="step.icon" :size="19" aria-hidden="true" />
-            </div>
-            <span>{{ step.code }}</span>
-            <h3>{{ step.title }}</h3>
-            <p>{{ step.description }}</p>
-          </li>
-        </ol>
       </section>
 
       <section id="results" class="result-preview-section official-section" aria-labelledby="results-heading">
         <div class="section-heading section-heading--split">
           <div>
-            <span class="section-kicker">REAL PAPER RUN / REDACTED</span>
-            <h2 id="results-heading">先看 AI 到底交付什么。</h2>
+            <span class="section-kicker">REAL AI PAPER REVIEW RESULT</span>
+            <h2 id="results-heading">真实数学建模论文 AI 评审结果</h2>
           </div>
           <div class="result-preview-intro">
-            <span><BadgeCheck :size="17" aria-hidden="true" />真实完整论文演练</span>
-            <p>基于 2025 MCM A 题面与匹配的 25 页论文 PDF。以下内容来自真实运行结果，已脱敏与概括。</p>
+            <span><BadgeCheck :size="17" aria-hidden="true" />完整论文评审与建议已跑通</span>
+            <p>基于 2025 MCM A 题面与匹配的 25 页论文 PDF，展示真实五维评分、论文问题与改进建议；内容已脱敏。</p>
           </div>
         </div>
 
@@ -153,7 +130,7 @@
           <figure class="product-shot" aria-label="LeetModel AI 论文评审详情页面预览">
             <div class="product-shot__chrome" aria-hidden="true">
               <div class="product-shot__traffic"><i></i><i></i><i></i></div>
-              <div class="product-shot__address"><ShieldCheck :size="12" />app.leetmodel.cn / review / result</div>
+              <div class="product-shot__address"><ShieldCheck :size="12" />LeetModel / AI 论文评审结果</div>
               <div class="product-shot__privacy">真实结果 · 已脱敏</div>
             </div>
 
@@ -297,33 +274,33 @@
 
       <section id="review" class="review-section official-section" aria-labelledby="review-heading">
         <div class="review-section__copy">
-          <span class="section-kicker section-kicker--inverse">EVIDENCE-BASED REVIEW</span>
-          <h2 id="review-heading">真正有用的评审，<br />必须指出问题在哪里。</h2>
+          <span class="section-kicker section-kicker--inverse">EVIDENCE-BASED PAPER REVIEW</span>
+          <h2 id="review-heading">每条论文评审意见，<br />都有证据和修改方案。</h2>
           <p>
-            LeetModel 将规范性审查与建模推演分开执行，再把分数、问题、论文证据和改进方向重新关联。
-            你看到的不只是结论，还能知道下一步该改什么。
+            AI 分别评审结构表达、题意假设、数学建模、算法求解和结果验证，不只给出总分；
+            每个问题关联论文证据，建议包含修改步骤和验收标准。
           </p>
 
           <div class="review-principles">
             <div>
+              <FileCheck2 :size="18" aria-hidden="true" />
+              <span><strong>五维论文评分</strong><small>覆盖结构、假设、建模、算法与验证</small></span>
+            </div>
+            <div>
               <MapPinned :size="18" aria-hidden="true" />
-              <span><strong>定位到证据</strong><small>回指页码、章节与具体观察</small></span>
+              <span><strong>证据化问题定位</strong><small>关联论文页码、评审发现与分数影响</small></span>
             </div>
             <div>
-              <ShieldCheck :size="18" aria-hidden="true" />
-              <span><strong>区分确定与限制</strong><small>证据不足时明确说明，不强行下结论</small></span>
-            </div>
-            <div>
-              <GitCompareArrows :size="18" aria-hidden="true" />
-              <span><strong>从扣分走向修改</strong><small>让问题与后续改进建议保持关联</small></span>
+              <ListChecks :size="18" aria-hidden="true" />
+              <span><strong>可执行修改建议</strong><small>给出修改步骤、依据链与验收标准</small></span>
             </div>
           </div>
         </div>
 
         <div class="review-blueprint" aria-label="AI 双阶段评审结构">
           <div class="blueprint-heading">
-            <span>DEEP REVIEW / V3</span>
-            <strong>双阶段深度评审</strong>
+            <span>MATHEMATICAL MODELING PAPER / V3</span>
+            <strong>数学建模论文评分结构</strong>
           </div>
           <div class="blueprint-score">
             <div>
@@ -350,35 +327,39 @@
         </div>
       </section>
 
-      <section id="capabilities" class="capability-section official-section" aria-labelledby="capability-heading">
-        <div class="section-heading">
-          <span class="section-kicker">BUILT FOR THE HOURS BEFORE SUBMISSION</span>
-          <h2 id="capability-heading">把赛前焦虑，变成可确认的状态。</h2>
+      <section id="workflow" class="workflow-section official-section" aria-labelledby="workflow-heading">
+        <div class="section-heading section-heading--split">
+          <div>
+            <span class="section-kicker">AI PAPER REVIEW WORKFLOW</span>
+            <h2 id="workflow-heading">数学建模论文 AI 评审流程</h2>
+          </div>
+          <p>选择对应赛题并上传完整论文 PDF，系统完成五维评审、问题定位和修改建议生成。</p>
         </div>
 
-        <div class="capability-grid">
-          <article v-for="capability in capabilities" :key="capability.title">
-            <component :is="capability.icon" :size="22" aria-hidden="true" />
-            <span>{{ capability.label }}</span>
-            <h3>{{ capability.title }}</h3>
-            <p>{{ capability.description }}</p>
-            <div class="capability-proof">{{ capability.proof }}</div>
-          </article>
-        </div>
+        <ol class="workflow-track">
+          <li v-for="step in workflowSteps" :key="step.code">
+            <div class="workflow-marker">
+              <component :is="step.icon" :size="19" aria-hidden="true" />
+            </div>
+            <span>{{ step.code }}</span>
+            <h3>{{ step.title }}</h3>
+            <p>{{ step.description }}</p>
+          </li>
+        </ol>
       </section>
 
       <section class="final-cta official-section" aria-labelledby="final-heading">
         <div>
-          <span class="section-kicker">START WITH A REAL PROBLEM</span>
-          <h2 id="final-heading">下一场比赛之前，先完整交卷一次。</h2>
-          <p>选择一道历年真题，建立队伍，启动属于你的全真演练。</p>
+          <span class="section-kicker">START AI PAPER REVIEW</span>
+          <h2 id="final-heading">上传数学建模论文，开始一次完整 AI 评审。</h2>
+          <p>获得五维评分、论文问题证据、修改步骤与验收标准。</p>
         </div>
         <div class="final-cta__actions">
           <router-link :to="primaryRoute" class="official-action official-action--primary">
-            {{ userStore.isLogin ? '返回实训首页' : '创建账号并开始' }}
+            {{ userStore.isLogin ? '进入评审工作台' : '开始论文 AI 评审' }}
             <ArrowRight :size="18" aria-hidden="true" />
           </router-link>
-          <router-link to="/problem" class="official-action official-action--secondary">浏览题库</router-link>
+          <router-link to="/problem" class="official-action official-action--secondary">查看数学建模赛题</router-link>
         </div>
       </section>
     </main>
@@ -409,12 +390,10 @@ import {
   BadgeCheck,
   BookOpenCheck,
   Check,
-  Clock3,
   Crosshair,
   FileCheck2,
   FileSearch,
   FileText,
-  GitCompareArrows,
   LayoutDashboard,
   LibraryBig,
   ListChecks,
@@ -424,7 +403,6 @@ import {
   ShieldCheck,
   Sparkles,
   UploadCloud,
-  UsersRound,
 } from '@lucide/vue'
 import { useUserStore } from '@/store/user'
 
@@ -448,53 +426,30 @@ const suggestionActions = [
 const workflowSteps = [
   {
     code: '01 / PICK',
-    title: '选择真题',
-    description: '从国赛、美赛等历年题目中确定一次真正值得投入的模拟。',
+    title: '选择数学建模赛题',
+    description: '确定论文对应的赛事题目，让 AI 按具体任务要求进行评审。',
     icon: LibraryBig,
   },
   {
-    code: '02 / TEAM',
-    title: '职责就绪',
-    description: '建模、编程、论文三项职责覆盖后，立即启动限时实训。',
-    icon: UsersRound,
-  },
-  {
-    code: '03 / SUBMIT',
-    title: '可靠交卷',
-    description: '保存可追溯的 PDF 版本，在倒计时内完成稳定上传。',
-    icon: Clock3,
-  },
-  {
-    code: '04 / REVIEW',
-    title: '深度体检',
-    description: '从结构规范到模型推演，获得带证据的评分与改进方向。',
-    icon: FileSearch,
-  },
-]
-
-const capabilities = [
-  {
-    label: '赛程确定性',
-    title: '知道还剩多久，也知道队伍还缺什么。',
-    description: '倒计时、队伍职责和实训状态集中呈现，关键阶段不靠猜测。',
-    proof: '三职责覆盖 · 状态化实训 · 实时倒计时',
-    icon: Clock3,
-  },
-  {
-    label: '交卷可靠性',
-    title: '大文件上传过程清晰、可恢复、可追溯。',
-    description: '针对包含复杂图表的论文 PDF，提供分片、校验与版本记录。',
-    proof: '50MB PDF · 分片续传 · SHA-256 校验',
+    code: '02 / UPLOAD',
+    title: '上传完整论文 PDF',
+    description: '提交包含模型、算法、结果和验证过程的完整数学建模论文。',
     icon: UploadCloud,
   },
   {
-    label: '反馈可执行',
-    title: '从一个扣分点，继续走到具体修改。',
-    description: '评审结果保留评分理由与证据关系，为后续针对性改进提供依据。',
-    proof: '结构化发现 · 论文证据 · 双轨改进建议',
-    icon: GitCompareArrows,
+    code: '03 / REVIEW',
+    title: 'AI 五维论文评审',
+    description: '获得结构表达、题意假设、数学建模、算法求解和结果验证评分。',
+    icon: ScanSearch,
+  },
+  {
+    code: '04 / IMPROVE',
+    title: '获取可执行修改建议',
+    description: '根据论文证据和评审问题，查看修改步骤、依据链与验收标准。',
+    icon: ListChecks,
   },
 ]
+
 </script>
 
 <style scoped>
