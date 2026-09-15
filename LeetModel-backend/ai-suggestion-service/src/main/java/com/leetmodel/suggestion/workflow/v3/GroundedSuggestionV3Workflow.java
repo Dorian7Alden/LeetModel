@@ -53,6 +53,10 @@ import java.util.concurrent.TimeUnit;
 public class GroundedSuggestionV3Workflow {
     public static final String VERSION = "GROUNDED_SUGGESTION_V3";
     public static final String RESULT_SCHEMA_VERSION = "GROUNDED_SUGGESTION_V3";
+    public static final String MODEL_EXECUTION_CONFIG_VERSION = "MODEL_CFG_SUGGESTION_TEXT_0003";
+    public static final String MODEL_NAME = "gemini-3.8-flash-high";
+    public static final int MAX_OUTPUT_TOKENS = 8192;
+    public static final double TEMPERATURE = 0.15;
     private static final Map<String, Integer> PRIORITIES = Map.of("P0", 0, "P1", 1, "P2", 2, "P3", 3);
     private static final Set<String> CATEGORIES = Set.of("PROBLEM", "ASSUMPTION", "DATA", "MODEL",
             "SOLUTION", "RESULT", "VALIDATION", "SENSITIVITY", "WRITING", "FIGURE", "CITATION", "APPENDIX");
@@ -136,7 +140,7 @@ public class GroundedSuggestionV3Workflow {
         validate(finalOutput, parse, reviewEvidence);
 
         String resultJson = objectMapper.writeValueAsString(finalOutput);
-        return new SuggestionWorkflowResult(resultJson, "gemini-3.8-flash-high", "call-sug-v3-" + task.getId());
+        return new SuggestionWorkflowResult(resultJson, MODEL_NAME, "call-sug-v3-" + task.getId());
     }
 
     private SuggestionPlannerOutput planTasks(
@@ -157,11 +161,11 @@ public class GroundedSuggestionV3Workflow {
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, VERSION, "PROMPT_PLANNER_0001",
-                    "MODEL_CFG_SUGGESTION_TEXT_0002", null, AiCallPriority.P1,
+                    MODEL_EXECUTION_CONFIG_VERSION, null, AiCallPriority.P1,
                     callId, Instant.now().plusSeconds(180));
             AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                     List.of(new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))),
-                    4096, 0.1, AiResponseFormat.JSON_OBJECT, false));
+                    MAX_OUTPUT_TOKENS, TEMPERATURE, AiResponseFormat.JSON_OBJECT, false));
 
             if (response != null && response.content() != null && !response.content().isBlank()) {
                 return V3OutputParser.parse(objectMapper, response.content(), SuggestionPlannerOutput.class);
@@ -211,12 +215,12 @@ public class GroundedSuggestionV3Workflow {
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, VERSION, "PROMPT_SUBTASK_0001",
-                    "MODEL_CFG_SUGGESTION_TEXT_0002", null, AiCallPriority.P1,
+                    MODEL_EXECUTION_CONFIG_VERSION, null, AiCallPriority.P1,
                     callId, Instant.now().plusSeconds(180));
 
             AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                     List.of(new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))),
-                    4096, 0.15, AiResponseFormat.JSON_OBJECT, false));
+                    MAX_OUTPUT_TOKENS, TEMPERATURE, AiResponseFormat.JSON_OBJECT, false));
 
             if (response != null && response.content() != null && !response.content().isBlank()) {
                 SubTaskSuggestionOutput output = V3OutputParser.parse(objectMapper, response.content(), SubTaskSuggestionOutput.class);
@@ -251,11 +255,11 @@ public class GroundedSuggestionV3Workflow {
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, VERSION, "PROMPT_SYNTHESIZER_0001",
-                    "MODEL_CFG_SUGGESTION_TEXT_0002", null, AiCallPriority.P1,
+                    MODEL_EXECUTION_CONFIG_VERSION, null, AiCallPriority.P1,
                     callId, Instant.now().plusSeconds(180));
             AiChatResponse response = aiClient.chat(new AiChatRequest(AiModality.TEXT, context,
                     List.of(new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))),
-                    6000, 0.15, AiResponseFormat.JSON_OBJECT, false));
+                    MAX_OUTPUT_TOKENS, TEMPERATURE, AiResponseFormat.JSON_OBJECT, false));
 
             if (response != null && response.content() != null && !response.content().isBlank()) {
                 return V3OutputParser.parse(objectMapper, response.content(), GroundedSuggestionV3Output.class);
@@ -288,7 +292,7 @@ public class GroundedSuggestionV3Workflow {
                     "S-" + (id++),
                     item.priority() == null ? "P2" : item.priority(),
                     item.type() == null ? "CORRECTION" : item.type(),
-                    item.category() == null ? "MODEL" : item.category(),
+                    canonicalCategory(item.category()),
                     item.subProblemNo(),
                     item.title() == null ? "修改建议" : item.title(),
                     item.problemOrGap() == null ? "" : item.problemOrGap(),
@@ -300,6 +304,15 @@ public class GroundedSuggestionV3Workflow {
             ));
         }
         return new GroundedSuggestionV3Output(VERSION, output.overallStrategy(), output.topPriorities(), summaries, normalized);
+    }
+
+    /**
+     * 将模型常见同义类别收敛到已发布结果 Schema，避免扩大对外枚举。
+     */
+    private String canonicalCategory(String category) {
+        if (category == null || category.isBlank()) return "MODEL";
+        String normalized = category.strip().toUpperCase();
+        return "ALGORITHM".equals(normalized) ? "SOLUTION" : normalized;
     }
 
     private String retrieveTargetedKnowledge(SuggestionPlannerOutput.PlannerTask subTask, ProblemContextDTO problem) {

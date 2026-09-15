@@ -2,6 +2,7 @@ package com.leetmodel.review.workflow.v3;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
+import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.PaperParseDTO;
@@ -19,6 +20,7 @@ import com.leetmodel.review.service.ReviewTaskLogService;
 import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.core.task.SyncTaskExecutor;
 
 import java.math.BigDecimal;
@@ -28,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DeepEvidenceReviewV3WorkflowTest {
@@ -210,6 +214,17 @@ class DeepEvidenceReviewV3WorkflowTest {
         assertThat(result.resultJson()).contains("DIM_ALGORITHM_SOLUTION");
         assertThat(result.resultJson()).contains("DIM_RESULT_VALIDATION");
         assertThat(result.resultJson()).contains("DIM_ASSUMPTION_UNDERSTANDING");
+        assertThat(result.modelName()).isEqualTo(DeepEvidenceReviewV3Workflow.MODEL_NAME);
+
+        ArgumentCaptor<AiChatRequest> requestCaptor = ArgumentCaptor.forClass(AiChatRequest.class);
+        verify(aiClient, times(5)).chat(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues()).allSatisfy(request -> {
+            assertThat(request.context().workflowVersion()).isEqualTo(DeepEvidenceReviewV3Workflow.VERSION_CODE);
+            assertThat(request.context().modelExecutionConfigVersion())
+                    .isEqualTo(DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION);
+            assertThat(request.maxTokens()).isEqualTo(DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS);
+            assertThat(request.temperature()).isEqualTo(DeepEvidenceReviewV3Workflow.TEMPERATURE);
+        });
     }
 
     @Test

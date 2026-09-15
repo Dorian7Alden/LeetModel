@@ -2,6 +2,7 @@ package com.leetmodel.suggestion.workflow.v3;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
+import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.KnowledgeCitationDTO;
@@ -15,6 +16,7 @@ import com.leetmodel.suggestion.service.evidence.ReviewEvidenceSnapshot;
 import com.leetmodel.suggestion.workflow.SuggestionWorkflowResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.core.task.SyncTaskExecutor;
 
 import java.nio.file.Files;
@@ -24,6 +26,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -264,6 +268,16 @@ class SuggestionV3EndToEndSmokeTest {
         assertThat(advancement.type()).isEqualTo("ADVANCEMENT");
         assertThat(advancement.evidenceChain().reviewFindingIds()).isEmpty();
         assertThat(advancement.evidenceChain().paperEvidenceIds()).containsExactly("B_NOM_01");
+
+        ArgumentCaptor<AiChatRequest> requestCaptor = ArgumentCaptor.forClass(AiChatRequest.class);
+        verify(aiClient, times(4)).chat(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues()).allSatisfy(request -> {
+            assertThat(request.context().workflowVersion()).isEqualTo(GroundedSuggestionV3Workflow.VERSION);
+            assertThat(request.context().modelExecutionConfigVersion())
+                    .isEqualTo(GroundedSuggestionV3Workflow.MODEL_EXECUTION_CONFIG_VERSION);
+            assertThat(request.maxTokens()).isEqualTo(GroundedSuggestionV3Workflow.MAX_OUTPUT_TOKENS);
+            assertThat(request.temperature()).isEqualTo(GroundedSuggestionV3Workflow.TEMPERATURE);
+        });
     }
 
     private AiChatResponse resp(String json) {

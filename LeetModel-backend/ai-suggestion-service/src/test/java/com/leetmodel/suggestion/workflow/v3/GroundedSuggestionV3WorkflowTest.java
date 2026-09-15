@@ -79,7 +79,7 @@ class GroundedSuggestionV3WorkflowTest {
                       "suggestionId": "TEMP-1",
                       "priority": "P1",
                       "type": "CORRECTION",
-                      "category": "MODEL",
+                      "category": "ALGORITHM",
                       "subProblemNo": 1,
                       "title": "容量约束时间切片修正",
                       "problemOrGap": "未考虑早晚高峰动态容量约束",
@@ -112,7 +112,7 @@ class GroundedSuggestionV3WorkflowTest {
                       "suggestionId": "S-1",
                       "priority": "P1",
                       "type": "CORRECTION",
-                      "category": "MODEL",
+                      "category": "ALGORITHM",
                       "subProblemNo": 1,
                       "title": "容量约束时间切片修正",
                       "problemOrGap": "未考虑早晚高峰动态容量约束",
@@ -178,6 +178,7 @@ class GroundedSuggestionV3WorkflowTest {
         assertThat(output.items()).hasSize(1);
         assertThat(output.items().get(0).suggestionId()).isEqualTo("S-1");
         assertThat(output.items().get(0).type()).isEqualTo("CORRECTION");
+        assertThat(output.items().get(0).category()).isEqualTo("SOLUTION");
         assertThat(output.items().get(0).actionPlanMarkdown()).contains("\\sum x_{ijt}");
     }
 

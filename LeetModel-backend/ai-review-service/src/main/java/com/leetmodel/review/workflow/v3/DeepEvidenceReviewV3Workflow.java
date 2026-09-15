@@ -45,6 +45,10 @@ public class DeepEvidenceReviewV3Workflow implements ReviewWorkflow {
     public static final long VERSION_ID = 3L;
     public static final String RESULT_SCHEMA_VERSION = "DEEP_EVIDENCE_REVIEW_V3";
     public static final String SCORING_RULE_VERSION = DeepEvidenceReviewV3Reducer.SCORING_RULE_VERSION;
+    public static final String MODEL_EXECUTION_CONFIG_VERSION = "MODEL_CFG_REVIEW_TEXT_0003";
+    public static final String MODEL_NAME = "gemini-3.8-flash-high";
+    public static final int MAX_OUTPUT_TOKENS = 8192;
+    public static final double TEMPERATURE = 0.1;
 
     private final PaperParseService parseService;
     private final ProblemFeignClient problemFeignClient;
@@ -170,7 +174,7 @@ public class DeepEvidenceReviewV3Workflow implements ReviewWorkflow {
         return new ReviewWorkflowResult(
                 finalOutput.getScore(),
                 resultJson,
-                "deepseek-v3-multi-stage",
+                MODEL_NAME,
                 "call-v3-" + task.getId(),
                 parse.getArtifactId()
         );

@@ -1,6 +1,10 @@
 spring:
   application:
     name: ai-gateway-service
+  mvc:
+    # 同步内部 AI 契约最多等待 120 秒；Servlet 异步超时必须覆盖该窗口和响应收尾开销。
+    async:
+      request-timeout: ${AI_SYNC_RESULT_REQUEST_TIMEOUT:130s}
   profiles:
     active: dev
   config:
@@ -98,6 +102,22 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_EVIDENCE_REVIEW_0001]
         workflow-versions: [EVIDENCE_REVIEW_V2]
+      MODEL_CFG_REVIEW_TEXT_0003:
+        call-type: CHAT
+        provider: NEW_API
+        model: gemini-3.8-flash-high
+        modality: TEXT
+        max-tokens: 8192
+        temperature: 0.1
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions:
+          - PROMPT_PHASE1_STRUCTURAL_0001
+          - PROMPT_PHASE2_PLANNER_0001
+          - PROMPT_SUBTASK_ABSTRACT_VERIFICATION_0001
+          - PROMPT_SUBTASK_SUB_PROBLEM_EVALUATION_0001
+          - PROMPT_SUBTASK_SENSITIVITY_EVALUATION_0001
+        workflow-versions: [DEEP_EVIDENCE_REVIEW_V3]
       MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001:
         call-type: CHAT
         provider: NEW_API
@@ -142,6 +162,20 @@ ai:
         thinking-enabled: false
         prompt-versions: [PROMPT_GROUNDED_SUGGESTION_0001]
         workflow-versions: [GROUNDED_SUGGESTION_V2]
+      MODEL_CFG_SUGGESTION_TEXT_0003:
+        call-type: CHAT
+        provider: NEW_API
+        model: gemini-3.8-flash-high
+        modality: TEXT
+        max-tokens: 8192
+        temperature: 0.15
+        response-format: JSON_OBJECT
+        thinking-enabled: false
+        prompt-versions:
+          - PROMPT_PLANNER_0001
+          - PROMPT_SUBTASK_0001
+          - PROMPT_SYNTHESIZER_0001
+        workflow-versions: [GROUNDED_SUGGESTION_V3]
       MODEL_CFG_KNOWLEDGE_DIRECTORY_0001:
         call-type: CHAT
         provider: NEW_API

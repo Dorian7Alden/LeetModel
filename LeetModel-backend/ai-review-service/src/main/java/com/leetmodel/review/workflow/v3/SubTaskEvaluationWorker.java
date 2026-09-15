@@ -64,7 +64,9 @@ public class SubTaskEvaluationWorker {
                     taskKey,
                     "DEEP_EVIDENCE_REVIEW_V3",
                     "PROMPT_SUBTASK_" + plan.getTaskType() + "_0001",
-                    task.getModelExecutionConfigVersion() == null ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
+                    task.getModelExecutionConfigVersion() == null
+                            ? DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION
+                            : task.getModelExecutionConfigVersion(),
                     task.getEvaluationTaskId(),
                     task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
                     "subtask:" + taskKey + ":attempt:" + task.getAttemptNo(),
@@ -78,8 +80,8 @@ public class SubTaskEvaluationWorker {
                             new AiMessage(AiRole.SYSTEM, List.of(new AiContentPart(AiContentType.TEXT, renderedPrompt, null))),
                             new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, "请严格根据上述背景与正文切片，输出符合要求的 JSON 结构化评审结果：", null)))
                     ),
-                    4096,
-                    0.1,
+                    DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS,
+                    DeepEvidenceReviewV3Workflow.TEMPERATURE,
                     AiResponseFormat.JSON_OBJECT,
                     false
             );

@@ -63,7 +63,9 @@ public class TaskPlannerOperator {
                 taskKey,
                 "DEEP_EVIDENCE_REVIEW_V3",
                 "PROMPT_PHASE2_PLANNER_0001",
-                task.getModelExecutionConfigVersion() == null ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
+                task.getModelExecutionConfigVersion() == null
+                        ? DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION
+                        : task.getModelExecutionConfigVersion(),
                 task.getEvaluationTaskId(),
                 task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
                 "planner:" + taskKey + ":attempt:" + task.getAttemptNo(),
@@ -77,8 +79,8 @@ public class TaskPlannerOperator {
                         new AiMessage(AiRole.SYSTEM, List.of(new AiContentPart(AiContentType.TEXT, systemPrompt, null))),
                         new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))
                 ),
-                3000,
-                0.1,
+                DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS,
+                DeepEvidenceReviewV3Workflow.TEMPERATURE,
                 AiResponseFormat.JSON_OBJECT,
                 false
         );
