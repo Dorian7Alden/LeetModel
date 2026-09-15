@@ -5,8 +5,8 @@
       <div class="topbar-inner">
         <!-- 左侧：品牌 -->
         <div class="left-area">
-          <router-link to="/home" class="nav-item home-icon">
-            <img src="@/assets/images/logo-with-en.png" alt="home" />
+          <router-link to="/" class="nav-item home-icon" aria-label="返回 LeetModel 官网">
+            <img src="@/assets/images/logo-with-en.png" alt="LeetModel" />
           </router-link>
           <button type="button" class="mobile-menu-button" aria-label="打开导航菜单" @click="mobileMenuOpen = true">
             <el-icon><Menu /></el-icon><span>菜单</span>
@@ -132,10 +132,10 @@
     <!-- 页脚 -->
     <footer v-if="route.path !== '/problem' && route.path !== '/problem/problemListPage' && !route.path.startsWith('/assistant')" class="footer">
       <div class="footer-content">
-        <div class="footer-brand">
+        <router-link to="/" class="footer-brand" aria-label="返回 LeetModel 官网">
           <img src="@/assets/images/logo-en.png" alt="LeetModel" class="footer-logo-img" />
           <span class="footer-tagline">数学建模在线实训平台</span>
-        </div>
+        </router-link>
 
         <div class="footer-links">
           <router-link to="/about">关于我们</router-link>
