@@ -232,10 +232,10 @@
             v-for="msg in messages"
             :key="msg.id"
             class="msg-row"
-            :class="msg.role"
+            :class="isAssistantRole(msg.role) ? 'assistant' : 'user'"
           >
             <!-- 1. 客服消息 (左侧呈现) -->
-            <template v-if="msg.role === 'assistant'">
+            <template v-if="isAssistantRole(msg.role)">
               <div class="avatar-cell assistant">
                 <img :src="aiAvatarImg" alt="AI 客服" class="avatar-img" />
               </div>
@@ -922,6 +922,11 @@ function getProblemCards(toolContextJson) {
   }
 }
 
+function isAssistantRole(role) {
+  const r = (role || '').toLowerCase();
+  return r === 'assistant';
+}
+
 function normalizeProblemCard(item) {
   return {
     code: item.code,
@@ -1053,7 +1058,7 @@ onBeforeUnmount(() => {
    ========================================================================== */
 .assistant-workspace {
   display: flex;
-  height: calc(100vh - 65px); /* 减去顶部导航条高度 */
+  height: calc(100vh - 56px); /* 减去顶部导航栏高度 56px */
   background: var(--lm-bg);
   position: relative;
   overflow: hidden;
@@ -1091,7 +1096,7 @@ onBeforeUnmount(() => {
 .badge-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 50%;
   overflow: hidden;
   background: var(--lm-bg-secondary);
   border: 1px solid var(--lm-border-light);
@@ -1472,7 +1477,7 @@ onBeforeUnmount(() => {
 .welcome-avatar-wrap {
   width: 64px;
   height: 64px;
-  border-radius: 18px;
+  border-radius: 50%;
   overflow: hidden;
   background: var(--lm-bg-secondary);
   border: 2px solid var(--lm-border);
@@ -1608,7 +1613,7 @@ onBeforeUnmount(() => {
 
 /* 消息流 */
 .messages-flow {
-  max-width: 860px;
+  max-width: 840px;
   width: 100%;
   margin: 0 auto;
   display: flex;
@@ -1633,7 +1638,7 @@ onBeforeUnmount(() => {
 .avatar-cell {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1685,7 +1690,8 @@ onBeforeUnmount(() => {
 
 .bubble-box {
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 8px;
+  border-top-left-radius: 2px;
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   box-shadow: var(--lm-shadow-xs);
@@ -1695,9 +1701,10 @@ onBeforeUnmount(() => {
 
 .bubble-box.user {
   background: #18181b;
-  color: #ffffff;
-  border-color: #18181b;
-  border-top-right-radius: 4px;
+  color: #f4f4f5;
+  border-color: #27272a;
+  border-radius: 8px;
+  border-top-right-radius: 2px;
 }
 
 .user-text {

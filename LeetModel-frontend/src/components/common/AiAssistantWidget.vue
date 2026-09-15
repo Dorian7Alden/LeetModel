@@ -78,8 +78,8 @@
                 </div>
               </div>
 
-              <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
-                <template v-if="msg.role === 'assistant'">
+              <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="isAssistantRole(msg.role) ? 'assistant' : 'user'">
+                <template v-if="isAssistantRole(msg.role)">
                   <div class="ai-msg-avatar support"><img :src="aiAvatarImg" alt="AI 客服" class="ai-msg-avatar-img" /></div>
                   <div class="ai-msg-col">
                     <span class="ai-msg-name">AI 客服</span>
@@ -519,6 +519,11 @@ function getProblemCards(toolContextJson) {
   }
 }
 
+function isAssistantRole(role) {
+  const r = (role || '').toLowerCase();
+  return r === 'assistant';
+}
+
 function normalizeProblemCard(item) {
   return {
     code: item.code,
@@ -593,7 +598,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 
 /* Header */
 .ai-header { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--lm-border-light); }
-.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: var(--lm-bg-secondary); }
+.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--lm-bg-secondary); }
 .ai-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-title-wrap { min-width: 0; flex: 1; }
 .ai-title-row { display: flex; align-items: center; gap: 7px; }
@@ -623,7 +628,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-history-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px; text-align: left; border: 1px solid transparent; border-radius: 12px; background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
 .ai-history-item:hover { background: var(--lm-bg-secondary); }
 .ai-history-item.active { border-color: var(--lm-primary); background: var(--lm-primary-bg); }
-.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; overflow: hidden; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
+.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
 .ai-history-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-history-item.active .ai-history-avatar { background: var(--lm-surface); color: var(--lm-primary); box-shadow: var(--lm-shadow-xs); }
 .ai-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
@@ -637,7 +642,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 /* Welcome */
 .ai-messages { display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 10px; overflow: auto; flex: 1; background: var(--lm-bg); }
 .ai-welcome { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.ai-welcome-avatar { display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 18px; overflow: hidden; background: var(--lm-primary-bg); border: 2px solid var(--lm-border-light); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14); }
+.ai-welcome-avatar { display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; background: var(--lm-primary-bg); border: 2px solid var(--lm-border-light); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14); }
 .ai-welcome-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-welcome-title { margin: 6px 0 0; color: var(--lm-text-primary); font-size: 17px; font-weight: 700; }
 .ai-welcome-desc { margin: 0; color: var(--lm-text-muted); font-size: 13px; line-height: 1.6; }
@@ -661,7 +666,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg-col.user { align-items: flex-end; }
 .ai-msg-name { color: var(--lm-text-muted); font-size: 11px; line-height: 1; }
 .ai-msg.user .ai-msg-name { text-align: right; }
-.ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
+.ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; }
 .ai-msg-avatar.support { background: transparent; overflow: hidden; border: 1px solid var(--lm-border-light); }
 .ai-msg-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
