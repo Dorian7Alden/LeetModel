@@ -29,6 +29,71 @@
 
     <AdminSubnav v-model="activeSection" :items="productionViews" aria-label="生产版本资源" />
 
+    <!-- 客服会话与审计事实 -->
+    <section v-if="activeSection === 'conversations'" class="production-panel">
+      <div class="assistant-metrics-strip">
+        <div class="convo-metric-card">
+          <span class="m-label">累计咨询会话</span>
+          <strong class="m-val">{{ totalConversations }}</strong>
+          <span class="m-hint">最近 50 条事实</span>
+        </div>
+        <div class="convo-metric-card">
+          <span class="m-label">活跃会话</span>
+          <strong class="m-val success-color">{{ activeConversations }}</strong>
+          <span class="m-hint">进行中咨询</span>
+        </div>
+        <div class="convo-metric-card">
+          <span class="m-label">总交互消息轮数</span>
+          <strong class="m-val">{{ totalMessages }}</strong>
+          <span class="m-hint">平均每会话 {{ avgMessagesPerConvo }} 轮</span>
+        </div>
+      </div>
+
+      <el-table :data="pagedConversations" stripe v-loading="loadingConversations">
+        <el-table-column label="会话标题" min-width="210">
+          <template #default="{ row }">
+            <strong class="primary-cell">{{ row.title || 'AI 客服咨询' }}</strong>
+            <span class="secondary-cell">会话 ID: {{ row.conversationId }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="用户 ID" width="120" align="center">
+          <template #default="{ row }">{{ row.userId }}</template>
+        </el-table-column>
+        <el-table-column label="交互消息数" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" type="info">{{ row.messageCount || 0 }} 轮</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <AdminStatusBadge :status="row.status === 'ACTIVE' ? 'HEALTHY' : 'WAITING'" :label="row.status === 'ACTIVE' ? '活跃' : '已结束'" />
+          </template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="160">
+          <template #default="{ row }">{{ formatTime(row.updateTime) }}</template>
+        </el-table-column>
+        <el-table-column label="创建时间" width="160">
+          <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="110" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openConversationDetail(row)">查看对话</el-button>
+          </template>
+        </el-table-column>
+        <template #empty><el-empty description="暂无咨询会话" /></template>
+      </el-table>
+
+      <div class="convo-pagination-bar" v-if="conversations.length > 0">
+        <el-pagination
+          v-model:current-page="convoPage"
+          v-model:page-size="convoPageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="conversations.length"
+          layout="total, sizes, prev, pager, next, jumper"
+        />
+      </div>
+    </section>
+
     <section v-if="activeSection === 'candidates'" class="production-panel">
       <el-table :data="workflows" stripe>
         <el-table-column prop="name" label="工作流" min-width="180" />
@@ -153,10 +218,37 @@
         <el-button type="danger" :loading="applying" @click="applyPreview">确认并执行</el-button>
       </template>
     </el-dialog>
+
+    <!-- 对话回溯审计抽屉 -->
+    <el-drawer v-model="chatDrawerVisible" title="用户咨询完整对话回溯" size="min(680px, 92vw)">
+      <div v-if="selectedConversation" class="chat-drawer-content" v-loading="loadingMessages">
+        <div class="chat-meta-bar">
+          <div><strong>{{ selectedConversation.title }}</strong><span>用户 ID: {{ selectedConversation.userId }}</span></div>
+          <AdminStatusBadge :status="selectedConversation.status === 'ACTIVE' ? 'HEALTHY' : 'WAITING'" :label="selectedConversation.status === 'ACTIVE' ? '活跃' : '已结束'" />
+        </div>
+
+        <div v-if="conversationMessages.length" class="chat-messages-container">
+          <div v-for="msg in conversationMessages" :key="msg.id" class="chat-bubble" :class="msg.role.toLowerCase()">
+            <div class="bubble-header">
+              <span class="role-name">{{ msg.role === 'USER' ? '提问用户' : 'LeetModel AI 智能助手' }}</span>
+              <span class="msg-time">{{ formatTime(msg.createTime) }}</span>
+            </div>
+            <div class="bubble-body">
+              <pre class="msg-text">{{ msg.content }}</pre>
+            </div>
+            <div v-if="msg.modelName" class="bubble-footer">
+              <span>调用模型: {{ msg.modelName }}</span>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else-if="!loadingMessages" description="本会话暂无消息记录" />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
+import { getAdminConversations } from "@/api/admin-ops";
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import AdminStatusBadge from "../components/AdminStatusBadge.vue";
@@ -172,12 +264,31 @@ import {
 
 const loading = ref(false);
 const loadError = ref(false);
-const activeSection = ref("candidates");
+const activeSection = ref("conversations");
 const productionViews = [
+  { value: "conversations", label: "客服会话与审计", icon: "ChatDotRound" },
   { value: "candidates", label: "候选工作流", icon: "SetUp" },
   { value: "history", label: "历史配置", icon: "Clock" },
   { value: "audits", label: "变更审计", icon: "DocumentChecked" },
 ];
+const conversations = ref([]);
+const loadingConversations = ref(false);
+const selectedConversation = ref(null);
+const conversationMessages = ref([]);
+const loadingMessages = ref(false);
+const chatDrawerVisible = ref(false);
+const convoPage = ref(1);
+const convoPageSize = ref(10);
+const pagedConversations = computed(() => {
+  const start = (convoPage.value - 1) * convoPageSize.value;
+  return conversations.value.slice(start, start + convoPageSize.value);
+});
+
+const totalConversations = computed(() => conversations.value.length);
+const activeConversations = computed(() => conversations.value.filter(c => c.status === "ACTIVE").length);
+const totalMessages = computed(() => conversations.value.reduce((acc, c) => acc + (c.messageCount || 0), 0));
+const avgMessagesPerConvo = computed(() => totalConversations.value ? (totalMessages.value / totalConversations.value).toFixed(1) : "0");
+
 const previewing = ref(false);
 const applying = ref(false);
 const editVisible = ref(false);
@@ -200,9 +311,44 @@ function formatTime(value) {
   return value ? String(value).replace("T", " ").slice(0, 19) : "-";
 }
 
+
+async function loadConversations() {
+  loadingConversations.value = true;
+  try {
+    const res = await getAdminConversations(50);
+    const raw = res.data || [];
+    conversations.value = raw.map(c => ({
+      ...c,
+      conversationId: String(c.conversationId)
+    }));
+    console.log("Loaded conversations:", conversations.value.length);
+  } catch (err) {
+    console.error("加载客服会话失败", err);
+  } finally {
+    loadingConversations.value = false;
+  }
+}
+
+async function openConversationDetail(row) {
+  selectedConversation.value = row;
+  chatDrawerVisible.value = true;
+  loadingMessages.value = true;
+  try {
+    const { getConversation } = await import("@/api/assistant");
+    const res = await getConversation(row.conversationId);
+    conversationMessages.value = res.data?.messages || [];
+  } catch (err) {
+    ElMessage.error(err.message || "会话详情加载失败");
+    conversationMessages.value = [];
+  } finally {
+    loadingMessages.value = false;
+  }
+}
+
 async function loadAll() {
   loading.value = true;
   loadError.value = false;
+    loadConversations();
   try {
     const [workflowResult, currentResult, configResult, auditResult] = await Promise.all([
       listAssistantProductionWorkflows(),
@@ -321,5 +467,49 @@ code { font-family: var(--lm-code-font-family); }
   .current-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .confirm-route { grid-template-columns: 1fr; }
   .route-arrow { transform: rotate(90deg); justify-self: center; }
+}
+
+.assistant-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--lm-admin-border);
+}
+.convo-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-control);
+}
+.m-label { font-size: 11px; color: var(--lm-admin-text-muted); }
+.m-val { font-size: 20px; color: var(--lm-admin-text-strong); font-weight: 700; }
+.m-hint { font-size: 11px; color: var(--lm-admin-text-muted); }
+.success-color { color: var(--lm-admin-success); }
+
+.chat-drawer-content { display: flex; flex-direction: column; gap: 16px; }
+.chat-meta-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f8fafc; border: 1px solid var(--lm-admin-border); border-radius: 6px; }
+.chat-meta-bar strong { font-size: 14px; color: var(--lm-admin-text-strong); display: block; }
+.chat-meta-bar span { font-size: 11px; color: var(--lm-admin-text-muted); }
+.chat-messages-container { display: flex; flex-direction: column; gap: 14px; max-height: 70vh; overflow-y: auto; padding: 6px 2px; }
+.chat-bubble { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.chat-bubble.user { background: #eff6ff; border: 1px solid #bfdbfe; margin-left: 20px; }
+.chat-bubble.assistant { background: #f8fafc; border: 1px solid #e2e8f0; margin-right: 20px; }
+.bubble-header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; }
+.role-name { font-weight: 600; color: var(--lm-admin-text-strong); }
+.msg-time { color: var(--lm-admin-text-muted); }
+.msg-text { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; }
+.bubble-footer { font-size: 10px; color: var(--lm-admin-text-muted); border-top: 1px dashed rgba(0,0,0,0.06); padding-top: 4px; }
+
+.convo-pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  background: #fff;
+  border-top: 1px solid var(--lm-admin-border);
 }
 </style>

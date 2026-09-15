@@ -438,9 +438,6 @@
           />
 
           <div class="input-actions-bar">
-            <div class="input-hints">
-              <span>支持 Markdown 与 LaTeX 规范解答</span>
-            </div>
             <button
               type="button"
               class="btn-send-msg"
@@ -2043,11 +2040,6 @@ onBeforeUnmount(() => {
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--lm-border-light);
-}
-
-.input-hints {
-  font-size: 11px;
-  color: var(--lm-text-muted);
 }
 
 .btn-send-msg {

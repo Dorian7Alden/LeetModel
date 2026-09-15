@@ -38,6 +38,26 @@
       </span>
     </div>
 
+    <!-- 数据分析图表优先展示于数据表格上方 -->
+    <div class="analysis-row" v-loading="loadingInsights || loadingStats">
+      <section class="analysis-panel">
+        <h3>模型调用分布</h3>
+        <div ref="modelShareRef" class="analysis-chart" />
+      </section>
+      <section class="analysis-panel">
+        <h3>模型平均耗时</h3>
+        <div ref="latencyRef" class="analysis-chart" />
+      </section>
+      <section class="analysis-panel">
+        <h3>业务功能调用流量分析</h3>
+        <div ref="featureTrafficRef" class="analysis-chart" />
+      </section>
+      <section class="analysis-panel">
+        <h3>各功能 Token 消耗占比</h3>
+        <div ref="tokenShareRef" class="analysis-chart" />
+      </section>
+    </div>
+
     <AdminStatePanel
       v-if="loadError && !rows.length"
       type="error"
@@ -98,17 +118,6 @@
           @size-change="handleSizeChange"
         />
       </div>
-    </div>
-
-    <div class="analysis-row" v-loading="loadingInsights || loadingStats">
-      <section class="analysis-panel">
-        <h3>模型调用分布</h3>
-        <div ref="modelShareRef" class="analysis-chart" />
-      </section>
-      <section class="analysis-panel">
-        <h3>模型平均耗时</h3>
-        <div ref="latencyRef" class="analysis-chart" />
-      </section>
     </div>
 
     <el-drawer v-model="detailsVisible" title="调用详情" size="560px">
@@ -185,6 +194,10 @@ const pagination = reactive({ page: 1, pageSize: 20, total: 0 });
 const options = reactive({ featureCodes: [], operationCodes: [], evaluationTaskIds: [], providers: ["NEW_API"], models: [], statuses: ["SUCCEEDED", "FAILED", "RUNNING"] });
 const modelShareRef = ref(null);
 const latencyRef = ref(null);
+const featureTrafficRef = ref(null);
+const tokenShareRef = ref(null);
+let featureTrafficChart = null;
+let tokenShareChart = null;
 let modelShareChart;
 let latencyChart;
 
@@ -282,6 +295,7 @@ async function loadPage() {
     const response = (await getAdminAiCallPage({ ...queryParams(), page: pagination.page, pageSize: pagination.pageSize })).data || {};
     rows.value = response.rows || [];
     pagination.total = response.total || 0;
+    renderCharts();
   } catch (error) {
     loadError.value = true;
     if (!rows.value.length) pagination.total = 0;
@@ -350,12 +364,57 @@ function renderCharts() {
         series: [{ type: "bar", data: latencyData.map(item => item.average), barMaxWidth: 16, itemStyle: { color: "#2563eb", borderRadius: [0, 3, 3, 0] } }],
       }, true);
     }
+
+    // 3. 业务功能调用流量分析
+    if (featureTrafficRef.value && rows.value?.length) {
+      featureTrafficChart = featureTrafficChart || echarts.init(featureTrafficRef.value);
+      const featMap = {};
+      rows.value.forEach(r => {
+        const feat = r.featureCode || "其他";
+        featMap[feat] = (featMap[feat] || 0) + 1;
+      });
+      featureTrafficChart.setOption({
+        tooltip: { trigger: "axis" },
+        grid: { left: 45, right: 20, top: 20, bottom: 26 },
+        xAxis: { type: "category", data: Object.keys(featMap), axisLabel: { fontSize: 11, color: "#6b7280" } },
+        yAxis: { type: "value", minInterval: 1 },
+        series: [{
+          name: "调用次数",
+          type: "bar",
+          data: Object.values(featMap),
+          itemStyle: { color: "#10b981", borderRadius: [4, 4, 0, 0] },
+          barMaxWidth: 38
+        }]
+      }, true);
+    }
+
+    // 4. Token 消耗占比分析
+    if (tokenShareRef.value && rows.value?.length) {
+      tokenShareChart = tokenShareChart || echarts.init(tokenShareRef.value);
+      const tokenMap = {};
+      rows.value.forEach(r => {
+        const feat = r.featureCode || "其他";
+        tokenMap[feat] = (tokenMap[feat] || 0) + (r.totalTokens || 0);
+      });
+      tokenShareChart.setOption({
+        tooltip: { trigger: "item", formatter: "{b}: {c} Tokens ({d}%)" },
+        legend: { bottom: 0, icon: "circle", textStyle: { fontSize: 11 } },
+        series: [{
+          type: "pie",
+          radius: ["40%", "68%"],
+          center: ["50%", "45%"],
+          data: Object.entries(tokenMap).map(([name, value]) => ({ name, value }))
+        }]
+      }, true);
+    }
   });
 }
 
 function handleResize() {
   modelShareChart?.resize();
   latencyChart?.resize();
+  featureTrafficChart?.resize();
+  tokenShareChart?.resize();
 }
 
 onMounted(async () => {
@@ -368,6 +427,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", handleResize);
   modelShareChart?.dispose();
   latencyChart?.dispose();
+  featureTrafficChart?.dispose();
+  tokenShareChart?.dispose();
 });
 </script>
 
@@ -386,7 +447,7 @@ onBeforeUnmount(() => {
 .call-table-wrap :deep(.clickable-row) { cursor: pointer; }.call-table-wrap :deep(.clickable-row:hover > td.el-table__cell) { background: #f8fafc; }
 .primary-cell, .secondary-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.primary-cell { color: var(--lm-admin-text-strong); font-size: 12px; }.secondary-cell { margin-top: 2px; color: var(--lm-admin-text-muted); font-size: 10px; }
 .pagination-row { display: flex; justify-content: flex-end; padding: 10px 12px; border-top: 1px solid var(--lm-admin-border); }
-.analysis-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.analysis-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
 .analysis-panel { min-width: 0; padding: 12px; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
 .analysis-panel h3 { margin: 0 0 4px; color: var(--lm-admin-text-strong); font-size: 13px; }.analysis-chart { width: 100%; height: 190px; }
 .detail-lead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--lm-admin-border); }
