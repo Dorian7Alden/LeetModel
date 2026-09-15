@@ -10,7 +10,7 @@
 
         <nav class="official-nav" aria-label="官网主导航">
           <a href="#workflow">实训闭环</a>
-          <a href="#review">AI 体检</a>
+          <a href="#results">真实结果</a>
           <a href="#capabilities">核心能力</a>
         </nav>
 
@@ -135,6 +135,125 @@
         </ol>
       </section>
 
+      <section id="results" class="result-preview-section official-section" aria-labelledby="results-heading">
+        <div class="section-heading section-heading--split">
+          <div>
+            <span class="section-kicker">REAL PAPER RUN / REDACTED</span>
+            <h2 id="results-heading">先看 AI 到底交付什么。</h2>
+          </div>
+          <div class="result-preview-intro">
+            <span><BadgeCheck :size="17" aria-hidden="true" />真实完整论文演练</span>
+            <p>基于 2025 MCM A 题面与匹配的 25 页论文 PDF。以下内容来自真实运行结果，已脱敏与概括。</p>
+          </div>
+        </div>
+
+        <div class="result-preview-shell" aria-label="真实 AI 评审与建议结果预览">
+          <header class="result-preview-shell__header">
+            <div>
+              <span>FULL WORKFLOW / COMPLETED</span>
+              <strong>题目、论文、评审与建议已完成一次端到端演练</strong>
+            </div>
+            <span class="result-run-status"><i></i>真实运行结果</span>
+          </header>
+
+          <div class="result-preview-grid">
+            <article class="review-result-card" aria-labelledby="review-result-title">
+              <header class="result-card-heading">
+                <div>
+                  <span>AI REVIEW / V3</span>
+                  <h3 id="review-result-title">证据化评审结果</h3>
+                </div>
+                <span class="result-card-state"><Check :size="14" aria-hidden="true" />已完成</span>
+              </header>
+
+              <div class="review-score-summary">
+                <div class="review-score-main">
+                  <strong>45.0</strong>
+                  <span>/ 100</span>
+                  <small>平台训练评分</small>
+                </div>
+                <dl class="review-score-facts">
+                  <div>
+                    <dt>13</dt>
+                    <dd>结构化发现</dd>
+                  </div>
+                  <div>
+                    <dt>13</dt>
+                    <dd>论文证据锚点</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="dimension-list" aria-label="五维评审得分">
+                <div v-for="dimension in reviewDimensions" :key="dimension.label" class="dimension-row">
+                  <div>
+                    <span>{{ dimension.label }}</span>
+                    <strong>{{ dimension.score }}<small>/{{ dimension.max }}</small></strong>
+                  </div>
+                  <progress
+                    :value="dimension.score"
+                    :max="dimension.max"
+                    :aria-label="`${dimension.label} ${dimension.score} 分，满分 ${dimension.max} 分`"
+                  ></progress>
+                </div>
+              </div>
+
+              <div class="finding-preview">
+                <span><Crosshair :size="15" aria-hidden="true" />评审结论摘要</span>
+                <p>模型框架已经成形，但关键机理、参数辨识与结果验证仍缺少能够互相印证的完整证据闭环。</p>
+                <small>原始论文内容、队伍信息与完整模型回答未公开。</small>
+              </div>
+            </article>
+
+            <article class="suggestion-result-card" aria-labelledby="suggestion-result-title">
+              <header class="result-card-heading">
+                <div>
+                  <span>AI COACH / V3</span>
+                  <h3 id="suggestion-result-title">可执行建议结果</h3>
+                </div>
+                <span class="result-card-state result-card-state--dark">7 / 7 子任务完成</span>
+              </header>
+
+              <div class="suggestion-priority">
+                <span>P1 · 关键修改</span>
+                <small>建模与求解</small>
+              </div>
+
+              <h4>把损伤机理推进为可计算、可验证的模型</h4>
+              <p class="suggestion-diagnosis">
+                当前推导需要进一步明确状态变量、参数来源和边界条件，并让求解过程与验证结果形成对应关系。
+              </p>
+
+              <ol class="suggestion-actions">
+                <li v-for="(action, index) in suggestionActions" :key="action">
+                  <span>{{ String(index + 1).padStart(2, '0') }}</span>
+                  <p>{{ action }}</p>
+                </li>
+              </ol>
+
+              <div class="acceptance-preview">
+                <span><ListChecks :size="16" aria-hidden="true" />验收标准</span>
+                <p>方程、参数来源、求解日志与验证图表能够互相对应，关键误差指标可复算。</p>
+              </div>
+
+              <div class="evidence-chain-preview" aria-label="建议依据链">
+                <span><FileSearch :size="14" aria-hidden="true" />论文第 5 页</span>
+                <i></i>
+                <span><MapPinned :size="14" aria-hidden="true" />评审发现</span>
+                <i></i>
+                <span><BookOpenCheck :size="14" aria-hidden="true" />知识依据</span>
+              </div>
+            </article>
+          </div>
+
+          <footer class="result-preview-shell__footer">
+            <span>DEEP_EVIDENCE_REVIEW_V3</span>
+            <span>GROUNDED_SUGGESTION_V3</span>
+            <p>训练评分用于模拟与改进，不代表具体赛事官方结果。</p>
+          </footer>
+        </div>
+      </section>
+
       <section id="review" class="review-section official-section" aria-labelledby="review-heading">
         <div class="review-section__copy">
           <span class="section-kicker section-kicker--inverse">EVIDENCE-BASED REVIEW</span>
@@ -246,12 +365,16 @@ import { computed } from 'vue'
 import {
   ArrowRight,
   ArrowUpRight,
+  BadgeCheck,
+  BookOpenCheck,
   Check,
   Clock3,
+  Crosshair,
   FileCheck2,
   FileSearch,
   GitCompareArrows,
   LibraryBig,
+  ListChecks,
   MapPinned,
   Route,
   ScanSearch,
@@ -263,6 +386,20 @@ import { useUserStore } from '@/store/user'
 
 const userStore = useUserStore()
 const primaryRoute = computed(() => userStore.isLogin ? '/home' : '/register')
+
+const reviewDimensions = [
+  { label: '结构与表达', score: 12.3, max: 20 },
+  { label: '题意与假设', score: 6.5, max: 15 },
+  { label: '数学建模', score: 11.7, max: 25 },
+  { label: '算法与求解', score: 6.7, max: 20 },
+  { label: '结果与验证', score: 7.8, max: 20 },
+]
+
+const suggestionActions = [
+  '补全状态变量、约束关系与初始边界，给出可复算的演变方程。',
+  '说明参数估计方法与数据对应关系，保留关键求解过程和收敛依据。',
+  '增加残差检验与全局灵敏度分析，用图表呈现模型稳定区间。',
+]
 
 const workflowSteps = [
   {
