@@ -260,10 +260,12 @@
                   </div>
 
                   <!-- Markdown 文本解析及打字流式光标 -->
-                  <div v-if="msg.content" class="markdown-body msg-md-content">
-                    <span v-html="md(msg.content)"></span>
-                    <span v-if="msg.status === 'RUNNING'" class="stream-typing-cursor"></span>
-                  </div>
+                  <MarkdownView
+                    v-if="msg.content"
+                    class="msg-md-content"
+                    :content="msg.content"
+                    :streaming="msg.status === 'RUNNING'"
+                  />
                   <div v-else-if="msg.status === 'RUNNING'" class="typing-wave">
                     <span class="wave-dot"></span>
                     <span class="wave-dot"></span>
@@ -459,7 +461,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "v
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
-import { renderSafeMarkdown } from "@/utils/markdown";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import {
   listConversations,
   createConversation,
@@ -713,8 +715,6 @@ function sameDay(a, b) {
 function withinDays(a, b, days) {
   return a && b && a.getTime() >= b.getTime() - days * 86400000;
 }
-
-const md = (value) => renderSafeMarkdown(value);
 
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
@@ -1107,83 +1107,6 @@ onBeforeUnmount(() => {
   flushTypewriter();
 });
 </script>
-
-<style>
-/* 全局 Markdown 样式微调，适配黑白灰与学术排版 */
-.msg-md-content.markdown-body,
-.msg-md-content.markdown-body * {
-  box-sizing: border-box;
-}
-.msg-md-content.markdown-body {
-  font-family: var(--lm-font-family);
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--lm-text-primary);
-  word-break: break-word;
-  padding: 0;
-  background: transparent;
-  margin: 0;
-}
-.msg-md-content.markdown-body :is(p, ul, ol, pre, blockquote, table) {
-  margin: 0 0 8px;
-}
-.msg-md-content.markdown-body :is(ul, ol) {
-  padding-left: 20px;
-}
-.msg-md-content.markdown-body :is(h1, h2, h3, h4, h5, h6) {
-  margin: 12px 0 6px;
-  font-size: 1.05em;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--lm-text-primary);
-}
-.msg-md-content.markdown-body strong {
-  font-weight: 700;
-  color: var(--lm-text-primary);
-}
-.msg-md-content.markdown-body code {
-  font-family: var(--lm-code-font-family);
-  font-size: 12.5px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  color: #c026d3;
-}
-.msg-md-content.markdown-body pre {
-  overflow: auto;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #18181b;
-  color: #f4f4f5;
-  margin: 8px 0;
-}
-.msg-md-content.markdown-body pre code {
-  background: transparent;
-  padding: 0;
-  color: inherit;
-}
-.msg-md-content.markdown-body a {
-  color: #2563eb;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.msg-md-content.markdown-body blockquote {
-  padding-left: 12px;
-  border-left: 3px solid var(--lm-border);
-  color: var(--lm-text-muted);
-}
-.msg-md-content.markdown-body table {
-  border-collapse: collapse;
-  font-size: 13px;
-  width: 100%;
-  margin: 8px 0;
-}
-.msg-md-content.markdown-body th,
-.msg-md-content.markdown-body td {
-  padding: 6px 10px;
-  border: 1px solid var(--lm-border);
-}
-</style>
 
 <style scoped>
 /* ==========================================================================
@@ -1878,21 +1801,6 @@ onBeforeUnmount(() => {
 }
 
 /* 打字微动效波浪 */
-
-.stream-typing-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 14px;
-  vertical-align: -2px;
-  margin-left: 2px;
-  background-color: var(--lm-text-primary);
-  animation: cursor-blink 0.8s infinite;
-}
-
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
 
 .typing-wave {
   display: inline-flex;

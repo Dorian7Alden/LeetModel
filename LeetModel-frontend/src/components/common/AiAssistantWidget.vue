@@ -91,10 +91,12 @@
                         <span>{{ msg.toolStatus.displayName }}</span>
                       </div>
 
-                      <div v-if="msg.content" class="markdown-body ai-md">
-                        <span v-html="md(msg.content)"></span>
-                        <span v-if="msg.status === 'RUNNING'" class="stream-typing-cursor"></span>
-                      </div>
+                      <MarkdownView
+                        v-if="msg.content"
+                        class="ai-md"
+                        :content="msg.content"
+                        :streaming="msg.status === 'RUNNING'"
+                      />
                       <div v-else-if="msg.status === 'RUNNING'" class="ai-typing-inline">
                         <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
                       </div>
@@ -209,7 +211,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
-import { renderSafeMarkdown } from "@/utils/markdown";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import { listConversations, createConversation, getConversation, sendMessage, retryMessage } from "@/api/assistant";
 import aiAvatarImg from "@/assets/images/AI客服-avatar.png";
 import aiSmileImg from "@/assets/images/AI客服-smile.png";
@@ -283,8 +285,6 @@ const historyGroups = computed(() => {
 function parseDate(value) { return value ? new Date(String(value).replace(" ", "T")) : null; }
 function sameDay(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function withinDays(a, b, days) { return a && a.getTime() >= b.getTime() - days * 86400000; }
-
-const md = (value) => renderSafeMarkdown(value);
 
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
@@ -573,23 +573,6 @@ onMounted(() => {
 onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); flushTypewriter(); });
 </script>
 
-<style>
-.ai-bubble .markdown-body,
-.ai-bubble .markdown-body *{box-sizing:border-box;}
-.ai-bubble .markdown-body{font-family:var(--lm-font-family);font-size:13px;line-height:1.65;color:inherit;word-break:break-word;padding:0;background:transparent;margin:0;}
-.ai-bubble .markdown-body :is(p,ul,ol,pre,blockquote,table){margin:0 0 6px;}
-.ai-bubble .markdown-body :is(ul,ol){padding-left:18px;}
-.ai-bubble .markdown-body :is(h1,h2,h3,h4,h5,h6){margin:8px 0 4px;font-size:1em;font-weight:700;line-height:1.4;}
-.ai-bubble .markdown-body strong{font-weight:800;}
-.ai-bubble .markdown-body code{font-size:12px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.06);}
-.ai-bubble .markdown-body pre{overflow:auto;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.06);}
-.ai-bubble .markdown-body pre code{background:transparent;padding:0;}
-.ai-bubble .markdown-body a{color:var(--lm-primary);}
-.ai-bubble .markdown-body blockquote{padding-left:10px;border-left:3px solid var(--lm-border);color:var(--lm-text-muted);}
-.ai-bubble .markdown-body table{border-collapse:collapse;font-size:12px;}
-.ai-bubble .markdown-body th,.ai-bubble .markdown-body td{padding:4px 8px;border:1px solid var(--lm-border);}
-</style>
-
 <style scoped>
 .ai-widget { position: fixed; right: 22px; bottom: 22px; z-index: 4000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
 .ai-widget--page { position: static; right: auto; bottom: auto; z-index: auto; width: 100%; align-items: stretch; }
@@ -741,21 +724,6 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-tool-badge.COMPLETED { background: var(--lm-success-bg); color: var(--lm-success); border-color: #bbf7d0; }
 .ai-tool-spin { animation: ai-rotate 1s linear infinite; }
 @keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-.stream-typing-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 14px;
-  vertical-align: -2px;
-  margin-left: 2px;
-  background-color: var(--lm-text-primary);
-  animation: cursor-blink 0.8s infinite;
-}
-
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
 
 .ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
 

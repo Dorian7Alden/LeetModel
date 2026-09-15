@@ -24,6 +24,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  streaming: {
+    type: Boolean,
+    default: false,
+  },
   emptyText: {
     type: String,
     default: '暂无内容',
@@ -31,8 +35,38 @@ const props = defineProps({
 });
 
 const renderedHtml = computed(() => {
-  return renderSafeMarkdown(props.content);
+  const html = renderSafeMarkdown(props.content);
+  return props.streaming ? appendStreamingCursor(html) : html;
 });
+
+function appendStreamingCursor(html) {
+  if (!html || typeof document === 'undefined') return html;
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let currentNode = walker.nextNode();
+  let lastVisibleTextNode = null;
+  while (currentNode) {
+    const hiddenContainer = currentNode.parentElement?.closest(
+      'annotation, .code-block-header, button'
+    );
+    if (currentNode.textContent?.trim() && !hiddenContainer) {
+      lastVisibleTextNode = currentNode;
+    }
+    currentNode = walker.nextNode();
+  }
+
+  const cursor = document.createElement('span');
+  cursor.className = 'markdown-stream-cursor';
+  cursor.setAttribute('aria-hidden', 'true');
+  if (lastVisibleTextNode?.parentNode) {
+    lastVisibleTextNode.parentNode.insertBefore(cursor, lastVisibleTextNode.nextSibling);
+  } else {
+    container.appendChild(cursor);
+  }
+  return container.innerHTML;
+}
 </script>
 
 <style>
@@ -281,5 +315,26 @@ const renderedHtml = computed(() => {
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
+}
+
+.markdown-view-container .markdown-stream-cursor {
+  display: inline-block;
+  inline-size: 1px;
+  block-size: 1em;
+  margin-inline-start: 0.12em;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: markdown-cursor-blink 0.8s steps(1, end) infinite;
+}
+
+@keyframes markdown-cursor-blink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-view-container .markdown-stream-cursor {
+    animation: none;
+  }
 }
 </style>
