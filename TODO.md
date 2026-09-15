@@ -15,7 +15,9 @@
 
 ## 当前状态
 
-当前阶段分支：`phase/admin-knowledge-tree`
+当前阶段分支：`phase/admin-management`
+
+## 当前任务
 
 ## 已确认的系统边界
 
