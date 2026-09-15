@@ -259,12 +259,11 @@
                     <span>{{ msg.toolStatus.displayName }}</span>
                   </div>
 
-                  <!-- Markdown 文本解析或流式打字中光标 -->
-                  <div
-                    v-if="msg.content"
-                    class="markdown-body msg-md-content"
-                    v-html="md(msg.content)"
-                  ></div>
+                  <!-- Markdown 文本解析及打字流式光标 -->
+                  <div v-if="msg.content" class="markdown-body msg-md-content">
+                    <span v-html="md(msg.content)"></span>
+                    <span v-if="msg.status === 'RUNNING'" class="stream-typing-cursor"></span>
+                  </div>
                   <div v-else-if="msg.status === 'RUNNING'" class="typing-wave">
                     <span class="wave-dot"></span>
                     <span class="wave-dot"></span>
@@ -456,7 +455,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
@@ -500,6 +499,141 @@ const recOffset = ref(0);
 const suggestOpen = ref(false);
 const serviceStatus = ref("unknown");
 let suggestTimer = null;
+let typewriterTimer = null;
+let typewriterQueue = [];
+let typewriterQueueIndex = 0;
+let typewriterTargetMessage = null;
+let typewriterPendingEndPayload = null;
+let typewriterIdleResolvers = [];
+
+const TYPEWRITER_INTERVAL_MS = 16;
+
+function enqueueTypewriterText(targetMsg, text) {
+  if (!text) return;
+  typewriterTargetMessage = targetMsg;
+  const chars = Array.from(text);
+  typewriterQueue.push(...chars);
+  if (!typewriterTimer) {
+    tickTypewriter();
+  }
+}
+
+function tickTypewriter() {
+  if (hasPendingTypewriterText() && typewriterTargetMessage) {
+    const nextChar = typewriterQueue[typewriterQueueIndex];
+    typewriterQueueIndex += 1;
+    typewriterTargetMessage.content += nextChar;
+    scrollToBottom();
+    typewriterTimer = window.setTimeout(tickTypewriter, TYPEWRITER_INTERVAL_MS);
+  } else {
+    typewriterTimer = null;
+    clearTypewriterQueue();
+    if (typewriterPendingEndPayload && typewriterTargetMessage) {
+      finalizeTypewriterResponse();
+    }
+  }
+}
+
+function hasPendingTypewriterText() {
+  return typewriterQueueIndex < typewriterQueue.length;
+}
+
+function getPendingTypewriterText() {
+  return typewriterQueue.slice(typewriterQueueIndex).join("");
+}
+
+function clearTypewriterQueue() {
+  typewriterQueue = [];
+  typewriterQueueIndex = 0;
+}
+
+function finishTypewriterResponse(targetMsg, payload) {
+  typewriterTargetMessage = targetMsg;
+  typewriterPendingEndPayload = payload;
+
+  const fullContent = payload.fullContent || "";
+  const bufferedContent = targetMsg.content + getPendingTypewriterText();
+  if (fullContent.startsWith(bufferedContent)) {
+    const missingContent = fullContent.slice(bufferedContent.length);
+    typewriterQueue.push(...Array.from(missingContent));
+  }
+
+  if (hasPendingTypewriterText()) {
+    if (!typewriterTimer) tickTypewriter();
+    return;
+  }
+  finalizeTypewriterResponse();
+}
+
+function finalizeTypewriterResponse() {
+  if (!typewriterPendingEndPayload || !typewriterTargetMessage) return;
+
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer);
+    typewriterTimer = null;
+  }
+
+  const payload = typewriterPendingEndPayload;
+  const targetMsg = typewriterTargetMessage;
+  typewriterPendingEndPayload = null;
+  targetMsg.id = payload.messageId || targetMsg.id;
+  targetMsg.status = payload.status || "COMPLETED";
+  if (payload.fullContent) {
+    targetMsg.content = payload.fullContent;
+  }
+  if (payload.toolContextJson) {
+    targetMsg.toolContextJson = payload.toolContextJson;
+  }
+  targetMsg.toolStatus = null;
+  serviceStatus.value = "connected";
+  typewriterTargetMessage = null;
+  clearTypewriterQueue();
+  resolveTypewriterIdle();
+  scrollToBottom();
+}
+
+function waitForTypewriterIdle(targetMsg) {
+  const isTargetBusy = typewriterTargetMessage === targetMsg
+    && (typewriterTimer || hasPendingTypewriterText() || typewriterPendingEndPayload);
+  if (!isTargetBusy) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    typewriterIdleResolvers.push(resolve);
+  });
+}
+
+function resolveTypewriterIdle() {
+  const resolvers = typewriterIdleResolvers;
+  typewriterIdleResolvers = [];
+  resolvers.forEach((resolve) => resolve());
+}
+
+function flushTypewriter() {
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer);
+    typewriterTimer = null;
+  }
+  if (typewriterTargetMessage && hasPendingTypewriterText()) {
+    typewriterTargetMessage.content += getPendingTypewriterText();
+    clearTypewriterQueue();
+  }
+  if (typewriterPendingEndPayload && typewriterTargetMessage) {
+    const payload = typewriterPendingEndPayload;
+    typewriterPendingEndPayload = null;
+    typewriterTargetMessage.id = payload.messageId || typewriterTargetMessage.id;
+    typewriterTargetMessage.status = payload.status || "COMPLETED";
+    if (payload.fullContent) {
+      typewriterTargetMessage.content = payload.fullContent;
+    }
+    if (payload.toolContextJson) {
+      typewriterTargetMessage.toolContextJson = payload.toolContextJson;
+    }
+    typewriterTargetMessage.toolStatus = null;
+  }
+  typewriterTargetMessage = null;
+  resolveTypewriterIdle();
+}
+
 
 // 用户信息计算属性
 const userInitial = computed(() => (userStore.nickname || userStore.username || "我").charAt(0));
@@ -763,7 +897,7 @@ async function send(text) {
   messages.value.push(optimisticUserMessage);
 
   const streamAssistantId = `stream-${Date.now()}`;
-  const streamingAssistantMessage = {
+  const streamingAssistantMessage = reactive({
     id: streamAssistantId,
     role: "assistant",
     content: "",
@@ -771,7 +905,7 @@ async function send(text) {
     toolStatus: null,
     toolContextJson: null,
     createTime: new Date().toISOString(),
-  };
+  });
   messages.value.push(streamingAssistantMessage);
   scrollToBottom();
 
@@ -841,22 +975,12 @@ async function send(text) {
               scrollToBottom();
             } else if (eventName === "delta") {
               if (payload.content) {
-                streamingAssistantMessage.content += payload.content;
-                scrollToBottom();
+                enqueueTypewriterText(streamingAssistantMessage, payload.content);
               }
             } else if (eventName === "message_end") {
-              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
-              streamingAssistantMessage.status = payload.status || "COMPLETED";
-              if (payload.fullContent) {
-                streamingAssistantMessage.content = payload.fullContent;
-              }
-              if (payload.toolContextJson) {
-                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
-              }
-              streamingAssistantMessage.toolStatus = null;
-              serviceStatus.value = "connected";
-              scrollToBottom();
+              finishTypewriterResponse(streamingAssistantMessage, payload);
             } else if (eventName === "error") {
+              flushTypewriter();
               streamingAssistantMessage.status = "FAILED";
               streamingAssistantMessage.errorMessage = payload.message || "回复失败";
               streamingAssistantMessage.toolStatus = null;
@@ -867,6 +991,7 @@ async function send(text) {
           }
         }
       }
+      await waitForTypewriterIdle(streamingAssistantMessage);
     } else {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -875,9 +1000,16 @@ async function send(text) {
       try {
         const res = await sendMessage(currentId.value, content, clientRequestId);
         const { assistantMessage } = res.data || {};
-        const idx = messages.value.findIndex((m) => m.id === streamAssistantId);
-        if (idx >= 0 && assistantMessage) {
-          messages.value.splice(idx, 1, assistantMessage);
+        if (assistantMessage?.status === "FAILED") {
+          Object.assign(streamingAssistantMessage, assistantMessage);
+        } else if (assistantMessage) {
+          finishTypewriterResponse(streamingAssistantMessage, {
+            messageId: assistantMessage.id,
+            status: assistantMessage.status,
+            fullContent: assistantMessage.content,
+            toolContextJson: assistantMessage.toolContextJson,
+          });
+          await waitForTypewriterIdle(streamingAssistantMessage);
         }
         serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
       } catch (fallbackErr) {
@@ -972,6 +1104,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (suggestTimer) clearTimeout(suggestTimer);
+  flushTypewriter();
 });
 </script>
 
@@ -1745,6 +1878,22 @@ onBeforeUnmount(() => {
 }
 
 /* 打字微动效波浪 */
+
+.stream-typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-left: 2px;
+  background-color: var(--lm-text-primary);
+  animation: cursor-blink 0.8s infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .typing-wave {
   display: inline-flex;
   align-items: center;

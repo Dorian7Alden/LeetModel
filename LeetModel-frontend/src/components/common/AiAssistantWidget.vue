@@ -91,7 +91,10 @@
                         <span>{{ msg.toolStatus.displayName }}</span>
                       </div>
 
-                      <div v-if="msg.content" class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <div v-if="msg.content" class="markdown-body ai-md">
+                        <span v-html="md(msg.content)"></span>
+                        <span v-if="msg.status === 'RUNNING'" class="stream-typing-cursor"></span>
+                      </div>
                       <div v-else-if="msg.status === 'RUNNING'" class="ai-typing-inline">
                         <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
                       </div>
@@ -439,22 +442,26 @@ async function send(text) {
               scrollToBottom();
             } else if (eventName === "delta") {
               if (payload.content) {
-                streamingAssistantMessage.content += payload.content;
-                scrollToBottom();
+                enqueueTypewriterText(streamingAssistantMessage, payload.content);
               }
             } else if (eventName === "message_end") {
-              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
-              streamingAssistantMessage.status = payload.status || "COMPLETED";
-              if (payload.fullContent) {
-                streamingAssistantMessage.content = payload.fullContent;
+              if (typewriterQueue.value.length > 0) {
+                typewriterPendingEndPayload = payload;
+              } else {
+                streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
+                streamingAssistantMessage.status = payload.status || "COMPLETED";
+                if (payload.fullContent) {
+                  streamingAssistantMessage.content = payload.fullContent;
+                }
+                if (payload.toolContextJson) {
+                  streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+                }
+                streamingAssistantMessage.toolStatus = null;
+                serviceStatus.value = "connected";
+                scrollToBottom();
               }
-              if (payload.toolContextJson) {
-                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
-              }
-              streamingAssistantMessage.toolStatus = null;
-              serviceStatus.value = "connected";
-              scrollToBottom();
             } else if (eventName === "error") {
+              flushTypewriter();
               streamingAssistantMessage.status = "FAILED";
               streamingAssistantMessage.errorMessage = payload.message || "回复失败";
               streamingAssistantMessage.toolStatus = null;
@@ -563,7 +570,7 @@ onMounted(() => {
   if (props.embedded && userStore.isLogin) open();
 });
 
-onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); });
+onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); flushTypewriter(); });
 </script>
 
 <style>
@@ -734,6 +741,22 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-tool-badge.COMPLETED { background: var(--lm-success-bg); color: var(--lm-success); border-color: #bbf7d0; }
 .ai-tool-spin { animation: ai-rotate 1s linear infinite; }
 @keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.stream-typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-left: 2px;
+  background-color: var(--lm-text-primary);
+  animation: cursor-blink 0.8s infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
 
 @media (max-width: 520px) {
