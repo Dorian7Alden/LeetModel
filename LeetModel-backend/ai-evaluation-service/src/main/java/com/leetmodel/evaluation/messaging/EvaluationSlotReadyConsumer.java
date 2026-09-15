@@ -31,7 +31,7 @@ import java.time.LocalDateTime;
         consumeThreadMax = 1,
         maxReconsumeTimes = 5
 )
-public class EvaluationSlotReadyConsumer implements RocketMQListener<byte[]> {
+public class EvaluationSlotReadyConsumer implements RocketMQListener<String> {
     private final MessageCodec codec;
     private final MessageInbox inbox;
     private final EvaluationRunAttemptMapper runMapper;
@@ -47,7 +47,7 @@ public class EvaluationSlotReadyConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         MessageEnvelopeV1<EvaluationSlotReadyPayload> envelope = codec.decode(
                 body, EvaluationSlotReadyPayload.class);
         validate(envelope);

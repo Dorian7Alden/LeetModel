@@ -58,7 +58,7 @@ class EvaluationSlotReadyConsumerTest {
                 "evaluation-slot:301:attempt:1:wakeup:0", Instant.now(),
                 UUID.randomUUID().toString(), new EvaluationSlotReadyPayload(
                 20L, 301L, "20:101:1", 1, "REVIEW", "REVIEW_DATASET_V1"));
-        byte[] body = codec.encode(envelope);
+        String body = new String(codec.encode(envelope), java.nio.charset.StandardCharsets.UTF_8);
 
         consumer.onMessage(body);
         consumer.onMessage(body);

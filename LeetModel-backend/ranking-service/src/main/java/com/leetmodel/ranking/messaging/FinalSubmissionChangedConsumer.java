@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
         consumeThreadMax = 1,
         maxReconsumeTimes = 5
 )
-public class FinalSubmissionChangedConsumer implements RocketMQListener<byte[]> {
+public class FinalSubmissionChangedConsumer implements RocketMQListener<String> {
     public static final String EVENT_TYPE = "FINAL_SUBMISSION_CHANGED";
     public static final String CONSUMER_GROUP = "cg-ranking-submission-v1";
 
@@ -48,7 +48,7 @@ public class FinalSubmissionChangedConsumer implements RocketMQListener<byte[]> 
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         MessageEnvelopeV1<FinalSubmissionChangedPayload> envelope = codec.decode(
                 body, FinalSubmissionChangedPayload.class);
         FinalSubmissionChangedPayload payload = envelope.payload();

@@ -56,7 +56,7 @@ class SuggestionTaskReadyConsumerTest {
                 "ai-suggestion-service", "suggestion-task", "9001",
                 "suggestion:9001:attempt:1:wakeup:0", Instant.now(), UUID.randomUUID().toString(),
                 new SuggestionTaskReadyPayload(9001L, 101L, "GROUNDED_SUGGESTION_V2"));
-        byte[] body = codec.encode(envelope);
+        String body = new String(codec.encode(envelope), java.nio.charset.StandardCharsets.UTF_8);
 
         consumer.onMessage(body);
         consumer.onMessage(body);

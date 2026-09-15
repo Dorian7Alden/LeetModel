@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
         consumeThreadMax = 2,
         maxReconsumeTimes = 5
 )
-public class ReviewTaskReadyConsumer implements RocketMQListener<byte[]> {
+public class ReviewTaskReadyConsumer implements RocketMQListener<String> {
 
     /** 稳定事件类型。 */
     public static final String EVENT_TYPE = "REVIEW_TASK_READY";
@@ -60,7 +60,7 @@ public class ReviewTaskReadyConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         MessageEnvelopeV1<ReviewTaskReadyPayload> envelope = codec.decode(
                 body, ReviewTaskReadyPayload.class);
         validate(envelope);

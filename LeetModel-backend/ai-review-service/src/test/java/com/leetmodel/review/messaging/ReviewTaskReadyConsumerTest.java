@@ -38,7 +38,9 @@ class ReviewTaskReadyConsumerTest {
                 });
         ReviewTaskReadyConsumer consumer = new ReviewTaskReadyConsumer(codec, inbox, reviewService);
 
-        consumer.onMessage(codec.encode(envelope("submission-service")));
+        consumer.onMessage(new String(
+                codec.encode(envelope("submission-service")),
+                java.nio.charset.StandardCharsets.UTF_8));
 
         verify(reviewService).createTask(11L, 12L, 13L, "EVIDENCE_REVIEW_V2", "trace-review-11");
     }
@@ -49,7 +51,9 @@ class ReviewTaskReadyConsumerTest {
         ReviewService reviewService = mock(ReviewService.class);
         ReviewTaskReadyConsumer consumer = new ReviewTaskReadyConsumer(codec, inbox, reviewService);
 
-        assertThatThrownBy(() -> consumer.onMessage(codec.encode(envelope("unknown-service"))))
+        assertThatThrownBy(() -> consumer.onMessage(new String(
+                codec.encode(envelope("unknown-service")),
+                java.nio.charset.StandardCharsets.UTF_8)))
                 .isInstanceOf(MessageContractException.class);
         verify(inbox, never()).executeOnce(any(), any(), any());
     }

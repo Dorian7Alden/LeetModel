@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
         consumeThreadMax = 1,
         maxReconsumeTimes = 5
 )
-public class ReviewCompletedConsumer implements RocketMQListener<byte[]> {
+public class ReviewCompletedConsumer implements RocketMQListener<String> {
     public static final String EVENT_TYPE = "REVIEW_COMPLETED";
     public static final String CONSUMER_GROUP = "cg-ranking-review-v1";
 
@@ -48,7 +48,7 @@ public class ReviewCompletedConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         MessageEnvelopeV1<ReviewCompletedPayload> envelope = codec.decode(
                 body, ReviewCompletedPayload.class);
         ReviewCompletedPayload payload = envelope.payload();

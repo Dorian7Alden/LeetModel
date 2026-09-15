@@ -66,7 +66,8 @@ class ReviewTaskReadyProtocolIntegrationTest {
         consumer.setMaxReconsumeTimes(5);
         consumer.subscribe(TOPIC, ReviewTaskReadyConsumer.EVENT_TYPE);
         consumer.registerMessageListener((MessageListenerConcurrently) (messages, context) -> {
-            businessConsumer.onMessage(messages.get(0).getBody());
+            businessConsumer.onMessage(new String(
+                    messages.get(0).getBody(), StandardCharsets.UTF_8));
             deliveries.countDown();
             return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
         });

@@ -68,7 +68,8 @@ class EvaluationSlotReadyProtocolIntegrationTest {
         consumer.setMaxReconsumeTimes(5);
         consumer.subscribe(TOPIC, EvaluationSlotMessageContract.EVENT_TYPE);
         consumer.registerMessageListener((MessageListenerConcurrently) (messages, context) -> {
-            domainConsumer.onMessage(messages.get(0).getBody());
+            domainConsumer.onMessage(new String(
+                    messages.get(0).getBody(), StandardCharsets.UTF_8));
             return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
         });
         RocketMQTemplate template = template(suffix);

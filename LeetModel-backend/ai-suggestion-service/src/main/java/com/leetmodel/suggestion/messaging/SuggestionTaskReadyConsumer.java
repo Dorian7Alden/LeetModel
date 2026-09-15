@@ -31,7 +31,7 @@ import java.time.LocalDateTime;
         consumeThreadMax = 1,
         maxReconsumeTimes = 5
 )
-public class SuggestionTaskReadyConsumer implements RocketMQListener<byte[]> {
+public class SuggestionTaskReadyConsumer implements RocketMQListener<String> {
     private final MessageCodec codec;
     private final MessageInbox inbox;
     private final SuggestionTaskMapper taskMapper;
@@ -47,7 +47,7 @@ public class SuggestionTaskReadyConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         MessageEnvelopeV1<SuggestionTaskReadyPayload> envelope = codec.decode(
                 body, SuggestionTaskReadyPayload.class);
         validate(envelope);

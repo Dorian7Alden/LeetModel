@@ -8,6 +8,7 @@ import com.leetmodel.common.messaging.PublishReceipt;
 import com.leetmodel.common.messaging.internal.OutboxRelay;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
@@ -25,6 +26,7 @@ import javax.sql.DataSource;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class MessagingAutoConfigurationTest {
 
@@ -104,6 +106,22 @@ class MessagingAutoConfigurationTest {
     }
 
     @Test
+    void shouldCreatePublisherAndRelayWhenRocketMqTemplateExists() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(MessagingAutoConfiguration.class))
+                .withUserConfiguration(RocketMqInfrastructure.class)
+                .withPropertyValues(
+                        "spring.application.name=test-service",
+                        "leetmodel.messaging.enabled=true",
+                        "leetmodel.messaging.relay.interval-ms=60000"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(MessagePublisher.class);
+                    assertThat(context).hasSingleBean(OutboxRelay.class);
+                });
+    }
+
+    @Test
     void shouldFailFastForPayloadLimitAboveProjectContract() {
         contextRunner
                 .withPropertyValues(
@@ -165,6 +183,39 @@ class MessagingAutoConfigurationTest {
         @Bean
         MessagePublisher messagePublisher() {
             return message -> new PublishReceipt("fake-" + message.eventId());
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class RocketMqInfrastructure {
+
+        @Bean
+        DataSource dataSource() {
+            JdbcDataSource dataSource = new JdbcDataSource();
+            dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID()
+                    + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+            new ResourceDatabasePopulator(new ClassPathResource("messaging-schema.sql")).execute(dataSource);
+            return dataSource;
+        }
+
+        @Bean
+        JdbcTemplate jdbcTemplate(DataSource dataSource) {
+            return new JdbcTemplate(dataSource);
+        }
+
+        @Bean
+        DataSourceTransactionManager transactionManager(DataSource dataSource) {
+            return new DataSourceTransactionManager(dataSource);
+        }
+
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+
+        @Bean
+        RocketMQTemplate rocketMQTemplate() {
+            return mock(RocketMQTemplate.class);
         }
     }
 }
