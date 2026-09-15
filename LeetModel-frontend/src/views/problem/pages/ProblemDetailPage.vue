@@ -24,9 +24,7 @@
         <main class="detail-main-col">
           <!-- 纯净题面 Markdown 卡片 -->
           <div class="detail-markdown-card">
-
-            <article v-if="problem.contentMarkdown" class="markdown-body" v-html="renderedMarkdown" />
-            <el-empty v-else description="暂无题面描述" />
+            <MarkdownView :content="problem.contentMarkdown" empty-text="暂无题面描述" />
           </div>
         </main>
 
@@ -203,9 +201,7 @@
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
-import 'github-markdown-css/github-markdown.css'
+import MarkdownView from '@/components/common/MarkdownView.vue'
 import {
   ArrowLeft,
   Download,
@@ -305,28 +301,6 @@ const formatFileSize = (bytes) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
-const prepareMarkdownImages = (html) => {
-  if (typeof document === 'undefined') return html
-  const container = document.createElement('div')
-  container.innerHTML = html
-  container.querySelectorAll('img').forEach((image) => {
-    // Gitee 图床会拒绝带本地 Referer 的嵌入请求；不泄露页面地址即可正常加载。
-    image.setAttribute('referrerpolicy', 'no-referrer')
-    image.setAttribute('loading', 'lazy')
-    image.setAttribute('decoding', 'async')
-  })
-  return container.innerHTML
-}
-const renderedMarkdown = computed(() => {
-  if (!problem.value?.contentMarkdown) return ''
-  const html = marked.parse(problem.value.contentMarkdown, {
-    async: false,
-    breaks: true,
-    gfm: true,
-  })
-  return prepareMarkdownImages(DOMPurify.sanitize(html))
-})
-
 const detailTags = computed(() => problem.value?.tags || [])
 const algorithmTags = computed(() => detailTags.value.filter((tag) => tag.type === 'MODEL_ALGORITHM'))
 

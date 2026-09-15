@@ -1,35 +1,142 @@
 <template>
   <div class="problem-list">
-    <div class="action-bar">
-      <div class="primary-filters">
-        <el-input
-          v-model="searchQuery"
-          placeholder="题目编码 / 标题"
-          class="problem-search"
-          prefix-icon="Search"
-          clearable
-          @clear="applyFilters"
-          @keyup.enter="applyFilters"
-        />
-        <el-select v-model="filters.contestId" placeholder="全部赛事" clearable class="filter-select" @change="applyFilters">
-          <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
-        </el-select>
-        <el-input-number v-model="filters.year" :min="2000" :max="2100" :controls="false" placeholder="年份" class="year-filter" @change="applyFilters" />
-        <el-select v-model="filters.statementLanguage" placeholder="全部题面" clearable class="short-filter" @change="applyFilters">
-          <el-option label="中文" value="ZH" /><el-option label="英文" value="EN" />
-        </el-select>
-        <el-select v-model="filters.difficulty" placeholder="全部难度" clearable class="short-filter" @change="applyFilters">
-          <el-option label="简单" :value="1" /><el-option label="中等" :value="2" /><el-option label="困难" :value="3" />
-        </el-select>
-        <el-select v-model="filters.status" placeholder="全部状态" clearable class="short-filter" @change="applyFilters">
-          <el-option v-for="(item, value) in statusMap" :key="value" :label="item.label" :value="Number(value)" />
-        </el-select>
-      </div>
-      <div class="toolbar-actions">
-        <span class="result-count">{{ total }} 项</span>
-        <el-button v-if="hasFilters" link @click="clearFilters">清除筛选</el-button>
-        <el-button :loading="tableLoading" @click="fetchList"><el-icon><Refresh /></el-icon>刷新</el-button>
-        <el-button type="primary" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增题目</el-button>
+    <!-- 集中为一行且居中的筛选栏：搜索框放在首位，控件宽度紧凑自适应 -->
+    <div class="action-bar-single-line">
+      <!-- 1. 搜索框置首 -->
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索编码 / 标题"
+        class="filter-ctrl ctrl-search"
+        prefix-icon="Search"
+        clearable
+        @clear="applyFilters"
+        @keyup.enter="applyFilters"
+      />
+
+      <!-- 2. 所属赛事 -->
+      <el-select
+        v-model="filters.contestId"
+        placeholder="全部赛事"
+        clearable
+        class="filter-ctrl ctrl-contest"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部赛事" :value="null" />
+        <el-option v-for="contest in contests" :key="contest.id" :label="contest.name" :value="contest.id" />
+      </el-select>
+
+      <!-- 3. 年份 -->
+      <el-select
+        v-model="filters.year"
+        placeholder="年份"
+        clearable
+        class="filter-ctrl ctrl-year"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部年份" :value="null" />
+        <el-option v-for="y in recentYears" :key="y" :label="`${y} 年`" :value="y" />
+      </el-select>
+
+      <!-- 4. 赛事题号 -->
+      <el-select
+        v-model="filters.problemNumber"
+        placeholder="题号"
+        clearable
+        class="filter-ctrl ctrl-number"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部题号" :value="null" />
+        <el-option v-for="item in problemNumberOptions" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+
+      <!-- 5. 题目类型 -->
+      <el-select
+        v-model="filters.selectedTags.PROBLEM_TYPE"
+        placeholder="题型"
+        clearable
+        class="filter-ctrl ctrl-tag"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部题型" :value="null" />
+        <el-option v-for="t in problemTypeTags" :key="t.id" :label="t.name" :value="t.id" />
+      </el-select>
+
+      <!-- 6. 背景领域 -->
+      <el-select
+        v-model="filters.selectedTags.BACKGROUND_DOMAIN"
+        placeholder="领域"
+        clearable
+        class="filter-ctrl ctrl-tag"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部领域" :value="null" />
+        <el-option v-for="t in domainTags" :key="t.id" :label="t.name" :value="t.id" />
+      </el-select>
+
+      <!-- 7. 模型算法 -->
+      <el-select
+        v-model="filters.selectedTags.MODEL_ALGORITHM"
+        placeholder="算法"
+        clearable
+        class="filter-ctrl ctrl-tag"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部算法" :value="null" />
+        <el-option v-for="t in algorithmTags" :key="t.id" :label="t.name" :value="t.id" />
+      </el-select>
+
+      <!-- 8. 难度 -->
+      <el-select
+        v-model="filters.difficulty"
+        placeholder="难度"
+        clearable
+        class="filter-ctrl ctrl-diff"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部难度" :value="null" />
+        <el-option label="简单" :value="1" />
+        <el-option label="中等" :value="2" />
+        <el-option label="困难" :value="3" />
+      </el-select>
+
+      <!-- 9. 语言 -->
+      <el-select
+        v-model="filters.statementLanguage"
+        placeholder="语言"
+        clearable
+        class="filter-ctrl ctrl-lang"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部语言" value="" />
+        <el-option label="中文" value="ZH" />
+        <el-option label="英文" value="EN" />
+      </el-select>
+
+      <!-- 10. 状态 -->
+      <el-select
+        v-model="filters.status"
+        placeholder="状态"
+        clearable
+        class="filter-ctrl ctrl-status"
+        popper-class="admin-filter-popper"
+        @change="applyFilters"
+      >
+        <el-option label="全部状态" :value="null" />
+        <el-option v-for="(item, value) in statusMap" :key="value" :label="item.label" :value="Number(value)" />
+      </el-select>
+
+      <!-- 11. 动作区（无刷新按钮、无总条数，紧凑自适应） -->
+      <div class="filter-actions-group">
+        <el-button v-if="hasFilters" link type="primary" @click="clearFilters">重置</el-button>
+        <el-button size="small" type="primary" @click="openCreateDialog"><el-icon><Plus /></el-icon>新增题目</el-button>
       </div>
     </div>
 
@@ -46,45 +153,92 @@
         <el-icon><WarningFilled /></el-icon>刷新失败，当前保留上次取得的数据
       </div>
       <div class="problem-table-scroll">
-      <el-table :data="tableData" stripe v-loading="tableLoading" row-key="id" table-layout="fixed">
-        <el-table-column label="编码" width="96">
-          <template #default="scope">{{ scope.row.code ?? scope.row.id }}</template>
-        </el-table-column>
-        <el-table-column prop="title" label="题目" min-width="260">
+      <el-table
+        :data="tableData"
+        :show-header="false"
+        stripe
+        v-loading="tableLoading"
+        row-key="id"
+        style="width: 100%"
+      >
+        <el-table-column width="60" align="center">
           <template #default="scope">
-            <button class="problem-title-link" @click="openPreview(scope.row)">{{ scope.row.title }}</button>
-            <span class="problem-number">{{ formatProblemNumber(scope.row.problemNumber) }}</span>
+            <span class="code-badge">#{{ scope.row.code ?? scope.row.id }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="contestName" label="赛事" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="year" label="年份" width="72" />
-        <el-table-column prop="statementLanguage" label="题面" width="64"><template #default="scope">{{ scope.row.statementLanguage === 'EN' ? '英文' : '中文' }}</template></el-table-column>
-        <el-table-column prop="difficulty" label="难度" width="72">
-          <template #default="scope">{{ getDifficultyLabel(scope.row.difficulty) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="88">
+        <el-table-column min-width="260">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">
+            <div class="problem-title-single-line">
+              <button
+                class="problem-title-link"
+                :title="scope.row.title"
+                @click="openPreview(scope.row)"
+              >
+                {{ scope.row.title }}
+              </button>
+              <span class="problem-number-badge">{{ formatProblemNumber(scope.row.problemNumber) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column width="220" min-width="180">
+          <template #default="scope">
+            <div v-if="getDisplayTags(scope.row).length" class="problem-inline-tags">
+              <span
+                v-for="t in getDisplayTags(scope.row).slice(0, 3)"
+                :key="t.id || t.name"
+                class="problem-mini-tag"
+                :class="`tag-type-${t.type}`"
+                :title="`${tagTypeLabel(t.type)}: ${t.name}`"
+              >
+                {{ t.name }}
+              </span>
+              <span v-if="getDisplayTags(scope.row).length > 3" class="problem-mini-tag tag-more">
+                +{{ getDisplayTags(scope.row).length - 3 }}
+              </span>
+            </div>
+            <span v-else class="text-muted-dash">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column min-width="190">
+          <template #default="scope">
+            <el-tooltip
+              v-if="scope.row.contestName"
+              :content="`${scope.row.contestName}${scope.row.year ? ' (' + scope.row.year + '年)' : ''}`"
+              placement="top"
+              effect="light"
+              popper-class="admin-menu-tooltip"
+              :show-after="300"
+              :hide-after="50"
+              :enterable="false"
+            >
+              <div class="contest-cell-truncated">
+                <span class="contest-name-text">{{ scope.row.contestName }}</span>
+                <span v-if="scope.row.year" class="contest-year-badge">{{ scope.row.year }}</span>
+              </div>
+            </el-tooltip>
+            <span v-else class="text-muted-dash">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column width="80" align="center">
+          <template #default="scope">
+            <span class="difficulty-chip" :class="`diff-${scope.row.difficulty}`">
+              {{ getDifficultyLabel(scope.row.difficulty) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column width="80" align="center">
+          <template #default="scope">
+            <el-tag :type="getStatusType(scope.row.status)" size="small">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="最近更新" width="150">
-          <template #default="scope">{{ formatTime(scope.row.updateTime) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right" align="right">
+        <el-table-column width="164" fixed="right" align="center">
           <template #default="scope">
             <div class="row-actions">
-              <el-button type="primary" link @click="openPreview(scope.row)">预览</el-button>
-              <el-dropdown trigger="click" @command="handleRowCommand($event, scope.row)">
-                <button class="more-button" type="button" :aria-label="`${scope.row.title} 更多操作`"><el-icon><MoreFilled /></el-icon></button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="edit">编辑题目</el-dropdown-item>
-                    <el-dropdown-item command="delete" divided>删除题目</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-button type="primary" link @click="openPreview(scope.row)">查看详情</el-button>
+              <el-button link @click="openEditDialog(scope.row)">编辑</el-button>
+              <el-button type="danger" link @click="handleDelete(scope.row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
@@ -244,6 +398,7 @@
     <el-drawer v-model="previewVisible" size="min(860px, 76vw)" class="problem-preview-drawer" destroy-on-close>
       <template #header>
         <div class="preview-drawer-title">
+          <span class="preview-kicker">题目详情</span>
           <strong>{{ previewProblem?.title || '加载中' }}</strong>
         </div>
       </template>
@@ -255,6 +410,9 @@
             <span><small>赛事</small><strong>{{ previewProblem.contestName || '未设置' }}</strong></span>
             <span><small>年份</small><strong>{{ previewProblem.year || '—' }}</strong></span>
             <span><small>难度</small><strong>{{ getDifficultyLabel(previewProblem.difficulty) }}</strong></span>
+            <span><small>题面语言</small><strong>{{ previewProblem.statementLanguage === 'EN' ? '英文' : '中文' }}</strong></span>
+            <span><small>状态</small><strong>{{ getStatusLabel(previewProblem.status) }}</strong></span>
+            <span><small>最近更新</small><strong>{{ formatTime(previewProblem.updateTime) }}</strong></span>
           </div>
           <div v-if="previewTagNames.length" class="preview-tags">
             <el-tag v-for="tag in previewTagNames" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
@@ -281,8 +439,10 @@
             </div>
           </div>
 
-          <article v-if="renderedPreview" class="markdown-body problem-markdown" v-html="renderedPreview"></article>
-          <el-empty v-else description="该题目尚未填写 Markdown 题面" />
+          <!-- 统一解耦 Markdown 渲染组件 -->
+          <div class="preview-markdown-wrapper">
+            <MarkdownView :content="previewProblem.contentMarkdown" empty-text="该题目尚未填写 Markdown 题面" />
+          </div>
         </template>
       </div>
     </el-drawer>
@@ -304,7 +464,7 @@ const formatTime = (val) => {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Plus, Upload } from '@element-plus/icons-vue';
 import AdminStatePanel from '../components/AdminStatePanel.vue';
-import { renderSafeMarkdown } from '@/utils/markdown';
+import MarkdownView from '@/components/common/MarkdownView.vue';
 import {
   getAdminContentProblems,
   getAdminContentProblem,
@@ -319,7 +479,20 @@ import {
 
 const emit = defineEmits(['changed']);
 const searchQuery = ref('');
-const filters = reactive({ contestId: null, year: null, statementLanguage: '', difficulty: null, status: null });
+const filters = reactive({
+  contestId: null,
+  year: null,
+  problemNumber: null,
+  statementLanguage: '',
+  difficulty: null,
+  status: null,
+  selectedTags: {
+    PROBLEM_TYPE: null,
+    BACKGROUND_DOMAIN: null,
+    MODEL_ALGORITHM: null,
+  },
+});
+const recentYears = Array.from({ length: 27 }, (_, index) => new Date().getFullYear() + 1 - index);
 const tableData = ref([]);
 const tableLoading = ref(false);
 const loadError = ref(false);
@@ -328,6 +501,25 @@ const pageSize = ref(10);
 const total = ref(0);
 const contests = ref([]);
 const tags = ref([]);
+
+const problemTypeTags = computed(() => tags.value.filter((t) => t.type === 'PROBLEM_TYPE'));
+const domainTags = computed(() => tags.value.filter((t) => t.type === 'BACKGROUND_DOMAIN'));
+const algorithmTags = computed(() => tags.value.filter((t) => t.type === 'MODEL_ALGORITHM'));
+
+const getDisplayTags = (row) => {
+  if (row.tags && Array.isArray(row.tags) && row.tags.length) {
+    return row.tags.map((t) => ({
+      id: t.id,
+      name: typeof t === 'string' ? t : t.name,
+      type: t.type || 'other',
+    }));
+  }
+  if (row.tagNames && Array.isArray(row.tagNames)) {
+    return row.tagNames.map((name) => ({ id: name, name, type: 'other' }));
+  }
+  return [];
+};
+
 const previewVisible = ref(false);
 const previewLoading = ref(false);
 const previewProblem = ref(null);
@@ -336,13 +528,26 @@ const previewTagNames = computed(() => {
   const value = previewProblem.value?.tagNames || previewProblem.value?.tags || [];
   return value.map((item) => typeof item === 'string' ? item : item.name).filter(Boolean);
 });
+const contestFullTooltip = (row) => {
+  if (!row.contestName) return '';
+  return row.year ? `${row.contestName} (${row.year}年)` : row.contestName;
+};
+const formatScore = (val) => {
+  if (val == null || val === '') return '—';
+  const num = Number(val);
+  return Number.isFinite(num) && num >= 0 ? num.toFixed(1) : '—';
+};
 const hasFilters = computed(() => Boolean(
   searchQuery.value.trim()
   || filters.contestId
   || filters.year
+  || filters.problemNumber
   || filters.statementLanguage
   || filters.difficulty
-  || filters.status !== null,
+  || (filters.status !== null && filters.status !== '')
+  || filters.selectedTags.PROBLEM_TYPE
+  || filters.selectedTags.BACKGROUND_DOMAIN
+  || filters.selectedTags.MODEL_ALGORITHM,
 ));
 
 const dialogVisible = ref(false);
@@ -474,7 +679,15 @@ const applyFilters = () => {
 
 const clearFilters = () => {
   searchQuery.value = '';
-  Object.assign(filters, { contestId: null, year: null, statementLanguage: '', difficulty: null, status: null });
+  filters.contestId = null;
+  filters.year = null;
+  filters.problemNumber = null;
+  filters.statementLanguage = '';
+  filters.difficulty = null;
+  filters.status = null;
+  filters.selectedTags.PROBLEM_TYPE = null;
+  filters.selectedTags.BACKGROUND_DOMAIN = null;
+  filters.selectedTags.MODEL_ALGORITHM = null;
   applyFilters();
 };
 
@@ -487,9 +700,22 @@ const fetchList = async () => {
     if (searchQuery.value.trim()) {
       params.keyword = searchQuery.value.trim();
     }
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== null && value !== '') params[key] = value;
-    });
+    if (filters.contestId) params.contestId = filters.contestId;
+    if (filters.year) params.year = filters.year;
+    if (filters.problemNumber) params.problemNumber = filters.problemNumber;
+    if (filters.statementLanguage) params.statementLanguage = filters.statementLanguage;
+    if (filters.difficulty) params.difficulty = filters.difficulty;
+    if (filters.status !== null && filters.status !== '') params.status = filters.status;
+
+    const tagIds = [
+      filters.selectedTags.PROBLEM_TYPE,
+      filters.selectedTags.BACKGROUND_DOMAIN,
+      filters.selectedTags.MODEL_ALGORITHM,
+    ].filter(Boolean);
+    if (tagIds.length > 0) {
+      params.tagIds = tagIds;
+    }
+
     const res = await getAdminContentProblems(params);
     if (res.code === 20000 && res.data) {
       tableData.value = res.data.rows || [];
@@ -670,24 +896,172 @@ onMounted(() => {
 <style scoped>
 @import 'github-markdown-css/github-markdown-light.css';
 .problem-list { min-width: 0; padding: var(--lm-admin-space-3); }
-.action-bar {
+.action-bar-single-line {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--lm-admin-space-3);
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 12px;
   margin-bottom: var(--lm-admin-space-3);
+  background: var(--lm-admin-surface);
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-panel);
 }
-.primary-filters, .toolbar-actions, .row-actions, .inline-warning { display: flex; align-items: center; }
-.primary-filters { min-width: 0; flex: 1; flex-wrap: wrap; gap: var(--lm-admin-space-2); }
-.toolbar-actions, .row-actions { flex: 0 0 auto; gap: var(--lm-admin-space-2); }
-.problem-search { width: 230px; }
-.filter-select { width: 160px; }
-.short-filter { width: 112px; }
-.year-filter { width: 88px; }
-.result-count { color: var(--lm-admin-text-muted); font-size: 12px; white-space: nowrap; }
-.problem-table-scroll { min-width: 0; overflow-x: auto; border: 1px solid var(--lm-admin-border); border-radius: var(--lm-admin-radius-control); }
-.problem-table-scroll :deep(.el-table) { min-width: 1080px; }
-.problem-table-scroll :deep(.el-table__row) { height: 42px; }
+.action-bar-single-line :deep(.el-input__wrapper),
+.action-bar-single-line :deep(.el-select__wrapper) {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  font-size: 12px;
+  height: 30px;
+  box-sizing: border-box !important;
+}
+
+/* 严格固定各筛选控件宽度，防止选项变更撑开导致抖动 */
+.ctrl-search { width: 140px !important; min-width: 140px !important; max-width: 140px !important; flex: 0 0 140px !important; }
+.ctrl-contest { width: 106px !important; min-width: 106px !important; max-width: 106px !important; flex: 0 0 106px !important; }
+.ctrl-year { width: 76px !important; min-width: 76px !important; max-width: 76px !important; flex: 0 0 76px !important; }
+.ctrl-number { width: 72px !important; min-width: 72px !important; max-width: 72px !important; flex: 0 0 72px !important; }
+.ctrl-tag { width: 94px !important; min-width: 94px !important; max-width: 94px !important; flex: 0 0 94px !important; }
+.ctrl-diff { width: 74px !important; min-width: 74px !important; max-width: 74px !important; flex: 0 0 74px !important; }
+.ctrl-lang { width: 74px !important; min-width: 74px !important; max-width: 74px !important; flex: 0 0 74px !important; }
+.ctrl-status { width: 76px !important; min-width: 76px !important; max-width: 76px !important; flex: 0 0 76px !important; }
+
+/* 下拉框居中对齐与文本溢出省略 */
+.filter-ctrl :deep(.el-select__wrapper) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.filter-ctrl :deep(.el-select__selection) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  width: calc(100% - 20px) !important;
+  position: relative !important;
+  text-align: center !important;
+}
+.filter-ctrl :deep(.el-select__placeholder) {
+  position: relative !important;
+  top: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: var(--lm-admin-text-default, #374151) !important;
+  font-weight: 500 !important;
+  z-index: 1 !important;
+  text-align: center !important;
+}
+.filter-ctrl :deep(.el-select__selected-item) {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+  color: var(--lm-admin-primary, #2563eb) !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+.filter-actions-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.row-actions, .inline-warning { display: flex; align-items: center; }
+.row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.problem-table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--lm-admin-border);
+  border-radius: var(--lm-admin-radius-control);
+  background: var(--lm-admin-surface);
+}
+.problem-table-scroll :deep(.el-table) {
+  width: 100% !important;
+  min-width: 960px;
+}
+.problem-table-scroll :deep(.el-table__row) { height: 46px; }
+.problem-title-single-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.problem-inline-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.problem-mini-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--lm-admin-text-muted);
+  background: var(--lm-admin-surface-subtle);
+  border: 1px solid var(--lm-admin-border);
+  white-space: nowrap;
+}
+.problem-mini-tag.tag-type-PROBLEM_TYPE { color: #1e40af; background: #eff6ff; border-color: #dbeafe; }
+.problem-mini-tag.tag-type-BACKGROUND_DOMAIN { color: #065f46; background: #ecfdf5; border-color: #d1fae5; }
+.problem-mini-tag.tag-type-MODEL_ALGORITHM { color: #701a75; background: #fdf4ff; border-color: #fae8ff; }
+.problem-mini-tag.tag-more { color: var(--lm-admin-text-muted); background: var(--lm-admin-surface-subtle); font-size: 10px; }
+.code-badge { font-weight: 700; color: var(--lm-admin-text-muted); font-size: 12px; }
+.problem-number-badge {
+  flex-shrink: 0;
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--lm-admin-primary);
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+}
+.contest-cell-truncated {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.contest-name-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--lm-admin-text-strong);
+}
+.contest-year-badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--lm-admin-text-muted);
+  background: var(--lm-admin-surface-subtle);
+  border: 1px solid var(--lm-admin-border);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.text-muted-dash {
+  color: var(--lm-admin-text-muted);
+}
+.difficulty-chip { padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.diff-1 { color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.diff-2 { color: #b45309; background: #fffbeb; border: 1px solid #fde68a; }
+.diff-3 { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+.preview-markdown-wrapper {
+  padding: 24px 28px;
+  background: #ffffff;
+  border: 1px solid var(--lm-border);
+  border-radius: 12px;
+}
 .pagination-container {
   margin-top: var(--lm-admin-space-3);
   display: flex;
@@ -703,9 +1077,22 @@ onMounted(() => {
   font-size: 13px;
 }
 .field-tip { margin-left: 12px; color: var(--el-text-color-secondary); font-size: 12px; }
-.problem-title-link { display: inline-block; max-width: calc(100% - 42px); overflow: hidden; padding: 0; color: var(--lm-admin-text-strong); background: transparent; border: 0; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; cursor: pointer; }
+.problem-title-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  color: var(--lm-admin-text-strong);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
 .problem-title-link:hover { color: var(--lm-admin-primary); }
-.problem-number { display: inline-block; margin-left: 6px; color: var(--lm-admin-text-muted); font-size: 10px; vertical-align: middle; }
 .more-button { display: grid; width: 28px; height: 28px; place-items: center; color: var(--lm-admin-text-muted); background: transparent; border: 0; border-radius: var(--lm-admin-radius-control); cursor: pointer; }
 .more-button:hover { color: var(--lm-admin-text-strong); background: var(--lm-admin-surface-subtle); }
 .inline-warning { gap: 6px; margin-bottom: 8px; padding: 8px 10px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--lm-admin-radius-control); font-size: 12px; }
