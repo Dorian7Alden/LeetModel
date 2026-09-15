@@ -7,22 +7,18 @@ const service = axios.create({
   timeout: 30000,
   transformResponse: [
     (data) => {
-      // 数据库主键使用 Long，超出 JS 安全整数范围时转成字符串，
-      // 避免精度丢失导致路由跳转 / 接口拼接拿到错误 ID。
+      // 数据库主键使用 Long，超出 JS 安全整数范围时正则替换为字符串，
+      // 防止 JSON.parse 原生解析时发生低位截断（如 ...2369 变成 ...2400）。
       if (typeof data !== "string" || !data) return data;
       try {
-        return JSON.parse(data, (key, value) => {
-          if (
-            typeof value === "number" &&
-            Number.isInteger(value) &&
-            (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
-          ) {
-            return String(value);
-          }
-          return value;
-        });
+        const sanitized = data.replace(/:\s*(\d{16,})/g, ': "$1"');
+        return JSON.parse(sanitized);
       } catch {
-        return data;
+        try {
+          return JSON.parse(data);
+        } catch {
+          return data;
+        }
       }
     },
   ],

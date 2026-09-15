@@ -45,19 +45,136 @@
   transition: width var(--lm-admin-transition), transform var(--lm-admin-transition);
 }
 
-.admin-brand {
+.admin-sidebar.resizing {
+  transition: none !important;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 50;
+  background: transparent;
+  transition: background var(--lm-admin-transition-fast);
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.resizing {
+  background: var(--lm-admin-primary);
+}
+
+.admin-brand-header {
   display: flex;
   height: 52px;
   flex: 0 0 52px;
   align-items: center;
-  gap: 9px;
-  padding: 0 12px;
-  color: var(--lm-admin-text-strong);
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
   border-bottom: 1px solid var(--lm-admin-border);
+  box-sizing: border-box;
+}
+
+.admin-sidebar.collapsed .admin-brand-header {
+  justify-content: center;
+  padding: 0;
+}
+
+.admin-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  color: var(--lm-admin-text-strong);
+  text-decoration: none;
 }
 
 .admin-brand:hover {
   color: var(--lm-admin-text-strong);
+}
+
+.brand-collapse-btn {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--lm-admin-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--lm-admin-radius-control);
+  cursor: pointer;
+  font-size: 16px;
+  transition: color var(--lm-admin-transition-fast), background var(--lm-admin-transition-fast), border-color var(--lm-admin-transition-fast);
+}
+
+.brand-collapse-btn:hover {
+  color: var(--lm-admin-text-strong);
+  background: var(--lm-admin-surface-subtle);
+  border-color: var(--lm-admin-border);
+}
+
+/* 收起状态下的 Logo 按钮交互 */
+.brand-logo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.brand-logo-btn .brand-mark {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  transition: all var(--lm-admin-transition-fast);
+}
+
+.brand-logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  transition: opacity var(--lm-admin-transition-fast), transform var(--lm-admin-transition-fast);
+}
+
+.brand-expand-icon {
+  position: absolute;
+  font-size: 18px;
+  color: var(--lm-admin-primary);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity var(--lm-admin-transition-fast), transform var(--lm-admin-transition-fast);
+}
+
+.brand-logo-btn:hover .brand-mark {
+  background: #eaf2ff;
+  border-color: #bfdbfe;
+}
+
+.brand-logo-btn:hover .brand-logo-img {
+  opacity: 0;
+  transform: scale(0.75);
+}
+
+.brand-logo-btn:hover .brand-expand-icon {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .brand-mark {
@@ -93,6 +210,14 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: 8px 6px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.admin-navigation::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .admin-menu {
@@ -104,72 +229,154 @@
   width: 100%;
 }
 
-.admin-menu :deep(.el-menu-item) {
-  height: 40px;
-  margin: 2px 0;
+.admin-menu :deep(.el-menu-item),
+.admin-menu :deep(.el-sub-menu__title) {
+  height: 38px;
+  line-height: 38px;
+  margin: 1px 0;
   padding: 0 10px !important;
   color: var(--lm-admin-text-default);
   background: transparent;
   border-radius: var(--lm-admin-radius-control);
   font-size: 13px;
   font-weight: 600;
+  transition: color var(--lm-admin-transition-fast), background var(--lm-admin-transition-fast);
 }
 
-.admin-menu :deep(.el-menu-item .el-icon) {
+.admin-menu :deep(.el-menu-item .el-icon),
+.admin-menu :deep(.el-sub-menu__title .el-icon) {
   width: 20px;
   margin-right: 9px;
-  font-size: 17px;
+  font-size: 16px;
+  color: var(--lm-admin-text-muted);
 }
 
-.admin-menu :deep(.el-menu-item:hover) {
+.admin-menu :deep(.el-menu-item:hover),
+.admin-menu :deep(.el-sub-menu__title:hover) {
   color: var(--lm-admin-text-strong);
   background: var(--lm-admin-surface-subtle);
+}
+
+.admin-menu :deep(.el-menu-item:hover .el-icon),
+.admin-menu :deep(.el-sub-menu__title:hover .el-icon) {
+  color: var(--lm-admin-text-strong);
 }
 
 .admin-menu :deep(.el-menu-item.is-active) {
   color: var(--lm-admin-primary);
   background: #eaf2ff;
+  font-weight: 650;
+}
+
+.admin-menu :deep(.el-menu-item.is-active .el-icon) {
+  color: var(--lm-admin-primary);
+}
+
+.admin-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+  color: var(--lm-admin-text-strong);
+}
+
+.admin-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title .el-icon) {
+  color: var(--lm-admin-primary);
+}
+
+.admin-menu :deep(.el-sub-menu .el-menu) {
+  background: transparent;
+}
+
+.admin-menu :deep(.el-sub-menu .el-menu-item) {
+  height: 34px;
+  line-height: 34px;
+  margin: 1px 0;
+  padding-left: 36px !important;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--lm-admin-text-default);
+}
+
+.admin-menu :deep(.el-sub-menu .el-menu-item .el-icon) {
+  width: 18px;
+  margin-right: 8px;
+  font-size: 15px;
+}
+
+.admin-menu :deep(.el-sub-menu .el-menu-item.is-active) {
+  color: var(--lm-admin-primary);
+  background: #eaf2ff;
+  font-weight: 650;
+}
+
+.admin-sidebar.collapsed .admin-navigation {
+  padding: 8px 0;
 }
 
 .admin-menu.el-menu--collapse {
-  width: 44px;
+  width: 56px !important;
+  margin: 0 auto;
 }
 
 .admin-menu.el-menu--collapse :deep(.el-menu-item) {
-  justify-content: center;
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  margin: 4px auto !important;
   padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+  border-radius: var(--lm-admin-radius-control) !important;
 }
 
 .admin-menu.el-menu--collapse :deep(.el-menu-item .el-icon) {
-  margin: 0;
+  margin: 0 !important;
+  font-size: 18px !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: center !important;
 }
 
-.sidebar-toggle {
-  display: flex;
-  height: 44px;
-  flex: 0 0 44px;
-  align-items: center;
-  gap: 8px;
-  margin: 6px;
-  padding: 0 10px;
-  color: var(--lm-admin-text-muted);
-  background: transparent;
-  border: 0;
-  border-radius: var(--lm-admin-radius-control);
-  cursor: pointer;
-  font-size: 12px;
-  transition: color var(--lm-admin-transition-fast), background var(--lm-admin-transition-fast);
+.admin-menu.el-menu--collapse :deep(.el-menu-item .el-tooltip__trigger) {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
 }
 
-.sidebar-toggle:hover {
-  color: var(--lm-admin-text-strong);
-  background: var(--lm-admin-surface-subtle);
+:global(.admin-menu-tooltip.el-popper.is-light),
+:global(.el-popper.is-light) {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  padding: 6px 11px !important;
+  border-radius: var(--lm-admin-radius-control) !important;
 }
 
-.admin-sidebar.collapsed .admin-brand,
-.admin-sidebar.collapsed .sidebar-toggle {
-  justify-content: center;
-  padding: 0;
+:global(.admin-menu-tooltip.el-popper.is-light .el-popper__arrow::before),
+:global(.el-popper.is-light .el-popper__arrow::before) {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* 筛选下拉菜单选项文本居中 */
+:global(.admin-filter-popper .el-select-dropdown__item) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-size: 12px !important;
+  height: 32px !important;
+  line-height: 32px !important;
 }
 
 .admin-workspace {

@@ -11,47 +11,135 @@
     <el-aside
       :width="sidebarWidth"
       class="admin-sidebar"
-      :class="{ collapsed: sidebarCollapsed && !isMobile, open: sidebarOpen }"
+      :class="{ collapsed: sidebarCollapsed && !isMobile, open: sidebarOpen, resizing: isResizing }"
     >
-      <router-link to="/admin/dashboard" class="admin-brand" @click="closeMobileNavigation">
-        <span class="brand-mark"><img src="@/assets/images/logo.png" alt="" /></span>
-        <span v-if="!sidebarCollapsed || isMobile" class="brand-name">LeetModel</span>
-      </router-link>
+      <div class="admin-brand-header">
+        <router-link
+          v-if="!sidebarCollapsed || isMobile"
+          to="/admin/dashboard"
+          class="admin-brand"
+          @click="closeMobileNavigation"
+        >
+          <span class="brand-mark"><img src="@/assets/images/logo.png" alt="" /></span>
+          <span class="brand-name">LeetModel</span>
+        </router-link>
 
-      <nav class="admin-navigation" aria-label="管理端一级导航">
+        <button
+          v-if="!sidebarCollapsed && !isMobile"
+          class="brand-collapse-btn"
+          type="button"
+          aria-label="收起导航"
+          title="收起导航"
+          @click="toggleSidebar"
+        >
+          <el-icon><Fold /></el-icon>
+        </button>
+
+        <!-- 收起状态下只展示居中的 Logo 图标，hover 时切换为展开图标，点击展开 -->
+        <el-tooltip
+          v-if="sidebarCollapsed && !isMobile"
+          content="展开导航"
+          placement="right"
+          effect="light"
+          popper-class="admin-menu-tooltip"
+          :show-after="300"
+          :hide-after="50"
+          :enterable="false"
+        >
+          <button
+            class="brand-logo-btn"
+            type="button"
+            aria-label="展开导航"
+            @click="toggleSidebar"
+          >
+            <span class="brand-mark">
+              <img src="@/assets/images/logo.png" alt="LeetModel" class="brand-logo-img" />
+              <el-icon class="brand-expand-icon"><Expand /></el-icon>
+            </span>
+          </button>
+        </el-tooltip>
+      </div>
+
+      <nav class="admin-navigation" aria-label="管理端侧边栏导航">
         <el-menu
-          :default-active="$route.path"
+          :default-active="activeMenu"
+          :default-openeds="defaultOpeneds"
           class="admin-menu"
           :collapse="sidebarCollapsed && !isMobile"
           :collapse-transition="false"
           router
         >
-          <el-menu-item
-            v-for="item in navigation"
-            :key="item.path"
-            :index="`/admin/${item.path}`"
-            @click="closeMobileNavigation"
-          >
-            <el-icon><component :is="item.meta.icon" /></el-icon>
-            <template #title>{{ item.meta.navTitle || item.meta.title }}</template>
-          </el-menu-item>
-        </el-menu>
-      </nav>
+          <!-- 收起模式：平铺所有二级具体功能项，去除一级管理分组 -->
+          <template v-if="sidebarCollapsed && !isMobile">
+            <el-tooltip
+              v-for="item in flatMenuItems"
+              :key="item.path"
+              :content="item.title"
+              placement="right"
+              effect="light"
+              popper-class="admin-menu-tooltip"
+              :show-after="300"
+              :hide-after="50"
+              :enterable="false"
+            >
+              <el-menu-item
+                :index="item.path"
+                @click="closeMobileNavigation"
+              >
+                <el-icon><component :is="item.icon" /></el-icon>
+              </el-menu-item>
+            </el-tooltip>
+          </template>
 
-      <button
-        v-if="!isMobile"
-        class="sidebar-toggle"
-        type="button"
-        :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
-        :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'"
-        @click="toggleSidebar"
-      >
-        <el-icon><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
-        <span v-if="!sidebarCollapsed">收起导航</span>
-      </button>
-    </el-aside>
+          <!-- 展开模式：显示清晰的一二级分组层级，默认全部展开 -->
+          <template v-else>
+            <template v-for="menu in menuGroups" :key="menu.type === 'item' ? menu.path : menu.key">
+              <!-- 一级直达菜单项 -->
+              <el-menu-item
+                v-if="menu.type === 'item'"
+                :index="menu.path"
+                @click="closeMobileNavigation"
+              >
+                <el-icon><component :is="menu.icon" /></el-icon>
+                <template #title>{{ menu.title }}</template>
+              </el-menu-item>
 
-    <el-container class="admin-workspace">
+              <!-- 二级分组菜单 -->
+              <el-sub-menu
+                v-else
+                :index="menu.key"
+              >
+                <template #title>
+                  <el-icon><component :is="menu.icon" /></el-icon>
+                  <span>{{ menu.title }}</span>
+                </template>
+                <el-menu-item
+                  v-for="child in menu.children"
+                  :key="child.path"
+                  :index="child.path"
+                  @click="closeMobileNavigation"
+                >
+                  <el-icon><component :is="child.icon" /></el-icon>
+                <template #title>{{ child.title }}</template>
+              </el-menu-item>
+            </el-sub-menu>
+          </template>
+        </template>
+      </el-menu>
+    </nav>
+
+      <!-- 侧栏宽度调节条（支持拖拽，双击恢复默认） -->
+      <div
+        v-if="!sidebarCollapsed && !isMobile"
+        class="sidebar-resizer"
+        :class="{ resizing: isResizing }"
+        title="按住拖拽调节侧栏宽度，双击恢复默认"
+        @mousedown="startResize"
+        @dblclick="resetWidth"
+      ></div>
+  </el-aside>
+
+  <el-container class="admin-workspace">
       <el-header class="admin-topbar">
         <div class="topbar-leading">
           <button
@@ -124,7 +212,11 @@ import { useUserStore } from "@/store/user";
 import { useAuth } from "@/composables/useAuth";
 
 const SIDEBAR_STORAGE_KEY = "lm-admin-sidebar-collapsed";
+const SIDEBAR_WIDTH_KEY = "lm-admin-sidebar-custom-width";
 const MOBILE_BREAKPOINT = 768;
+const DEFAULT_EXPANDED_WIDTH = 196;
+const MIN_SIDEBAR_WIDTH = 160;
+const MAX_SIDEBAR_WIDTH = 320;
 
 const router = useRouter();
 const route = useRoute();
@@ -135,16 +227,133 @@ const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true
 const sidebarOpen = ref(false);
 const isOnline = ref(navigator.onLine);
 
+const savedWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+const customExpandedWidth = ref(
+  savedWidth >= MIN_SIDEBAR_WIDTH && savedWidth <= MAX_SIDEBAR_WIDTH
+    ? savedWidth
+    : DEFAULT_EXPANDED_WIDTH
+);
+const isResizing = ref(false);
+
 const isMobile = computed(() => viewportWidth.value < MOBILE_BREAKPOINT);
 const sidebarWidth = computed(() => {
-  if (isMobile.value) return "224px";
-  return sidebarCollapsed.value ? "56px" : "224px";
+  if (isMobile.value) return `${customExpandedWidth.value}px`;
+  return sidebarCollapsed.value ? "56px" : `${customExpandedWidth.value}px`;
 });
-const navigation = computed(() => {
-  const adminRoute = router.options.routes.find((item) => item.path === "/admin");
-  return (adminRoute?.children || []).filter((item) => !item.meta?.hidden && item.component);
+
+function startResize(e) {
+  if (sidebarCollapsed.value || isMobile.value) return;
+  e.preventDefault();
+  isResizing.value = true;
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+
+  const onMouseMove = (moveEvent) => {
+    if (!isResizing.value) return;
+    const newWidth = Math.min(
+      Math.max(moveEvent.clientX, MIN_SIDEBAR_WIDTH),
+      MAX_SIDEBAR_WIDTH
+    );
+    customExpandedWidth.value = newWidth;
+  };
+
+  const onMouseUp = () => {
+    if (!isResizing.value) return;
+    isResizing.value = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(customExpandedWidth.value));
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+}
+
+function resetWidth() {
+  if (sidebarCollapsed.value || isMobile.value) return;
+  customExpandedWidth.value = DEFAULT_EXPANDED_WIDTH;
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(DEFAULT_EXPANDED_WIDTH));
+}
+
+const menuGroups = [
+  {
+    type: "item",
+    path: "/admin/dashboard",
+    title: "运行概览",
+    icon: "DataBoard",
+  },
+  {
+    type: "group",
+    key: "biz",
+    title: "业务管理",
+    icon: "Briefcase",
+    children: [
+      { path: "/admin/problems", title: "题目管理", icon: "Document" },
+      { path: "/admin/contests", title: "赛事管理", icon: "Trophy" },
+      { path: "/admin/tags", title: "标签管理", icon: "CollectionTag" },
+      { path: "/admin/teams", title: "队伍管理", icon: "UserFilled" },
+      { path: "/admin/submissions", title: "提交管理", icon: "Files" },
+      { path: "/admin/rankings", title: "榜单管理", icon: "Histogram" },
+    ],
+  },
+  {
+    type: "group",
+    key: "ai",
+    title: "AI管理",
+    icon: "Cpu",
+    children: [
+      { path: "/admin/ai-reviews", title: "AI评审", icon: "Checked" },
+      { path: "/admin/ai-suggestions", title: "AI建议", icon: "ChatDotRound" },
+      { path: "/admin/ai-assistant", title: "AI客服", icon: "Service" },
+      { path: "/admin/ai-evaluations", title: "AI评测", icon: "Aim" },
+      { path: "/admin/ai-calls", title: "AI调用", icon: "Connection" },
+    ],
+  },
+  {
+    type: "group",
+    key: "asset",
+    title: "资产管理",
+    icon: "Box",
+    children: [
+      { path: "/admin/knowledge", title: "知识库管理", icon: "Notebook" },
+      { path: "/admin/storage", title: "文件管理", icon: "FolderOpened" },
+    ],
+  },
+  {
+    type: "group",
+    key: "ops",
+    title: "运维管理",
+    icon: "Operation",
+    children: [
+      { path: "/admin/audit", title: "操作审计", icon: "DocumentChecked" },
+      { path: "/admin/messaging", title: "消息队列", icon: "MessageBox" },
+    ],
+  },
+  {
+    type: "item",
+    path: "/admin/access",
+    title: "访问控制",
+    icon: "Lock",
+  },
+];
+
+const flatMenuItems = computed(() => {
+  const items = [];
+  menuGroups.forEach((menu) => {
+    if (menu.type === "item") {
+      items.push(menu);
+    } else if (menu.type === "group" && menu.children) {
+      items.push(...menu.children);
+    }
+  });
+  return items;
 });
-const currentTitle = computed(() => route.meta?.navTitle || route.meta?.title || "管理控制台");
+
+const defaultOpeneds = ["biz", "ai", "asset", "ops"];
+const activeMenu = computed(() => route.path);
+const currentTitle = computed(() => route.meta?.title || "管理控制台");
 const roleLabel = computed(() => userStore.roleLabel);
 
 function toggleSidebar() {
