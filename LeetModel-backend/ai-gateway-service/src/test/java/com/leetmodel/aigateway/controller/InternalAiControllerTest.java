@@ -32,6 +32,8 @@ class InternalAiControllerTest {
     void shouldReturnUnifiedChatResponse() {
         AiScheduledCallService scheduledCallService = mock(AiScheduledCallService.class);
         InternalAiController controller = new InternalAiController(scheduledCallService,
+                mock(com.leetmodel.aigateway.service.AiChatService.class),
+                new com.fasterxml.jackson.databind.ObjectMapper(),
                 mock(AiModelService.class), mock(AiCallAuditService.class),
                 mock(AiQueueOperationsService.class),
                 mock(AiEvaluationCallAggregationService.class),

@@ -9,6 +9,8 @@ import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.common.core.exception.BusinessException;
 
 import java.util.List;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
+import java.util.function.Consumer;
 
 /**
  * AI 供应商适配器。
@@ -42,6 +44,23 @@ public interface AiProviderAdapter {
      * @return 统一响应
      */
     AiChatResponse chat(String model, AiApiProtocol protocol, AiChatRequest request);
+
+    /**
+     * 流式调用供应商对话接口。
+     *
+     * @param model 模型标识
+     * @param protocol API 协议
+     * @param request 统一请求
+     * @param onChunk 增量消费回调
+     * @return 最终响应
+     */
+    default AiChatResponse streamChat(String model, AiApiProtocol protocol, AiChatRequest request, Consumer<AiChatStreamChunk> onChunk) {
+        AiChatResponse response = chat(model, protocol, request);
+        if (onChunk != null) {
+            onChunk.accept(new AiChatStreamChunk(response.callId(), response.content(), response.finishReason(), response));
+        }
+        return response;
+    }
 
     /** 调用 Embedding 接口；不支持的适配器明确失败。 */
     default ProviderEmbeddingResponse embed(String model, List<String> inputs) {

@@ -33,6 +33,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.leetmodel.aigateway.service.AiChatService;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -48,6 +53,8 @@ import java.util.concurrent.CompletableFuture;
 public class InternalAiController {
 
     private final AiScheduledCallService aiScheduledCallService;
+    private final AiChatService aiChatService;
+    private final ObjectMapper objectMapper;
     private final AiModelService aiModelService;
     private final AiCallAuditService aiCallAuditService;
     private final AiQueueOperationsService aiQueueOperationsService;
@@ -60,6 +67,41 @@ public class InternalAiController {
      * @param request 统一请求
      * @return 统一响应
      */
+    /**
+     * 发起 SSE 流式 AI 对话。
+     *
+     * @param request 统一请求
+     * @return SseEmitter 响应流
+     */
+    @Operation(summary = "发起流式 AI 对话")
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatStream(@Valid @RequestBody AiChatRequest request) {
+        SseEmitter emitter = new SseEmitter(180_000L);
+        CompletableFuture.runAsync(() -> {
+            try {
+                aiChatService.streamChat(request, chunk -> {
+                    try {
+                        String data = objectMapper.writeValueAsString(chunk);
+                        emitter.send(SseEmitter.event().data(data));
+                    } catch (Exception e) {
+                        // 忽略单帧写入失败
+                    }
+                });
+                try {
+                    emitter.send(SseEmitter.event().data("[DONE]"));
+                    emitter.complete();
+                } catch (Exception ignored) {}
+            } catch (Exception exception) {
+                try {
+                    emitter.send(SseEmitter.event().name("error")
+                            .data(java.util.Map.of("error", String.valueOf(exception.getMessage()))));
+                    emitter.completeWithError(exception);
+                } catch (Exception ignored) {}
+            }
+        });
+        return emitter;
+    }
+
     @Operation(summary = "发起同步 AI 对话")
     @PostMapping("/chat")
     public CompletableFuture<Result<AiChatResponse>> chat(@Valid @RequestBody AiChatRequest request) {

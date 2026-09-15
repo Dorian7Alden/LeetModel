@@ -26,6 +26,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -133,6 +134,59 @@ class NewApiAdapterTest {
 
         AiChatResponse response = fixture.adapter.chat(
                 "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, toolRequest());
+
+        assertThat(response.content()).isNull();
+        assertThat(response.finishReason()).isEqualTo("tool_calls");
+        assertThat(response.toolCalls()).containsExactly(
+                new AiToolCall("call-1", "search_problem", "{\"code\":1001}"));
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldForwardTextDeltasBeforeCompletedResponse() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.stream").value(true))
+                .andRespond(withSuccess("""
+                        data: {"id":"relay-stream-1","model":"deepseek-v4-flash","choices":[{"delta":{"content":"先"}}]}
+
+                        data: {"id":"relay-stream-1","model":"deepseek-v4-flash","choices":[{"delta":{"content":"建模"}}]}
+
+                        data: {"id":"relay-stream-1","model":"deepseek-v4-flash","choices":[{"delta":{},"finish_reason":"stop"}]}
+
+                        data: [DONE]
+
+                        """, MediaType.TEXT_EVENT_STREAM));
+        List<String> events = new ArrayList<>();
+
+        AiChatResponse response = fixture.adapter.streamChat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS, textRequest(), chunk -> {
+                    if (chunk.deltaText() != null) events.add("delta:" + chunk.deltaText());
+                    if (chunk.completedResponse() != null) events.add("completed");
+                });
+
+        assertThat(response.content()).isEqualTo("先建模");
+        assertThat(events).containsExactly("delta:先", "delta:建模", "completed");
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldAggregateStreamedToolCallFragments() {
+        Fixture fixture = fixture();
+        fixture.server.expect(once(), requestTo("http://new-api.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.stream").value(true))
+                .andRespond(withSuccess("""
+                        data: {"id":"relay-tool-stream","model":"deepseek-v4-flash","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"search_","arguments":"{\\"code\\":"}}]}}]}
+
+                        data: {"id":"relay-tool-stream","model":"deepseek-v4-flash","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"problem","arguments":"1001}"}}]},"finish_reason":"tool_calls"}]}
+
+                        data: [DONE]
+
+                        """, MediaType.TEXT_EVENT_STREAM));
+
+        AiChatResponse response = fixture.adapter.streamChat(
+                "deepseek-v4-flash", AiApiProtocol.OPENAI_COMPLETIONS,
+                toolRequest(), ignored -> {});
 
         assertThat(response.content()).isNull();
         assertThat(response.finishReason()).isEqualTo("tool_calls");
