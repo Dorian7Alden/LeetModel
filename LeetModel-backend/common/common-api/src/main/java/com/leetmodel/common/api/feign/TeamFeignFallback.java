@@ -2,6 +2,13 @@ package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.AdminTeamCreateDTO;
+import com.leetmodel.common.api.dto.AdminTeamPageQuery;
+import com.leetmodel.common.api.dto.AdminTeamPracticeStatusDTO;
+import com.leetmodel.common.api.dto.AdminTeamStatsDTO;
+import com.leetmodel.common.api.dto.AdminTeamUpdateDTO;
+import com.leetmodel.common.api.vo.TeamAdminVO;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
 import com.leetmodel.common.core.result.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +73,41 @@ public class TeamFeignFallback implements FallbackFactory<TeamFeignClient> {
 
             @Override
             public Result<TeamDTO> getUserCurrentTeam(Long userId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<PageResult<TeamAdminVO>> pageAdminTeams(AdminTeamPageQuery query) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<AdminTeamStatsDTO> getAdminStats() {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<TeamAdminVO> getAdminDetail(Long teamId) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<TeamAdminVO> adminCreateTeam(AdminTeamCreateDTO request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<TeamAdminVO> adminUpdateTeam(Long teamId, AdminTeamUpdateDTO request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<TeamAdminVO> adminUpdatePracticeStatus(Long teamId, AdminTeamPracticeStatusDTO request) {
+                return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
+            }
+
+            @Override
+            public Result<Void> adminDissolveTeam(Long teamId, String reason) {
                 return Result.fail(ErrorCodeEnum.SYSTEM_ERROR);
             }
         };

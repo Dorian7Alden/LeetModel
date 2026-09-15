@@ -3,11 +3,20 @@ package com.leetmodel.problem.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.TagType;
+import com.leetmodel.problem.vo.TagAdminVO;
+import java.util.List;
 
 /**
  * 标签服务接口。
  */
 public interface TagService extends IService<Tag> {
+
+    /**
+     * 查询标签列表，附带每个标签被题目引用的使用次数。
+     *
+     * @return 标签管理视图对象列表
+     */
+    List<TagAdminVO> listTagsWithUsage();
 
     /**
      * 创建新标签（含名称唯一性校验）。

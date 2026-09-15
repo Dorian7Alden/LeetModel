@@ -12,6 +12,10 @@ import com.leetmodel.problem.enums.TagType;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.TagService;
+import com.leetmodel.problem.vo.TagAdminVO;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,35 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagService {
+
+    /**
+     * 查询系统全部标签，并按标签 ID 聚合统计各标签在 problem_tag 中的引用题量。
+     *
+     * @return 包含 problemCount 的标签视图对象列表
+     */
+    @Override
+    public List<TagAdminVO> listTagsWithUsage() {
+        List<Tag> tags = list();
+        if (tags.isEmpty()) {
+            return List.of();
+        }
+
+        // 统计各 tagId 出现的频次
+        List<ProblemTag> relations = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                .select(ProblemTag::getTagId));
+        Map<Long, Long> countMap = relations.stream()
+                .collect(Collectors.groupingBy(ProblemTag::getTagId, Collectors.counting()));
+
+        return tags.stream().map(t -> TagAdminVO.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .type(t.getType())
+                .problemCount(countMap.getOrDefault(t.getId(), 0L))
+                .createTime(t.getCreateTime())
+                .updateTime(t.getUpdateTime())
+                .build()
+        ).toList();
+    }
 
     private final ProblemTagMapper problemTagMapper;
     private final CacheInvalidator cacheInvalidator;

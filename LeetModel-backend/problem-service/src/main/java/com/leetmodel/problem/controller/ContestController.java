@@ -9,8 +9,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +40,18 @@ public class ContestController {
     }
 
     /**
+     * 管理员创建新的赛事基础数据。
+     *
+     * @param request 包含新编码与名称等属性的请求对象，不能为 null
+     * @return 新建的赛事字典实体
+     */
+    @Operation(summary = "创建赛事基础数据")
+    @PostMapping
+    public Result<Contest> create(@Valid @RequestBody ContestRequest request) {
+        return Result.ok(contestService.create(request));
+    }
+
+    /**
      * 管理员修改赛事的编码或名称基础数据。
      *
      * @param id      目标赛事 ID，不能为 null
@@ -49,5 +63,18 @@ public class ContestController {
     public Result<Contest> update(@PathVariable Long id,
                                   @Valid @RequestBody ContestRequest request) {
         return Result.ok(contestService.update(id, request));
+    }
+
+    /**
+     * 管理员删除未被题目引用的赛事。
+     *
+     * @param id 目标赛事 ID，不能为 null
+     * @return 成功空响应
+     */
+    @Operation(summary = "删除赛事")
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable Long id) {
+        contestService.delete(id);
+        return Result.ok();
     }
 }
