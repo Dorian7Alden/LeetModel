@@ -6,6 +6,13 @@ import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingResponse;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.core.ParameterizedTypeReference;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -26,6 +33,7 @@ public class HttpAiClient implements AiClient {
             };
 
     private final RestClient restClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 构造基于 RestClient 的 HTTP AI 客户端。
@@ -43,6 +51,61 @@ public class HttpAiClient implements AiClient {
      * @return 统一对话响应对象
      * @throws AiClientException 当网络故障、超时或网关返回非成功响应时抛出
      */
+    @Override
+    public AiChatResponse streamChat(AiChatRequest request, Consumer<AiChatStreamChunk> onChunk) {
+        try {
+            return restClient.post()
+                    .uri("/internal/ai/chat/stream")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    .body(request)
+                    .exchange((clientRequest, clientResponse) -> {
+                        if (clientResponse.getStatusCode().isError()) {
+                            throw new AiClientException(clientResponse.getStatusCode().value(),
+                                    "AI 网关流式接口返回错误: " + clientResponse.getStatusCode().value());
+                        }
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(clientResponse.getBody(), StandardCharsets.UTF_8))) {
+                            String line;
+                            AiChatResponse finalResponse = null;
+                            while ((line = reader.readLine()) != null) {
+                                line = line.trim();
+                                if (!line.startsWith("data:")) continue;
+                                String json = line.substring(5).trim();
+                                if (json.isEmpty() || "[DONE]".equals(json)) continue;
+                                try {
+                                    AiChatStreamChunk chunk = objectMapper.readValue(json, AiChatStreamChunk.class);
+                                    if (onChunk != null) {
+                                        onChunk.accept(chunk);
+                                    }
+                                    if (chunk.completedResponse() != null) {
+                                        finalResponse = chunk.completedResponse();
+                                    }
+                                } catch (Exception parseErr) {
+                                    // 忽略单帧解析错误
+                                }
+                            }
+                            if (finalResponse == null) {
+                                throw new AiClientException(50001, "AI 网关流式未返回完成事件");
+                            }
+                            return finalResponse;
+                        } catch (AiClientException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            throw new AiClientException(50002, "AI 网关流式读取失败: " + e.getMessage(), e);
+                        }
+                    });
+        } catch (RestClientResponseException exception) {
+            throw transportFailure(exception);
+        } catch (ResourceAccessException exception) {
+            throw new AiClientException(50002, "AI 网关调用超时或不可用", exception);
+        } catch (AiClientException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new AiClientException(50002, "AI 网关流式调用异常: " + exception.getMessage(), exception);
+        }
+    }
+
     @Override
     public AiChatResponse chat(AiChatRequest request) {
         try {

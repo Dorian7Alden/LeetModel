@@ -78,8 +78,8 @@
                 </div>
               </div>
 
-              <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="msg.role">
-                <template v-if="msg.role === 'assistant'">
+              <div v-for="msg in messages" :key="msg.id" class="ai-msg" :class="isAssistantRole(msg.role) ? 'assistant' : 'user'">
+                <template v-if="isAssistantRole(msg.role)">
                   <div class="ai-msg-avatar support"><img :src="aiAvatarImg" alt="AI 客服" class="ai-msg-avatar-img" /></div>
                   <div class="ai-msg-col">
                     <span class="ai-msg-name">AI 客服</span>
@@ -91,7 +91,12 @@
                         <span>{{ msg.toolStatus.displayName }}</span>
                       </div>
 
-                      <div v-if="msg.content" class="markdown-body ai-md" v-html="md(msg.content)"></div>
+                      <MarkdownView
+                        v-if="msg.content"
+                        class="ai-md"
+                        :content="msg.content"
+                        :streaming="msg.status === 'RUNNING'"
+                      />
                       <div v-else-if="msg.status === 'RUNNING'" class="ai-typing-inline">
                         <span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span>
                       </div>
@@ -206,7 +211,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
-import { renderSafeMarkdown } from "@/utils/markdown";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import { listConversations, createConversation, getConversation, sendMessage, retryMessage } from "@/api/assistant";
 import aiAvatarImg from "@/assets/images/AI客服-avatar.png";
 import aiSmileImg from "@/assets/images/AI客服-smile.png";
@@ -280,8 +285,6 @@ const historyGroups = computed(() => {
 function parseDate(value) { return value ? new Date(String(value).replace(" ", "T")) : null; }
 function sameDay(a, b) { return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function withinDays(a, b, days) { return a && a.getTime() >= b.getTime() - days * 86400000; }
-
-const md = (value) => renderSafeMarkdown(value);
 
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
@@ -439,22 +442,26 @@ async function send(text) {
               scrollToBottom();
             } else if (eventName === "delta") {
               if (payload.content) {
-                streamingAssistantMessage.content += payload.content;
-                scrollToBottom();
+                enqueueTypewriterText(streamingAssistantMessage, payload.content);
               }
             } else if (eventName === "message_end") {
-              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
-              streamingAssistantMessage.status = payload.status || "COMPLETED";
-              if (payload.fullContent) {
-                streamingAssistantMessage.content = payload.fullContent;
+              if (typewriterQueue.value.length > 0) {
+                typewriterPendingEndPayload = payload;
+              } else {
+                streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
+                streamingAssistantMessage.status = payload.status || "COMPLETED";
+                if (payload.fullContent) {
+                  streamingAssistantMessage.content = payload.fullContent;
+                }
+                if (payload.toolContextJson) {
+                  streamingAssistantMessage.toolContextJson = payload.toolContextJson;
+                }
+                streamingAssistantMessage.toolStatus = null;
+                serviceStatus.value = "connected";
+                scrollToBottom();
               }
-              if (payload.toolContextJson) {
-                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
-              }
-              streamingAssistantMessage.toolStatus = null;
-              serviceStatus.value = "connected";
-              scrollToBottom();
             } else if (eventName === "error") {
+              flushTypewriter();
               streamingAssistantMessage.status = "FAILED";
               streamingAssistantMessage.errorMessage = payload.message || "回复失败";
               streamingAssistantMessage.toolStatus = null;
@@ -519,6 +526,11 @@ function getProblemCards(toolContextJson) {
   }
 }
 
+function isAssistantRole(role) {
+  const r = (role || '').toLowerCase();
+  return r === 'assistant';
+}
+
 function normalizeProblemCard(item) {
   return {
     code: item.code,
@@ -558,25 +570,8 @@ onMounted(() => {
   if (props.embedded && userStore.isLogin) open();
 });
 
-onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); });
+onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(suggestTimer); flushTypewriter(); });
 </script>
-
-<style>
-.ai-bubble .markdown-body,
-.ai-bubble .markdown-body *{box-sizing:border-box;}
-.ai-bubble .markdown-body{font-family:var(--lm-font-family);font-size:13px;line-height:1.65;color:inherit;word-break:break-word;padding:0;background:transparent;margin:0;}
-.ai-bubble .markdown-body :is(p,ul,ol,pre,blockquote,table){margin:0 0 6px;}
-.ai-bubble .markdown-body :is(ul,ol){padding-left:18px;}
-.ai-bubble .markdown-body :is(h1,h2,h3,h4,h5,h6){margin:8px 0 4px;font-size:1em;font-weight:700;line-height:1.4;}
-.ai-bubble .markdown-body strong{font-weight:800;}
-.ai-bubble .markdown-body code{font-size:12px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.06);}
-.ai-bubble .markdown-body pre{overflow:auto;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.06);}
-.ai-bubble .markdown-body pre code{background:transparent;padding:0;}
-.ai-bubble .markdown-body a{color:var(--lm-primary);}
-.ai-bubble .markdown-body blockquote{padding-left:10px;border-left:3px solid var(--lm-border);color:var(--lm-text-muted);}
-.ai-bubble .markdown-body table{border-collapse:collapse;font-size:12px;}
-.ai-bubble .markdown-body th,.ai-bubble .markdown-body td{padding:4px 8px;border:1px solid var(--lm-border);}
-</style>
 
 <style scoped>
 .ai-widget { position: fixed; right: 22px; bottom: 22px; z-index: 4000; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
@@ -593,7 +588,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 
 /* Header */
 .ai-header { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--lm-border-light); }
-.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: var(--lm-bg-secondary); }
+.ai-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--lm-bg-secondary); }
 .ai-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-title-wrap { min-width: 0; flex: 1; }
 .ai-title-row { display: flex; align-items: center; gap: 7px; }
@@ -623,7 +618,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-history-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px; text-align: left; border: 1px solid transparent; border-radius: 12px; background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
 .ai-history-item:hover { background: var(--lm-bg-secondary); }
 .ai-history-item.active { border-color: var(--lm-primary); background: var(--lm-primary-bg); }
-.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; overflow: hidden; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
+.ai-history-avatar { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); }
 .ai-history-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-history-item.active .ai-history-avatar { background: var(--lm-surface); color: var(--lm-primary); box-shadow: var(--lm-shadow-xs); }
 .ai-history-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
@@ -637,7 +632,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 /* Welcome */
 .ai-messages { display: flex; flex-direction: column; gap: 12px; padding: 16px 14px 10px; overflow: auto; flex: 1; background: var(--lm-bg); }
 .ai-welcome { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.ai-welcome-avatar { display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 18px; overflow: hidden; background: var(--lm-primary-bg); border: 2px solid var(--lm-border-light); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14); }
+.ai-welcome-avatar { display: inline-flex; width: 64px; height: 64px; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; background: var(--lm-primary-bg); border: 2px solid var(--lm-border-light); box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14); }
 .ai-welcome-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-welcome-title { margin: 6px 0 0; color: var(--lm-text-primary); font-size: 17px; font-weight: 700; }
 .ai-welcome-desc { margin: 0; color: var(--lm-text-muted); font-size: 13px; line-height: 1.6; }
@@ -661,7 +656,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-msg-col.user { align-items: flex-end; }
 .ai-msg-name { color: var(--lm-text-muted); font-size: 11px; line-height: 1; }
 .ai-msg.user .ai-msg-name { text-align: right; }
-.ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 9px; }
+.ai-msg-avatar { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; }
 .ai-msg-avatar.support { background: transparent; overflow: hidden; border: 1px solid var(--lm-border-light); }
 .ai-msg-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ai-msg-avatar.user { background: linear-gradient(135deg, #475569, #64748b); color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; }
@@ -729,6 +724,7 @@ onBeforeUnmount(() => { opened.value = false; if (suggestTimer) clearTimeout(sug
 .ai-tool-badge.COMPLETED { background: var(--lm-success-bg); color: var(--lm-success); border-color: #bbf7d0; }
 .ai-tool-spin { animation: ai-rotate 1s linear infinite; }
 @keyframes ai-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
 .ai-typing-inline { display: inline-flex; gap: 4px; padding: 4px 2px; }
 
 @media (max-width: 520px) {

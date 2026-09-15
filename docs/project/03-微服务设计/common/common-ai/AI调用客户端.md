@@ -15,7 +15,7 @@
 
 `common-ai` 只承担客户端侧公共能力：
 
-- 统一同步 Chat 与 Embedding 调用入口
+- 统一同步/流式 Chat 与 Embedding 调用入口
 - 定义场景编码、请求、响应、用量和错误契约
 - 透传业务标识、Trace ID、幂等键、`workflowVersion`、`promptVersion`、`modelExecutionConfigVersion` 和适用的 `ragIndexVersion`；字段定义遵守 [AI版本标识.md](../../../02-架构设计/AI版本标识.md)
 - 透传评审步骤、执行轮次、实验批次和策略运行等可选关联标识

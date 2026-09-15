@@ -1,13 +1,15 @@
 package com.leetmodel.aigateway.provider;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.aigateway.config.AiApiProtocol;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
-import com.leetmodel.common.ai.model.AiModelInfo;
-import com.leetmodel.common.ai.model.AiProvider;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiEmbeddingVector;
 import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiModelInfo;
+import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiUsage;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.springframework.http.HttpHeaders;
@@ -19,12 +21,17 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 
 /**
  * OpenAI 兼容供应商适配器模板。
@@ -76,6 +83,175 @@ public abstract class AbstractOpenAiCompatibleAdapter implements AiProviderAdapt
      * @param request 统一请求
      * @return 统一响应
      */
+    @Override
+    public AiChatResponse streamChat(String model, AiApiProtocol protocol, AiChatRequest request,
+                                     Consumer<AiChatStreamChunk> onChunk) {
+        validateApiKey();
+        if (protocol != AiApiProtocol.OPENAI_COMPLETIONS) {
+            return chat(model, protocol, request);
+        }
+
+        Map<String, Object> body = buildChatBody(model, request);
+        body.put("stream", true);
+        body.put("stream_options", Map.of("include_usage", true));
+
+        ObjectMapper mapper = new ObjectMapper();
+        StringBuilder fullContent = new StringBuilder();
+        StringBuilder fullReasoning = new StringBuilder();
+        final String[] responseId = {null};
+        final String[] responseModel = {model};
+        final String[] finalFinishReason = {null};
+        final OpenAiCompatibleResponse.Usage[] finalUsage = {null};
+        Map<Integer, StreamToolCallAccumulator> streamedToolCalls = new TreeMap<>();
+
+        try {
+            restClient.post()
+                    .uri("/chat/completions")
+                    .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    .body(body)
+                    .exchange((clientRequest, clientResponse) -> {
+                        if (clientResponse.getStatusCode().isError()) {
+                            throw mapHttpError(new RestClientResponseException(
+                                    "Upstream stream error", clientResponse.getStatusCode(),
+                                    clientResponse.getStatusText(), clientResponse.getHeaders(),
+                                    null, null));
+                        }
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(clientResponse.getBody(), StandardCharsets.UTF_8))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                line = line.trim();
+                                if (!line.startsWith("data:")) continue;
+                                String dataStr = line.substring(5).trim();
+                                if (dataStr.isEmpty() || "[DONE]".equals(dataStr)) continue;
+
+                                try {
+                                    OpenAiCompatibleStreamChunk chunk = mapper.readValue(
+                                            dataStr, OpenAiCompatibleStreamChunk.class);
+                                    if (chunk.id() != null) responseId[0] = chunk.id();
+                                    if (chunk.model() != null) responseModel[0] = chunk.model();
+                                    if (chunk.usage() != null) finalUsage[0] = chunk.usage();
+
+                                    if (chunk.choices() != null && !chunk.choices().isEmpty()) {
+                                        OpenAiCompatibleStreamChunk.Choice choice = chunk.choices().get(0);
+                                        if (choice.finishReason() != null) {
+                                            finalFinishReason[0] = choice.finishReason();
+                                        }
+                                        if (choice.delta() != null) {
+                                            String deltaContent = choice.delta().content();
+                                            if (deltaContent != null && !deltaContent.isEmpty()) {
+                                                fullContent.append(deltaContent);
+                                                if (onChunk != null) {
+                                                    onChunk.accept(new AiChatStreamChunk(
+                                                            responseId[0], deltaContent, null, null));
+                                                }
+                                            }
+                                            String reasoning = choice.delta().reasoningContent();
+                                            if (reasoning != null && !reasoning.isEmpty()) {
+                                                fullReasoning.append(reasoning);
+                                            }
+                                            mergeToolCallDeltas(streamedToolCalls,
+                                                    choice.delta().toolCalls());
+                                        }
+                                    }
+                                } catch (Exception parseErr) {
+                                    // 忽略单行解析错误
+                                }
+                            }
+                        } catch (BusinessException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+                        }
+                        return null;
+                    });
+
+            OpenAiCompatibleResponse.Choice mockChoice = new OpenAiCompatibleResponse.Choice(
+                    new OpenAiCompatibleResponse.Message(
+                            fullContent.length() > 0 ? fullContent.toString() : null,
+                            fullReasoning.length() > 0 ? fullReasoning.toString() : null,
+                            completedToolCalls(streamedToolCalls)
+                    ),
+                    finalFinishReason[0] != null ? finalFinishReason[0] : "stop"
+            );
+            OpenAiCompatibleResponse fullResponse = new OpenAiCompatibleResponse(
+                    responseId[0],
+                    responseModel[0],
+                    List.of(mockChoice),
+                    finalUsage[0]
+            );
+            AiChatResponse unified = toChatResponse(fullResponse);
+            if (onChunk != null) {
+                onChunk.accept(new AiChatStreamChunk(
+                        unified.callId(), null, unified.finishReason(), unified));
+            }
+            return unified;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RestClientResponseException exception) {
+            throw mapHttpError(exception);
+        } catch (ResourceAccessException exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_TIMEOUT);
+        } catch (Exception exception) {
+            throw new BusinessException(AiGatewayErrorCode.PROVIDER_UNAVAILABLE);
+        }
+    }
+
+    private void mergeToolCallDeltas(
+            Map<Integer, StreamToolCallAccumulator> accumulators,
+            List<OpenAiCompatibleStreamChunk.ToolCall> deltas
+    ) {
+        if (deltas == null || deltas.isEmpty()) return;
+        for (int position = 0; position < deltas.size(); position++) {
+            OpenAiCompatibleStreamChunk.ToolCall delta = deltas.get(position);
+            if (delta == null) continue;
+            int index = delta.index() == null ? position : delta.index();
+            StreamToolCallAccumulator accumulator = accumulators.computeIfAbsent(
+                    index, ignored -> new StreamToolCallAccumulator());
+            accumulator.append(delta);
+        }
+    }
+
+    private List<OpenAiCompatibleResponse.ToolCall> completedToolCalls(
+            Map<Integer, StreamToolCallAccumulator> accumulators
+    ) {
+        if (accumulators.isEmpty()) return null;
+        return accumulators.values().stream()
+                .map(StreamToolCallAccumulator::toToolCall)
+                .toList();
+    }
+
+    private static final class StreamToolCallAccumulator {
+
+        private String id;
+        private String type;
+        private final StringBuilder name = new StringBuilder();
+        private final StringBuilder arguments = new StringBuilder();
+
+        private void append(OpenAiCompatibleStreamChunk.ToolCall delta) {
+            if (StringUtils.hasText(delta.id())) id = delta.id();
+            if (StringUtils.hasText(delta.type())) type = delta.type();
+            if (delta.function() == null) return;
+            if (delta.function().name() != null) name.append(delta.function().name());
+            if (delta.function().arguments() != null) {
+                arguments.append(delta.function().arguments());
+            }
+        }
+
+        private OpenAiCompatibleResponse.ToolCall toToolCall() {
+            return new OpenAiCompatibleResponse.ToolCall(
+                    id,
+                    type,
+                    new OpenAiCompatibleResponse.Function(
+                            name.toString(),
+                            arguments.toString()
+                    )
+            );
+        }
+    }
+
     @Override
     public AiChatResponse chat(String model, AiApiProtocol protocol, AiChatRequest request) {
         // 检查供应商配置

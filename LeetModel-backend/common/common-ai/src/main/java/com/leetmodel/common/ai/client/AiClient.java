@@ -2,8 +2,10 @@ package com.leetmodel.common.ai.client;
 
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiEmbeddingRequest;
 import com.leetmodel.common.ai.model.AiEmbeddingResponse;
+import java.util.function.Consumer;
 
 /**
  * 统一 AI 网关调用客户端接口。
@@ -21,6 +23,21 @@ public interface AiClient {
      * @throws AiClientException 当网关不可用、超时或服务端报错时抛出
      */
     AiChatResponse chat(AiChatRequest request);
+
+    /**
+     * 发起流式 AI 对话调用。
+     *
+     * @param request 统一对话请求对象
+     * @param onChunk 增量回调处理器
+     * @return 最终聚合响应
+     */
+    default AiChatResponse streamChat(AiChatRequest request, Consumer<AiChatStreamChunk> onChunk) {
+        AiChatResponse response = chat(request);
+        if (onChunk != null) {
+            onChunk.accept(new AiChatStreamChunk(response.callId(), response.content(), response.finishReason(), response));
+        }
+        return response;
+    }
 
     /**
      * 发起同步文本向量嵌入调用。

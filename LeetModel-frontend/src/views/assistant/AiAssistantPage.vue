@@ -232,10 +232,10 @@
             v-for="msg in messages"
             :key="msg.id"
             class="msg-row"
-            :class="msg.role"
+            :class="isAssistantRole(msg.role) ? 'assistant' : 'user'"
           >
             <!-- 1. 客服消息 (左侧呈现) -->
-            <template v-if="msg.role === 'assistant'">
+            <template v-if="isAssistantRole(msg.role)">
               <div class="avatar-cell assistant">
                 <img :src="aiAvatarImg" alt="AI 客服" class="avatar-img" />
               </div>
@@ -259,12 +259,13 @@
                     <span>{{ msg.toolStatus.displayName }}</span>
                   </div>
 
-                  <!-- Markdown 文本解析或流式打字中光标 -->
-                  <div
+                  <!-- Markdown 文本解析及打字流式光标 -->
+                  <MarkdownView
                     v-if="msg.content"
-                    class="markdown-body msg-md-content"
-                    v-html="md(msg.content)"
-                  ></div>
+                    class="msg-md-content"
+                    :content="msg.content"
+                    :streaming="msg.status === 'RUNNING'"
+                  />
                   <div v-else-if="msg.status === 'RUNNING'" class="typing-wave">
                     <span class="wave-dot"></span>
                     <span class="wave-dot"></span>
@@ -456,11 +457,11 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useUserStore } from "@/store/user";
-import { renderSafeMarkdown } from "@/utils/markdown";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import {
   listConversations,
   createConversation,
@@ -500,6 +501,141 @@ const recOffset = ref(0);
 const suggestOpen = ref(false);
 const serviceStatus = ref("unknown");
 let suggestTimer = null;
+let typewriterTimer = null;
+let typewriterQueue = [];
+let typewriterQueueIndex = 0;
+let typewriterTargetMessage = null;
+let typewriterPendingEndPayload = null;
+let typewriterIdleResolvers = [];
+
+const TYPEWRITER_INTERVAL_MS = 16;
+
+function enqueueTypewriterText(targetMsg, text) {
+  if (!text) return;
+  typewriterTargetMessage = targetMsg;
+  const chars = Array.from(text);
+  typewriterQueue.push(...chars);
+  if (!typewriterTimer) {
+    tickTypewriter();
+  }
+}
+
+function tickTypewriter() {
+  if (hasPendingTypewriterText() && typewriterTargetMessage) {
+    const nextChar = typewriterQueue[typewriterQueueIndex];
+    typewriterQueueIndex += 1;
+    typewriterTargetMessage.content += nextChar;
+    scrollToBottom();
+    typewriterTimer = window.setTimeout(tickTypewriter, TYPEWRITER_INTERVAL_MS);
+  } else {
+    typewriterTimer = null;
+    clearTypewriterQueue();
+    if (typewriterPendingEndPayload && typewriterTargetMessage) {
+      finalizeTypewriterResponse();
+    }
+  }
+}
+
+function hasPendingTypewriterText() {
+  return typewriterQueueIndex < typewriterQueue.length;
+}
+
+function getPendingTypewriterText() {
+  return typewriterQueue.slice(typewriterQueueIndex).join("");
+}
+
+function clearTypewriterQueue() {
+  typewriterQueue = [];
+  typewriterQueueIndex = 0;
+}
+
+function finishTypewriterResponse(targetMsg, payload) {
+  typewriterTargetMessage = targetMsg;
+  typewriterPendingEndPayload = payload;
+
+  const fullContent = payload.fullContent || "";
+  const bufferedContent = targetMsg.content + getPendingTypewriterText();
+  if (fullContent.startsWith(bufferedContent)) {
+    const missingContent = fullContent.slice(bufferedContent.length);
+    typewriterQueue.push(...Array.from(missingContent));
+  }
+
+  if (hasPendingTypewriterText()) {
+    if (!typewriterTimer) tickTypewriter();
+    return;
+  }
+  finalizeTypewriterResponse();
+}
+
+function finalizeTypewriterResponse() {
+  if (!typewriterPendingEndPayload || !typewriterTargetMessage) return;
+
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer);
+    typewriterTimer = null;
+  }
+
+  const payload = typewriterPendingEndPayload;
+  const targetMsg = typewriterTargetMessage;
+  typewriterPendingEndPayload = null;
+  targetMsg.id = payload.messageId || targetMsg.id;
+  targetMsg.status = payload.status || "COMPLETED";
+  if (payload.fullContent) {
+    targetMsg.content = payload.fullContent;
+  }
+  if (payload.toolContextJson) {
+    targetMsg.toolContextJson = payload.toolContextJson;
+  }
+  targetMsg.toolStatus = null;
+  serviceStatus.value = "connected";
+  typewriterTargetMessage = null;
+  clearTypewriterQueue();
+  resolveTypewriterIdle();
+  scrollToBottom();
+}
+
+function waitForTypewriterIdle(targetMsg) {
+  const isTargetBusy = typewriterTargetMessage === targetMsg
+    && (typewriterTimer || hasPendingTypewriterText() || typewriterPendingEndPayload);
+  if (!isTargetBusy) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    typewriterIdleResolvers.push(resolve);
+  });
+}
+
+function resolveTypewriterIdle() {
+  const resolvers = typewriterIdleResolvers;
+  typewriterIdleResolvers = [];
+  resolvers.forEach((resolve) => resolve());
+}
+
+function flushTypewriter() {
+  if (typewriterTimer) {
+    clearTimeout(typewriterTimer);
+    typewriterTimer = null;
+  }
+  if (typewriterTargetMessage && hasPendingTypewriterText()) {
+    typewriterTargetMessage.content += getPendingTypewriterText();
+    clearTypewriterQueue();
+  }
+  if (typewriterPendingEndPayload && typewriterTargetMessage) {
+    const payload = typewriterPendingEndPayload;
+    typewriterPendingEndPayload = null;
+    typewriterTargetMessage.id = payload.messageId || typewriterTargetMessage.id;
+    typewriterTargetMessage.status = payload.status || "COMPLETED";
+    if (payload.fullContent) {
+      typewriterTargetMessage.content = payload.fullContent;
+    }
+    if (payload.toolContextJson) {
+      typewriterTargetMessage.toolContextJson = payload.toolContextJson;
+    }
+    typewriterTargetMessage.toolStatus = null;
+  }
+  typewriterTargetMessage = null;
+  resolveTypewriterIdle();
+}
+
 
 // 用户信息计算属性
 const userInitial = computed(() => (userStore.nickname || userStore.username || "我").charAt(0));
@@ -579,8 +715,6 @@ function sameDay(a, b) {
 function withinDays(a, b, days) {
   return a && b && a.getTime() >= b.getTime() - days * 86400000;
 }
-
-const md = (value) => renderSafeMarkdown(value);
 
 function uuid() {
   if (crypto?.randomUUID) return crypto.randomUUID();
@@ -763,7 +897,7 @@ async function send(text) {
   messages.value.push(optimisticUserMessage);
 
   const streamAssistantId = `stream-${Date.now()}`;
-  const streamingAssistantMessage = {
+  const streamingAssistantMessage = reactive({
     id: streamAssistantId,
     role: "assistant",
     content: "",
@@ -771,7 +905,7 @@ async function send(text) {
     toolStatus: null,
     toolContextJson: null,
     createTime: new Date().toISOString(),
-  };
+  });
   messages.value.push(streamingAssistantMessage);
   scrollToBottom();
 
@@ -841,22 +975,12 @@ async function send(text) {
               scrollToBottom();
             } else if (eventName === "delta") {
               if (payload.content) {
-                streamingAssistantMessage.content += payload.content;
-                scrollToBottom();
+                enqueueTypewriterText(streamingAssistantMessage, payload.content);
               }
             } else if (eventName === "message_end") {
-              streamingAssistantMessage.id = payload.messageId || streamingAssistantMessage.id;
-              streamingAssistantMessage.status = payload.status || "COMPLETED";
-              if (payload.fullContent) {
-                streamingAssistantMessage.content = payload.fullContent;
-              }
-              if (payload.toolContextJson) {
-                streamingAssistantMessage.toolContextJson = payload.toolContextJson;
-              }
-              streamingAssistantMessage.toolStatus = null;
-              serviceStatus.value = "connected";
-              scrollToBottom();
+              finishTypewriterResponse(streamingAssistantMessage, payload);
             } else if (eventName === "error") {
+              flushTypewriter();
               streamingAssistantMessage.status = "FAILED";
               streamingAssistantMessage.errorMessage = payload.message || "回复失败";
               streamingAssistantMessage.toolStatus = null;
@@ -867,6 +991,7 @@ async function send(text) {
           }
         }
       }
+      await waitForTypewriterIdle(streamingAssistantMessage);
     } else {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -875,9 +1000,16 @@ async function send(text) {
       try {
         const res = await sendMessage(currentId.value, content, clientRequestId);
         const { assistantMessage } = res.data || {};
-        const idx = messages.value.findIndex((m) => m.id === streamAssistantId);
-        if (idx >= 0 && assistantMessage) {
-          messages.value.splice(idx, 1, assistantMessage);
+        if (assistantMessage?.status === "FAILED") {
+          Object.assign(streamingAssistantMessage, assistantMessage);
+        } else if (assistantMessage) {
+          finishTypewriterResponse(streamingAssistantMessage, {
+            messageId: assistantMessage.id,
+            status: assistantMessage.status,
+            fullContent: assistantMessage.content,
+            toolContextJson: assistantMessage.toolContextJson,
+          });
+          await waitForTypewriterIdle(streamingAssistantMessage);
         }
         serviceStatus.value = assistantMessage?.status === "FAILED" ? "unavailable" : "connected";
       } catch (fallbackErr) {
@@ -920,6 +1052,11 @@ function getProblemCards(toolContextJson) {
   } catch {
     return [];
   }
+}
+
+function isAssistantRole(role) {
+  const r = (role || '').toLowerCase();
+  return r === 'assistant';
 }
 
 function normalizeProblemCard(item) {
@@ -967,85 +1104,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (suggestTimer) clearTimeout(suggestTimer);
+  flushTypewriter();
 });
 </script>
-
-<style>
-/* 全局 Markdown 样式微调，适配黑白灰与学术排版 */
-.msg-md-content.markdown-body,
-.msg-md-content.markdown-body * {
-  box-sizing: border-box;
-}
-.msg-md-content.markdown-body {
-  font-family: var(--lm-font-family);
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--lm-text-primary);
-  word-break: break-word;
-  padding: 0;
-  background: transparent;
-  margin: 0;
-}
-.msg-md-content.markdown-body :is(p, ul, ol, pre, blockquote, table) {
-  margin: 0 0 8px;
-}
-.msg-md-content.markdown-body :is(ul, ol) {
-  padding-left: 20px;
-}
-.msg-md-content.markdown-body :is(h1, h2, h3, h4, h5, h6) {
-  margin: 12px 0 6px;
-  font-size: 1.05em;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--lm-text-primary);
-}
-.msg-md-content.markdown-body strong {
-  font-weight: 700;
-  color: var(--lm-text-primary);
-}
-.msg-md-content.markdown-body code {
-  font-family: var(--lm-code-font-family);
-  font-size: 12.5px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  color: #c026d3;
-}
-.msg-md-content.markdown-body pre {
-  overflow: auto;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #18181b;
-  color: #f4f4f5;
-  margin: 8px 0;
-}
-.msg-md-content.markdown-body pre code {
-  background: transparent;
-  padding: 0;
-  color: inherit;
-}
-.msg-md-content.markdown-body a {
-  color: #2563eb;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.msg-md-content.markdown-body blockquote {
-  padding-left: 12px;
-  border-left: 3px solid var(--lm-border);
-  color: var(--lm-text-muted);
-}
-.msg-md-content.markdown-body table {
-  border-collapse: collapse;
-  font-size: 13px;
-  width: 100%;
-  margin: 8px 0;
-}
-.msg-md-content.markdown-body th,
-.msg-md-content.markdown-body td {
-  padding: 6px 10px;
-  border: 1px solid var(--lm-border);
-}
-</style>
 
 <style scoped>
 /* ==========================================================================
@@ -1053,7 +1114,7 @@ onBeforeUnmount(() => {
    ========================================================================== */
 .assistant-workspace {
   display: flex;
-  height: calc(100vh - 65px); /* 减去顶部导航条高度 */
+  height: calc(100vh - 56px); /* 减去顶部导航栏高度 56px */
   background: var(--lm-bg);
   position: relative;
   overflow: hidden;
@@ -1091,7 +1152,7 @@ onBeforeUnmount(() => {
 .badge-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: 50%;
   overflow: hidden;
   background: var(--lm-bg-secondary);
   border: 1px solid var(--lm-border-light);
@@ -1472,7 +1533,7 @@ onBeforeUnmount(() => {
 .welcome-avatar-wrap {
   width: 64px;
   height: 64px;
-  border-radius: 18px;
+  border-radius: 50%;
   overflow: hidden;
   background: var(--lm-bg-secondary);
   border: 2px solid var(--lm-border);
@@ -1608,7 +1669,7 @@ onBeforeUnmount(() => {
 
 /* 消息流 */
 .messages-flow {
-  max-width: 860px;
+  max-width: 840px;
   width: 100%;
   margin: 0 auto;
   display: flex;
@@ -1633,7 +1694,7 @@ onBeforeUnmount(() => {
 .avatar-cell {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1685,7 +1746,8 @@ onBeforeUnmount(() => {
 
 .bubble-box {
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 8px;
+  border-top-left-radius: 2px;
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   box-shadow: var(--lm-shadow-xs);
@@ -1695,9 +1757,10 @@ onBeforeUnmount(() => {
 
 .bubble-box.user {
   background: #18181b;
-  color: #ffffff;
-  border-color: #18181b;
-  border-top-right-radius: 4px;
+  color: #f4f4f5;
+  border-color: #27272a;
+  border-radius: 8px;
+  border-top-right-radius: 2px;
 }
 
 .user-text {
@@ -1738,6 +1801,7 @@ onBeforeUnmount(() => {
 }
 
 /* 打字微动效波浪 */
+
 .typing-wave {
   display: inline-flex;
   align-items: center;

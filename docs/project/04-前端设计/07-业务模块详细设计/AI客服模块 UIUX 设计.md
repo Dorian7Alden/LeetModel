@@ -77,6 +77,11 @@
 2. **SSE 流式双轨传输**：
    - 优先通过 `fetch` 调用 POST `/api/assistant/conversations/{id}/messages/stream`。
    - 实时解析 `event: tool_start`、`event: tool_end`、`event: delta`、`event: message_end`。
+   - 后端每产生一个模型文本 `delta` 就立即透传；前端收到首个增量即开始打印，不等待 `message_end` 或完整回答。
+   - 回复文本统一进入前端打字机缓冲队列，以固定时间间隔逐个 Unicode 字符展示，不根据回复长度或队列积压量自动提速。
+   - 打印中的闪烁光标由统一 Markdown 组件插入最后一个可见文本节点之后，始终紧跟已显示内容，不单独占据气泡末行。
+   - 收到 `message_end` 后仍按相同节奏排空尾部缓冲内容；同步降级取得的完整回复也复用同一打字机流程，打印完成前保持发送锁。
    - 若流式因环境或代理中断，优雅回退至同步发送 `POST /api/assistant/conversations/{id}/messages`，确保对话永不卡死。
 3. **Markdown 与代码渲染**：
-   - 采用 `renderSafeMarkdown`，支持规范的公式、列表、表格和代码块，并提供一键复制代码与一键重试机制。
+   - 客服工作台与悬浮客服都复用全局 `MarkdownView`，与题目题面共享解析、安全清洗和排版样式，不维护业务页面私有 Markdown CSS。
+   - 统一支持公式、标题、段落、列表、表格和代码块，并保留全局定义的上下间距与代码复制能力。

@@ -6,6 +6,7 @@ import com.leetmodel.aigateway.config.AiRoutingProperties;
 import com.leetmodel.aigateway.provider.AiProviderAdapter;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +88,34 @@ class AiChatServiceTest {
         assertThat(response.usage()).isNull();
         verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
                 eq("deepseek-test"), eq(providerResponse), anyLong(), eq(0L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldForwardDeltaBeforeOneCompletedResponseWithAssignedCallId() {
+        configureRoute();
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
+                "deepseek-test", "provider-id", "先建模", null, "stop", null);
+        when(adapter.streamChat(eq("deepseek-test"),
+                eq(AiApiProtocol.OPENAI_COMPLETIONS), any(), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Consumer<AiChatStreamChunk> consumer =
+                            invocation.getArgument(3);
+                    consumer.accept(new AiChatStreamChunk(null, "先", null, null));
+                    consumer.accept(new AiChatStreamChunk(
+                            null, null, "stop", providerResponse));
+                    return providerResponse;
+                });
+        List<AiChatStreamChunk> chunks = new ArrayList<>();
+
+        AiChatResponse response = service().streamChat(request(), chunks::add);
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.get(0).deltaText()).isEqualTo("先");
+        assertThat(chunks.get(0).callId()).isEqualTo(response.callId());
+        assertThat(chunks.get(1).completedResponse()).isEqualTo(response);
+        assertThat(chunks.get(1).callId()).isEqualTo(response.callId());
     }
 
     @Test

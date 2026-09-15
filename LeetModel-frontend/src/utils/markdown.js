@@ -59,6 +59,52 @@ if (typeof window !== 'undefined' && !window.__LEETMODEL_COPY_CODE_BOUND) {
 /**
  * 预处理 LaTeX 公式，兼容 \[ ... \] 与 \( ... \) 格式
  */
+/**
+ * 自动修补流式输出中可能未闭合的代码块 (```) 与行内代码 (`)
+ */
+/**
+ * 自动修补流式输出中可能未闭合的语法（代码块 ```、行内代码 `、粗体 **、斜体 * 等）
+ * 防止 marked 和 KaTeX 在打字机增量阶段解析崩溃或整块延迟展示
+ */
+function fixUnclosedMarkdown(markdown) {
+  if (!markdown) return '';
+  let res = markdown;
+
+  // 1. 修复代码块 ```
+  const codeBlockCount = (res.match(/```/g) || []).length;
+  if (codeBlockCount % 2 !== 0) {
+    res += "\n```";
+    return res;
+  }
+
+  // 2. 修复未闭合的数学公式块 $$
+  const mathBlockCount = (res.match(/\$\$/g) || []).length;
+  if (mathBlockCount % 2 !== 0) {
+    res += "$$";
+  } else {
+    // 3. 修复行内数学公式 $（排除转义 \$）
+    const inlineMathCount = (res.match(/(?<!\\)\$/g) || []).length;
+    if (inlineMathCount % 2 !== 0) {
+      res += "$";
+    }
+  }
+
+  // 4. 修复行内代码 `（排除已在 ``` 中的情况）
+  const inlineCodeCount = (res.match(/(?<!`)`(?!`)/g) || []).length;
+  if (inlineCodeCount % 2 !== 0) {
+    res += "`";
+  }
+
+  // 5. 修复未闭合的粗体 **
+  const boldCount = (res.match(/\*\*/g) || []).length;
+  if (boldCount % 2 !== 0) {
+    res += "**";
+  }
+
+  return res;
+}
+
+
 function preprocessLatex(text) {
   if (!text) return ''
   let res = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, eq) => `$$\n${eq.trim()}\n$$`)
@@ -96,7 +142,8 @@ function prepareHtmlElements(html) {
 
 export function renderSafeMarkdown(value) {
   if (!value) return ''
-  const preprocessed = preprocessLatex(value)
+  const fixed = fixUnclosedMarkdown(value)
+  const preprocessed = preprocessLatex(fixed)
   const rawHtml = marked.parse(preprocessed, { async: false, breaks: true, gfm: true })
   const sanitized = DOMPurify.sanitize(rawHtml, {
     USE_PROFILES: { html: true, mathMl: true, svg: true },

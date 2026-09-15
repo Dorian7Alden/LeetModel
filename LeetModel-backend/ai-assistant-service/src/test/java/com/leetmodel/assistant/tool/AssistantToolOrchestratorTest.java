@@ -7,6 +7,7 @@ import com.leetmodel.assistant.service.AssistantToolAuditService;
 import com.leetmodel.assistant.workflow.AssistantProductionSnapshot;
 import com.leetmodel.assistant.workflow.AssistantWorkflow;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -108,6 +110,28 @@ class AssistantToolOrchestratorTest {
         assertThat(result.toolContextJson()).isNull();
         verify(executionService, never()).execute(any(), any());
         verify(auditService, never()).receive(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void streamingRunForwardsDeltaBeforeReturningFinalResponse() throws Exception {
+        List<String> events = new ArrayList<>();
+        when(workflow.toolStreamChat(any(), any(), any(), any(), anyInt(), anyInt(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Consumer<AiChatStreamChunk> onChunk = invocation.getArgument(8);
+                    onChunk.accept(new AiChatStreamChunk("final-call", "范围内", null, null));
+                    events.add("workflow-return");
+                    return response("范围内回答", List.of(), "final-call");
+                });
+
+        AssistantToolRunResult result = runStreaming(chunk -> {
+            if (chunk.deltaText() != null) events.add("delta:" + chunk.deltaText());
+        });
+
+        assertThat(result.response().content()).isEqualTo("范围内回答");
+        assertThat(events).containsExactly("delta:范围内", "workflow-return");
+        verify(workflow, never()).toolChat(any(), any(), any(), any(), anyInt(), anyInt(), any(), any());
+        verify(executionService, never()).execute(any(), any());
     }
 
     @Test
@@ -259,6 +283,13 @@ class AssistantToolOrchestratorTest {
     private AssistantToolRunResult run() throws Exception {
         return orchestrator.run(List.of(userMessage), userMessage, assistantMessage, snapshot,
                 AssistantToolRegistry.TOOLSET_V1, 1, Instant.now().plusSeconds(240));
+    }
+
+    private AssistantToolRunResult runStreaming(Consumer<AiChatStreamChunk> onChunk)
+            throws Exception {
+        return orchestrator.runStreaming(List.of(userMessage), userMessage, assistantMessage,
+                snapshot, AssistantToolRegistry.TOOLSET_V1, 1,
+                Instant.now().plusSeconds(240), onChunk);
     }
 
     private AssistantMessage message(Long id, String role, String content) {

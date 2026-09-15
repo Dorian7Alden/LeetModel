@@ -281,10 +281,10 @@ public class AssistantService {
                     emitter.send(SseEmitter.event().name("tool_start")
                             .data(Map.of("tool", "assistant_tools", "displayName", "正在调用受控领域工具...", "status", "RUNNING")));
                 } catch (Exception ignored) {}
-                AssistantToolRunResult toolResult = toolOrchestrator.run(
+                AssistantToolRunResult toolResult = toolOrchestrator.runStreaming(
                         recentCompletedMessages(conversation.getId()), userMessage,
                         existingReply, snapshot, snapshot.toolsetVersion(), attemptNo,
-                        Instant.now().plusSeconds(240));
+                        Instant.now().plusSeconds(240), chunk -> sendDelta(emitter, chunk.deltaText()));
                 response = toolResult.response();
                 toolContextJson = toolResult.toolContextJson();
                 try {
@@ -292,7 +292,6 @@ public class AssistantService {
                             .data(Map.of("tool", "assistant_tools", "displayName", "工具执行完成", "status", "COMPLETED",
                                     "toolContextJson", toolContextJson == null ? "" : toolContextJson)));
                 } catch (Exception ignored) {}
-                streamDeltaEvents(emitter, response.content());
             } else {
                 if (workflow.needsProblemTool(userMessage.getContent())) {
                     try {
@@ -309,9 +308,9 @@ public class AssistantService {
                                         "toolContextJson", toolContextJson)));
                     } catch (Exception ignored) {}
                 }
-                response = workflow.reply(recentCompletedMessages(conversation.getId()),
-                        userMessage, candidates, snapshot);
-                streamDeltaEvents(emitter, response.content());
+                response = workflow.streamReply(recentCompletedMessages(conversation.getId()),
+                        userMessage, candidates, snapshot,
+                        chunk -> sendDelta(emitter, chunk.deltaText()));
             }
 
             AssistantMessage completed = persistReply(existingReply, conversation, userMessage, "COMPLETED",
@@ -339,18 +338,11 @@ public class AssistantService {
         }
     }
 
-    private void streamDeltaEvents(SseEmitter emitter, String content) {
+    private void sendDelta(SseEmitter emitter, String content) {
         if (content == null || content.isEmpty()) return;
-        int chunkSize = 25;
-        for (int i = 0; i < content.length(); i += chunkSize) {
-            String chunk = content.substring(i, Math.min(i + chunkSize, content.length()));
-            try {
-                emitter.send(SseEmitter.event().name("delta").data(Map.of("content", chunk)));
-                Thread.sleep(15);
-            } catch (Exception ignored) {
-                break;
-            }
-        }
+        try {
+            emitter.send(SseEmitter.event().name("delta").data(Map.of("content", content)));
+        } catch (Exception ignored) {}
     }
 
     /**
