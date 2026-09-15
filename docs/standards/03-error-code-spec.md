@@ -116,6 +116,15 @@ A - BB - CC
 | INVALID_DIFFICULTY | 40405 | 难度值不合法 |
 | INVALID_STATUS | 40406 | 题目状态不合法 |
 | TAG_IN_USE | 40407 | 标签仍被题目使用 |
+| CONTEST_NOT_FOUND | 40408 | 赛事不存在 |
+| PROBLEM_POOL_EXHAUSTED | 40409 | 题号已达上限，无法创建更多题目 |
+| ATTACHMENT_NOT_FOUND | 40410 | 题目附件不存在 |
+| STORAGE_NOT_ENABLED | 40411 | 附件存储服务未启用 |
+| TAG_TYPE_CONFLICT | 40412 | 背景领域只能选择一个标签 |
+| INVALID_SCORE_RANGE | 40413 | 最低分不能大于最高分 |
+| CONTEST_CODE_DUPLICATE | 40414 | 赛事编码已存在 |
+| ATTACHMENT_IN_USE | 40415 | 附件仍被题目引用，不能删除 |
+| CONTEST_IN_USE | 40416 | 赛事仍被题目使用，不能删除 |
 
 ### BB=05：AI 客服
 
