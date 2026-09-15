@@ -3,6 +3,12 @@ package com.leetmodel.team.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.AdminTeamCreateDTO;
+import com.leetmodel.common.api.dto.AdminTeamPageQuery;
+import com.leetmodel.common.api.dto.AdminTeamPracticeStatusDTO;
+import com.leetmodel.common.api.dto.AdminTeamStatsDTO;
+import com.leetmodel.common.api.dto.AdminTeamUpdateDTO;
+import com.leetmodel.common.api.vo.TeamAdminVO;
 import com.leetmodel.team.dto.JoinApplicationCreateRequest;
 import com.leetmodel.team.dto.JoinApplicationPageQuery;
 import com.leetmodel.team.dto.JoinApplicationReviewRequest;
@@ -273,4 +279,39 @@ public interface TeamService extends IService<Team> {
      * @return 队伍作品提交权限 DTO
      */
     TeamSubmissionAccessDTO getSubmissionAccess(Long teamId, Long userId);
+
+    /**
+     * 管理端队伍多维检索分页。
+     */
+    PageResult<TeamAdminVO> pageAdminTeams(AdminTeamPageQuery query);
+
+    /**
+     * 管理端队伍数据大盘统计。
+     */
+    AdminTeamStatsDTO getAdminStats();
+
+    /**
+     * 管理端查询队伍完整档案与成员详情。
+     */
+    TeamAdminVO getAdminDetail(Long teamId);
+
+    /**
+     * 管理端代建队伍。
+     */
+    TeamAdminVO adminCreateTeam(AdminTeamCreateDTO request);
+
+    /**
+     * 管理端修改队伍基础信息。
+     */
+    TeamAdminVO adminUpdateTeam(Long teamId, AdminTeamUpdateDTO request);
+
+    /**
+     * 管理端调控队伍练习阶段。
+     */
+    TeamAdminVO adminUpdatePracticeStatus(Long teamId, AdminTeamPracticeStatusDTO request);
+
+    /**
+     * 管理端强制解散队伍。
+     */
+    void adminDissolveTeam(Long teamId, String reason);
 }

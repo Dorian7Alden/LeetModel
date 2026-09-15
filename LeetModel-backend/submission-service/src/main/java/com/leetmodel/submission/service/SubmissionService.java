@@ -1,25 +1,40 @@
 package com.leetmodel.submission.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.leetmodel.common.api.dto.AdminSubmissionPageQuery;
+import com.leetmodel.common.api.dto.AdminSubmissionStatsDTO;
+import com.leetmodel.common.api.dto.FinalSubmissionChangedPayload;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
+import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
+import com.leetmodel.common.api.vo.SubmissionAdminVO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
+import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.messaging.MessageEnvelopeFactory;
+import com.leetmodel.common.messaging.MessageOutbox;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionLock;
 import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
+import com.leetmodel.submission.messaging.FinalSubmissionMessageContract;
 import com.leetmodel.submission.vo.SubmissionVO;
 import com.leetmodel.submission.vo.ProblemSubmissionStatsVO;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +44,12 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SubmissionService {
@@ -39,9 +57,13 @@ public class SubmissionService {
     private final SubmissionLockMapper lockMapper;
     private final TeamFeignClient teamFeignClient;
     private final ProblemFeignClient problemFeignClient;
+    private final UserFeignClient userFeignClient;
     private final StorageService storageService;
     private final ReviewDispatchQueryService reviewDispatchQueryService;
     private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
+    private final SubmissionUploadPersistenceService uploadPersistenceService;
+    private final MessageEnvelopeFactory envelopeFactory;
+    private final MessageOutbox messageOutbox;
 
     /**
      * 查询指定队伍的提交历史记录（倒序排列）。
@@ -263,5 +285,268 @@ public class SubmissionService {
                 true,
                 value.getCreateTime()
         );
+    }
+
+    /** 管理端多维分页查询提交记录。 */
+    public PageResult<SubmissionAdminVO> pageAdminSubmissions(AdminSubmissionPageQuery query) {
+        Page<Submission> page = new Page<>(query.getPage(), query.getPageSize());
+        LambdaQueryWrapper<Submission> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
+            String kw = query.getKeyword().trim();
+            wrapper.and(w -> {
+                w.like(Submission::getOriginalFilename, kw);
+                try {
+                    long idVal = Long.parseLong(kw);
+                    w.or().eq(Submission::getId, idVal).or().eq(Submission::getTeamId, idVal);
+                } catch (NumberFormatException ignored) {}
+            });
+        }
+        if (query.getTeamId() != null) {
+            wrapper.eq(Submission::getTeamId, query.getTeamId());
+        }
+        if (query.getProblemId() != null) {
+            wrapper.eq(Submission::getProblemId, query.getProblemId());
+        }
+        if (query.getSubmitterId() != null) {
+            wrapper.eq(Submission::getSubmitterId, query.getSubmitterId());
+        }
+        if (query.getStatus() != null && !query.getStatus().isBlank()) {
+            wrapper.eq(Submission::getStatus, query.getStatus());
+        }
+        if (Boolean.TRUE.equals(query.getFinalOnly())) {
+            wrapper.inSql(Submission::getId, "SELECT submission_id FROM submission_lock");
+        } else if (Boolean.FALSE.equals(query.getFinalOnly())) {
+            wrapper.notInSql(Submission::getId, "SELECT submission_id FROM submission_lock");
+        }
+        wrapper.orderByDesc(Submission::getCreateTime);
+
+        IPage<Submission> subPage = submissionMapper.selectPage(page, wrapper);
+        if (subPage.getRecords().isEmpty()) {
+            return new PageResult<>(subPage.getTotal(), (int) subPage.getCurrent(), (int) subPage.getSize(), List.of());
+        }
+
+        List<Long> subIds = subPage.getRecords().stream().map(Submission::getId).toList();
+        Set<Long> finalIds = lockMapper.selectList(new LambdaQueryWrapper<SubmissionLock>()
+                .in(SubmissionLock::getSubmissionId, subIds))
+                .stream().map(SubmissionLock::getSubmissionId).collect(Collectors.toSet());
+
+        List<Long> teamIds = subPage.getRecords().stream().map(Submission::getTeamId).distinct().toList();
+        Map<Long, String> teamNameMap = Map.of();
+        try {
+            Result<List<TeamDTO>> teamRes = teamFeignClient.listSummaries(teamIds);
+            if (teamRes != null && teamRes.isSuccess() && teamRes.getData() != null) {
+                teamNameMap = teamRes.getData().stream()
+                        .filter(t -> t.getId() != null)
+                        .collect(Collectors.toMap(TeamDTO::getId, TeamDTO::getName, (a, b) -> a));
+            }
+        } catch (Exception e) {
+            log.warn("获取队伍名称摘要失败: {}", e.getMessage());
+        }
+
+        List<Long> problemIds = subPage.getRecords().stream().map(Submission::getProblemId).distinct().toList();
+        Map<Long, ProblemPracticeDTO> problemMap = Map.of();
+        try {
+            Result<List<ProblemPracticeDTO>> probRes = problemFeignClient.getPracticeProblems(problemIds);
+            if (probRes != null && probRes.isSuccess() && probRes.getData() != null) {
+                problemMap = probRes.getData().stream()
+                        .filter(p -> p.getId() != null)
+                        .collect(Collectors.toMap(ProblemPracticeDTO::getId, p -> p, (a, b) -> a));
+            }
+        } catch (Exception e) {
+            log.warn("获取题目摘要失败: {}", e.getMessage());
+        }
+
+        List<Long> submitterIds = subPage.getRecords().stream().map(Submission::getSubmitterId).distinct().toList();
+        Map<Long, UserPublicSummaryDTO> submitterMap = Map.of();
+        try {
+            Result<List<UserPublicSummaryDTO>> userRes = userFeignClient.getPublicSummaries(submitterIds);
+            if (userRes != null && userRes.isSuccess() && userRes.getData() != null) {
+                submitterMap = userRes.getData().stream()
+                        .filter(u -> u.getUserId() != null)
+                        .collect(Collectors.toMap(UserPublicSummaryDTO::getUserId, u -> u, (a, b) -> a));
+            }
+        } catch (Exception e) {
+            log.warn("获取提交人摘要失败: {}", e.getMessage());
+        }
+
+        Map<Long, String> finalTeamMap = teamNameMap;
+        Map<Long, ProblemPracticeDTO> finalProbMap = problemMap;
+        Map<Long, UserPublicSummaryDTO> finalUserMap = submitterMap;
+        List<SubmissionAdminVO> voList = subPage.getRecords().stream().map(sub -> {
+            ProblemPracticeDTO prob = finalProbMap.get(sub.getProblemId());
+            UserPublicSummaryDTO subUser = finalUserMap.get(sub.getSubmitterId());
+            return SubmissionAdminVO.builder()
+                    .id(sub.getId())
+                    .teamId(sub.getTeamId())
+                    .teamName(finalTeamMap.getOrDefault(sub.getTeamId(), "队伍 #" + sub.getTeamId()))
+                    .problemId(sub.getProblemId())
+                    .problemCode(prob != null ? prob.getCode() : null)
+                    .problemTitle(prob != null ? prob.getTitle() : null)
+                    .submitterId(sub.getSubmitterId())
+                    .submitterName(subUser != null && subUser.getNickname() != null ? subUser.getNickname() : "用户 #" + sub.getSubmitterId())
+                    .submitterAvatarUrl(subUser != null ? subUser.getAvatarUrl() : null)
+                    .version(sub.getVersion())
+                    .originalFilename(sub.getOriginalFilename())
+                    .objectName(sub.getObjectName())
+                    .fileSize(sub.getFileSize())
+                    .status(sub.getStatus())
+                    .finalVersion(finalIds.contains(sub.getId()))
+                    .createTime(sub.getCreateTime())
+                    .build();
+        }).toList();
+
+        return new PageResult<>(subPage.getTotal(), (int) subPage.getCurrent(), (int) subPage.getSize(), voList);
+    }
+
+    /** 管理端统计大盘指标。 */
+    public AdminSubmissionStatsDTO getAdminSubmissionStats() {
+        long total = submissionMapper.selectCount(null);
+        long success = submissionMapper.selectCount(new LambdaQueryWrapper<Submission>().eq(Submission::getStatus, "SUCCESS"));
+        long failed = submissionMapper.selectCount(new LambdaQueryWrapper<Submission>().eq(Submission::getStatus, "FAILED"));
+        long processing = submissionMapper.selectCount(new LambdaQueryWrapper<Submission>().in(Submission::getStatus, "PROCESSING", "PENDING"));
+        long finals = lockMapper.selectCount(null);
+
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        long today = submissionMapper.selectCount(new LambdaQueryWrapper<Submission>().ge(Submission::getCreateTime, todayStart));
+
+        List<ProblemSubmissionStatsDTO> statsList = submissionMapper.selectProblemStats();
+        List<Long> problemIds = statsList.stream().map(ProblemSubmissionStatsDTO::getProblemId).limit(5).toList();
+        Map<Long, ProblemPracticeDTO> probMap = Map.of();
+        try {
+            if (!problemIds.isEmpty()) {
+                Result<List<ProblemPracticeDTO>> probRes = problemFeignClient.getPracticeProblems(problemIds);
+                if (probRes != null && probRes.isSuccess() && probRes.getData() != null) {
+                    probMap = probRes.getData().stream().collect(Collectors.toMap(ProblemPracticeDTO::getId, p -> p, (a, b) -> a));
+                }
+            }
+        } catch (Exception ignored) {}
+
+        Map<Long, ProblemPracticeDTO> finalProbMap = probMap;
+        List<AdminSubmissionStatsDTO.TopProblemSubmissionStats> topList = statsList.stream().limit(5).map(s -> {
+            ProblemPracticeDTO prob = finalProbMap.get(s.getProblemId());
+            return AdminSubmissionStatsDTO.TopProblemSubmissionStats.builder()
+                    .problemId(s.getProblemId())
+                    .problemCode(prob != null ? prob.getCode() : null)
+                    .problemTitle(prob != null ? prob.getTitle() : "赛题 #" + s.getProblemId())
+                    .submissionCount(s.getSubmissionCount())
+                    .build();
+        }).toList();
+
+        return AdminSubmissionStatsDTO.builder()
+                .totalSubmissions(total)
+                .successSubmissions(success)
+                .failedSubmissions(failed)
+                .processingSubmissions(processing)
+                .finalSubmissions(finals)
+                .todaySubmissions(today)
+                .topProblems(topList)
+                .build();
+    }
+
+    /** 管理端获取单条提交详细档案。 */
+    public SubmissionAdminVO getAdminSubmissionDetail(Long submissionId) {
+        Submission sub = requiredSubmission(submissionId);
+        boolean isFinal = lockMapper.selectCount(new LambdaQueryWrapper<SubmissionLock>()
+                .eq(SubmissionLock::getSubmissionId, submissionId)) > 0;
+
+        String teamName = null;
+        try {
+            Result<TeamDTO> teamRes = teamFeignClient.getTeamInfo(sub.getTeamId());
+            if (teamRes != null && teamRes.isSuccess() && teamRes.getData() != null) {
+                teamName = teamRes.getData().getName();
+            }
+        } catch (Exception ignored) {}
+
+        ProblemPracticeDTO prob = null;
+        try {
+            Result<List<ProblemPracticeDTO>> probRes = problemFeignClient.getPracticeProblems(List.of(sub.getProblemId()));
+            if (probRes != null && probRes.isSuccess() && probRes.getData() != null && !probRes.getData().isEmpty()) {
+                prob = probRes.getData().get(0);
+            }
+        } catch (Exception ignored) {}
+
+        String submitterName = null;
+        String submitterAvatarUrl = null;
+        try {
+            Result<List<UserPublicSummaryDTO>> userRes = userFeignClient.getPublicSummaries(List.of(sub.getSubmitterId()));
+            if (userRes != null && userRes.isSuccess() && userRes.getData() != null && !userRes.getData().isEmpty()) {
+                submitterName = userRes.getData().get(0).getNickname();
+                submitterAvatarUrl = userRes.getData().get(0).getAvatarUrl();
+            }
+        } catch (Exception ignored) {}
+
+        return SubmissionAdminVO.builder()
+                .id(sub.getId())
+                .teamId(sub.getTeamId())
+                .teamName(teamName != null ? teamName : "队伍 #" + sub.getTeamId())
+                .problemId(sub.getProblemId())
+                .problemCode(prob != null ? prob.getCode() : null)
+                .problemTitle(prob != null ? prob.getTitle() : null)
+                .submitterId(sub.getSubmitterId())
+                .submitterName(submitterName != null ? submitterName : "用户 #" + sub.getSubmitterId())
+                .submitterAvatarUrl(submitterAvatarUrl)
+                .version(sub.getVersion())
+                .originalFilename(sub.getOriginalFilename())
+                .objectName(sub.getObjectName())
+                .fileSize(sub.getFileSize())
+                .status(sub.getStatus())
+                .finalVersion(isFinal)
+                .createTime(sub.getCreateTime())
+                .build();
+    }
+
+    /** 管理端将指定提交设置为队伍的最终版本。 */
+    @Transactional
+    public SubmissionAdminVO setFinalVersion(Long submissionId) {
+        Submission sub = requiredSubmission(submissionId);
+        BusinessException.throwIf(!"SUCCESS".equals(sub.getStatus()), SubmissionErrorCode.SUBMISSION_NOT_FOUND);
+
+        lockMapper.delete(new LambdaQueryWrapper<SubmissionLock>().eq(SubmissionLock::getTeamId, sub.getTeamId()));
+        SubmissionLock lock = new SubmissionLock();
+        lock.setTeamId(sub.getTeamId());
+        lock.setSubmissionId(sub.getId());
+        lock.setLockedAt(LocalDateTime.now());
+        lockMapper.insert(lock);
+
+        FinalSubmissionChangedPayload payload = new FinalSubmissionChangedPayload(
+                sub.getTeamId(), sub.getProblemId(), sub.getId(), lock.getLockedAt());
+        try {
+            messageOutbox.enqueue(
+                    FinalSubmissionMessageContract.TOPIC,
+                    FinalSubmissionMessageContract.EVENT_TYPE,
+                    envelopeFactory.create(
+                            FinalSubmissionMessageContract.EVENT_TYPE,
+                            "submission-lock",
+                            lock.getTeamId().toString(),
+                            FinalSubmissionMessageContract.idempotencyKey(
+                                    lock.getTeamId(), lock.getSubmissionId()),
+                            currentTraceId(),
+                            payload));
+        } catch (DuplicateKeyException ignored) {}
+
+        return getAdminSubmissionDetail(submissionId);
+    }
+
+    /** 管理端作废指定提交。 */
+    @Transactional
+    public void adminInvalidateSubmission(Long submissionId) {
+        Submission sub = requiredSubmission(submissionId);
+        sub.setStatus("FAILED");
+        submissionMapper.updateById(sub);
+
+        lockMapper.delete(new LambdaQueryWrapper<SubmissionLock>().eq(SubmissionLock::getSubmissionId, submissionId));
+    }
+
+    /** 管理端重新派发评审任务。 */
+    public void adminRedispatchReview(Long submissionId) {
+        Submission sub = requiredSubmission(submissionId);
+        uploadPersistenceService.enqueueReviewTask(sub);
+    }
+
+    private String currentTraceId() {
+        String traceId = TraceIdUtil.getTraceId();
+        return traceId == null || traceId.isBlank() || traceId.length() > 100
+                ? UUID.randomUUID().toString() : traceId;
     }
 }

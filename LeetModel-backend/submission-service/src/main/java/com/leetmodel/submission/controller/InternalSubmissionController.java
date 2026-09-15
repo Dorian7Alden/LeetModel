@@ -4,6 +4,10 @@ import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
+import com.leetmodel.common.api.dto.AdminSubmissionPageQuery;
+import com.leetmodel.common.api.dto.AdminSubmissionStatsDTO;
+import com.leetmodel.common.api.vo.SubmissionAdminVO;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.mapper.SubmissionMapper;
@@ -14,8 +18,11 @@ import lombok.RequiredArgsConstructor;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -146,5 +153,61 @@ public class InternalSubmissionController {
                 submission.getOriginalFilename(), submission.getObjectName(),
                 submission.getStatus(), null, submission.getCreateTime()
         ));
+    }
+
+    /**
+     * 管理端提交记录多维检索分页。
+     */
+    @Operation(summary = "管理端提交记录多维检索分页")
+    @GetMapping("/admin/page")
+    public Result<PageResult<SubmissionAdminVO>> pageAdminSubmissions(@Validated AdminSubmissionPageQuery query) {
+        return Result.ok(submissionService.pageAdminSubmissions(query));
+    }
+
+    /**
+     * 管理端提交数据大盘统计。
+     */
+    @Operation(summary = "管理端提交数据大盘统计")
+    @GetMapping("/admin/stats")
+    public Result<AdminSubmissionStatsDTO> getAdminSubmissionStats() {
+        return Result.ok(submissionService.getAdminSubmissionStats());
+    }
+
+    /**
+     * 管理端查询单条提交完整档案。
+     */
+    @Operation(summary = "管理端查询单条提交完整档案")
+    @GetMapping("/{submissionId}/admin/detail")
+    public Result<SubmissionAdminVO> getAdminSubmissionDetail(@PathVariable Long submissionId) {
+        return Result.ok(submissionService.getAdminSubmissionDetail(submissionId));
+    }
+
+    /**
+     * 管理端设为队伍最终版本。
+     */
+    @Operation(summary = "管理端设为队伍最终版本")
+    @PutMapping("/{submissionId}/admin/set-final")
+    public Result<SubmissionAdminVO> setFinalVersion(@PathVariable Long submissionId) {
+        return Result.ok(submissionService.setFinalVersion(submissionId));
+    }
+
+    /**
+     * 管理端作废提交记录。
+     */
+    @Operation(summary = "管理端作废提交记录")
+    @DeleteMapping("/{submissionId}/admin")
+    public Result<Void> adminInvalidateSubmission(@PathVariable Long submissionId) {
+        submissionService.adminInvalidateSubmission(submissionId);
+        return Result.ok();
+    }
+
+    /**
+     * 管理端重新派发评审任务。
+     */
+    @Operation(summary = "管理端重新派发评审任务")
+    @PostMapping("/{submissionId}/admin/re-dispatch")
+    public Result<Void> adminRedispatchReview(@PathVariable Long submissionId) {
+        submissionService.adminRedispatchReview(submissionId);
+        return Result.ok();
     }
 }

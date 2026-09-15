@@ -1,9 +1,16 @@
 package com.leetmodel.team.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.leetmodel.common.api.dto.AdminTeamCreateDTO;
+import com.leetmodel.common.api.dto.AdminTeamPageQuery;
+import com.leetmodel.common.api.dto.AdminTeamPracticeStatusDTO;
+import com.leetmodel.common.api.dto.AdminTeamStatsDTO;
+import com.leetmodel.common.api.dto.AdminTeamUpdateDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.vo.TeamAdminVO;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
 import com.leetmodel.team.entity.Team;
 import com.leetmodel.team.entity.TeamMember;
@@ -22,6 +29,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -202,5 +212,72 @@ public class InternalTeamController {
         return Result.ok(new TeamDTO(team.getId(), team.getName(), team.getLeaderId(),
                 team.getStatus(), (int) memberCount, team.getProblemId(), team.getPracticeStatus(),
                 team.getStartedAt(), team.getDeadlineAt(), team.getEndedAt()));
+    }
+
+    /**
+     * 管理端队伍多维检索分页。
+     */
+    @Operation(summary = "管理端队伍多维检索分页")
+    @GetMapping("/admin/page")
+    public Result<PageResult<TeamAdminVO>> pageAdminTeams(@Validated AdminTeamPageQuery query) {
+        return Result.ok(teamService.pageAdminTeams(query));
+    }
+
+    /**
+     * 管理端队伍数据大盘统计。
+     */
+    @Operation(summary = "管理端队伍数据大盘统计")
+    @GetMapping("/admin/stats")
+    public Result<AdminTeamStatsDTO> getAdminStats() {
+        return Result.ok(teamService.getAdminStats());
+    }
+
+    /**
+     * 管理端查询队伍完整档案。
+     */
+    @Operation(summary = "管理端查询队伍完整档案")
+    @GetMapping("/{teamId}/admin/detail")
+    public Result<TeamAdminVO> getAdminDetail(@PathVariable Long teamId) {
+        return Result.ok(teamService.getAdminDetail(teamId));
+    }
+
+    /**
+     * 管理端代建队伍。
+     */
+    @Operation(summary = "管理端代建队伍")
+    @PostMapping("/admin")
+    public Result<TeamAdminVO> adminCreateTeam(@Validated @RequestBody AdminTeamCreateDTO request) {
+        return Result.ok(teamService.adminCreateTeam(request));
+    }
+
+    /**
+     * 管理端修改队伍基础信息。
+     */
+    @Operation(summary = "管理端修改队伍基础信息")
+    @PutMapping("/{teamId}/admin")
+    public Result<TeamAdminVO> adminUpdateTeam(@PathVariable Long teamId,
+                                               @Validated @RequestBody AdminTeamUpdateDTO request) {
+        return Result.ok(teamService.adminUpdateTeam(teamId, request));
+    }
+
+    /**
+     * 管理端调控队伍练习阶段。
+     */
+    @Operation(summary = "管理端调控队伍练习阶段")
+    @PutMapping("/{teamId}/admin/practice-status")
+    public Result<TeamAdminVO> adminUpdatePracticeStatus(@PathVariable Long teamId,
+                                                         @Validated @RequestBody AdminTeamPracticeStatusDTO request) {
+        return Result.ok(teamService.adminUpdatePracticeStatus(teamId, request));
+    }
+
+    /**
+     * 管理端强制解散队伍。
+     */
+    @Operation(summary = "管理端强制解散队伍")
+    @DeleteMapping("/{teamId}/admin")
+    public Result<Void> adminDissolveTeam(@PathVariable Long teamId,
+                                          @RequestParam(required = false) String reason) {
+        teamService.adminDissolveTeam(teamId, reason);
+        return Result.ok();
     }
 }

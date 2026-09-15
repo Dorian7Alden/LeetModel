@@ -249,7 +249,7 @@ class RankingServiceTest {
                 new ProblemSubmissionStatsDTO(52L, 3L))));
         when(reviewFeignClient.listCompleted(null)).thenReturn(Result.ok(List.of(older, latest)));
         when(snapshotMapper.selectList(org.mockito.ArgumentMatchers.<Wrapper<RankingSnapshot>>any()))
-                .thenReturn(List.of(snapshot(1L, 1), snapshot(2L, 2)));
+                .thenReturn(List.of());
         when(problemFeignClient.getPracticeProblems(any())).thenReturn(Result.ok(List.of(
                 new ProblemPracticeDTO(PROBLEM_ID, 1001, "题目 A", 120, 1),
                 new ProblemPracticeDTO(52L, 1002, "题目 B", 120, 1))));
