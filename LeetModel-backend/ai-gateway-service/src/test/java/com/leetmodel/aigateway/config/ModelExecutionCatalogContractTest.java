@@ -116,11 +116,17 @@ class ModelExecutionCatalogContractTest {
     void paperParseV2WorkflowsHaveDedicatedExecutionConfigs() throws Exception {
         ModelExecutionConfigProperties properties = properties();
 
-        ModelExecutionConfigProperties.Definition visionDef = properties
+        ModelExecutionConfigProperties.Definition legacyVisionDef = properties
                 .getExecutionConfigs().get("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001");
+        assertThat(legacyVisionDef).isNotNull();
+        assertThat(legacyVisionDef.getMaxTokens()).isEqualTo(4096);
+
+        ModelExecutionConfigProperties.Definition visionDef = properties
+                .getExecutionConfigs().get("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0002");
         assertThat(visionDef).isNotNull();
         assertThat(visionDef.getCallType()).isEqualTo("CHAT");
         assertThat(visionDef.getModality()).isEqualTo(com.leetmodel.common.ai.model.AiModality.MULTIMODAL);
+        assertThat(visionDef.getMaxTokens()).isEqualTo(8192);
         assertThat(visionDef.getPromptVersions()).containsExactly("PROMPT_PAPER_PARSE_V2_0001");
         assertThat(visionDef.getWorkflowVersions()).containsExactly("PAPER_PARSE_V2");
 
