@@ -506,6 +506,78 @@
   font-size: var(--home-caption-size);
 }
 
+.active-review-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--home-space-3);
+  margin-block-start: var(--home-space-5);
+  padding: var(--home-space-4);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--lm-radius);
+  background: #eff6ff;
+  color: #1e40af;
+  text-decoration: none;
+}
+
+.active-review-marker {
+  width: .625rem;
+  height: .625rem;
+  border: 2px solid #93c5fd;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 .25rem rgb(37 99 235 / 10%);
+}
+
+.active-review-banner div {
+  min-width: 0;
+}
+
+.active-review-banner small,
+.active-review-banner strong,
+.active-review-banner p {
+  display: block;
+}
+
+.active-review-banner small {
+  font-size: var(--home-caption-size);
+  font-weight: 700;
+}
+
+.active-review-banner strong {
+  margin-block-start: var(--home-space-1);
+  color: #172554;
+  font-size: var(--home-small-size);
+}
+
+.active-review-banner p {
+  overflow: hidden;
+  margin: var(--home-space-1) 0 0;
+  color: #1e3a8a;
+  font-size: var(--home-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-review-banner > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--home-space-1);
+  font-size: var(--home-caption-size);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.active-review-banner:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+.active-review-banner:focus-visible {
+  outline: 2px solid var(--home-action);
+  outline-offset: 3px;
+}
+
 .diagnostic-content {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -924,6 +996,15 @@
 
   .diagnostic-content {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .active-review-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .active-review-banner > span:last-child {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .score-seal {

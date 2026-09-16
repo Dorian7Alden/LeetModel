@@ -76,7 +76,7 @@
             </div>
 
             <router-link :to="focusTeamRoute" class="primary-action">
-              {{ focusTeam.practiceStatus === 'IN_PROGRESS' ? '进入实训工作台' : '继续完成开赛准备' }}
+              {{ focusTeamActionLabel }}
               <ArrowUpRight :size="17" aria-hidden="true" />
             </router-link>
           </template>
@@ -89,7 +89,7 @@
             </div>
             <span class="section-kicker">NEXT PRACTICE</span>
             <h2 id="practice-heading">{{ userStore.isLogin ? '建立下一场全真演练' : '登录后接管你的实训进度' }}</h2>
-            <p>{{ userStore.isLogin ? '从一道真题开始，组建队伍、启动倒计时，完成一次从选题到 AI 体检的闭环。' : '当前仍可浏览真题与榜单；登录后可同步队伍、倒计时和评审结果。' }}</p>
+            <p>{{ userStore.isLogin ? '从一道真题开始，组建队伍、提交论文，完成一次 AI 论文评审闭环。' : '当前仍可浏览真题与榜单；登录后可同步队伍、论文版本和 AI 评审结果。' }}</p>
             <div class="empty-actions">
               <router-link :to="userStore.isLogin ? '/problem' : '/login'" class="primary-action primary-action--inline">
                 {{ userStore.isLogin ? '去题库选题' : '登录平台' }}
@@ -106,10 +106,20 @@
           <div class="card-heading">
             <div>
               <span class="section-kicker">LATEST DIAGNOSTIC</span>
-              <h2 id="diagnostic-heading">最近论文体检</h2>
+              <h2 id="diagnostic-heading">最近 AI 论文评审</h2>
             </div>
             <span v-if="latestDiagnostic" class="report-date">{{ formatShortDate(latestDiagnostic.review.finishedAt) }}</span>
           </div>
+
+          <router-link v-if="activeReview" :to="activeReviewTeamRoute" class="active-review-banner" aria-live="polite">
+            <span class="active-review-marker" aria-hidden="true"></span>
+            <div>
+              <small>AI 论文评审状态</small>
+              <strong>{{ reviewStatusLabel(activeReview.review.status) }}</strong>
+              <p>{{ activeReviewStatusHint }}</p>
+            </div>
+            <span>查看进度 <ArrowRight :size="15" aria-hidden="true" /></span>
+          </router-link>
 
           <div v-if="latestDiagnostic" class="diagnostic-content">
             <div class="score-seal" :aria-label="`评审得分 ${formatScore(latestDiagnostic.review.score)} 分`">
@@ -149,7 +159,7 @@
           <div v-else class="section-empty">
             <FileCheck2 :size="28" aria-hidden="true" />
             <div>
-              <strong>{{ userStore.isLogin ? '还没有完成的 AI 体检' : '登录后查看论文体检' }}</strong>
+              <strong>{{ userStore.isLogin ? '还没有完成的 AI 论文评审' : '登录后查看 AI 论文评审' }}</strong>
               <p>{{ userStore.isLogin ? '队伍提交 PDF 并完成评审后，这里会展示总分、分项量表与改进入口。' : '你的评审分数、规范风险和建模推导结果将集中显示在这里。' }}</p>
             </div>
           </div>
@@ -256,7 +266,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -288,6 +298,7 @@ const reviewRecords = ref([])
 const focusSubmissions = ref([])
 const now = ref(Date.now())
 let clockTimer
+let reviewTimer
 
 const routeNameByStatus = {
   PREPARING: 'TeamPreparing',
@@ -310,7 +321,25 @@ const focusTeam = computed(() => {
   }
   return teams.value.find((team) => team.practiceStatus === 'PREPARING') || null
 })
-const focusTeamRoute = computed(() => teamRoute(focusTeam.value))
+const focusTeamRoute = computed(() => teamRoute(focusTeam.value, {
+  panel: focusTeam.value?.practiceStatus === 'IN_PROGRESS' ? 'review' : undefined,
+}))
+const focusTeamActionLabel = computed(() => {
+  if (focusTeam.value?.practiceStatus !== 'IN_PROGRESS') return '继续完成开赛准备'
+  if (!focusSubmissions.value.length) return '提交论文并开始 AI 评审'
+  return '查看论文草稿并开始评审'
+})
+const activeReview = computed(() => reviewRecords.value
+  .filter(record => ['WAITING', 'LEASED', 'RUNNING', 'FAILED', 'UNKNOWN'].includes(record.review?.status))
+  .sort((a, b) => dateValue(b.review.updatedAt || b.review.createTime) - dateValue(a.review.updatedAt || a.review.createTime))[0] || null)
+const activeReviewTeamRoute = computed(() => teamRoute(activeReview.value?.team, { panel: 'review' }))
+const activeReviewStatusHint = computed(() => ({
+  WAITING: '任务已进入队列，等待 AI 开始读取最终论文。',
+  LEASED: '系统正在准备论文解析与评审上下文。',
+  RUNNING: 'AI 正在生成分项评分、问题证据与综合意见。',
+  FAILED: '本次执行失败，可进入论文评审工作台重新排队。',
+  UNKNOWN: '上游执行结果待核查，请进入工作台查看详情。',
+})[activeReview.value?.review?.status] || '评审状态正在同步。')
 const latestDiagnostic = computed(() => {
   const completed = reviewRecords.value
     .filter((record) => record.review?.status === 'COMPLETED' && Number.isFinite(Number(record.review?.score)))
@@ -324,7 +353,7 @@ const latestDiagnostic = computed(() => {
     riskCount: reviewRiskCount(result),
   }
 })
-const diagnosticTeamRoute = computed(() => teamRoute(latestDiagnostic.value?.team))
+const diagnosticTeamRoute = computed(() => teamRoute(latestDiagnostic.value?.team, { panel: 'review' }))
 const skillRadarItems = computed(() => latestDiagnostic.value?.dimensions.slice(0, 5) || [])
 const highestScore = computed(() => {
   const scores = reviewRecords.value
@@ -375,7 +404,7 @@ const practiceSteps = computed(() => {
   return [
     { label: '职责就绪', value: `${coveredCount} / 3`, complete: coveredCount === 3, current: coveredCount < 3 },
     { label: '论文版本', value: submissionCount ? `${submissionCount} 版` : '待提交', complete: submissionCount > 0, current: inProgress && submissionCount === 0 },
-    { label: 'AI 体检', value: focusReviewStatus.value, complete: focusReviewStatus.value === '已完成', current: ['评审中', '需重试'].includes(focusReviewStatus.value) },
+    { label: 'AI 论文评审', value: focusReviewStatus.value, complete: focusReviewStatus.value === '已完成', current: ['评审中', '需重试'].includes(focusReviewStatus.value) },
   ]
 })
 const situationStatus = computed(() => {
@@ -388,9 +417,9 @@ const situationStatus = computed(() => {
 const situationTone = computed(() => focusTeam.value?.practiceStatus === 'IN_PROGRESS' ? 'active' : 'quiet')
 const situationMessage = computed(() => {
   if (!userStore.isLogin) return '浏览真题与榜单，登录后从同一处继续你的每一场赛前演练。'
-  if (focusTeam.value?.practiceStatus === 'IN_PROGRESS') return '先处理最近截止的队伍，确认论文版本与 AI 体检状态。'
+  if (focusTeam.value?.practiceStatus === 'IN_PROGRESS') return '先处理最近截止的队伍，确认论文版本并开始 AI 论文评审。'
   if (focusTeam.value) return '队伍已创建，补齐三项职责后就能启动全真倒计时。'
-  return '从真题、队伍到论文体检，把下一次模拟完整跑通。'
+  return '从真题、论文提交到 AI 评审与改进建议，把下一次模拟完整跑通。'
 })
 
 async function loadHomeData() {
@@ -423,17 +452,7 @@ async function loadHomeData() {
 }
 
 async function loadTeamRelatedData() {
-  const reviewTeams = teams.value.filter((team) => team.practiceStatus !== 'PREPARING')
-  const reviewResults = await Promise.allSettled(reviewTeams.map((team) => getTeamReviews(team.id)))
-  reviewResults.forEach((result, index) => {
-    if (result.status !== 'fulfilled') return
-    const team = reviewTeams[index]
-    const reviews = result.value.data || []
-    reviewRecords.value.push(...reviews.map((review) => ({ team, review })))
-  })
-  if (reviewResults.some((result) => result.status === 'rejected')) {
-    warnings.value.push('部分 AI 体检记录未能同步')
-  }
+  await refreshReviewRecords({ reportFailure: true })
 
   if (focusTeam.value?.practiceStatus !== 'IN_PROGRESS') return
   try {
@@ -444,12 +463,38 @@ async function loadTeamRelatedData() {
   }
 }
 
-function teamRoute(team) {
+async function refreshReviewRecords({ reportFailure = false } = {}) {
+  const reviewTeams = teams.value.filter((team) => team.practiceStatus !== 'PREPARING')
+  const reviewResults = await Promise.allSettled(reviewTeams.map((team) => getTeamReviews(team.id)))
+  const nextRecords = []
+  reviewResults.forEach((result, index) => {
+    if (result.status !== 'fulfilled') return
+    const team = reviewTeams[index]
+    const reviews = result.value.data || []
+    nextRecords.push(...reviews.map((review) => ({ team, review })))
+  })
+  reviewRecords.value = nextRecords
+  if (reportFailure && reviewResults.some((result) => result.status === 'rejected')) {
+    warnings.value.push('部分 AI 论文评审记录未能同步')
+  }
+}
+
+function syncReviewPolling(review) {
+  if (reviewTimer) window.clearInterval(reviewTimer)
+  reviewTimer = review ? window.setInterval(refreshReviewRecords, 5000) : null
+}
+
+function teamRoute(team, { panel } = {}) {
   if (!team) return '/team'
   return {
     name: routeNameByStatus[team.practiceStatus] || 'TeamPreparing',
     params: { teamId: String(team.id) },
+    ...(panel ? { query: { panel } } : {}),
   }
+}
+
+function reviewStatusLabel(value) {
+  return ({ WAITING: '评审任务已进入队列', LEASED: '评审任务正在准备', RUNNING: 'AI 正在评审论文', FAILED: '评审失败，需要重试', UNKNOWN: '评审结果待核查' })[value] || '评审状态待同步'
 }
 
 function parseReviewResult(value) {
@@ -562,7 +607,12 @@ onMounted(() => {
   clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
 })
 
-onBeforeUnmount(() => window.clearInterval(clockTimer))
+watch(activeReview, syncReviewPolling)
+
+onBeforeUnmount(() => {
+  window.clearInterval(clockTimer)
+  if (reviewTimer) window.clearInterval(reviewTimer)
+})
 </script>
 
 <style scoped>

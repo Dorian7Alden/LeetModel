@@ -139,7 +139,7 @@
           role="tab"
           :aria-selected="activePanel === tab.key"
           :class="{ active: activePanel === tab.key }"
-          @click="activePanel = tab.key"
+          @click="selectPanel(tab.key)"
         >
           <component :is="tab.icon" :size="16" />
           <span>{{ tab.label }}</span>
@@ -169,56 +169,118 @@
         </div>
       </section>
 
-      <section v-else-if="activePanel === 'submission'" class="practice-column submission-column">
+      <section v-else-if="activePanel === 'review'" class="practice-column submission-column">
         <div class="column-heading">
           <span class="column-icon violet"><UploadCloud :size="17" /></span>
-          <div><span>提交区</span><h2>{{ isInProgress ? '赛题提交' : '成果版本' }}</h2></div>
-          <button type="button" title="刷新提交" @click="loadSubmissions"><RefreshCw :size="15" /></button>
+          <div><span>论文评审</span><h2>{{ isInProgress ? '提交论文并开始 AI 评审' : '论文与 AI 评审结果' }}</h2></div>
+          <button type="button" title="刷新论文与评审状态" aria-label="刷新论文与评审状态" @click="loadSubmissions"><RefreshCw :size="15" /></button>
         </div>
+
+        <ol class="review-lifecycle" aria-label="论文评审流程">
+          <li v-for="step in reviewLifecycle" :key="step.label" :class="step.state">
+            <span><component :is="step.icon" :size="15" /></span>
+            <div><strong>{{ step.label }}</strong><small>{{ step.description }}</small></div>
+          </li>
+        </ol>
+
+        <p v-if="reviewLiveStatus" class="review-live-status" role="status" aria-live="polite">
+          <span aria-hidden="true"></span>{{ reviewLiveStatus }}
+        </p>
 
         <div v-if="isInProgress" class="submission-callout">
           <template v-if="currentMemberCanSubmit">
-            <div class="submission-step"><span>下一版本</span><strong>V{{ nextVersion }}</strong></div>
+            <div class="submission-callout__heading">
+              <div><span>下一论文版本</span><strong>V{{ nextVersion }}</strong></div>
+              <p>上传期间保存为草稿；只有结束练习并锁定最终版后，才会进入 AI 评审队列。</p>
+            </div>
             <el-upload :auto-upload="false" :show-file-list="false" accept="application/pdf,.pdf" :on-change="handlePdfChange">
-              <el-button type="primary" plain>选择 PDF</el-button>
+              <el-button type="primary" plain>选择论文 PDF</el-button>
             </el-upload>
             <div v-if="selectedPdf" class="selected-file">
               <span>PDF</span>
               <div><strong>{{ selectedPdf.name }}</strong><small>{{ formatFileSize(selectedPdf.size) }}</small></div>
+              <button type="button" :disabled="submitting" @click="previewSelectedPdf">预览</button>
               <button type="button" :disabled="submitting" @click="clearPdf">移除</button>
             </div>
             <el-progress v-if="submitting || uploadProgress" :percentage="uploadProgress" :stroke-width="6" />
-            <el-button type="primary" class="submit-pdf-button" :disabled="!selectedPdf" :loading="submitting" @click="submitPdf">提交第 {{ nextVersion }} 版</el-button>
-            <p>{{ uploadStage || '仅支持 20MB 以内 PDF；上传中断后可选择同一文件续传。' }}</p>
+            <div class="submission-submit-actions">
+              <el-button
+                v-if="team.canManage"
+                type="primary"
+                :disabled="!selectedPdf"
+                :loading="submitting || endingPractice"
+                @click="submitAndStartReview"
+              >提交并开始 AI 评审</el-button>
+              <el-button
+                :type="team.canManage ? 'default' : 'primary'"
+                :disabled="!selectedPdf"
+                :loading="submitting"
+                @click="saveDraft"
+              >{{ team.canManage ? '仅保存为草稿' : `提交草稿 V${nextVersion}` }}</el-button>
+            </div>
+            <p>{{ uploadStage || '仅支持 20MB 以内 PDF；上传中断后可重新选择同一文件续传。' }}</p>
           </template>
           <el-alert v-else title="队长尚未授予你作品提交权限" type="warning" :closable="false" show-icon />
         </div>
 
+        <section v-if="isInProgress && featuredSubmission" class="start-review-card" :class="{ member: !team.canManage }">
+          <div class="start-review-card__icon"><FileCheck2 :size="21" /></div>
+          <div>
+            <span>最新草稿 V{{ featuredSubmission.version }}</span>
+            <strong>{{ team.canManage ? '论文已可评审，是否现在结束练习？' : '论文草稿已保存，等待队长结束练习' }}</strong>
+            <p>{{ team.canManage ? '结束后停止继续提交，系统锁定最新成功版本并立即进入 AI 评审队列。' : '普通成员不能结束练习；队长结束后，系统会把最新成功版本作为最终版送入评审队列。' }}</p>
+          </div>
+          <el-button v-if="team.canManage" type="primary" :loading="endingPractice" @click="endPracticeAndStartReview">
+            结束练习并开始评审
+          </el-button>
+        </section>
+
+        <section v-if="!isInProgress && featuredSubmission && !finalSubmission" class="start-review-card recovery">
+          <div class="start-review-card__icon"><RotateCcw :size="21" /></div>
+          <div>
+            <span>最终版本尚未锁定</span>
+            <strong>练习已结束，评审任务正在等待恢复</strong>
+            <p>可立即重试锁定最新论文；即使不操作，系统也会定时补偿，不会丢失已提交版本。</p>
+          </div>
+          <el-button type="warning" plain :loading="finalizing" @click="finalizeAndQueueReview">重试进入评审队列</el-button>
+        </section>
+
         <div v-if="featuredSubmission" class="featured-submission" :class="{ final: featuredSubmission.finalVersion }">
           <div>
             <span>{{ featuredSubmission.finalVersion ? '最终版本' : '最新版本' }}</span>
-            <strong>V{{ featuredSubmission.version }}</strong>
+            <strong>V{{ featuredSubmission.version }} · {{ featuredSubmission.originalFilename }}</strong>
           </div>
           <div class="featured-score"><strong>{{ featuredSubmission.review?.score ?? '—' }}</strong><span>/ 100</span></div>
-          <span class="review-pill" :class="`review-${reviewDisplayStatus(featuredSubmission).toLowerCase()}`">{{ reviewStatusLabel(reviewDisplayStatus(featuredSubmission)) }}</span>
+          <div class="featured-review-state">
+            <span class="review-pill" :class="`review-${reviewDisplayStatus(featuredSubmission).toLowerCase()}`">{{ reviewStatusLabel(reviewDisplayStatus(featuredSubmission)) }}</span>
+            <small>{{ reviewStatusHint(featuredSubmission) }}</small>
+          </div>
+          <div class="featured-actions">
+            <button type="button" @click="previewSubmission(featuredSubmission)"><Eye :size="14" />预览论文</button>
+            <button v-if="featuredSubmission.review" type="button" @click="openReview(featuredSubmission.review)"><FileSearch :size="14" />{{ featuredSubmission.review.status === 'COMPLETED' ? '查看评审结果' : '查看评审进度' }}</button>
+            <button v-if="featuredSubmission.finalVersion && featuredSubmission.review?.status === 'COMPLETED'" type="button" @click="openSuggestion(featuredSubmission)"><Lightbulb :size="14" />生成改进建议</button>
+          </div>
         </div>
 
         <div class="submission-history">
-          <div class="subsection-heading"><strong>版本记录</strong><span>{{ submissionRows.length }} 次提交</span></div>
+          <div class="subsection-heading"><strong>论文与评审记录</strong><span>{{ submissionRows.length }} 个版本</span></div>
           <article v-for="row in submissionRows" :key="row.id" :class="{ featured: row.id === featuredSubmission?.id }">
             <span class="version-badge">V{{ row.version }}</span>
             <div class="submission-file">
               <strong :title="row.originalFilename">{{ row.originalFilename }}</strong>
-              <span>{{ formatDate(row.createTime) }} · {{ formatFileSize(row.fileSize) }}</span>
+              <span>{{ formatDate(row.createTime) }} · {{ formatFileSize(row.fileSize) }} · {{ reviewStatusLabel(reviewDisplayStatus(row)) }}</span>
             </div>
             <div class="submission-actions">
               <span v-if="row.finalVersion" class="final-tag">最终</span>
               <strong v-if="row.review?.score != null">{{ formatScore(row.review.score) }}</strong>
-              <a v-if="row.downloadUrl" :href="row.downloadUrl" target="_blank" rel="noopener noreferrer" title="下载"><Download :size="14" /></a>
+              <button v-if="row.downloadUrl" type="button" @click="previewSubmission(row)">预览 PDF</button>
+              <button v-if="row.review" type="button" @click="openReview(row.review)">{{ row.review.status === 'COMPLETED' ? '评审结果' : '评审进度' }}</button>
+              <button v-if="row.finalVersion && row.review?.status === 'COMPLETED'" type="button" @click="openSuggestion(row)">改进建议</button>
+              <button v-if="['FAILED', 'UNKNOWN'].includes(row.review?.status)" type="button" class="danger" @click="retryReview(row.review.taskId)">{{ row.review.status === 'UNKNOWN' ? '重新评审' : '重试评审' }}</button>
             </div>
           </article>
           <div v-if="!submissionRows.length && !loading" class="compact-empty submission-empty">
-            <FileText :size="24" /><strong>还没有提交版本</strong><p>{{ isInProgress ? '选择 PDF 并提交后，版本与评审状态会显示在这里。' : '本次练习没有可回看的作品版本。' }}</p>
+            <FileText :size="24" /><strong>还没有论文版本</strong><p>{{ isInProgress ? '选择 PDF 后，可以保存草稿或由队长直接结束练习并开始 AI 评审。' : '本次练习没有可回看的论文与评审结果。' }}</p>
           </div>
         </div>
       </section>
@@ -256,25 +318,44 @@
       </section>
       </div>
     </div>
+
+    <el-drawer v-model="pdfPreviewVisible" :title="pdfPreviewFilename || '论文 PDF 预览'" size="min(1000px, 92vw)" destroy-on-close @closed="closePdfPreview">
+      <div class="pdf-preview-body">
+        <div v-if="pdfPreviewUrl" class="pdf-preview-toolbar">
+          <span>请核对题目、版本和论文内容后再结束练习。</span>
+          <a :href="pdfPreviewUrl" target="_blank" rel="noopener noreferrer"><Download :size="14" />在新窗口打开</a>
+        </div>
+        <iframe v-if="pdfPreviewUrl" :src="pdfPreviewUrl" :title="`PDF 预览：${pdfPreviewFilename}`" class="pdf-preview-frame" />
+        <el-empty v-else description="PDF 预览地址不可用" />
+      </div>
+    </el-drawer>
+
+    <SubmissionReviewDrawer v-model="reviewDrawerVisible" :review="selectedReview" @retry="retryReview" />
+    <SubmissionSuggestionDialog v-model="suggestionDialogVisible" :submission="suggestionSubmission" />
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowUpRight, BookOpen, CheckCircle2, Circle, Clock3, Code2, Download, FileText, Inbox, Medal, Paperclip, PenLine, RefreshCw, ShieldCheck, Trophy, UploadCloud, UserPlus, UsersRound } from '@lucide/vue'
+import { ArrowUpRight, BookOpen, CheckCircle2, Circle, Clock3, Code2, Download, Eye, FileCheck2, FileSearch, FileText, Inbox, Lightbulb, LockKeyhole, Medal, Paperclip, PenLine, RefreshCw, RotateCcw, ShieldCheck, Sparkles, Trophy, UploadCloud, UserPlus, UsersRound } from '@lucide/vue'
 import 'github-markdown-css/github-markdown.css'
-import { getTeamApplications, startTeamPractice } from '@/api/team'
+import { endTeamPractice, getTeamApplications, startTeamPractice } from '@/api/team'
 import { getPublicProblemDetail } from '@/api/problem'
-import { getTeamSubmissionHistory } from '@/api/submission'
-import { getTeamReviews } from '@/api/review'
+import { finalizeTeamSubmission, getTeamSubmissionHistory } from '@/api/submission'
+import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { getRanking } from '@/api/ranking'
 import { renderSafeMarkdown } from '@/utils/markdown'
 import { uploadPdfResumably } from '@/utils/resumablePdfUpload'
 import { useUserStore } from '@/store/user'
+import SubmissionReviewDrawer from './SubmissionReviewDrawer.vue'
+import SubmissionSuggestionDialog from './SubmissionSuggestionDialog.vue'
 
 const props = defineProps({ team: { type: Object, required: true } })
 const emit = defineEmits(['transitioned'])
+const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
 const loadError = ref('')
@@ -290,10 +371,22 @@ const submitting = ref(false)
 const uploadProgress = ref(0)
 const uploadStage = ref('')
 const startingPractice = ref(false)
-const activePanel = ref('problem')
+const endingPractice = ref(false)
+const finalizing = ref(false)
+const statusRefreshing = ref(false)
+const activePanel = ref(validPanel(route.query.panel) ? route.query.panel : 'problem')
+const pdfPreviewVisible = ref(false)
+const pdfPreviewUrl = ref('')
+const pdfPreviewFilename = ref('')
+const localPdfPreviewUrl = ref('')
+const reviewDrawerVisible = ref(false)
+const selectedReviewTaskId = ref('')
+const suggestionDialogVisible = ref(false)
+const suggestionSubmission = ref(null)
 const now = ref(Date.now())
 let loadSequence = 0
 let clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
+let reviewStatusTimer = null
 
 const isPreparing = computed(() => props.team.practiceStatus === 'PREPARING')
 const isInProgress = computed(() => props.team.practiceStatus === 'IN_PROGRESS')
@@ -321,6 +414,7 @@ const reviewBySubmissionId = computed(() => {
   return result
 })
 const submissionRows = computed(() => submissions.value.map(item => ({ ...item, review: reviewBySubmissionId.value.get(String(item.id)) })))
+const finalSubmission = computed(() => submissionRows.value.find(item => item.finalVersion) || null)
 const featuredSubmission = computed(() => {
   if (!submissionRows.value.length) return null
   return props.team.practiceStatus === 'ENDED'
@@ -334,11 +428,63 @@ const visibleRankings = computed(() => {
   if (!currentRanking.value || first.some(item => String(item.teamId) === String(props.team.id))) return first
   return [...first.slice(0, 5), currentRanking.value]
 })
+const reviewTabSummary = computed(() => {
+  const active = submissionRows.value.find(row => ['WAITING_DISPATCH', 'DISPATCHED', 'WAITING', 'LEASED', 'RUNNING'].includes(reviewDisplayStatus(row)))
+  if (active) return reviewStatusLabel(reviewDisplayStatus(active))
+  if (finalSubmission.value?.review?.status === 'COMPLETED') return `${formatScore(finalSubmission.value.review.score)} 分`
+  if (submissionRows.value.length) return `${submissionRows.value.length} 个版本`
+  return '待提交论文'
+})
 const practiceTabs = computed(() => [
   { key: 'problem', label: '题目', icon: BookOpen, summary: problem.value?.code ? `题号 ${problem.value.code}` : '原始赛题' },
-  { key: 'submission', label: '提交', icon: UploadCloud, summary: submissionRows.value.length ? `${submissionRows.value.length} 个版本` : '暂无版本' },
+  { key: 'review', label: '论文评审', icon: FileSearch, summary: reviewTabSummary.value },
   { key: 'ranking', label: '排行', icon: Trophy, summary: currentRanking.value ? `当前第 ${currentRanking.value.rank} 名` : `${rankingItems.value.length} 支上榜` },
 ])
+const selectedReview = computed(() => reviews.value.find(item => String(item.taskId) === selectedReviewTaskId.value) || null)
+const reviewLifecycle = computed(() => {
+  const latest = featuredSubmission.value
+  const status = reviewDisplayStatus(latest)
+  const hasSubmission = Boolean(latest)
+  const locked = Boolean(finalSubmission.value)
+  const running = ['WAITING_DISPATCH', 'DISPATCHED', 'WAITING', 'LEASED', 'RUNNING'].includes(status)
+  const completed = status === 'COMPLETED'
+  return [
+    {
+      label: '提交论文',
+      description: hasSubmission ? `最新版本 V${latest.version} 已保存` : '上传完整论文 PDF',
+      icon: UploadCloud,
+      state: hasSubmission ? 'complete' : 'current',
+    },
+    {
+      label: '锁定最终版',
+      description: locked ? `V${finalSubmission.value.version} 已锁定` : (isInProgress.value ? '结束练习后自动锁定' : '等待锁定最新版本'),
+      icon: LockKeyhole,
+      state: locked ? 'complete' : (hasSubmission ? 'current' : 'pending'),
+    },
+    {
+      label: 'AI 论文评审',
+      description: completed ? '评审结果已生成' : (running ? reviewStatusLabel(status) : '最终版锁定后进入队列'),
+      icon: Sparkles,
+      state: completed ? 'complete' : (running ? 'current' : 'pending'),
+    },
+  ]
+})
+const reviewLiveStatus = computed(() => {
+  const row = finalSubmission.value || featuredSubmission.value
+  if (!row) return ''
+  const status = reviewDisplayStatus(row)
+  if (['WAITING_DISPATCH', 'DISPATCHED', 'WAITING', 'LEASED', 'RUNNING'].includes(status)) {
+    return `${reviewStatusLabel(status)}：${reviewStatusHint(row)}`
+  }
+  if (status === 'COMPLETED') return `AI 评审已完成，训练评分 ${formatScore(row.review?.score)} 分。`
+  if (status === 'FAILED') return 'AI 评审失败，可在论文记录中重新排队。'
+  return ''
+})
+const pollingNeeded = computed(() => {
+  if (!submissionRows.value.length) return false
+  if (!isInProgress.value && !finalSubmission.value) return true
+  return submissionRows.value.some(row => ['WAITING_DISPATCH', 'DISPATCHED', 'WAITING', 'LEASED', 'RUNNING'].includes(reviewDisplayStatus(row)))
+})
 const remainingTimeText = computed(() => {
   const remaining = Math.max(0, Math.floor((new Date(props.team.deadlineAt || 0).getTime() - now.value) / 1000))
   const hours = Math.floor(remaining / 3600)
@@ -412,12 +558,16 @@ async function configureProblemImages() {
 }
 
 async function loadSubmissions() {
+  if (statusRefreshing.value) return
+  statusRefreshing.value = true
   try {
     const [submissionResult, reviewResult] = await Promise.all([getTeamSubmissionHistory(props.team.id), getTeamReviews(props.team.id)])
     submissions.value = submissionResult.data || []
     reviews.value = reviewResult.data || []
   } catch (error) {
     ElMessage.error(error.message || '提交记录加载失败')
+  } finally {
+    statusRefreshing.value = false
   }
 }
 
@@ -455,13 +605,35 @@ function handlePdfChange(file) {
 }
 
 function clearPdf() {
+  releaseLocalPdfPreview()
   selectedPdf.value = null
   uploadProgress.value = 0
   uploadStage.value = ''
 }
 
-async function submitPdf() {
-  if (!selectedPdf.value) return
+async function saveDraft() {
+  await submitPdf({ successMessage: '论文草稿已保存；结束练习后，最新版本将进入 AI 评审队列。' })
+}
+
+async function submitAndStartReview() {
+  if (!selectedPdf.value || !team.canManage) return
+  const version = nextVersion.value
+  try {
+    await ElMessageBox.confirm(
+      `系统将先提交 V${version}，随后立即结束练习并锁定该版本。结束后不能继续上传，确定开始 AI 评审吗？`,
+      '提交论文并开始 AI 评审',
+      { type: 'warning', confirmButtonText: '提交并开始评审', cancelButtonText: '继续修改' },
+    )
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error.message || '操作确认失败')
+    return
+  }
+  const submitted = await submitPdf({ successMessage: '' })
+  if (submitted) await finishPracticeAndQueueReview({ skipConfirm: true, expectedVersion: version })
+}
+
+async function submitPdf({ successMessage } = {}) {
+  if (!selectedPdf.value) return false
   submitting.value = true
   uploadProgress.value = 0
   try {
@@ -471,17 +643,152 @@ async function submitPdf() {
       onProgress: value => { uploadProgress.value = value },
       onStage: value => { uploadStage.value = value },
     })
-    selectedPdf.value = null
+    clearPdf()
     await loadSubmissions()
-    ElMessage.success('PDF 提交成功，AI 评审已进入处理流程')
-    uploadProgress.value = 0
-    uploadStage.value = ''
+    if (successMessage) ElMessage.success(successMessage)
+    return true
   } catch (error) {
     uploadStage.value = '上传已中断，重新选择同一文件可继续上传'
     ElMessage.error(error.message || 'PDF 提交失败')
+    return false
   } finally {
     submitting.value = false
   }
+}
+
+async function endPracticeAndStartReview() {
+  await finishPracticeAndQueueReview({ expectedVersion: featuredSubmission.value?.version })
+}
+
+async function finishPracticeAndQueueReview({ skipConfirm = false, expectedVersion } = {}) {
+  if (!team.canManage || !featuredSubmission.value) return
+  if (!skipConfirm) {
+    try {
+      await ElMessageBox.confirm(
+        `将结束本次练习，并把最新成功提交 V${expectedVersion || featuredSubmission.value.version} 锁定为最终版。结束后不能继续上传，确定进入 AI 评审队列吗？`,
+        '结束练习并开始 AI 评审',
+        { type: 'warning', confirmButtonText: '结束并开始评审', cancelButtonText: '继续练习' },
+      )
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close') ElMessage.error(error.message || '操作确认失败')
+      return
+    }
+  }
+
+  endingPractice.value = true
+  let endedTeam = null
+  try {
+    endedTeam = (await endTeamPractice(props.team.id)).data
+  } catch (error) {
+    ElMessage.error(error.message || '提前结束练习失败')
+    endingPractice.value = false
+    return
+  }
+
+  try {
+    const finalSubmissionResult = (await finalizeTeamSubmission(props.team.id)).data
+    ElMessage.success(`练习已结束，V${finalSubmissionResult.version} 已进入 AI 评审队列。`)
+  } catch (error) {
+    ElMessage.warning('练习已结束，最终版本暂未锁定；系统会自动补偿，也可在已结束页面立即重试。')
+  } finally {
+    endingPractice.value = false
+    emit('transitioned', endedTeam)
+  }
+}
+
+async function finalizeAndQueueReview() {
+  finalizing.value = true
+  try {
+    const result = (await finalizeTeamSubmission(props.team.id)).data
+    await loadSubmissions()
+    ElMessage.success(`V${result.version} 已锁定并进入 AI 评审队列。`)
+  } catch (error) {
+    ElMessage.error(error.message || '最终版本锁定失败，请稍后重试')
+  } finally {
+    finalizing.value = false
+  }
+}
+
+function selectPanel(panel) {
+  if (!validPanel(panel)) return
+  activePanel.value = panel
+  router.replace({
+    query: {
+      ...route.query,
+      panel: panel === 'problem' ? undefined : panel,
+    },
+  })
+}
+
+function validPanel(panel) {
+  return ['problem', 'review', 'ranking'].includes(String(panel || ''))
+}
+
+function safePreviewUrl(value) {
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : ''
+  } catch {
+    return ''
+  }
+}
+
+function previewSelectedPdf() {
+  if (!selectedPdf.value) return
+  releaseLocalPdfPreview()
+  localPdfPreviewUrl.value = URL.createObjectURL(selectedPdf.value)
+  openPdfPreview(localPdfPreviewUrl.value, selectedPdf.value.name)
+}
+
+function previewSubmission(row) {
+  openPdfPreview(row?.downloadUrl, row?.originalFilename || '提交论文.pdf')
+}
+
+function openPdfPreview(url, filename) {
+  pdfPreviewUrl.value = safePreviewUrl(url)
+  pdfPreviewFilename.value = filename
+  pdfPreviewVisible.value = true
+}
+
+function closePdfPreview() {
+  pdfPreviewVisible.value = false
+  pdfPreviewUrl.value = ''
+  pdfPreviewFilename.value = ''
+  releaseLocalPdfPreview()
+}
+
+function releaseLocalPdfPreview() {
+  if (!localPdfPreviewUrl.value) return
+  URL.revokeObjectURL(localPdfPreviewUrl.value)
+  localPdfPreviewUrl.value = ''
+}
+
+function openReview(review) {
+  selectedReviewTaskId.value = String(review.taskId)
+  reviewDrawerVisible.value = true
+}
+
+function openSuggestion(row) {
+  suggestionSubmission.value = row
+  suggestionDialogVisible.value = true
+}
+
+async function retryReview(taskId) {
+  try {
+    await retryReviewTask(taskId)
+    await loadSubmissions()
+    ElMessage.success('评审任务已重新进入队列。')
+  } catch (error) {
+    ElMessage.error(error.message || '评审任务重试失败')
+  }
+}
+
+function syncReviewStatusPolling(needed) {
+  if (reviewStatusTimer) {
+    window.clearInterval(reviewStatusTimer)
+    reviewStatusTimer = null
+  }
+  if (needed) reviewStatusTimer = window.setInterval(loadSubmissions, 4000)
 }
 
 function roleMembers(key) {
@@ -495,16 +802,47 @@ function formatDuration(value) { return value ? (value % 60 === 0 ? `${value / 6
 function difficultyLabel(value) { return ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '难度待同步' }
 function formatFileSize(value) { return value == null ? '—' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
 function formatScore(value) { const score = Number(value); return Number.isFinite(score) ? score.toFixed(1) : '—' }
-function reviewDisplayStatus(row) { return row?.review?.status || row?.reviewDispatchStatus || 'NOT_REQUESTED' }
-function reviewStatusLabel(value) { return ({ WAITING_DISPATCH: '等待派发', DISPATCHED: '已派发', DISPATCH_BLOCKED: '派发受阻', NOT_REQUESTED: '等待评审', WAITING: '等待评审', LEASED: '准备评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败', UNKNOWN: '结果待确认' })[value] || '等待评审' }
+function reviewDisplayStatus(row) {
+  if (!row) return 'NOT_REQUESTED'
+  if (row.review?.status) return row.review.status
+  if (row.reviewDispatchStatus && row.reviewDispatchStatus !== 'NOT_REQUESTED') return row.reviewDispatchStatus
+  return row.finalVersion ? 'NOT_REQUESTED' : 'DRAFT'
+}
+function reviewStatusLabel(value) { return ({ DRAFT: '草稿，未进入评审', WAITING_DISPATCH: '等待派发', DISPATCHED: '已进入队列', DISPATCH_BLOCKED: '派发受阻', NOT_REQUESTED: '等待进入队列', WAITING: '队列中', LEASED: '准备评审', RUNNING: 'AI 评审中', COMPLETED: '评审已完成', FAILED: '评审失败', UNKNOWN: '结果待核查' })[value] || '等待评审' }
+function reviewStatusHint(row) {
+  const status = reviewDisplayStatus(row)
+  return ({
+    DRAFT: '该版本仅作为草稿保存，练习结束时只评审最新成功版本。',
+    WAITING_DISPATCH: '最终版已锁定，可靠消息正在派发。',
+    DISPATCHED: '任务已经提交到评审服务，等待创建执行记录。',
+    NOT_REQUESTED: '最终版正在等待评审派发补偿。',
+    WAITING: '任务已进入 AI 评审队列，页面将自动刷新。',
+    LEASED: '系统正在准备论文解析和评审上下文。',
+    RUNNING: 'AI 正在评审论文，完成后可查看五维评分和问题证据。',
+    COMPLETED: '评审结果已生成，可以查看完整结果并继续生成改进建议。',
+    FAILED: '本次执行失败，可重新进入队列，原论文版本不会丢失。',
+    UNKNOWN: '上游结果暂时无法确认，系统不会自动重复计费。',
+    DISPATCH_BLOCKED: '派发连续失败，系统保留任务并等待恢复。',
+  })[status] || '评审状态正在同步。'
+}
 function workflowLabel(value) { return value === 'BASIC_REVIEW_V1' ? '基础评审 V1' : String(value || '评审版本待同步').replaceAll('_', ' ') }
 watch(() => props.team.id, () => {
-  activePanel.value = 'problem'
+  activePanel.value = validPanel(route.query.panel) ? String(route.query.panel) : 'problem'
   loadWorkspaceData()
 }, { immediate: true })
 watch(renderedProblem, configureProblemImages, { flush: 'post' })
 watch(activePanel, panel => { if (panel === 'problem') configureProblemImages() })
-onBeforeUnmount(() => { window.clearInterval(clockTimer); clockTimer = null })
+watch(() => route.query.panel, panel => {
+  activePanel.value = validPanel(panel) ? String(panel) : 'problem'
+})
+watch(pollingNeeded, syncReviewStatusPolling, { immediate: true })
+onBeforeUnmount(() => {
+  window.clearInterval(clockTimer)
+  if (reviewStatusTimer) window.clearInterval(reviewStatusTimer)
+  releaseLocalPdfPreview()
+  clockTimer = null
+  reviewStatusTimer = null
+})
 </script>
 
 <style scoped>
@@ -599,30 +937,82 @@ onBeforeUnmount(() => { window.clearInterval(clockTimer); clockTimer = null })
 .problem-attachments { display: grid; gap: 6px; padding: 13px 14px; border-top: 1px solid var(--lm-border-light); }
 .problem-attachments > span { color: var(--lm-text-muted); font-size: 9px; font-weight: 700; }
 .problem-attachments a { display: flex; min-width: 0; align-items: center; gap: 5px; overflow: hidden; color: var(--lm-primary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.submission-callout { max-width: 720px; margin: 24px auto; padding: 20px; border: 1px solid #ddd6fe; border-radius: 10px; background: #faf8ff; }
-.submission-step { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; color: var(--lm-text-muted); font-size: 11px; }
-.submission-step strong { color: #6d28d9; font-family: var(--lm-code-font-family); font-size: 22px; }
-.selected-file { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 8px; margin-top: 9px; padding: 8px; border-radius: 8px; background: #fff; }
+.review-lifecycle { display: grid; max-width: 820px; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; margin: 24px auto 0; padding: 0 24px; list-style: none; }
+.review-lifecycle li { position: relative; display: grid; min-width: 0; grid-template-columns: 34px minmax(0,1fr); align-items: center; gap: 9px; padding-right: 22px; }
+.review-lifecycle li:not(:last-child)::after { position: absolute; top: 16px; right: 4px; width: 14px; height: 1px; background: #d4d4d8; content: ''; }
+.review-lifecycle li > span { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #e4e4e7; border-radius: 9px; background: #fafafa; color: #a1a1aa; }
+.review-lifecycle strong,.review-lifecycle small { display: block; }
+.review-lifecycle strong { color: var(--lm-text-secondary); font-size: 11px; }
+.review-lifecycle small { overflow: hidden; margin-top: 3px; color: var(--lm-text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.review-lifecycle li.complete > span { border-color: #bbf7d0; background: #ecfdf5; color: #047857; }
+.review-lifecycle li.complete strong { color: #047857; }
+.review-lifecycle li.current > span { border-color: #bfdbfe; background: #eff6ff; color: #2563eb; box-shadow: 0 0 0 4px rgb(37 99 235 / 8%); }
+.review-lifecycle li.current strong { color: #1d4ed8; }
+.review-live-status { display: flex; max-width: 772px; align-items: center; gap: 9px; margin: 16px auto 0; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: 9px; background: #eff6ff; color: #1e40af; font-size: 11px; line-height: 1.55; }
+.review-live-status > span { width: 8px; height: 8px; flex: 0 0 auto; border: 2px solid #93c5fd; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 4px rgb(37 99 235 / 10%); }
+.submission-callout { max-width: 720px; margin: 20px auto 24px; padding: 20px; border: 1px solid #ddd6fe; border-radius: 12px; background: linear-gradient(135deg,#faf8ff,#fff); }
+.submission-callout__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
+.submission-callout__heading > div { flex: 0 0 auto; }
+.submission-callout__heading span,.submission-callout__heading strong { display: block; }
+.submission-callout__heading span { color: var(--lm-text-muted); font-size: 10px; }
+.submission-callout__heading strong { margin-top: 2px; color: #6d28d9; font-family: var(--lm-code-font-family); font-size: 22px; }
+.submission-callout__heading p { max-width: 470px; margin: 0; color: var(--lm-text-secondary); font-size: 11px; line-height: 1.6; text-align: right; }
+.selected-file { display: grid; grid-template-columns: 32px minmax(0,1fr) auto auto; align-items: center; gap: 8px; margin-top: 10px; padding: 9px; border: 1px solid var(--lm-border-light); border-radius: 9px; background: #fff; }
 .selected-file > span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: #fee2e2; color: #b91c1c; font-size: 8px; font-weight: 800; }
 .selected-file div { min-width: 0; }.selected-file strong,.selected-file small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.selected-file strong { font-size: 12px; }.selected-file small { margin-top: 2px; color: var(--lm-text-muted); font-size: 10px; }
-.selected-file button { padding: 0; border: 0; background: none; color: var(--lm-text-muted); font-size: 10px; cursor: pointer; }
-.submission-callout :deep(.el-progress) { margin-top: 12px; }.submit-pdf-button { width: 100%; margin-top: 12px; }.submission-callout > p { margin: 9px 0 0; color: var(--lm-text-muted); font-size: 11px; line-height: 1.5; }
-.featured-submission { display: grid; max-width: 720px; grid-template-columns: minmax(0,1fr) auto; gap: 8px; margin: 24px auto; padding: 18px 20px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fbff; }
+.selected-file button { min-height: 30px; padding: 0 7px; border: 0; border-radius: 6px; background: #f4f4f5; color: var(--lm-text-secondary); font: inherit; font-size: 10px; cursor: pointer; }
+.selected-file button:hover { background: #e4e4e7; color: var(--lm-text-primary); }
+.selected-file button:disabled { cursor: not-allowed; opacity: .55; }
+.submission-callout :deep(.el-progress) { margin-top: 12px; }
+.submission-submit-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.submission-submit-actions :deep(.el-button) { min-height: 40px; }
+.submission-callout > p { margin: 9px 0 0; color: var(--lm-text-muted); font-size: 11px; line-height: 1.5; }
+.start-review-card { display: grid; max-width: 772px; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: 13px; margin: 16px auto 20px; padding: 16px 18px; border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fbff; }
+.start-review-card.member { border-color: var(--lm-border); background: #fafafa; }
+.start-review-card.recovery { border-color: #fed7aa; background: #fffaf2; }
+.start-review-card__icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+.start-review-card.member .start-review-card__icon { background: #f4f4f5; color: #71717a; }
+.start-review-card.recovery .start-review-card__icon { background: #ffedd5; color: #c2410c; }
+.start-review-card span,.start-review-card strong { display: block; }
+.start-review-card span { color: var(--lm-text-muted); font-size: 9px; font-weight: 700; }
+.start-review-card strong { margin-top: 3px; color: var(--lm-text-primary); font-size: 13px; }
+.start-review-card p { margin: 5px 0 0; color: var(--lm-text-secondary); font-size: 10px; line-height: 1.55; }
+.featured-submission { display: grid; max-width: 772px; grid-template-columns: minmax(0,1fr) auto; gap: 12px 20px; margin: 20px auto; padding: 20px; border: 1px solid #dbeafe; border-radius: 12px; background: #f8fbff; box-shadow: 0 10px 26px rgb(30 64 175 / 6%); }
 .featured-submission.final { border-color: #bbf7d0; background: #f6fff8; }
-.featured-submission > div:first-child span { display: block; color: var(--lm-text-muted); font-size: 10px; }.featured-submission > div:first-child strong { display: block; margin-top: 2px; font-size: 20px; }
-.featured-score { display: flex; align-items: baseline; }.featured-score strong { color: #2563eb; font-size: 28px; }.featured-score span { color: var(--lm-text-muted); font-size: 10px; }
-.review-pill { grid-column: 1/3; width: fit-content; padding: 4px 8px; border-radius: 999px; background: #f4f4f5; color: #71717a; font-size: 10px; }.review-pill.review-completed { background: #ecfdf5; color: #047857; }.review-pill.review-failed,.review-pill.review-dispatch_blocked { background: #fef2f2; color: #b91c1c; }
+.featured-submission > div:first-child { min-width: 0; }
+.featured-submission > div:first-child span { display: block; color: var(--lm-text-muted); font-size: 10px; }
+.featured-submission > div:first-child strong { display: block; overflow: hidden; margin-top: 3px; color: var(--lm-text-primary); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.featured-score { display: flex; align-items: baseline; }
+.featured-score strong { color: #2563eb; font-family: var(--lm-code-font-family); font-size: 28px; }
+.featured-score span { color: var(--lm-text-muted); font-size: 10px; }
+.featured-review-state { display: flex; min-width: 0; align-items: center; gap: 9px; }
+.featured-review-state small { overflow: hidden; color: var(--lm-text-secondary); font-size: 10px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.review-pill { width: fit-content; flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; background: #f4f4f5; color: #71717a; font-size: 9px; font-weight: 700; }
+.review-pill.review-waiting_dispatch,.review-pill.review-dispatched,.review-pill.review-waiting,.review-pill.review-leased,.review-pill.review-running { background: #eff6ff; color: #1d4ed8; }
+.review-pill.review-completed { background: #ecfdf5; color: #047857; }
+.review-pill.review-failed,.review-pill.review-dispatch_blocked { background: #fef2f2; color: #b91c1c; }
+.featured-actions { display: flex; grid-column: 1/3; flex-wrap: wrap; gap: 7px; padding-top: 12px; border-top: 1px solid rgb(191 219 254 / 75%); }
+.featured-actions button,.submission-actions button { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 1px solid var(--lm-border); border-radius: 7px; background: #fff; color: var(--lm-text-secondary); font: inherit; font-size: 9px; font-weight: 700; cursor: pointer; }
+.featured-actions button:hover,.submission-actions button:hover { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.featured-actions button:focus-visible,.submission-actions button:focus-visible,.selected-file button:focus-visible { outline: 2px solid var(--lm-primary); outline-offset: 2px; }
 .submission-history,.ranking-list { max-width: 900px; margin: 0 auto; padding: 0 24px 28px; }
 .subsection-heading { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }.subsection-heading strong { color: var(--lm-text-primary); font-size: 13px; }.subsection-heading span { color: var(--lm-text-muted); font-size: 10px; }
 .submission-history article { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 11px; min-height: 58px; padding: 9px 8px; border-top: 1px solid var(--lm-border-light); }.submission-history article.featured { background: #fafafa; }
 .version-badge { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: #f4f4f5; color: var(--lm-text-secondary); font-family: var(--lm-code-font-family); font-size: 10px; font-weight: 800; }
 .submission-file strong,.submission-file span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.submission-file strong { color: var(--lm-text-primary); font-size: 12px; }.submission-file span { margin-top: 3px; color: var(--lm-text-muted); font-size: 9px; }
-.submission-actions { display: flex; align-items: center; gap: 7px; }.submission-actions > strong { color: #2563eb; font-size: 14px; }.submission-actions a { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: #f4f4f5; color: var(--lm-text-secondary); }
+.submission-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.submission-actions > strong { color: #2563eb; font-size: 14px; }
+.submission-actions button.danger { border-color: #fecaca; color: #b91c1c; }
+.pdf-preview-body { display: grid; height: calc(100vh - 120px); grid-template-rows: auto minmax(0,1fr); gap: 10px; }
+.pdf-preview-toolbar { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 11px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1e40af; font-size: 10px; }
+.pdf-preview-toolbar a { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: #1d4ed8; font-weight: 700; }
+.pdf-preview-frame { width: 100%; height: 100%; min-height: 620px; border: 1px solid var(--lm-border); border-radius: 8px; background: #525659; }
 .current-rank-card { max-width: 720px; margin: 24px auto; padding: 22px; border-radius: 10px; background: linear-gradient(135deg,#172554,#1d4ed8); color: #fff; }.current-rank-card > span { color: #bfdbfe; font-size: 11px; font-weight: 700; }.current-rank-card > div { display: flex; align-items: baseline; justify-content: space-between; margin-top: 7px; }.current-rank-card > div > strong { font-size: 32px; }.current-rank-card p { margin: 0; font-size: 24px; font-weight: 800; }.current-rank-card p small { font-size: 10px; font-weight: 500; }.current-rank-card em { display: block; margin-top: 9px; color: #bfdbfe; font-size: 10px; font-style: normal; }
 .ranking-pending { max-width: 680px; margin: 24px auto; padding: 28px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #fafafa; color: #94a3b8; text-align: center; }.ranking-pending strong { display: block; margin-top: 9px; color: var(--lm-text-primary); font-size: 13px; }.ranking-pending p { margin: 6px 0 0; color: var(--lm-text-muted); font-size: 11px; line-height: 1.5; }
 .ranking-list article { display: grid; grid-template-columns: 34px 38px minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 56px; border-top: 1px solid var(--lm-border-light); }.ranking-list article.current { margin: 0 -7px; padding: 0 7px; border-radius: 7px; background: #eff6ff; }.rank-index { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: #f4f4f5; color: #71717a; font-size: 10px; font-weight: 800; }.rank-index.top-1 { background: #fef3c7; color: #a16207; }.rank-index.top-2 { background: #e2e8f0; color: #475569; }.rank-index.top-3 { background: #ffedd5; color: #9a3412; }.rank-avatar { width: 34px; height: 34px; border-radius: 8px; font-size: 11px; }.ranking-list article > div strong,.ranking-list article > div span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ranking-list article > div strong { color: var(--lm-text-primary); font-size: 12px; }.ranking-list article > div span { margin-top: 2px; color: var(--lm-text-muted); font-size: 9px; }.rank-score { color: #2563eb; font-family: var(--lm-code-font-family); font-size: 14px; }
 .compact-empty { display: flex; min-height: 126px; align-items: center; justify-content: center; flex-direction: column; color: #a1a1aa; text-align: center; }.compact-empty strong { margin-top: 7px; color: var(--lm-text-primary); font-size: 10px; }.compact-empty p { max-width: 240px; margin: 5px 0 0; color: var(--lm-text-muted); font-size: 8px; line-height: 1.5; }.submission-empty { min-height: 150px; }
 @media (max-width: 1280px) { .formation-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media (max-width: 980px) { .formation-grid { grid-template-columns: 1fr; }.recruitment-panel { grid-column: auto; }.recruitment-list { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .workspace-header,.formation-hero { align-items: stretch; flex-direction: column; }.workspace-clock { align-items: flex-start; padding-top: 0; }.formation-progress { align-items: flex-start; }.formation-actions { flex-direction: column; }.formation-metrics { grid-template-columns: 1fr 1fr; }.application-preview { grid-template-columns: 1fr; }.practice-tabs { padding: 0; }.practice-tabs button { min-height: 54px; padding: 8px; }.practice-tabs button > small { display: none; }.practice-problem-body { padding: 20px 16px 32px; font-size: 13px; }.submission-callout,.featured-submission,.current-rank-card,.ranking-pending { margin: 14px; }.submission-history,.ranking-list { padding-right: 14px; padding-left: 14px; } }
+@media (max-width: 980px) { .formation-grid { grid-template-columns: 1fr; }.recruitment-panel { grid-column: auto; }.recruitment-list { grid-template-columns: 1fr; }.submission-history article { grid-template-columns: 38px minmax(0,1fr); }.submission-actions { grid-column: 2; justify-content: flex-start; } }
+@media (max-width: 620px) { .workspace-header,.formation-hero { align-items: stretch; flex-direction: column; }.workspace-clock { align-items: flex-start; padding-top: 0; }.formation-progress { align-items: flex-start; }.formation-actions,.submission-submit-actions { align-items: stretch; flex-direction: column; }.formation-metrics { grid-template-columns: 1fr 1fr; }.application-preview { grid-template-columns: 1fr; }.practice-tabs { padding: 0; }.practice-tabs button { min-height: 54px; padding: 8px; }.practice-tabs button > small { display: none; }.practice-problem-body { padding: 20px 16px 32px; font-size: 13px; }.review-lifecycle { grid-template-columns: 1fr; gap: 12px; margin: 16px 14px 0; padding: 0; }.review-lifecycle li:not(:last-child)::after { top: 34px; right: auto; bottom: -10px; left: 16px; width: 1px; height: 8px; }.review-live-status,.submission-callout,.start-review-card,.featured-submission,.current-rank-card,.ranking-pending { margin-right: 14px; margin-left: 14px; }.submission-callout__heading { flex-direction: column; gap: 7px; }.submission-callout__heading p { text-align: left; }.selected-file { grid-template-columns: 32px minmax(0,1fr); }.selected-file button { grid-column: auto; }.start-review-card { grid-template-columns: 42px minmax(0,1fr); }.start-review-card :deep(.el-button) { grid-column: 1/3; }.featured-submission { grid-template-columns: minmax(0,1fr) auto; }.featured-review-state { grid-column: 1/3; }.featured-review-state small { white-space: normal; }.submission-history,.ranking-list { padding-right: 14px; padding-left: 14px; }.pdf-preview-toolbar { align-items: flex-start; flex-direction: column; }.pdf-preview-frame { min-height: 480px; } }
+@media (prefers-reduced-motion: reduce) { .review-live-status > span { box-shadow: none; } }
 </style>
