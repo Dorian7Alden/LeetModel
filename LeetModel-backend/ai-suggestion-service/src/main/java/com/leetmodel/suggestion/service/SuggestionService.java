@@ -40,6 +40,8 @@ import com.leetmodel.suggestion.workflow.SuggestionWorkflowResult;
 import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Output;
 import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Workflow;
 import com.leetmodel.suggestion.workflow.v3.GroundedSuggestionV3Workflow;
+import com.leetmodel.suggestion.workflow.v4.GroundedSuggestionV4Output;
+import com.leetmodel.suggestion.workflow.v4.GroundedSuggestionV4Workflow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -59,8 +61,10 @@ import java.util.function.Supplier;
 public class SuggestionService {
     private static final String PAPER_PARSE_VERSION = "PAPER_PARSE_V1";
     public static final String SUGGESTION_V3_VERSION = "GROUNDED_SUGGESTION_V3";
+    public static final String SUGGESTION_V4_VERSION = "GROUNDED_SUGGESTION_V4";
     public static final String PAPER_PARSE_V2_VERSION = "PAPER_PARSE_V2";
     public static final String DEEP_EVIDENCE_REVIEW_V3_VERSION = "DEEP_EVIDENCE_REVIEW_V3";
+    public static final String DEEP_EVIDENCE_REVIEW_V4_VERSION = "DEEP_EVIDENCE_REVIEW_V4";
     public static final String SUGGESTION_DEEP_RETRIEVAL_V1 = "SUGGESTION_DEEP_RETRIEVAL_V1";
     private static final String DEFAULT_RETRIEVAL_VERSION = "VECTOR_RAG_V1";
     private static final java.util.Set<String> ALLOWED_RETRIEVAL_VERSIONS = java.util.Set.of(
@@ -75,6 +79,8 @@ public class SuggestionService {
     private final SuggestionV1Workflow v1Workflow;
     private final GroundedSuggestionV2Workflow v2Workflow;
     private final GroundedSuggestionV3Workflow v3Workflow;
+    @Autowired(required = false)
+    private GroundedSuggestionV4Workflow v4Workflow;
     private final ReviewEvidenceProjector evidenceProjector;
     private final SuggestionReadyMessageService readyMessageService;
     private final SuggestionWorkerProperties workerProperties;
@@ -180,12 +186,23 @@ public class SuggestionService {
         task.setReviewTaskId(review.getTaskId());
         task.setEligibilityReviewTaskId(review.getTaskId());
         task.setEvidenceReviewTaskId(review.getTaskId());
-        boolean useV3 = v3Workflow != null;
-        String workflowVersion = useV3 ? SUGGESTION_V3_VERSION : GroundedSuggestionV2Workflow.VERSION;
-        String parseVersion = useV3 ? PAPER_PARSE_V2_VERSION : PAPER_PARSE_VERSION;
-        String resultSchema = useV3 ? GroundedSuggestionV3Workflow.RESULT_SCHEMA_VERSION : GroundedSuggestionV2Workflow.RESULT_SCHEMA_VERSION;
-        String promptSnapshot = useV3 ? v3Workflow.currentPrompt() : (v2Workflow != null ? v2Workflow.currentPrompt() : "prompt-v2");
-        String defaultRetrieval = useV3 ? SUGGESTION_DEEP_RETRIEVAL_V1 : DEFAULT_RETRIEVAL_VERSION;
+        boolean useV4 = v4Workflow != null;
+        boolean useV3 = !useV4 && v3Workflow != null;
+        String workflowVersion = useV4
+                ? SUGGESTION_V4_VERSION
+                : (useV3 ? SUGGESTION_V3_VERSION : GroundedSuggestionV2Workflow.VERSION);
+        String parseVersion = useV4 || useV3 ? PAPER_PARSE_V2_VERSION : PAPER_PARSE_VERSION;
+        String resultSchema = useV4
+                ? GroundedSuggestionV4Workflow.RESULT_SCHEMA_VERSION
+                : (useV3 ? GroundedSuggestionV3Workflow.RESULT_SCHEMA_VERSION
+                : GroundedSuggestionV2Workflow.RESULT_SCHEMA_VERSION);
+        String promptSnapshot = useV4
+                ? v4Workflow.currentPrompt()
+                : (useV3 ? v3Workflow.currentPrompt()
+                : (v2Workflow != null ? v2Workflow.currentPrompt() : "prompt-v2"));
+        String defaultRetrieval = useV4 || useV3
+                ? SUGGESTION_DEEP_RETRIEVAL_V1
+                : DEFAULT_RETRIEVAL_VERSION;
         task.setWorkflowVersion(workflowVersion);
         task.setReviewWorkflowVersion(review.getWorkflowVersion());
         task.setPaperParsingWorkflowVersion(parseVersion);
@@ -331,6 +348,8 @@ public class SuggestionService {
                 processV2(task, leaseToken);
             } else if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
                 processV3(task, leaseToken);
+            } else if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+                processV4(task, leaseToken);
             } else {
                 throw new IllegalArgumentException("未知建议工作流版本: " + task.getWorkflowVersion());
             }
@@ -381,6 +400,68 @@ public class SuggestionService {
         complete(task, result, leaseToken);
     }
 
+    private void processV4(SuggestionTask task, String leaseToken) throws Exception {
+        if (v4Workflow == null) {
+            throw new IllegalStateException("V4 建议工作流未配置");
+        }
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
+        ProblemContextDTO problem = requiredData(() -> problemFeignClient.getProblemContext(
+                task.getProblemId()
+        ));
+        validateTaskSource(task, submission, eligibility, problem);
+
+        updateStage(task, leaseToken, "PARSING");
+        PaperParseDTO parse = requiredData(() -> reviewFeignClient.ensureParse(
+                task.getSubmissionId(),
+                PAPER_PARSE_V2_VERSION
+        ));
+        if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
+            throw new IllegalStateException("PDF 解析未产生可用产物");
+        }
+        task.setParseArtifactId(parse.getArtifactId());
+        task.setPaperParsingWorkflowVersion(PAPER_PARSE_V2_VERSION);
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
+
+        task.setCurrentStage("PREPARING_REVIEW");
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
+        task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
+        task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
+        task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
+        requireLease(taskMapper.saveReviewEvidence(
+                task.getId(),
+                leaseToken,
+                reviewEvidence.evidenceReviewTaskId(),
+                reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()
+        ));
+
+        updateStage(task, leaseToken, "RETRIEVING");
+        KnowledgeRetrievalResultDTO knowledge = loadOrRetrieveKnowledge(task, problem, reviewEvidence);
+        if (knowledge.getCitations() == null || knowledge.getCitations().isEmpty()) {
+            throw new IllegalStateException("知识检索未返回可用于 V4 建议的参考资料");
+        }
+        task.setRetrievalRunId(knowledge.getRetrievalRunId());
+        task.setKnowledgeSnapshotJson(objectMapper.writeValueAsString(knowledge));
+        requireLease(taskMapper.saveKnowledge(
+                task.getId(),
+                leaseToken,
+                task.getRetrievalRunId(),
+                task.getKnowledgeSnapshotJson()
+        ));
+
+        updateStage(task, leaseToken, "GENERATING");
+        SuggestionWorkflowResult result = v4Workflow.execute(
+                task,
+                problem,
+                parse,
+                reviewEvidence,
+                knowledge
+        );
+        updateStage(task, leaseToken, "VALIDATING");
+        complete(task, result, leaseToken);
+    }
+
     private void processV2(SuggestionTask task, String leaseToken) throws Exception {
         SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
         ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
@@ -424,6 +505,36 @@ public class SuggestionService {
     ReviewEvidenceSnapshot resolveReviewEvidence(SuggestionTask task,
                                                          ReviewSummaryDTO eligibility,
                                                          String leaseToken) {
+        if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+            if (evidenceProjector.isNativeV4(eligibility)) {
+                return evidenceProjector.nativeV4(eligibility, eligibility);
+            }
+            Long evidenceTaskId = task.getEvidenceReviewTaskId();
+            if (evidenceTaskId == null || Objects.equals(evidenceTaskId, eligibility.getTaskId())) {
+                Result<Long> created = reviewFeignClient.createVersionedTask(
+                        task.getSubmissionId(),
+                        task.getTeamId(),
+                        task.getProblemId(),
+                        DEEP_EVIDENCE_REVIEW_V4_VERSION
+                );
+                if (created == null || !created.isSuccess() || created.getData() == null) {
+                    throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
+                }
+                evidenceTaskId = created.getData();
+                task.setEvidenceReviewTaskId(evidenceTaskId);
+                requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
+            }
+            ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
+            if ("FAILED".equals(evidenceReview.getStatus())) {
+                throw new IllegalStateException("为论文补建的 V4 专业评审失败");
+            }
+            if (!"COMPLETED".equals(evidenceReview.getStatus())
+                    || evidenceReview.getResultJson() == null
+                    || evidenceReview.getResultJson().isBlank()) {
+                throw new PendingEvidenceReview();
+            }
+            return evidenceProjector.nativeV4(eligibility, evidenceReview);
+        }
         if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
             if (evidenceProjector.isNativeV3(eligibility)) {
                 return evidenceProjector.nativeV3(eligibility, eligibility);
@@ -703,8 +814,7 @@ public class SuggestionService {
                                                       SubmissionReviewDTO submission,
                                                       ReviewSummaryDTO review) {
         if (!Objects.equals(existing.getSubmissionId(), submission.getId())
-                || !Objects.equals(existing.getEligibilityReviewTaskId(), review.getTaskId())
-                || !GroundedSuggestionV2Workflow.VERSION.equals(existing.getWorkflowVersion())) {
+                || !Objects.equals(existing.getEligibilityReviewTaskId(), review.getTaskId())) {
             throw new IllegalArgumentException("clientRequestId 已用于不同的建议生成请求");
         }
         return existing;
@@ -721,9 +831,18 @@ public class SuggestionService {
         KnowledgeViewSnapshot knowledge = readKnowledgeSnapshot(task);
         if (task.getResultJson() != null && !task.getResultJson().isBlank()) {
             try {
-                output = GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())
-                        ? objectMapper.readValue(task.getResultJson(), GroundedSuggestionV2Output.class)
-                        : objectMapper.readValue(task.getResultJson(), SuggestionV1Output.class);
+                if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(task.getResultJson(), GroundedSuggestionV4Output.class);
+                } else if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(
+                            task.getResultJson(),
+                            com.leetmodel.suggestion.workflow.v3.GroundedSuggestionV3Output.class
+                    );
+                } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(task.getResultJson(), GroundedSuggestionV2Output.class);
+                } else {
+                    output = objectMapper.readValue(task.getResultJson(), SuggestionV1Output.class);
+                }
             } catch (Exception exception) {
                 throw new IllegalStateException("已保存的论文建议结果无法解析", exception);
             }

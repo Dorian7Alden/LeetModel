@@ -73,7 +73,7 @@ class SubmissionFinalizationPersistenceServiceTest {
         assertThat(reviewPayload.submissionId()).isEqualTo(101L);
         assertThat(reviewPayload.teamId()).isEqualTo(41L);
         assertThat(reviewPayload.problemId()).isEqualTo(51L);
-        assertThat(reviewPayload.workflowVersion()).isEqualTo("DEEP_EVIDENCE_REVIEW_V3");
+        assertThat(reviewPayload.workflowVersion()).isEqualTo("DEEP_EVIDENCE_REVIEW_V4");
     }
 
     @Test

@@ -23,7 +23,7 @@ class ReviewDispatchQueryServiceTest {
     void cancelledDraftDispatchIsReportedAsNotRequested() {
         when(jdbcTemplate.queryForList(
                 anyString(), eq(String.class), eq("REVIEW_TASK_READY"),
-                eq("review:101:DEEP_EVIDENCE_REVIEW_V3")))
+                eq("review:101:DEEP_EVIDENCE_REVIEW_V4")))
                 .thenReturn(List.of("CANCELLED"));
 
         ReviewDispatchQueryService service = new ReviewDispatchQueryService(jdbcTemplate);

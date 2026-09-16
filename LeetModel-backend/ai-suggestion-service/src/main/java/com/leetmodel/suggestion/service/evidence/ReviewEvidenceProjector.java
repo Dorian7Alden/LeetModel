@@ -24,6 +24,10 @@ public class ReviewEvidenceProjector {
         return "DEEP_EVIDENCE_REVIEW_V3".equals(review.getWorkflowVersion());
     }
 
+    public boolean isNativeV4(ReviewSummaryDTO review) {
+        return "DEEP_EVIDENCE_REVIEW_V4".equals(review.getWorkflowVersion());
+    }
+
     public boolean isNativeV2(ReviewSummaryDTO review) {
         return "EVIDENCE_REVIEW_V2".equals(review.getWorkflowVersion());
     }
@@ -59,6 +63,48 @@ public class ReviewEvidenceProjector {
             return snapshot(eligibility, evidenceReview, null, findings);
         } catch (Exception exception) {
             throw new IllegalArgumentException("DEEP_EVIDENCE_REVIEW_V3 结果无法形成建议依据", exception);
+        }
+    }
+
+    public ReviewEvidenceSnapshot nativeV4(
+            ReviewSummaryDTO eligibility,
+            ReviewSummaryDTO evidenceReview
+    ) {
+        try {
+            JsonNode root = objectMapper.readTree(evidenceReview.getResultJson());
+            List<ReviewEvidenceSnapshot.Finding> findings = new ArrayList<>();
+            for (JsonNode finding : root.path("findings")) {
+                List<String> blocks = new ArrayList<>();
+                for (JsonNode blockId : finding.path("anchorBlockIds")) {
+                    if (!blockId.asText().isBlank()) blocks.add(blockId.asText());
+                }
+                String findingId = finding.path("findingId").asText();
+                findings.add(new ReviewEvidenceSnapshot.Finding(
+                        findingId,
+                        finding.path("findingType").asText(),
+                        finding.path("category").asText(
+                                finding.path("dimensionCode").asText("GENERAL")
+                        ),
+                        finding.path("priority").asText(
+                                finding.path("importance").asText("MEDIUM")
+                        ),
+                        finding.path("explanationMarkdown").asText(
+                                finding.path("title").asText()
+                        ),
+                        finding.path("scoreImpact").asText("0.0"),
+                        "$.findings[?(@.findingId=='" + findingId + "')]",
+                        List.copyOf(blocks)
+                ));
+            }
+            if (findings.isEmpty()) {
+                throw new IllegalArgumentException("V4 评审没有结构化发现");
+            }
+            return snapshot(eligibility, evidenceReview, null, findings);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException(
+                    "DEEP_EVIDENCE_REVIEW_V4 结果无法形成建议依据",
+                    exception
+            );
         }
     }
 

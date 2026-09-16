@@ -113,6 +113,31 @@ class ModelExecutionCatalogContractTest {
     }
 
     @Test
+    void v4ProfessionalPaperWorkflowsHaveDedicatedImmutableTextConfigs() throws Exception {
+        ModelExecutionConfigProperties properties = properties();
+
+        ModelExecutionConfigProperties.Definition review = properties
+                .getExecutionConfigs().get("MODEL_CFG_REVIEW_TEXT_0004");
+        assertTextConfig(review, 8192, 0.1, "DEEP_EVIDENCE_REVIEW_V4");
+        assertThat(review.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PHASE1_STRUCTURAL_0002",
+                "PROMPT_PHASE2_PLANNER_0002",
+                "PROMPT_SUBTASK_ABSTRACT_VERIFICATION_0002",
+                "PROMPT_SUBTASK_SUB_PROBLEM_EVALUATION_0002",
+                "PROMPT_SUBTASK_SENSITIVITY_EVALUATION_0002"
+        );
+
+        ModelExecutionConfigProperties.Definition suggestion = properties
+                .getExecutionConfigs().get("MODEL_CFG_SUGGESTION_TEXT_0004");
+        assertTextConfig(suggestion, 8192, 0.15, "GROUNDED_SUGGESTION_V4");
+        assertThat(suggestion.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PLANNER_0002",
+                "PROMPT_SUBTASK_0002",
+                "PROMPT_SYNTHESIZER_0002"
+        );
+    }
+
+    @Test
     void paperParseV2WorkflowsHaveDedicatedExecutionConfigs() throws Exception {
         ModelExecutionConfigProperties properties = properties();
 

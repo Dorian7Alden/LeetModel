@@ -49,7 +49,8 @@ public class SubTaskEvaluationWorker {
             ReviewTask task, SubTaskPlanDTO plan, PaperDocumentV2 document, ProblemContextDTO problem) {
         try {
             TaskAssembledContextDTO assembled = slicingEngine.assembleContext(document, plan, problem);
-            String promptTemplate = selectPromptTemplate(plan.getTaskType());
+            boolean v4 = "DEEP_EVIDENCE_REVIEW_V4".equals(task.getWorkflowVersion());
+            String promptTemplate = selectPromptTemplate(plan.getTaskType(), v4);
             Map<String, String> variables = buildVariables(assembled);
             String renderedPrompt = PromptTemplateRenderer.render(promptTemplate, variables);
 
@@ -62,10 +63,11 @@ public class SubTaskEvaluationWorker {
                     AiFeatureCode.PAPER_REVIEW,
                     task.getId() == null ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                     taskKey,
-                    "DEEP_EVIDENCE_REVIEW_V3",
-                    "PROMPT_SUBTASK_" + plan.getTaskType() + "_0001",
+                    v4 ? "DEEP_EVIDENCE_REVIEW_V4" : "DEEP_EVIDENCE_REVIEW_V3",
+                    "PROMPT_SUBTASK_" + plan.getTaskType() + (v4 ? "_0002" : "_0001"),
                     task.getModelExecutionConfigVersion() == null
-                            ? DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION
+                            ? (v4 ? "MODEL_CFG_REVIEW_TEXT_0004"
+                            : DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION)
                             : task.getModelExecutionConfigVersion(),
                     task.getEvaluationTaskId(),
                     task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
@@ -103,11 +105,18 @@ public class SubTaskEvaluationWorker {
         }
     }
 
-    private String selectPromptTemplate(String taskType) {
+    private String selectPromptTemplate(String taskType, boolean v4) {
+        String suffix = v4 ? "-v4.st" : ".st";
         return switch (taskType) {
-            case "ABSTRACT_VERIFICATION" -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-abstract-verification.st");
-            case "SENSITIVITY_EVALUATION" -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-sensitivity-evaluation.st");
-            default -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-subtask-evaluation.st");
+            case "ABSTRACT_VERIFICATION" -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-abstract-verification" + suffix
+            );
+            case "SENSITIVITY_EVALUATION" -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-sensitivity-evaluation" + suffix
+            );
+            default -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-subtask-evaluation" + suffix
+            );
         };
     }
 

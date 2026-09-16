@@ -22,12 +22,14 @@ import com.leetmodel.review.entity.ReviewV1Result;
 import com.leetmodel.review.entity.ReviewVersion;
 import com.leetmodel.review.entity.ReviewV2Result;
 import com.leetmodel.review.entity.ReviewV3Result;
+import com.leetmodel.review.entity.ReviewV4Result;
 import com.leetmodel.review.enums.ReviewErrorCode;
 import com.leetmodel.review.mapper.ReviewTaskMapper;
 import com.leetmodel.review.mapper.ReviewV1ResultMapper;
 import com.leetmodel.review.mapper.ReviewVersionMapper;
 import com.leetmodel.review.mapper.ReviewV2ResultMapper;
 import com.leetmodel.review.mapper.ReviewV3ResultMapper;
+import com.leetmodel.review.mapper.ReviewV4ResultMapper;
 import com.leetmodel.review.vo.ReviewVO;
 import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
@@ -35,6 +37,7 @@ import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import com.leetmodel.review.workflow.v1.BasicReviewV1Workflow;
 import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
 import com.leetmodel.review.workflow.v3.DeepEvidenceReviewV3Workflow;
+import com.leetmodel.review.workflow.v4.DeepEvidenceReviewV4Workflow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -55,6 +58,7 @@ public class ReviewService {
     private final ReviewV1ResultMapper resultMapper;
     private final ReviewV2ResultMapper v2ResultMapper;
     private final ReviewV3ResultMapper v3ResultMapper;
+    private final ReviewV4ResultMapper v4ResultMapper;
     private final ReviewVersionMapper versionMapper;
     private final SubmissionFeignClient submissionFeignClient;
     private final TeamFeignClient teamFeignClient;
@@ -70,12 +74,14 @@ public class ReviewService {
     public ReviewService(ReviewTaskMapper taskMapper, ReviewV1ResultMapper resultMapper,
                          ReviewV2ResultMapper v2ResultMapper,
                          @Autowired(required = false) ReviewV3ResultMapper v3ResultMapper,
+                         @Autowired(required = false) ReviewV4ResultMapper v4ResultMapper,
                          ReviewVersionMapper versionMapper, SubmissionFeignClient submissionFeignClient,
                          TeamFeignClient teamFeignClient, ReviewWorkflowRegistry workflowRegistry,
                          ReviewTaskLogService logService, ReviewResultPersistenceService persistenceService,
                          ObjectMapper objectMapper) {
         this.taskMapper = taskMapper; this.resultMapper = resultMapper; this.v2ResultMapper = v2ResultMapper;
         this.v3ResultMapper = v3ResultMapper;
+        this.v4ResultMapper = v4ResultMapper;
         this.versionMapper = versionMapper;
         this.submissionFeignClient = submissionFeignClient; this.teamFeignClient = teamFeignClient;
         this.workflowRegistry = workflowRegistry; this.logService = logService;
@@ -89,7 +95,7 @@ public class ReviewService {
                          TeamFeignClient teamFeignClient, ReviewWorkflowRegistry workflowRegistry,
                          ReviewTaskLogService logService, ReviewResultPersistenceService persistenceService,
                          ObjectMapper objectMapper) {
-        this(taskMapper, resultMapper, v2ResultMapper, null, versionMapper, submissionFeignClient, teamFeignClient,
+        this(taskMapper, resultMapper, v2ResultMapper, null, null, versionMapper, submissionFeignClient, teamFeignClient,
                 workflowRegistry, logService, persistenceService, objectMapper);
     }
 
@@ -219,6 +225,22 @@ public class ReviewService {
                 ReviewTask task = taskMapper.selectById(result.getTaskId());
                 if (task != null) summaries.add(toSummary(task, new StoredResult(result.getScore(),
                         result.getResultJson(), result.getModelName(), result.getAiCallId())));
+            });
+        }
+        if (v4ResultMapper != null) {
+            LambdaQueryWrapper<ReviewV4Result> v4Query = new LambdaQueryWrapper<>();
+            if (problemId != null) v4Query.eq(ReviewV4Result::getProblemId, problemId);
+            v4Query.orderByDesc(ReviewV4Result::getCreateTime);
+            v4ResultMapper.selectList(v4Query).forEach(result -> {
+                ReviewTask task = taskMapper.selectById(result.getTaskId());
+                if (task != null) {
+                    summaries.add(toSummary(task, new StoredResult(
+                            result.getScore(),
+                            result.getResultJson(),
+                            result.getModelName(),
+                            result.getAiCallId()
+                    )));
+                }
             });
         }
         return summaries.stream().sorted(java.util.Comparator.comparing(
@@ -395,6 +417,9 @@ public class ReviewService {
         if (DeepEvidenceReviewV3Workflow.VERSION_CODE.equals(workflowVersion)) {
             return DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION;
         }
+        if (DeepEvidenceReviewV4Workflow.VERSION_CODE.equals(workflowVersion)) {
+            return DeepEvidenceReviewV4Workflow.MODEL_EXECUTION_CONFIG_VERSION;
+        }
         return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
     }
 
@@ -470,6 +495,20 @@ public class ReviewService {
     }
 
     private StoredResult storedResult(ReviewTask task) {
+        if (DeepEvidenceReviewV4Workflow.VERSION_CODE.equals(task.getWorkflowVersion())) {
+            if (v4ResultMapper == null) return null;
+            ReviewV4Result result = v4ResultMapper.selectOne(
+                    new LambdaQueryWrapper<ReviewV4Result>()
+                            .eq(ReviewV4Result::getTaskId, task.getId())
+                            .last("LIMIT 1")
+            );
+            return result == null ? null : new StoredResult(
+                    result.getScore(),
+                    result.getResultJson(),
+                    result.getModelName(),
+                    result.getAiCallId()
+            );
+        }
         if (DeepEvidenceReviewV3Workflow.VERSION_CODE.equals(task.getWorkflowVersion())) {
             if (v3ResultMapper == null) return null;
             ReviewV3Result result = v3ResultMapper.selectOne(new LambdaQueryWrapper<ReviewV3Result>()

@@ -49,7 +49,11 @@ public class TaskPlannerOperator {
         List<SubProblemCategoryDTO> categories = classifier.parseAndClassifyQuestions(
                 problem == null ? "" : problem.getContentMarkdown());
 
-        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-task-planner.st");
+        boolean v4 = "DEEP_EVIDENCE_REVIEW_V4".equals(task.getWorkflowVersion());
+        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt(
+                v4 ? "prompts/phase2-task-planner-v4.st"
+                        : "prompts/phase2-task-planner.st"
+        );
         String userPrompt = buildPlannerUserPrompt(categories, document);
 
         String taskKey = task.getId() == null
@@ -61,10 +65,11 @@ public class TaskPlannerOperator {
                 AiFeatureCode.PAPER_REVIEW,
                 task.getId() == null ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                 taskKey,
-                "DEEP_EVIDENCE_REVIEW_V3",
-                "PROMPT_PHASE2_PLANNER_0001",
+                v4 ? "DEEP_EVIDENCE_REVIEW_V4" : "DEEP_EVIDENCE_REVIEW_V3",
+                v4 ? "PROMPT_PHASE2_PLANNER_0002" : "PROMPT_PHASE2_PLANNER_0001",
                 task.getModelExecutionConfigVersion() == null
-                        ? DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION
+                        ? (v4 ? "MODEL_CFG_REVIEW_TEXT_0004"
+                        : DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION)
                         : task.getModelExecutionConfigVersion(),
                 task.getEvaluationTaskId(),
                 task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,

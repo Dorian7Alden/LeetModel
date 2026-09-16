@@ -69,6 +69,22 @@ class ReviewEvidenceProjectorTest {
         assertThat(snapshot.findings().get(0).paperEvidenceIds()).containsExactly("P5-B3");
     }
 
+    @Test
+    void mapsNativeV4MarkdownEvidenceWithAnchorBlocks() {
+        String json = "{\"findings\":[{\"findingId\":\"F-V4-1\",\"findingType\":\"ISSUE\","
+                + "\"category\":\"MODEL\",\"priority\":\"P1\","
+                + "\"explanationMarkdown\":\"公式中的 $P$ 未定义。\","
+                + "\"scoreImpact\":\"-1.0 分\",\"anchorBlockIds\":[\"B10\"]}]}";
+        ReviewSummaryDTO review = review("DEEP_EVIDENCE_REVIEW_V4", json);
+
+        assertThat(projector.isNativeV4(review)).isTrue();
+        ReviewEvidenceSnapshot snapshot = projector.nativeV4(review, review);
+
+        assertThat(snapshot.findings().get(0).findingId()).isEqualTo("F-V4-1");
+        assertThat(snapshot.findings().get(0).paperEvidenceIds()).containsExactly("B10");
+        assertThat(snapshot.findings().get(0).statement()).contains("$P$");
+    }
+
     private ReviewSummaryDTO review(String workflow, String json) {
         return new ReviewSummaryDTO(9L, 101L, 11L, 51L, "COMPLETED", workflow,
                 BigDecimal.valueOf(80), json, "model", "call", null, null);
