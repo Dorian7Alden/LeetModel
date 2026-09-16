@@ -1,6 +1,6 @@
 ## 输出契约与 Markdown 报告
 
-> 设计状态：已确认设计，尚未实现。字段名是实现依据草案。
+> 设计状态：已完成实现并经验收。字段名是实现依据草案。
 
 
 ### 一、顶级结构
@@ -60,7 +60,7 @@
   "evidenceChain": {
     "paperEvidenceIds": ["B146"],
     "reviewFindingIds": ["F-Q1-003"],
-    "knowledgeCitationIds": ["KC-018"]
+    "knowledgeBasisIds": ["KB-1"]
   }
 }
 ```

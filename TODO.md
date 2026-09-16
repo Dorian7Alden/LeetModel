@@ -17,7 +17,9 @@
 
 当前阶段分支：`phase/home-command-center`
 
-首页、官网页和最终论文评审用户主链已完成本地实现、真实 AI 链路与浏览器验收。`DEEP_EVIDENCE_REVIEW_V4`、`GROUNDED_SUGGESTION_V4` 和前端专业报告的完整设计已经确认并归档，等待用户明确进入实现任务。
+首页、官网页和最终论文评审用户主链已完成本地实现、真实 AI 链路与浏览器验收。当前正在按已确认设计实现 `DEEP_EVIDENCE_REVIEW_V4`、`GROUNDED_SUGGESTION_V4` 和前端专业报告闭环。
+
+## 当前任务
 
 ## 已确认的系统边界
 
