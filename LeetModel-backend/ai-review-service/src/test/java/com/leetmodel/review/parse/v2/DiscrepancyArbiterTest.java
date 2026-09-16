@@ -179,4 +179,30 @@ class DiscrepancyArbiterTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).text()).isEqualTo("版本 A 原始段落");
     }
+
+    @Test
+    void shouldFallbackToNonEmptyVersionBWhenVersionAIsEmpty() {
+        WindowBlockDTO pB = new WindowBlockDTO(
+                PaperDocumentV2.BlockType.CODE,
+                27,
+                "第 27 页完整代码",
+                null,
+                null,
+                null,
+                null,
+                new PaperDocumentV2.CodePayload("python", "return depth_map"),
+                List.of()
+        );
+        when(aiClient.chat(any())).thenThrow(new RuntimeException("仲裁输出格式错误"));
+
+        List<WindowBlockDTO> result = arbiter.arbitrate(
+                List.of(),
+                List.of(pB),
+                27,
+                "",
+                1001L
+        );
+
+        assertThat(result).containsExactly(pB);
+    }
 }

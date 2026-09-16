@@ -24,13 +24,18 @@ public class PaperParseV2Parser {
     private final PaperParseV2Properties properties;
     private final SlidingWindowScheduler scheduler;
     private final DocumentFlattener flattener;
+    private final PaperParseV2QualityGate qualityGate;
 
-    public PaperParseV2Parser(PaperParseV2Properties properties,
-                              SlidingWindowScheduler scheduler,
-                              DocumentFlattener flattener) {
+    public PaperParseV2Parser(
+            PaperParseV2Properties properties,
+            SlidingWindowScheduler scheduler,
+            DocumentFlattener flattener,
+            PaperParseV2QualityGate qualityGate
+    ) {
         this.properties = properties;
         this.scheduler = scheduler;
         this.flattener = flattener;
+        this.qualityGate = qualityGate;
     }
 
     /**
@@ -73,9 +78,7 @@ public class PaperParseV2Parser {
                         hasDegradedOcr
                 );
 
-                if (paperDocument.blocks().isEmpty()) {
-                    throw new IllegalStateException("PAPER_PARSE_V2_EMPTY_CONTENT: 未提取到可评审的论文内容");
-                }
+                qualityGate.validate(paperDocument);
 
                 log.info("完成 PAPER_PARSE_V2 全局平铺组装: submissionId={}, blocks={}, sections={}, qualityStatus={}",
                         submissionId, paperDocument.blocks().size(), paperDocument.sections().size(),

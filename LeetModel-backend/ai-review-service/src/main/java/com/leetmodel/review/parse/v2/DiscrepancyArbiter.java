@@ -257,21 +257,50 @@ public class DiscrepancyArbiter {
 
             AiChatResponse response = aiClient.chat(request);
             if (response == null || response.content() == null || response.content().isBlank()) {
-                log.warn("仲裁 AI 返回空内容，采用版本 A 兜底: submissionId={}, page={}", submissionId, physicalPage);
-                return textA;
+                log.warn("仲裁 AI 返回空内容，采用信息更完整版本兜底: submissionId={}, page={}",
+                        submissionId, physicalPage);
+                return selectRicherFallback(textA, textB);
             }
 
             List<WindowBlockDTO> arbitrated = responseParser.parseArbiterBlocks(response.content());
             if (arbitrated == null || arbitrated.isEmpty()) {
-                log.warn("仲裁 AI 解析产物为空，采用版本 A 兜底: submissionId={}, page={}", submissionId, physicalPage);
-                return textA;
+                log.warn("仲裁 AI 解析产物为空，采用信息更完整版本兜底: submissionId={}, page={}",
+                        submissionId, physicalPage);
+                return selectRicherFallback(textA, textB);
             }
             return arbitrated;
         } catch (Exception ex) {
-            log.warn("仲裁 AI 调用失败，触发 Fail-Safe 回退版本 A: submissionId={}, page={}, error={}",
+            log.warn("仲裁 AI 调用失败，触发 Fail-Safe 完整度回退: submissionId={}, page={}, error={}",
                     submissionId, physicalPage, ex.getMessage());
-            return textA;
+            return selectRicherFallback(textA, textB);
         }
+    }
+
+    private List<WindowBlockDTO> selectRicherFallback(
+            List<WindowBlockDTO> textA,
+            List<WindowBlockDTO> textB
+    ) {
+        if (textA == null || textA.isEmpty()) return textB == null ? List.of() : textB;
+        if (textB == null || textB.isEmpty()) return textA;
+
+        int weightA = calculateInformationWeight(textA);
+        int weightB = calculateInformationWeight(textB);
+        return weightB > weightA ? textB : textA;
+    }
+
+    private int calculateInformationWeight(List<WindowBlockDTO> blocks) {
+        int weight = blocks.size() * 20;
+        for (WindowBlockDTO block : blocks) {
+            if (block == null) continue;
+            if (block.text() != null) weight += block.text().length();
+            if (block.code() != null && block.code().codeContent() != null) {
+                weight += block.code().codeContent().length();
+            }
+            if (block.table() != null && block.table().html() != null) {
+                weight += block.table().html().length();
+            }
+        }
+        return weight;
     }
 
     private List<WindowBlockDTO> combineBlocks(List<WindowBlockDTO> textBlocks,

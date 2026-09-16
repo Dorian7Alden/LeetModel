@@ -33,7 +33,10 @@ public class PaperParseV2Properties {
     private long retryDelayMs = 1000L;
 
     /** 视觉多模态大模型执行配置版本 */
-    private String visionModelConfigVersion = "MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001";
+    private String visionModelConfigVersion = "MODEL_CFG_PAPER_PARSE_MULTIMODAL_0002";
+
+    /** 双页视觉解析最大输出 Token */
+    private int visionMaxTokens = 8192;
 
     /** 重叠冲突仲裁文本模型执行配置版本 */
     private String arbiterModelConfigVersion = "MODEL_CFG_PAPER_PARSE_TEXT_0001";

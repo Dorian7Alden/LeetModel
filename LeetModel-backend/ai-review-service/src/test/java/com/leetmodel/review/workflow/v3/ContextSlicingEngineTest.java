@@ -91,10 +91,157 @@ class ContextSlicingEngineTest {
 
         assertThat(assembled.getTargetSectionBlocks()).isNotEmpty();
         assertThat(assembled.getTargetSectionBlocks().stream().anyMatch(b -> b.getLatex() != null && b.getLatex().contains("\\min"))).isTrue();
+        assertThat(assembled.getTargetSectionBlocks())
+                .noneMatch(block -> "B07".equals(block.getBlockId()));
 
         assertThat(assembled.getKnowledgeCitations()).isNotEmpty();
         assertThat(assembled.getKnowledgeCitations().get(0).getTitle()).isEqualTo("运筹优化评讲");
 
         assertThat(assembled.getProblemQuestionMarkdown()).contains("最小化运输成本");
+    }
+
+    @Test
+    void shouldRecognizeEnglishAssumptionsAndNotations() {
+        ContextSlicingEngine engine = new ContextSlicingEngine(null);
+        PaperDocumentV2 document = new PaperDocumentV2(
+                PaperDocumentV2.SCHEMA_VERSION,
+                2002L,
+                "sha256-en",
+                new PaperDocumentV2.DocumentMetadata(
+                        6,
+                        5000,
+                        "English Paper",
+                        "EN",
+                        "PAPER_PARSE_V2",
+                        "2026-09-16T10:00:00Z"
+                ),
+                null,
+                List.of(
+                        heading("B1", 1, 2, "Notations"),
+                        paragraph("B2", 1, "The symbols are defined below."),
+                        table("B3", 1),
+                        heading("B4", 2, 2, "Assumptions"),
+                        paragraph("B5", 2, "Assumption 1: walking positions are normally distributed."),
+                        heading("B6", 3, 2, "Model I: Daily Foot Traffic"),
+                        formula("B7", 3),
+                        heading("B8", 4, 2, "Model II")
+                ),
+                List.of(
+                        new PaperDocumentV2.SectionIndex("SEC-1", "Notations", 2, "B1", 1),
+                        new PaperDocumentV2.SectionIndex("SEC-2", "Assumptions", 2, "B4", 2),
+                        new PaperDocumentV2.SectionIndex(
+                                "SEC-3",
+                                "Model I: Daily Foot Traffic",
+                                2,
+                                "B6",
+                                3
+                        ),
+                        new PaperDocumentV2.SectionIndex("SEC-4", "Model II", 2, "B8", 4)
+                ),
+                null
+        );
+        SubTaskPlanDTO taskPlan = SubTaskPlanDTO.builder()
+                .taskId("TASK_Q1_EVAL")
+                .taskType("SUB_PROBLEM_EVALUATION")
+                .targetQuestionNo(1)
+                .suggestedSectionAnchors(List.of(
+                        SubTaskPlanDTO.SectionAnchorDTO.builder()
+                                .sectionId("SEC-3")
+                                .startBlockId("B6")
+                                .endBlockId("B8")
+                                .build()
+                ))
+                .build();
+
+        TaskAssembledContextDTO assembled = engine.assembleContext(
+                document,
+                taskPlan,
+                new ProblemContextDTO(1L, "Problem", "Question 1: estimate traffic.", 180, 1)
+        );
+
+        assertThat(assembled.getAttachedNomenclature())
+                .extracting(TaskAssembledContextDTO.PaperSliceBlockDTO::getBlockId)
+                .contains("B2", "B3");
+        assertThat(assembled.getAttachedAssumptions())
+                .extracting(TaskAssembledContextDTO.PaperSliceBlockDTO::getBlockId)
+                .contains("B5");
+        assertThat(assembled.getTargetSectionBlocks())
+                .extracting(TaskAssembledContextDTO.PaperSliceBlockDTO::getBlockId)
+                .containsExactly("B6", "B7");
+    }
+
+    private PaperDocumentV2.ContentBlockV2 heading(
+            String blockId,
+            int page,
+            int level,
+            String title
+    ) {
+        return new PaperDocumentV2.ContentBlockV2(
+                blockId,
+                PaperDocumentV2.BlockType.HEADING,
+                page,
+                title,
+                new PaperDocumentV2.HeadingPayload(level, "", title),
+                null,
+                null,
+                null,
+                null,
+                List.of()
+        );
+    }
+
+    private PaperDocumentV2.ContentBlockV2 paragraph(
+            String blockId,
+            int page,
+            String text
+    ) {
+        return new PaperDocumentV2.ContentBlockV2(
+                blockId,
+                PaperDocumentV2.BlockType.PARAGRAPH,
+                page,
+                text,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of()
+        );
+    }
+
+    private PaperDocumentV2.ContentBlockV2 table(String blockId, int page) {
+        return new PaperDocumentV2.ContentBlockV2(
+                blockId,
+                PaperDocumentV2.BlockType.TABLE,
+                page,
+                "Notation table",
+                null,
+                null,
+                new PaperDocumentV2.TablePayload(
+                        "Notation table",
+                        "TOP",
+                        "1",
+                        "<table><tr><td>n</td><td>traffic</td></tr></table>",
+                        ""
+                ),
+                null,
+                null,
+                List.of()
+        );
+    }
+
+    private PaperDocumentV2.ContentBlockV2 formula(String blockId, int page) {
+        return new PaperDocumentV2.ContentBlockV2(
+                blockId,
+                PaperDocumentV2.BlockType.FORMULA,
+                page,
+                "n = VH / KPL",
+                null,
+                new PaperDocumentV2.FormulaPayload("n = VH / KPL", "(1)", false),
+                null,
+                null,
+                null,
+                List.of()
+        );
     }
 }

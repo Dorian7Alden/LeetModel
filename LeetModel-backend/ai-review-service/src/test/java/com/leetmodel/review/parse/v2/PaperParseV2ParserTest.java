@@ -64,7 +64,12 @@ class PaperParseV2ParserTest {
                 objectMapper
         );
 
-        parser = new PaperParseV2Parser(properties, scheduler, flattener);
+        parser = new PaperParseV2Parser(
+                properties,
+                scheduler,
+                flattener,
+                new PaperParseV2QualityGate()
+        );
     }
 
     @Test

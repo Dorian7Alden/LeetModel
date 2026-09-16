@@ -19,6 +19,7 @@ import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
 import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
+import com.leetmodel.review.workflow.v3.DeepEvidenceReviewV3Workflow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -313,6 +314,34 @@ class ReviewServiceTest {
         assertEquals("MODEL_CFG_REVIEW_TEXT_0002", result.getModelExecutionConfigVersion());
         verify(workflow).execute(argThat(task ->
                 "MODEL_CFG_REVIEW_TEXT_0002".equals(task.getModelExecutionConfigVersion())), any());
+    }
+
+    @Test
+    void deepEvidenceV3ExperimentUsesDedicatedTextModelConfig() throws Exception {
+        when(workflowRegistry.required(DeepEvidenceReviewV3Workflow.VERSION_CODE)).thenReturn(workflow);
+        when(workflow.versionId()).thenReturn(DeepEvidenceReviewV3Workflow.VERSION_ID);
+        when(workflow.versionCode()).thenReturn(DeepEvidenceReviewV3Workflow.VERSION_CODE);
+        when(workflow.currentPrompt()).thenReturn("prompt-v3");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("91.5"),
+                "{\"score\":91.5}",
+                "model-v3",
+                "call-v3",
+                78L
+        ));
+
+        var result = service.runExperiment(
+                31L,
+                DeepEvidenceReviewV3Workflow.VERSION_CODE
+        );
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        verify(workflow).execute(argThat(task ->
+                DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION.equals(
+                        task.getModelExecutionConfigVersion()
+                )), any());
+        verify(taskMapper, never()).insert(any(ReviewTask.class));
     }
 
     @Test

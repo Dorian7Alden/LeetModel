@@ -76,8 +76,12 @@ public class ContextSlicingEngine {
         List<PaperDocumentV2.SectionIndex> sections = document.sections();
         if (sections == null) return list;
         for (var sec : sections) {
-            if (sec.title().contains("假设") || sec.title().contains("前提")) {
-                List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec.headingBlockId());
+            String title = normalizedTitle(sec.title());
+            if (title.contains("假设")
+                    || title.contains("前提")
+                    || title.contains("assumption")
+                    || title.contains("premise")) {
+                List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec);
                 for (var b : blocks) {
                     list.add(toSliceBlock(b));
                 }
@@ -92,8 +96,15 @@ public class ContextSlicingEngine {
         List<PaperDocumentV2.SectionIndex> sections = document.sections();
         if (sections == null) return list;
         for (var sec : sections) {
-            if (sec.title().contains("符号") || sec.title().contains("说明") || sec.title().contains("名词")) {
-                List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec.headingBlockId());
+            String title = normalizedTitle(sec.title());
+            if (title.contains("符号")
+                    || title.contains("说明")
+                    || title.contains("名词")
+                    || title.contains("notation")
+                    || title.contains("nomenclature")
+                    || title.contains("symbol definition")
+                    || title.contains("variable definition")) {
+                List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec);
                 for (var b : blocks) {
                     list.add(toSliceBlock(b));
                 }
@@ -124,11 +135,11 @@ public class ContextSlicingEngine {
                     if (b.blockId().equals(startId)) {
                         inRange = true;
                     }
+                    if (inRange && endId != null && b.blockId().equals(endId)) {
+                        break;
+                    }
                     if (inRange) {
                         result.add(toSliceBlock(b));
-                        if (endId != null && b.blockId().equals(endId)) {
-                            break;
-                        }
                     }
                 }
             }
@@ -161,19 +172,11 @@ public class ContextSlicingEngine {
             PaperDocumentV2 document, SubTaskPlanDTO taskPlan) {
         List<TaskAssembledContextDTO.PaperSliceBlockDTO> result = new ArrayList<>();
         int targetQ = taskPlan.getTargetQuestionNo() == null ? 1 : taskPlan.getTargetQuestionNo();
-        String keyword = switch (targetQ) {
-            case 1 -> "问题一";
-            case 2 -> "问题二";
-            case 3 -> "问题三";
-            case 4 -> "问题四";
-            case 5 -> "问题五";
-            default -> "问题" + targetQ;
-        };
         List<PaperDocumentV2.SectionIndex> sections = document.sections();
         if (sections != null) {
             for (var sec : sections) {
-                if (sec.title().contains(keyword)) {
-                    for (var b : getSectionBlocks(document, sec.headingBlockId())) {
+                if (matchesQuestionSection(sec.title(), targetQ)) {
+                    for (var b : getSectionBlocks(document, sec)) {
                         result.add(toSliceBlock(b));
                     }
                     break;
@@ -257,19 +260,46 @@ public class ContextSlicingEngine {
                 .build();
     }
 
-    private List<PaperDocumentV2.ContentBlockV2> getSectionBlocks(PaperDocumentV2 document, String headingBlockId) {
+    private boolean matchesQuestionSection(String rawTitle, int questionNo) {
+        String title = normalizedTitle(rawTitle);
+        return title.contains("问题" + questionNo)
+                || title.contains(chineseQuestionLabel(questionNo))
+                || title.contains("problem " + questionNo)
+                || title.contains("solution of problem " + questionNo);
+    }
+
+    private String normalizedTitle(String title) {
+        return title == null ? "" : title.toLowerCase(Locale.ROOT).strip();
+    }
+
+    private String chineseQuestionLabel(int questionNo) {
+        return switch (questionNo) {
+            case 1 -> "问题一";
+            case 2 -> "问题二";
+            case 3 -> "问题三";
+            case 4 -> "问题四";
+            case 5 -> "问题五";
+            default -> "问题" + questionNo;
+        };
+    }
+
+    private List<PaperDocumentV2.ContentBlockV2> getSectionBlocks(
+            PaperDocumentV2 document,
+            PaperDocumentV2.SectionIndex section
+    ) {
         List<PaperDocumentV2.ContentBlockV2> result = new ArrayList<>();
         List<PaperDocumentV2.ContentBlockV2> blocks = document.blocks();
         if (blocks == null) return result;
         boolean collecting = false;
         for (var b : blocks) {
-            if (b.blockId().equals(headingBlockId)) {
+            if (b.blockId().equals(section.headingBlockId())) {
                 collecting = true;
                 continue;
             }
             if (collecting) {
                 if (b.type() == PaperDocumentV2.BlockType.HEADING) {
-                    break;
+                    int headingLevel = b.heading() == null ? 1 : b.heading().level();
+                    if (headingLevel <= section.level()) break;
                 }
                 result.add(b);
             }

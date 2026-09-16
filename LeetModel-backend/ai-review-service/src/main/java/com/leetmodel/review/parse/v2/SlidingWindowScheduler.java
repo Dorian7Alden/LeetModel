@@ -100,10 +100,7 @@ public class SlidingWindowScheduler {
             PaperParseChunkArtifact existing = findSuccessfulChunk(submissionId, windowIndex);
             if (existing != null && existing.getChunkJson() != null) {
                 log.info("滑窗命中历史断点缓存复用: submissionId={}, windowIndex={}", submissionId, windowIndex);
-                WindowChunkDTO cachedChunk = objectMapper.readValue(
-                        existing.getChunkJson(),
-                        WindowChunkDTO.class
-                );
+                WindowChunkDTO cachedChunk = responseParser.parseWindowChunk(existing.getChunkJson());
                 completedChunks.add(cachedChunk);
                 accumulateHeadings(headingAccumulator, cachedChunk);
                 lastTailText = extractTailText(cachedChunk);
@@ -146,7 +143,7 @@ public class SlidingWindowScheduler {
     private WindowChunkDTO scheduleSinglePage(Long submissionId, PDDocument document) throws Exception {
         PaperParseChunkArtifact existing = findSuccessfulChunk(submissionId, 1);
         if (existing != null && existing.getChunkJson() != null) {
-            return objectMapper.readValue(existing.getChunkJson(), WindowChunkDTO.class);
+            return responseParser.parseWindowChunk(existing.getChunkJson());
         }
 
         String userPrompt = userPromptTemplate
@@ -268,7 +265,12 @@ public class SlidingWindowScheduler {
                 properties.getVisionModelConfigVersion(),
                 null,
                 AiCallPriority.P1,
-                "parse-window:" + businessTaskId + ":attempt:" + attempt,
+                "parse-window:"
+                        + businessTaskId
+                        + ":config:"
+                        + properties.getVisionModelConfigVersion()
+                        + ":attempt:"
+                        + attempt,
                 Instant.now().plusSeconds(300)
         );
 
@@ -276,7 +278,7 @@ public class SlidingWindowScheduler {
                 AiModality.MULTIMODAL,
                 context,
                 List.of(sysMsg, usrMsg),
-                4096,
+                properties.getVisionMaxTokens(),
                 0.1,
                 AiResponseFormat.JSON_OBJECT,
                 false
@@ -373,13 +375,13 @@ public class SlidingWindowScheduler {
                 artifact.setStatus(status);
                 artifact.setChunkJson(json);
                 artifact.setAttemptNo(attemptNo);
-                artifact.setErrorMessage(errorMessage);
+                artifact.setErrorMessage(truncateErrorMessage(errorMessage));
                 chunkMapper.insert(artifact);
             } else {
                 existing.setStatus(status);
                 existing.setChunkJson(json);
                 existing.setAttemptNo(attemptNo);
-                existing.setErrorMessage(errorMessage);
+                existing.setErrorMessage(truncateErrorMessage(errorMessage));
                 chunkMapper.updateById(existing);
             }
         } catch (Exception ex) {
@@ -430,6 +432,11 @@ public class SlidingWindowScheduler {
             }
         }
         return "（首页起始，无前文）";
+    }
+
+    private String truncateErrorMessage(String errorMessage) {
+        if (errorMessage == null || errorMessage.isBlank()) return null;
+        return errorMessage.substring(0, Math.min(errorMessage.length(), 500));
     }
 
     private String loadPrompt(String path) {

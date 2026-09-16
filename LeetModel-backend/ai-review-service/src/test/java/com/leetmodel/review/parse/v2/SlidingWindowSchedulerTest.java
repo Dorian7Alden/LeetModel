@@ -174,6 +174,14 @@ class SlidingWindowSchedulerTest {
 
             ArgumentCaptor<AiChatRequest> captor = ArgumentCaptor.forClass(AiChatRequest.class);
             verify(aiClient, times(2)).chat(captor.capture());
+            assertThat(captor.getAllValues())
+                    .allSatisfy(request -> assertThat(request.maxTokens()).isEqualTo(8192));
+            assertThat(captor.getAllValues())
+                    .allSatisfy(request -> assertThat(request.context().modelExecutionConfigVersion())
+                            .isEqualTo("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0002"));
+            assertThat(captor.getAllValues())
+                    .allSatisfy(request -> assertThat(request.context().idempotencyKey())
+                            .contains(":config:MODEL_CFG_PAPER_PARSE_MULTIMODAL_0002:"));
 
             // 验证第二个窗口的用户提示词注入了第一个窗口的大纲与尾部文本
             String secondPrompt = captor.getAllValues().get(1).messages().get(1).content().get(0).text();
@@ -198,7 +206,16 @@ class SlidingWindowSchedulerTest {
                       "pageBottomUnfinished": false,
                       "windowLayoutAesthetics": { "score": 92.0, "pageCompactness": "HIGH", "comment": "已缓存" },
                       "blocks": [
-                        { "type": "PARAGRAPH", "physicalPage": 1, "text": "缓存段落" }
+                        {
+                          "type": "PARAGRAPH",
+                          "physicalPage": 1,
+                          "text": "缓存段落",
+                          "heading": false,
+                          "formula": false,
+                          "table": false,
+                          "figure": false,
+                          "code": false
+                        }
                       ]
                     }
                     """;

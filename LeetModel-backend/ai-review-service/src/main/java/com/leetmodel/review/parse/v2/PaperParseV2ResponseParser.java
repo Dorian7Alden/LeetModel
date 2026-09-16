@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -54,13 +56,15 @@ public class PaperParseV2ResponseParser {
     public WindowChunkDTO parseWindowChunk(String rawContent) {
         String json = extractJsonObject(rawContent);
         try {
-            WindowChunkDTO chunk = objectMapper.readValue(json, WindowChunkDTO.class);
+            String normalized = normalizeOptionalBlockPayloads(json);
+            WindowChunkDTO chunk = objectMapper.readValue(normalized, WindowChunkDTO.class);
             return sanitizeChunk(chunk);
         } catch (Exception firstEx) {
             // 尝试轻量修复尾随逗号后重试反序列化
             String repaired = repairTrailingCommas(json);
             try {
-                WindowChunkDTO chunk = objectMapper.readValue(repaired, WindowChunkDTO.class);
+                String normalized = normalizeOptionalBlockPayloads(repaired);
+                WindowChunkDTO chunk = objectMapper.readValue(normalized, WindowChunkDTO.class);
                 return sanitizeChunk(chunk);
             } catch (Exception retryEx) {
                 throw new IllegalArgumentException(
@@ -82,16 +86,18 @@ public class PaperParseV2ResponseParser {
         String sanitized = sanitizeRaw(rawContent);
         String jsonArrayCandidate = extractJsonArrayOrFromObject(sanitized);
         try {
+            String normalized = normalizeOptionalBlockPayloads(jsonArrayCandidate);
             List<WindowBlockDTO> blocks = objectMapper.readValue(
-                    jsonArrayCandidate,
+                    normalized,
                     new TypeReference<List<WindowBlockDTO>>() {}
             );
             return sanitizeBlocks(blocks);
         } catch (Exception firstEx) {
             String repaired = repairTrailingCommas(jsonArrayCandidate);
             try {
+                String normalized = normalizeOptionalBlockPayloads(repaired);
                 List<WindowBlockDTO> blocks = objectMapper.readValue(
-                        repaired,
+                        normalized,
                         new TypeReference<List<WindowBlockDTO>>() {}
                 );
                 return sanitizeBlocks(blocks);
@@ -177,6 +183,34 @@ public class PaperParseV2ResponseParser {
             return "";
         }
         return json.replaceAll(",\\s*([}\\]])", "$1");
+    }
+
+    private String normalizeOptionalBlockPayloads(String json) throws Exception {
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode blocks = root.isArray() ? root : root.get("blocks");
+        if (blocks instanceof ArrayNode blockArray) {
+            for (JsonNode block : blockArray) {
+                normalizeOptionalPayloadFields(block);
+            }
+        }
+        return objectMapper.writeValueAsString(root);
+    }
+
+    private void normalizeOptionalPayloadFields(JsonNode block) {
+        if (!(block instanceof ObjectNode objectNode)) return;
+        normalizeBooleanAsNull(objectNode, "heading");
+        normalizeBooleanAsNull(objectNode, "formula");
+        normalizeBooleanAsNull(objectNode, "table");
+        normalizeBooleanAsNull(objectNode, "figure");
+        normalizeBooleanAsNull(objectNode, "code");
+        normalizeBooleanAsNull(objectNode, "references");
+    }
+
+    private void normalizeBooleanAsNull(ObjectNode block, String fieldName) {
+        JsonNode value = block.get(fieldName);
+        if (value != null && value.isBoolean()) {
+            block.putNull(fieldName);
+        }
     }
 
     private WindowChunkDTO sanitizeChunk(WindowChunkDTO chunk) {

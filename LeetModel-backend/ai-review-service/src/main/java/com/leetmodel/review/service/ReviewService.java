@@ -284,7 +284,7 @@ public class ReviewService {
      */
     public ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion) {
         return runExperiment(submissionId, workflowVersion, null,
-                "MODEL_CFG_REVIEW_MULTIMODAL_0001");
+                requiredExperimentModelConfig(workflowVersion));
     }
 
     private ReviewExperimentResultDTO runExperiment(Long submissionId, String workflowVersion,
@@ -336,10 +336,9 @@ public class ReviewService {
     public AiExperimentResultDTO runExperiment(AiExperimentRequestDTO request) {
         LocalDateTime startedAt = LocalDateTime.now();
         try {
-            boolean evidenceV2 = EvidenceReviewV2Workflow.VERSION_CODE.equals(
-                    request.getWorkflowVersion());
-            String requiredModelConfig = evidenceV2
-                    ? "MODEL_CFG_REVIEW_TEXT_0002" : "MODEL_CFG_REVIEW_MULTIMODAL_0001";
+            String requiredModelConfig = requiredExperimentModelConfig(
+                    request.getWorkflowVersion()
+            );
             if (!"REVIEW".equals(request.getFeatureCode())
                     || !"SUBMISSION_REFERENCE".equals(request.getSample().getSampleType())
                     || !"REVIEW_SUBMISSION_V1".equals(request.getSample().getSchemaVersion())
@@ -387,6 +386,16 @@ public class ReviewService {
                 && request.getAttemptNo() != null && request.getAttemptNo() > 0
                 && request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank();
         return none || all;
+    }
+
+    private String requiredExperimentModelConfig(String workflowVersion) {
+        if (EvidenceReviewV2Workflow.VERSION_CODE.equals(workflowVersion)) {
+            return "MODEL_CFG_REVIEW_TEXT_0002";
+        }
+        if (DeepEvidenceReviewV3Workflow.VERSION_CODE.equals(workflowVersion)) {
+            return DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION;
+        }
+        return "MODEL_CFG_REVIEW_MULTIMODAL_0001";
     }
 
     @Transactional

@@ -172,6 +172,35 @@ class PaperParseV2ResponseParserTest {
     }
 
     @Test
+    void normalizeFalseOptionalPayloadsFromModelOutput() {
+        String raw = """
+                [
+                  {
+                    "type": "CODE",
+                    "physicalPage": 27,
+                    "text": "代码清单",
+                    "heading": false,
+                    "formula": false,
+                    "table": false,
+                    "figure": true,
+                    "code": {
+                      "language": "python",
+                      "codeContent": "return depth_map"
+                    },
+                    "references": false
+                  }
+                ]
+                """;
+
+        List<WindowBlockDTO> blocks = parser.parseArbiterBlocks(raw);
+
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).type()).isEqualTo(PaperDocumentV2.BlockType.CODE);
+        assertThat(blocks.get(0).figure()).isNull();
+        assertThat(blocks.get(0).code().codeContent()).isEqualTo("return depth_map");
+    }
+
+    @Test
     void rejectInvalidJsonWithoutBraces() {
         assertThrows(IllegalArgumentException.class, () -> parser.parseWindowChunk("没有 JSON 内容"));
     }
