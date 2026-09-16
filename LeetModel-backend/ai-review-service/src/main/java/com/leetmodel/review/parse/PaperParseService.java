@@ -100,6 +100,7 @@ public class PaperParseService {
                 .eq(PaperParseArtifact::getWorkflowVersion, PaperParseV2Parser.WORKFLOW_VERSION)
                 .eq(PaperParseArtifact::getSchemaVersion, PaperParseV2Parser.SCHEMA_VERSION)
                 .in(PaperParseArtifact::getStatus, "SUCCESS", "PARTIAL_SUCCESS")
+                .apply("JSON_LENGTH(JSON_EXTRACT(document_json, '$.blocks')) > 0")
                 .orderByDesc(PaperParseArtifact::getCreateTime)
                 .last("LIMIT 1"));
         if (reusable != null) return toDTO(reusable);

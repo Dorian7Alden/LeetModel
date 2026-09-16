@@ -394,14 +394,16 @@ public class ReviewService {
         ReviewTask task = requiredTask(taskId);
         SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
         checkMember(submission.getTeamId(), userId);
-        BusinessException.throwIf(!"FAILED".equals(task.getStatus()), ReviewErrorCode.TASK_NOT_FAILED);
+        boolean retryable = "FAILED".equals(task.getStatus()) || "UNKNOWN".equals(task.getStatus());
+        BusinessException.throwIf(!retryable, ReviewErrorCode.TASK_NOT_FAILED);
         task.setStatus("WAITING"); task.setRetryCount(task.getRetryCount() + 1);
         task.setAttemptNo(task.getAttemptNo() + 1); task.setNextRunAt(LocalDateTime.now());
         task.setStartedAt(null); task.setFinishedAt(null); task.setErrorMessage(null);
         task.setFailureType(null);
         task.setAiIdempotencyKey(aiIdempotencyKey(
                 task.getSubmissionId(), task.getWorkflowVersion(), task.getAttemptNo()));
-        taskMapper.resetForRetry(task);
+        int updated = taskMapper.resetForRetry(task);
+        BusinessException.throwIf(updated != 1, ReviewErrorCode.TASK_NOT_FAILED);
         return toVO(task, null);
     }
 

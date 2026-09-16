@@ -10,6 +10,8 @@ public enum OutboxStatus {
     SENDING,
     /** Broker 已确认接收。 */
     PUBLISHED,
+    /** 业务规则变更后已失效，不再允许 Relay 投递。 */
+    CANCELLED,
     /** 稳定配置或契约错误，需要人工修复。 */
     BLOCKED
 }

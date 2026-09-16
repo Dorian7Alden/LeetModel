@@ -73,6 +73,10 @@ public class PaperParseV2Parser {
                         hasDegradedOcr
                 );
 
+                if (paperDocument.blocks().isEmpty()) {
+                    throw new IllegalStateException("PAPER_PARSE_V2_EMPTY_CONTENT: 未提取到可评审的论文内容");
+                }
+
                 log.info("完成 PAPER_PARSE_V2 全局平铺组装: submissionId={}, blocks={}, sections={}, qualityStatus={}",
                         submissionId, paperDocument.blocks().size(), paperDocument.sections().size(),
                         paperDocument.quality().status());

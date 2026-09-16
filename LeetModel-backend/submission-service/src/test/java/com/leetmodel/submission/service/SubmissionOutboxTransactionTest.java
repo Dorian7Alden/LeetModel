@@ -85,18 +85,16 @@ class SubmissionOutboxTransactionTest {
     }
 
     @Test
-    void commitSubmissionAndOutboxTogether() {
+    void commitDraftSubmissionWithoutReviewOutbox() {
         Submission submission = transactionTemplate.execute(status -> service.createSubmission(1L));
 
         assertThat(submission).isNotNull();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM domain_submission", Long.class)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM message_outbox", String.class))
-                .isEqualTo("PENDING");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isZero();
     }
 
     @Test
-    void rollbackSubmissionAndOutboxTogether() {
+    void rollbackDraftSubmissionTogether() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             service.createSubmission(1L);
             throw new IllegalStateException("simulate transaction failure");
@@ -107,7 +105,7 @@ class SubmissionOutboxTransactionTest {
     }
 
     @Test
-    void repairMissingOutboxForSubmissionCreatedBeforeUpgradeAndRemainIdempotent() {
+    void repeatedCompletionReturnsExistingDraftWithoutReviewOutbox() {
         Submission existing = new Submission();
         existing.setId(101L);
         existing.setTeamId(2L);
@@ -118,6 +116,6 @@ class SubmissionOutboxTransactionTest {
         transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
         transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
 
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isZero();
     }
 }

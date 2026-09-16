@@ -43,8 +43,6 @@ public class SubmissionUploadPersistenceService {
         if (upload.getSubmissionId() != null) {
             Submission existing = submissionMapper.selectById(upload.getSubmissionId());
             BusinessException.throwIf(existing == null, SubmissionErrorCode.SUBMISSION_NOT_FOUND);
-            // 兼容升级前已创建提交、但尚未派发评审的记录；重复补偿由唯一幂等键收敛。
-            enqueueReviewTask(existing);
             return existing;
         }
 
@@ -60,9 +58,8 @@ public class SubmissionUploadPersistenceService {
         submission.setStatus("SUCCESS");
         submissionMapper.insert(submission);
 
-        // 同一事务写上传关联和评审 Outbox，Broker 故障不影响提交事实
+        // 上传阶段只形成可继续修改的草稿版本；最终版评审在练习结束并锁定版本后派发。
         uploadMapper.linkSubmission(upload.getId(), submission.getId());
-        enqueueReviewTask(submission);
         return submission;
     }
 

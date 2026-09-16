@@ -2,6 +2,7 @@ package com.leetmodel.submission.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.leetmodel.common.api.dto.FinalSubmissionChangedPayload;
+import com.leetmodel.common.api.dto.ReviewTaskReadyPayload;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.util.TraceIdUtil;
@@ -13,6 +14,7 @@ import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.messaging.FinalSubmissionMessageContract;
+import com.leetmodel.submission.messaging.ReviewTaskMessageContract;
 import com.leetmodel.submission.audit.SubmissionAuditEventProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -39,7 +41,8 @@ public class SubmissionFinalizationPersistenceService {
                 .eq(SubmissionLock::getTeamId, team.getId()));
         if (existing != null) {
             Submission submission = requiredSubmission(existing.getSubmissionId());
-            enqueue(existing, submission);
+            enqueueFinalSubmissionChanged(existing, submission);
+            enqueueReviewTask(submission);
             return submission;
         }
 
@@ -54,7 +57,8 @@ public class SubmissionFinalizationPersistenceService {
         lock.setSubmissionId(latest.getId());
         lock.setLockedAt(LocalDateTime.now());
         lockMapper.insert(lock);
-        enqueue(lock, latest);
+        enqueueFinalSubmissionChanged(lock, latest);
+        enqueueReviewTask(latest);
         audit.finalized(team, latest.getId(), latest.getVersion());
         return latest;
     }
@@ -65,7 +69,7 @@ public class SubmissionFinalizationPersistenceService {
         return submission;
     }
 
-    private void enqueue(SubmissionLock lock, Submission submission) {
+    private void enqueueFinalSubmissionChanged(SubmissionLock lock, Submission submission) {
         FinalSubmissionChangedPayload payload = new FinalSubmissionChangedPayload(
                 submission.getTeamId(), submission.getProblemId(), submission.getId(), lock.getLockedAt());
         try {
@@ -82,6 +86,27 @@ public class SubmissionFinalizationPersistenceService {
                             payload));
         } catch (DuplicateKeyException ignored) {
             // 同一队伍和最终提交只对应一个业务事件；重复锁定用于补偿历史缺失 Outbox。
+        }
+    }
+
+    private void enqueueReviewTask(Submission submission) {
+        ReviewTaskReadyPayload payload = new ReviewTaskReadyPayload(
+                submission.getId(), submission.getTeamId(), submission.getProblemId(),
+                ReviewTaskMessageContract.WORKFLOW_VERSION);
+        try {
+            messageOutbox.enqueue(
+                    ReviewTaskMessageContract.TOPIC,
+                    ReviewTaskMessageContract.EVENT_TYPE,
+                    envelopeFactory.create(
+                            ReviewTaskMessageContract.EVENT_TYPE,
+                            "submission",
+                            submission.getId().toString(),
+                            ReviewTaskMessageContract.idempotencyKey(
+                                    submission.getId(), ReviewTaskMessageContract.WORKFLOW_VERSION),
+                            currentTraceId(),
+                            payload));
+        } catch (DuplicateKeyException ignored) {
+            // 最终版本只派发一次正式评审；重复锁定用于补偿缺失事件而不会重复计费。
         }
     }
 

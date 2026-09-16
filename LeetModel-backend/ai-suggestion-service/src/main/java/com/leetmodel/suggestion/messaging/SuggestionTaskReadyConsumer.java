@@ -13,6 +13,7 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.apache.rocketmq.common.message.MessageExt;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,7 @@ import java.time.LocalDateTime;
         consumeThreadMax = 1,
         maxReconsumeTimes = 5
 )
-public class SuggestionTaskReadyConsumer implements RocketMQListener<String> {
+public class SuggestionTaskReadyConsumer implements RocketMQListener<MessageExt> {
     private final MessageCodec codec;
     private final MessageInbox inbox;
     private final SuggestionTaskMapper taskMapper;
@@ -47,7 +48,16 @@ public class SuggestionTaskReadyConsumer implements RocketMQListener<String> {
     }
 
     @Override
+    public void onMessage(MessageExt message) {
+        consume(message.getBody());
+    }
+
+    /** 供不依赖 Broker 的契约测试复用相同解析入口。 */
     public void onMessage(String body) {
+        consume(codec.bytes(body));
+    }
+
+    private void consume(byte[] body) {
         MessageEnvelopeV1<SuggestionTaskReadyPayload> envelope = codec.decode(
                 body, SuggestionTaskReadyPayload.class);
         validate(envelope);

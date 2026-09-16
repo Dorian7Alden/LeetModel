@@ -9,6 +9,7 @@ import com.leetmodel.common.messaging.MessageContractException;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
 import com.leetmodel.common.messaging.MessageInbox;
 import com.leetmodel.review.service.ReviewService;
+import org.apache.rocketmq.common.message.MessageExt;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -38,9 +39,9 @@ class ReviewTaskReadyConsumerTest {
                 });
         ReviewTaskReadyConsumer consumer = new ReviewTaskReadyConsumer(codec, inbox, reviewService);
 
-        consumer.onMessage(new String(
-                codec.encode(envelope("submission-service")),
-                java.nio.charset.StandardCharsets.UTF_8));
+        MessageExt message = new MessageExt();
+        message.setBody(codec.encode(envelope("submission-service")));
+        consumer.onMessage(message);
 
         verify(reviewService).createTask(11L, 12L, 13L, "EVIDENCE_REVIEW_V2", "trace-review-11");
     }

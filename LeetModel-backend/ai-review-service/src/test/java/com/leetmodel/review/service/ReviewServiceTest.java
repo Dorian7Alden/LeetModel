@@ -116,6 +116,7 @@ class ReviewServiceTest {
         when(taskMapper.selectById(23L)).thenReturn(task);
         when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
         when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(1);
 
         var result = service.retry(23L, 10L);
 
@@ -138,6 +139,41 @@ class ReviewServiceTest {
 
         assertEquals(ReviewErrorCode.TASK_NOT_FAILED.getCode(), error.getCode());
         verify(taskMapper, never()).resetForRetry(any());
+    }
+
+    @Test
+    void allowMemberToManuallyRetryUnknownTask() {
+        ReviewTask task = task(25L, "UNKNOWN");
+        task.setRetryCount(0);
+        task.setAttemptNo(1);
+        task.setFailureType("AI_UNKNOWN");
+        task.setErrorMessage("AI 上游结果未知，禁止自动重试");
+        when(taskMapper.selectById(25L)).thenReturn(task);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(1);
+
+        var result = service.retry(25L, 10L);
+
+        assertEquals("WAITING", result.getStatus());
+        assertEquals(1, result.getRetryCount());
+        assertEquals(2, result.getAttemptNo());
+        verify(taskMapper).resetForRetry(argThat(value -> value.getFailureType() == null
+                && value.getErrorMessage() == null));
+    }
+
+    @Test
+    void rejectRetryWhenTaskStateChangedConcurrently() {
+        ReviewTask task = task(27L, "FAILED");
+        when(taskMapper.selectById(27L)).thenReturn(task);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(0);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.retry(27L, 10L));
+
+        assertEquals(ReviewErrorCode.TASK_NOT_FAILED.getCode(), error.getCode());
     }
 
     @Test

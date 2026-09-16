@@ -9,6 +9,7 @@ import com.leetmodel.common.messaging.MessagingNamespace;
 import com.leetmodel.common.messaging.internal.JdbcMessageInbox;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
 import com.leetmodel.suggestion.service.SuggestionTaskWorkerCoordinator;
+import org.apache.rocketmq.common.message.MessageExt;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -58,7 +59,9 @@ class SuggestionTaskReadyConsumerTest {
                 new SuggestionTaskReadyPayload(9001L, 101L, "GROUNDED_SUGGESTION_V2"));
         String body = new String(codec.encode(envelope), java.nio.charset.StandardCharsets.UTF_8);
 
-        consumer.onMessage(body);
+        MessageExt message = new MessageExt();
+        message.setBody(codec.encode(envelope));
+        consumer.onMessage(message);
         consumer.onMessage(body);
 
         verify(mapper, times(1)).markWakeup(eq(9001L), eq(101L),
