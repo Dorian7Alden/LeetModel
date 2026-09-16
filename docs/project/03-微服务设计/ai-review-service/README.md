@@ -2,7 +2,7 @@
 
 ai-review-service 负责将用户某一版本的 PDF 论文交给指定 AI 评审工作流，产生可查询的评分与版本专属评审内容。
 
-当前 `BASIC_REVIEW_V1`、`EVIDENCE_REVIEW_V2` 与 `DEEP_EVIDENCE_REVIEW_V3` 均已实现。V2 新增强制 PDF 解析、完整题目要求、评分说明、要求覆盖状态和可定位评审发现；V3 基于 `PAPER_PARSE_V2` 增加结构审查、动态任务规划、分项评审、五维确定性汇总与细粒度锚点。三个版本使用独立工作流和结果表，不覆盖历史语义。
+当前 `BASIC_REVIEW_V1`、`EVIDENCE_REVIEW_V2` 与 `DEEP_EVIDENCE_REVIEW_V3` 均已实现。V2 新增强制 PDF 解析、完整题目要求、评分说明、要求覆盖状态和可定位评审发现；V3 基于 `PAPER_PARSE_V2` 增加结构审查、动态任务规划、分项评审、五维确定性汇总与细粒度锚点。已确认设计但尚未实现的 V4 将增加专业 Markdown 报告、服务端原文摘录、优点与问题双向评价、确定性问题排序和可见知识依据。历史版本使用独立工作流和结果表，不覆盖历史语义。
 
 > 分层定位：AI 业务能力层。本页会明确标记“当前实现”与“目标设计”，不用设计文档伪装运行事实。
 
@@ -100,6 +100,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、�
 | 评审结果查询 | 已实现 | 根据版本返回可展示的评分说明和发现，历史 V1 不伪造 V2 字段 |
 | 隔离评审 | REVIEW 实验入口已存在 | V2 已进入版本目录；V2 专属数据集与质量基线仍需后续评价任务 |
 | 深度证据评审V3 | 已实现并完成真实演练 | 基于 PAPER_DOCUMENT_V2 的多阶段漏斗式评审、五维确定性合成与扣分项裁决 |
+| 专业证据评审V4 | 已确认设计，尚未实现 | Markdown 解释、真实原文、优点与问题分组、问题确定性排序和知识依据 |
 | RocketMQ 任务接入 | 已实现 | 消费 `REVIEW_TASK_READY`，Inbox 与 review_task 同事务落库，重复投递只创建一个任务 |
 | 崩溃恢复 | 已实现 | 并发 2 的有界 Worker、逐任务 token heartbeat、过期租约恢复、attempt 分类和 AI UNKNOWN 保护 |
 | 完成事件 | 已实现 | 评审结果、任务完成状态与 `REVIEW_COMPLETED` Outbox 同事务提交 |
@@ -113,6 +114,7 @@ ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、�
 | [AI评审V1/](AI评审V1/) | 当前基础评审实现（BASIC_REVIEW_V1）与多模态历史契约 |
 | [AI评审V2/](AI评审V2/) | 当前证据化评审实现（EVIDENCE_REVIEW_V2）、题目覆盖、评分说明与结构化发现 |
 | [AI评审V3/](AI评审V3/) | 第三代深度证据评审（DEEP_EVIDENCE_REVIEW_V3）设计与当前实现依据 |
+| [AI评审V4/](AI评审V4/) | 第四代专业证据报告（DEEP_EVIDENCE_REVIEW_V4）已确认目标设计 |
 | [PDF解析V1/](PDF解析V1/) | 初代 PAPER_PARSE_V1 执行流程、结构化产物与版本规则 |
 | [PDF解析V2/](PDF解析V2/) | 第二代 PAPER_PARSE_V2 版面分析、细粒度分块与全量场景设计 |
 
