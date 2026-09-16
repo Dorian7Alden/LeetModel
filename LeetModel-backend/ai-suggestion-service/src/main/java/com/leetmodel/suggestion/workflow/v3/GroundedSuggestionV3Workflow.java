@@ -57,9 +57,21 @@ public class GroundedSuggestionV3Workflow {
     public static final String MODEL_NAME = "gemini-3.8-flash-high";
     public static final int MAX_OUTPUT_TOKENS = 8192;
     public static final double TEMPERATURE = 0.15;
+    private static final int MAX_SUGGESTION_ITEMS = 16;
     private static final Map<String, Integer> PRIORITIES = Map.of("P0", 0, "P1", 1, "P2", 2, "P3", 3);
     private static final Set<String> CATEGORIES = Set.of("PROBLEM", "ASSUMPTION", "DATA", "MODEL",
             "SOLUTION", "RESULT", "VALIDATION", "SENSITIVITY", "WRITING", "FIGURE", "CITATION", "APPENDIX");
+    private static final Map<String, String> CATEGORY_ALIASES = Map.of(
+            "ALGORITHM", "SOLUTION",
+            "OPTIMIZATION", "SOLUTION",
+            "MECHANISM", "MODEL",
+            "UNCERTAINTY", "SENSITIVITY",
+            "ROBUSTNESS", "VALIDATION",
+            "VERIFICATION", "VALIDATION",
+            "EVALUATION", "VALIDATION",
+            "VISUALIZATION", "FIGURE",
+            "PRESENTATION", "WRITING"
+    );
 
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
@@ -134,9 +146,12 @@ public class GroundedSuggestionV3Workflow {
         GroundedSuggestionV3Output finalOutput = synthesizeOutput(task, problem, reviewEvidence, summaries, candidateItems);
 
         // 4. 排序与自增 ID 规范化
-        finalOutput = normalizeAndSort(finalOutput, summaries);
+        finalOutput = normalizeAndSort(finalOutput, summaries, candidateItems);
 
-        // 5. 服务端确定性强校验
+        // 5. 丢弃缺少完整依据链的单个候选项，保留其余可验证建议
+        finalOutput = retainVerifiableItems(finalOutput, parse, reviewEvidence);
+
+        // 6. 服务端确定性强校验
         validate(finalOutput, parse, reviewEvidence);
 
         String resultJson = objectMapper.writeValueAsString(finalOutput);
@@ -279,15 +294,26 @@ public class GroundedSuggestionV3Workflow {
 
     private GroundedSuggestionV3Output normalizeAndSort(
             GroundedSuggestionV3Output output,
-            List<GroundedSuggestionV3Output.SubTaskSummary> summaries
+            List<GroundedSuggestionV3Output.SubTaskSummary> summaries,
+            List<GroundedSuggestionV3Output.Item> candidateItems
     ) {
-        List<GroundedSuggestionV3Output.Item> rawItems = output.items() != null ? output.items() : List.of();
+        List<GroundedSuggestionV3Output.Item> synthesizedItems = output.items() != null
+                ? output.items()
+                : List.of();
+        List<GroundedSuggestionV3Output.Item> rawItems = synthesizedItems.isEmpty()
+                ? candidateItems
+                : synthesizedItems;
         List<GroundedSuggestionV3Output.Item> sorted = new ArrayList<>(rawItems);
         sorted.sort(Comparator.comparingInt(item -> PRIORITIES.getOrDefault(item.priority(), 2)));
 
         List<GroundedSuggestionV3Output.Item> normalized = new ArrayList<>();
+        Set<String> normalizedKeys = new HashSet<>();
         int id = 1;
         for (var item : sorted) {
+            String normalizedKey = normalizedItemKey(item);
+            if (!normalizedKeys.add(normalizedKey)) {
+                continue;
+            }
             normalized.add(new GroundedSuggestionV3Output.Item(
                     "S-" + (id++),
                     item.priority() == null ? "P2" : item.priority(),
@@ -302,8 +328,117 @@ public class GroundedSuggestionV3Workflow {
                     item.acceptanceCriteria() == null || item.acceptanceCriteria().isEmpty() ? List.of("完成模型修正") : item.acceptanceCriteria(),
                     item.evidenceChain()
             ));
+            if (normalized.size() == MAX_SUGGESTION_ITEMS) {
+                break;
+            }
         }
         return new GroundedSuggestionV3Output(VERSION, output.overallStrategy(), output.topPriorities(), summaries, normalized);
+    }
+
+    private String normalizedItemKey(GroundedSuggestionV3Output.Item item) {
+        String title = item.title() == null ? "" : item.title().strip().toLowerCase();
+        String problemOrGap = item.problemOrGap() == null ? "" : item.problemOrGap().strip().toLowerCase();
+        return title + "\0" + problemOrGap;
+    }
+
+    private GroundedSuggestionV3Output retainVerifiableItems(
+            GroundedSuggestionV3Output output,
+            PaperParseDTO parse,
+            ReviewEvidenceSnapshot reviewEvidence
+    ) throws Exception {
+        Set<String> paperBlockIds = extractPaperBlockIds(parse);
+        Set<String> findingIds = reviewEvidence != null && reviewEvidence.findings() != null
+                ? reviewEvidence.findings().stream()
+                .map(ReviewEvidenceSnapshot.Finding::findingId)
+                .collect(java.util.stream.Collectors.toSet())
+                : Collections.emptySet();
+
+        List<GroundedSuggestionV3Output.Item> retained = new ArrayList<>();
+        for (var item : output.items()) {
+            if (!hasCompleteEvidenceChain(item, paperBlockIds, findingIds)) {
+                continue;
+            }
+            retained.add(withSuggestionId(item, "S-" + (retained.size() + 1)));
+        }
+        int discardedCount = output.items().size() - retained.size();
+        if (discardedCount > 0) {
+            log.info("建议候选依据链校验完成: retained={}, discarded={}", retained.size(), discardedCount);
+        }
+        return new GroundedSuggestionV3Output(
+                output.workflowVersion(),
+                output.overallStrategy(),
+                output.topPriorities(),
+                output.subTaskSummaries(),
+                retained
+        );
+    }
+
+    private boolean hasCompleteEvidenceChain(
+            GroundedSuggestionV3Output.Item item,
+            Set<String> paperBlockIds,
+            Set<String> findingIds
+    ) {
+        var evidence = item.evidenceChain();
+        if (evidence == null
+                || evidence.paperEvidenceIds() == null
+                || evidence.paperEvidenceIds().isEmpty()
+                || evidence.knowledgeCitationIds() == null
+                || evidence.knowledgeCitationIds().isEmpty()) {
+            return false;
+        }
+        if (paperBlockIds.isEmpty() || !paperBlockIds.containsAll(evidence.paperEvidenceIds())) {
+            return false;
+        }
+        List<String> reviewFindingIds = evidence.reviewFindingIds() == null
+                ? List.of()
+                : evidence.reviewFindingIds();
+        if ("CORRECTION".equals(item.type()) && reviewFindingIds.isEmpty()) {
+            return false;
+        }
+        return findingIds.containsAll(reviewFindingIds);
+    }
+
+    private GroundedSuggestionV3Output.Item withSuggestionId(
+            GroundedSuggestionV3Output.Item item,
+            String suggestionId
+    ) {
+        return new GroundedSuggestionV3Output.Item(
+                suggestionId,
+                item.priority(),
+                item.type(),
+                item.category(),
+                item.subProblemNo(),
+                item.title(),
+                item.problemOrGap(),
+                item.diagnosis(),
+                item.targetLocation(),
+                item.actionPlanMarkdown(),
+                item.acceptanceCriteria(),
+                item.evidenceChain()
+        );
+    }
+
+    private Set<String> extractPaperBlockIds(PaperParseDTO parse) throws Exception {
+        if (parse == null || parse.getDocumentJson() == null || parse.getDocumentJson().isBlank()) {
+            return Collections.emptySet();
+        }
+        JsonNode doc = objectMapper.readTree(parse.getDocumentJson());
+        Set<String> blockIds = new HashSet<>();
+        for (JsonNode block : doc.path("blocks")) {
+            String blockId = block.path("blockId").asText();
+            if (!blockId.isBlank()) {
+                blockIds.add(blockId);
+            }
+        }
+        if (blockIds.isEmpty()) {
+            for (JsonNode page : doc.path("pages")) {
+                String blockId = page.path("blockId").asText();
+                if (!blockId.isBlank()) {
+                    blockIds.add(blockId);
+                }
+            }
+        }
+        return blockIds;
     }
 
     /**
@@ -312,7 +447,7 @@ public class GroundedSuggestionV3Workflow {
     private String canonicalCategory(String category) {
         if (category == null || category.isBlank()) return "MODEL";
         String normalized = category.strip().toUpperCase();
-        return "ALGORITHM".equals(normalized) ? "SOLUTION" : normalized;
+        return CATEGORY_ALIASES.getOrDefault(normalized, normalized);
     }
 
     private String retrieveTargetedKnowledge(SuggestionPlannerOutput.PlannerTask subTask, ProblemContextDTO problem) {
@@ -431,7 +566,10 @@ public class GroundedSuggestionV3Workflow {
         if (output.topPriorities() == null || output.topPriorities().isEmpty() || output.topPriorities().size() > 3) {
             throw new IllegalArgumentException("topPriorities 必须包含 1 到 3 项");
         }
-        if (output.items() == null || output.items().isEmpty() || output.items().size() > 16) {
+        if (output.items() == null || output.items().isEmpty()) {
+            throw new IllegalArgumentException("缺少可验证建议");
+        }
+        if (output.items().size() > MAX_SUGGESTION_ITEMS) {
             throw new IllegalArgumentException("items 必须包含 1 到 16 项");
         }
 

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.task.SyncTaskExecutor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -290,7 +291,7 @@ class GroundedSuggestionV3WorkflowTest {
         parse.setWorkflowVersion("PAPER_PARSE_V2");
         parse.setStatus("SUCCESS");
         parse.setPageCount(5);
-        parse.setDocumentJson("{\"sections\":[],\"blocks\":[]}");
+        parse.setDocumentJson("{\"sections\":[],\"blocks\":[{\"blockId\":\"B1\",\"physicalPage\":2,\"text\":\"正文\"}]}");
         ReviewEvidenceSnapshot reviewEvidence = new ReviewEvidenceSnapshot(502L, 502L, "DEEP_EVIDENCE_REVIEW_V3", null, List.of(), "{}");
 
         SuggestionWorkflowResult result = workflow.execute(task, problem, parse, reviewEvidence);
@@ -384,6 +385,177 @@ class GroundedSuggestionV3WorkflowTest {
         GroundedSuggestionV3Output output = objectMapper.readValue(result.resultJson(), GroundedSuggestionV3Output.class);
         assertThat(output.items().get(0).type()).isEqualTo("ADVANCEMENT");
         assertThat(output.items().get(0).evidenceChain().reviewFindingIds()).isEmpty();
+    }
+
+    @Test
+    void shouldKeepHighestPrioritySixteenItemsWhenSynthesizerExceedsPublishedLimit() throws Exception {
+        String plannerJson = "{\"tasks\":[{\"taskId\":\"T1\",\"taskType\":\"SUB_PROBLEM_SUGGESTION\",\"taskName\":\"改进\",\"targetQuestionNo\":1,\"categoryCode\":\"MODEL\",\"suggestedSectionIds\":[],\"suggestionObjectives\":[\"改进\"]}]}";
+        String subTaskJson = objectMapper.writeValueAsString(new SubTaskSuggestionOutput(
+                "T1",
+                "SUCCESS",
+                List.of(validAdvancementItem(99, "P2"))
+        ));
+
+        List<GroundedSuggestionV3Output.Item> synthesizedItems = new ArrayList<>();
+        for (int index = 1; index <= 19; index++) {
+            synthesizedItems.add(validAdvancementItem(index, index <= 3 ? "P0" : "P2"));
+        }
+        String synthJson = objectMapper.writeValueAsString(new GroundedSuggestionV3Output(
+                GroundedSuggestionV3Workflow.VERSION,
+                "优先完成高影响改进",
+                List.of("先处理高优先级建议"),
+                List.of(),
+                synthesizedItems
+        ));
+        when(aiClient.chat(any())).thenReturn(resp(plannerJson), resp(subTaskJson), resp(synthJson));
+
+        GroundedSuggestionV3Output output = executeSimpleWorkflow(9004L);
+
+        assertThat(output.items()).hasSize(16);
+        assertThat(output.items()).extracting(GroundedSuggestionV3Output.Item::suggestionId)
+                .containsExactly("S-1", "S-2", "S-3", "S-4", "S-5", "S-6", "S-7", "S-8",
+                        "S-9", "S-10", "S-11", "S-12", "S-13", "S-14", "S-15", "S-16");
+        assertThat(output.items().subList(0, 3))
+                .extracting(GroundedSuggestionV3Output.Item::priority)
+                .containsOnly("P0");
+    }
+
+    @Test
+    void shouldUseGroundedSubTaskCandidatesWhenSynthesizerReturnsNoItems() throws Exception {
+        String plannerJson = "{\"tasks\":[{\"taskId\":\"T1\",\"taskType\":\"SUB_PROBLEM_SUGGESTION\",\"taskName\":\"改进\",\"targetQuestionNo\":1,\"categoryCode\":\"MODEL\",\"suggestedSectionIds\":[],\"suggestionObjectives\":[\"改进\"]}]}";
+        String subTaskJson = objectMapper.writeValueAsString(new SubTaskSuggestionOutput(
+                "T1",
+                "SUCCESS",
+                List.of(validAdvancementItem(1, "P1"))
+        ));
+        String synthJson = objectMapper.writeValueAsString(new GroundedSuggestionV3Output(
+                GroundedSuggestionV3Workflow.VERSION,
+                "保留子任务的证据化建议",
+                List.of("完成已有建议"),
+                List.of(),
+                List.of()
+        ));
+        when(aiClient.chat(any())).thenReturn(resp(plannerJson), resp(subTaskJson), resp(synthJson));
+
+        GroundedSuggestionV3Output output = executeSimpleWorkflow(9005L);
+
+        assertThat(output.items()).hasSize(1);
+        assertThat(output.items().get(0).title()).isEqualTo("建议 1");
+        assertThat(output.items().get(0).evidenceChain().paperEvidenceIds()).containsExactly("B001");
+    }
+
+    @Test
+    void shouldCanonicalizeCommonModelCategoryAliases() throws Exception {
+        String plannerJson = "{\"tasks\":[{\"taskId\":\"T1\",\"taskType\":\"SUB_PROBLEM_SUGGESTION\",\"taskName\":\"改进\",\"targetQuestionNo\":1,\"categoryCode\":\"MODEL\",\"suggestedSectionIds\":[],\"suggestionObjectives\":[\"改进\"]}]}";
+        String subTaskJson = objectMapper.writeValueAsString(new SubTaskSuggestionOutput(
+                "T1",
+                "SUCCESS",
+                List.of(validAdvancementItem(1, "P1"))
+        ));
+        List<GroundedSuggestionV3Output.Item> aliasedItems = List.of(
+                validAdvancementItem(1, "P1", "UNCERTAINTY"),
+                validAdvancementItem(2, "P1", "VERIFICATION"),
+                validAdvancementItem(3, "P1", "EVALUATION"),
+                validAdvancementItem(4, "P1", "ALGORITHM")
+        );
+        String synthJson = objectMapper.writeValueAsString(new GroundedSuggestionV3Output(
+                GroundedSuggestionV3Workflow.VERSION,
+                "统一同义类别",
+                List.of("完成类别归一化"),
+                List.of(),
+                aliasedItems
+        ));
+        when(aiClient.chat(any())).thenReturn(resp(plannerJson), resp(subTaskJson), resp(synthJson));
+
+        GroundedSuggestionV3Output output = executeSimpleWorkflow(9006L);
+
+        assertThat(output.items()).extracting(GroundedSuggestionV3Output.Item::category)
+                .containsExactly("SENSITIVITY", "VALIDATION", "VALIDATION", "SOLUTION");
+    }
+
+    @Test
+    void shouldDiscardSingleCandidateWithoutKnowledgeEvidenceAndKeepVerifiableItems() throws Exception {
+        String plannerJson = "{\"tasks\":[{\"taskId\":\"T1\",\"taskType\":\"SUB_PROBLEM_SUGGESTION\",\"taskName\":\"改进\",\"targetQuestionNo\":1,\"categoryCode\":\"MODEL\",\"suggestedSectionIds\":[],\"suggestionObjectives\":[\"改进\"]}]}";
+        String subTaskJson = objectMapper.writeValueAsString(new SubTaskSuggestionOutput(
+                "T1",
+                "SUCCESS",
+                List.of(validAdvancementItem(1, "P1"))
+        ));
+        GroundedSuggestionV3Output.Item invalidItem = validAdvancementItem(1, "P0");
+        invalidItem = new GroundedSuggestionV3Output.Item(
+                invalidItem.suggestionId(),
+                invalidItem.priority(),
+                invalidItem.type(),
+                invalidItem.category(),
+                invalidItem.subProblemNo(),
+                invalidItem.title(),
+                invalidItem.problemOrGap(),
+                invalidItem.diagnosis(),
+                invalidItem.targetLocation(),
+                invalidItem.actionPlanMarkdown(),
+                invalidItem.acceptanceCriteria(),
+                new GroundedSuggestionV3Output.EvidenceChain(List.of("B001"), List.of(), List.of())
+        );
+        String synthJson = objectMapper.writeValueAsString(new GroundedSuggestionV3Output(
+                GroundedSuggestionV3Workflow.VERSION,
+                "只保留完整依据链",
+                List.of("先完成可验证建议"),
+                List.of(),
+                List.of(invalidItem, validAdvancementItem(2, "P1"))
+        ));
+        when(aiClient.chat(any())).thenReturn(resp(plannerJson), resp(subTaskJson), resp(synthJson));
+
+        GroundedSuggestionV3Output output = executeSimpleWorkflow(9007L);
+
+        assertThat(output.items()).hasSize(1);
+        assertThat(output.items().get(0).suggestionId()).isEqualTo("S-1");
+        assertThat(output.items().get(0).title()).isEqualTo("建议 2");
+    }
+
+    private GroundedSuggestionV3Output executeSimpleWorkflow(long taskId) throws Exception {
+        SuggestionTask task = new SuggestionTask();
+        task.setId(taskId);
+        ProblemContextDTO problem = new ProblemContextDTO();
+        problem.setId(51L);
+        problem.setTitle("题目");
+        problem.setContentMarkdown("题面内容");
+        PaperParseDTO parse = new PaperParseDTO();
+        parse.setSubmissionId(103L);
+        parse.setArtifactId(203L);
+        parse.setWorkflowVersion("PAPER_PARSE_V2");
+        parse.setStatus("SUCCESS");
+        parse.setPageCount(10);
+        parse.setDocumentJson("{\"sections\":[],\"blocks\":[{\"blockId\":\"B001\",\"physicalPage\":3,\"text\":\"正文\"}]}");
+        ReviewEvidenceSnapshot reviewEvidence = new ReviewEvidenceSnapshot(
+                503L, 503L, "DEEP_EVIDENCE_REVIEW_V3", null, List.of(), "{}");
+
+        SuggestionWorkflowResult result = workflow.execute(task, problem, parse, reviewEvidence);
+        return objectMapper.readValue(result.resultJson(), GroundedSuggestionV3Output.class);
+    }
+
+    private GroundedSuggestionV3Output.Item validAdvancementItem(int index, String priority) {
+        return validAdvancementItem(index, priority, "MODEL");
+    }
+
+    private GroundedSuggestionV3Output.Item validAdvancementItem(
+            int index,
+            String priority,
+            String category
+    ) {
+        return new GroundedSuggestionV3Output.Item(
+                "TEMP-" + index,
+                priority,
+                "ADVANCEMENT",
+                category,
+                1,
+                "建议 " + index,
+                "待改进问题 " + index,
+                "诊断 " + index,
+                new GroundedSuggestionV3Output.TargetLocation(List.of(3), "3 模型", List.of("B001")),
+                "执行改进步骤 " + index,
+                List.of("满足验收条件 " + index),
+                new GroundedSuggestionV3Output.EvidenceChain(List.of("B001"), List.of(), List.of("KC-001"))
+        );
     }
 
     private AiChatResponse resp(String json) {
