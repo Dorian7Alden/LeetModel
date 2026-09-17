@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.1.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v2.1.1-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17" />
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-green" alt="Spring Boot" />
   <img src="https://img.shields.io/badge/Vue-3-42b883" alt="Vue 3" />
@@ -298,7 +298,7 @@ docker compose -f compose.yaml down
 
 ## 项目状态
 
-- 当前稳定版本：`v2.1.0`
+- 当前稳定版本：`v2.1.1`
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 - 当前状态：持续打磨，暂不具备上线条件
 - 开发状态：已完成最终封版，不再新增业务功能
