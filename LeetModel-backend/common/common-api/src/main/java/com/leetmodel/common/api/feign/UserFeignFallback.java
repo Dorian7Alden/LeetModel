@@ -10,13 +10,20 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * UserFeignClient 降级工厂。
+ * 用户微服务 Feign 客户端安全降级工厂。
  *
- * <p>当 user 服务不可用时，返回默认的 user 角色以保证核心功能不中断。</p>
+ * <p>当 user-service 不可用或超时时触发降级：返回空的角色与权限集合，
+ * 由 AuthExceptionHandler 转换为 HTTP 403 拒绝访问，保证安全不倒置。</p>
  */
 @Component
 public class UserFeignFallback implements FallbackFactory<UserFeignClient> {
 
+    /**
+     * 创建执行安全降级的 UserFeignClient 代理实例。
+     *
+     * @param cause 触发远程调用失败的底层异常对象
+     * @return 返回空权限集合以触发 403 拒绝的降级客户端实例
+     */
     @Override
     public UserFeignClient create(Throwable cause) {
         return new UserFeignClient() {

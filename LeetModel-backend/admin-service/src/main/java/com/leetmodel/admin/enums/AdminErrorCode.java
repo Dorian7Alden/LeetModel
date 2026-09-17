@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 管理后台模块错误码 —— BB=10。
+ * 管理后台模块业务错误码：BB=10。
  */
 @Getter
 @AllArgsConstructor

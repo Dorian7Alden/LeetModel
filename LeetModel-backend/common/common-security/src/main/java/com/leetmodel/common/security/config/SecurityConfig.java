@@ -11,18 +11,20 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Spring Security 基础配置。
  *
- * <p>职责分工：
- * <ul>
- *   <li>Gateway 使用 Sa-Token 完成 JWT 登录认证</li>
- *   <li>业务服务使用 Sa-Token 注解完成角色和权限鉴权</li>
- *   <li>Spring Security 仅关闭不需要的默认机制，不重复维护认证状态</li>
- * </ul>
- * </p>
+ * <p>禁用 CSRF、Session 与默认 HTTP Basic/表单登录，将全部请求放行交由 Sa-Token 进行统一拦截与鉴权，
+ * 避免两套安全上下文相互冲突产生空响应体 403 错误。</p>
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * 配置无状态 Spring Security 过滤链。
+     *
+     * @param http HttpSecurity 构建器对象
+     * @return 构建完毕的 SecurityFilterChain 实例
+     * @throws Exception 配置异常
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http

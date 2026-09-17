@@ -8,11 +8,13 @@ import com.leetmodel.user.entity.Permission;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.RolePermission;
 import com.leetmodel.user.entity.UserRole;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.RolePermissionMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
+import com.leetmodel.user.mapper.model.RoleUserCountRow;
 import com.leetmodel.user.service.impl.RoleServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,9 @@ class RoleServiceTest {
 
     @Mock
     private PermissionMapper permissionMapper;
+
+    @Mock
+    private UserAuditEventProducer audit;
 
     @InjectMocks
     private RoleServiceImpl roleService;
@@ -89,6 +94,31 @@ class RoleServiceTest {
 
         assertEquals(1, result.size());
         assertEquals("user:read", result.get(0).getCode());
+    }
+
+    @Test
+    @DisplayName("角色列表返回用户、权限关联数和系统标识")
+    void listRolesIncludesRelationshipCounts() {
+        Role admin = role(1L, "admin");
+        Role custom = role(4L, "reviewer");
+        when(roleMapper.selectList(null)).thenReturn(List.of(admin, custom));
+        when(userRoleMapper.countActiveUsersByRoleIds(any())).thenReturn(List.of(
+                new RoleUserCountRow(1L, 2L),
+                new RoleUserCountRow(4L, 1L)
+        ));
+        when(rolePermissionMapper.selectList(any())).thenReturn(List.of(
+                rolePermission(1L, 1L),
+                rolePermission(1L, 2L)
+        ));
+
+        List<com.leetmodel.common.api.vo.RoleVO> result = roleService.listRoles();
+
+        assertEquals(2L, result.get(0).getUserCount());
+        assertEquals(2L, result.get(0).getPermissionCount());
+        assertEquals(true, result.get(0).getSystem());
+        assertEquals(1L, result.get(1).getUserCount());
+        assertEquals(0L, result.get(1).getPermissionCount());
+        assertEquals(false, result.get(1).getSystem());
     }
 
     @Test
@@ -234,4 +264,5 @@ class RoleServiceTest {
         rolePermission.setPermissionId(permissionId);
         return rolePermission;
     }
+
 }

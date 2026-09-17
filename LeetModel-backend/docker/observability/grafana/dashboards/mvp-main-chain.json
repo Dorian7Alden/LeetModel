@@ -1,0 +1,77 @@
+{
+  "annotations": {"list": []},
+  "description": "Gateway、用户、队伍、题目、提交、评审与排行主链的 HTTP RED 视图。",
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (service) (rate(http_server_requests_seconds_count{job=\"leetmodel-services\",service=~\"gateway-service|user-service|team-service|problem-service|submission-service|ai-review-service|ranking-service\"}[5m]))", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "主链请求率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (service) (rate(http_server_requests_seconds_count{job=\"leetmodel-services\",status=~\"5..\",service=~\"gateway-service|user-service|team-service|problem-service|submission-service|ai-review-service|ranking-service\"}[5m])) / clamp_min(sum by (service) (rate(http_server_requests_seconds_count{job=\"leetmodel-services\",service=~\"gateway-service|user-service|team-service|problem-service|submission-service|ai-review-service|ranking-service\"}[5m])), 1e-9)", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "主链 5xx 比例",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (service, uri, le) (rate(http_server_requests_seconds_bucket{job=\"leetmodel-services\",service=~\"gateway-service|user-service|team-service|problem-service|submission-service|ai-review-service|ranking-service\"}[5m])))", "legendFormat": "{{service}} {{uri}}", "refId": "A"}],
+      "title": "主链路由模板 P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
+      "id": 4,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_review_tasks", "legendFormat": "{{status}}", "refId": "A"}],
+      "title": "评审任务状态",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 17},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_ranking_rebuild_pending_revisions", "legendFormat": "pending revisions", "refId": "A"}],
+      "title": "排行待重建 Revision",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 17},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_review_tasks_oldest_waiting_seconds", "legendFormat": "review", "refId": "A"}, {"expr": "leetmodel_ranking_rebuild_oldest_waiting_seconds", "legendFormat": "ranking", "refId": "B"}],
+      "title": "主链异步等待年龄",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["leetmodel", "mvp"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LeetModel / MVP 主链",
+  "uid": "leetmodel-mvp-main-chain",
+  "version": 1
+}

@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,7 +53,8 @@ class DashboardControllerTest {
         when(rankings.getCurrentRankingCount()).thenReturn(Result.ok(6L));
         when(assistant.getConversationCount()).thenReturn(Result.ok(7L));
         when(evaluations.countTasks()).thenReturn(Result.ok(8L));
-        when(aiGateway.getCallStats()).thenReturn(Result.ok(new AiCallStatsDTO(9L, 8L, 1L, 100L, 20L)));
+        when(aiGateway.getCallStats(any(com.leetmodel.common.api.dto.AiCallQueryDTO.class)))
+                .thenReturn(Result.ok(new AiCallStatsDTO(9L, 8L, 1L, 100L, 20L)));
 
         var dashboard = controller.stats().getData();
 
@@ -76,7 +78,8 @@ class DashboardControllerTest {
         when(rankings.getCurrentRankingCount()).thenReturn(Result.ok(0L));
         when(assistant.getConversationCount()).thenReturn(Result.ok(0L));
         when(evaluations.countTasks()).thenReturn(Result.ok(0L));
-        when(aiGateway.getCallStats()).thenReturn(Result.ok(new AiCallStatsDTO(0L, 0L, 0L, 0L, 0L)));
+        when(aiGateway.getCallStats(any(com.leetmodel.common.api.dto.AiCallQueryDTO.class)))
+                .thenReturn(Result.ok(new AiCallStatsDTO(0L, 0L, 0L, 0L, 0L)));
 
         var metric = controller.stats().getData().getMetrics().get("users");
 

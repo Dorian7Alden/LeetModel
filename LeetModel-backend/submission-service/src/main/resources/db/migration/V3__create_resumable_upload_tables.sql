@@ -1,0 +1,40 @@
+CREATE TABLE `submission_upload` (
+  `id` BIGINT NOT NULL,
+  `upload_token` CHAR(36) NOT NULL,
+  `team_id` BIGINT NOT NULL,
+  `problem_id` BIGINT NOT NULL,
+  `uploader_id` BIGINT NOT NULL,
+  `original_filename` VARCHAR(255) NOT NULL,
+  `file_size` BIGINT NOT NULL,
+  `file_sha256` CHAR(64) NOT NULL,
+  `chunk_size` BIGINT NOT NULL,
+  `total_chunks` INT NOT NULL,
+  `status` VARCHAR(20) NOT NULL,
+  `active_marker` TINYINT NULL,
+  `final_object_name` VARCHAR(512) NOT NULL,
+  `submission_id` BIGINT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `completing_at` DATETIME NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted` TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_upload_token` (`upload_token`),
+  UNIQUE INDEX `uk_team_active` (`team_id`, `active_marker`),
+  INDEX `idx_status_expires_at` (`status`, `expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='论文分片上传会话';
+
+CREATE TABLE `submission_upload_chunk` (
+  `id` BIGINT NOT NULL,
+  `upload_id` BIGINT NOT NULL,
+  `chunk_index` INT NOT NULL,
+  `chunk_size` BIGINT NOT NULL,
+  `chunk_sha256` CHAR(64) NOT NULL,
+  `object_name` VARCHAR(512) NOT NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted` TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `uk_upload_chunk` (`upload_id`, `chunk_index`),
+  INDEX `idx_upload_id` (`upload_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='论文上传临时分片';

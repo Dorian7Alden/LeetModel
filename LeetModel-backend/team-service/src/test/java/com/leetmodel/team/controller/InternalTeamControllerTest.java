@@ -40,4 +40,23 @@ class InternalTeamControllerTest {
         assertEquals(3, result.getData().get(0).getMemberCount());
         assertEquals("IN_PROGRESS", result.getData().get(0).getPracticeStatus());
     }
+
+    @Test
+    void listSummariesReturnsRequestedBusinessIdentityWithoutMemberQueries() {
+        Team team = new Team();
+        team.setId(9007199254740993L);
+        team.setName("关联队伍");
+        team.setLeaderId(10L);
+        team.setStatus(1);
+        team.setProblemId(20L);
+        when(teamService.listByIds(List.of(9007199254740993L))).thenReturn(List.of(team));
+
+        var result = new InternalTeamController(teamService, memberMapper)
+                .listSummaries(List.of(9007199254740993L, 9007199254740993L));
+
+        assertEquals(1, result.getData().size());
+        assertEquals("关联队伍", result.getData().get(0).getName());
+        assertEquals(9007199254740993L, result.getData().get(0).getId());
+        assertEquals(null, result.getData().get(0).getMemberCount());
+    }
 }

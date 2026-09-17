@@ -1,5 +1,6 @@
 package com.leetmodel.user.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.common.api.dto.UserRolesRequest;
@@ -29,11 +30,18 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "内部接口-用户管理")
 @RestController
 @RequestMapping("/internal/admin/users")
+@SaCheckRole("admin")
 @RequiredArgsConstructor
 public class InternalAdminUserController {
 
     private final UserService userService;
 
+    /**
+     * 管理员分页组合条件查询平台用户列表。
+     *
+     * @param query 包含关键词、状态、分页等过滤条件的查询对象
+     * @return 分页包装的用户管理端 VO 列表
+     */
     @Operation(summary = "分页查询用户列表")
     @GetMapping
     public Result<PageResult<UserAdminVO>> pageUsers(UserPageQuery query) {
@@ -41,24 +49,48 @@ public class InternalAdminUserController {
         return Result.ok(PageResult.from(page));
     }
 
+    /**
+     * 管理员查询指定用户的详细信息（含角色列表）。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 用户管理端明细 VO
+     */
     @Operation(summary = "查看用户详情")
     @GetMapping("/{userId}")
     public Result<UserAdminVO> getUserDetail(@PathVariable Long userId) {
         return Result.ok(userService.getUserDetail(userId));
     }
 
+    /**
+     * 管理员启用或禁用指定用户的账号状态。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含目标状态的请求对象，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "启用或禁用用户")
     @PutMapping("/{userId}/status")
-    public Result<Void> updateUserStatus(@PathVariable Long userId,
-                                         @Valid @RequestBody UserStatusRequest request) {
+    public Result<Void> updateUserStatus(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserStatusRequest request
+    ) {
         userService.updateStatus(userId, request.getStatus());
         return Result.ok();
     }
 
+    /**
+     * 管理员重置或更新指定用户分配的角色集合。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含角色 ID 列表的请求对象，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "更新用户角色")
     @PutMapping("/{userId}/roles")
-    public Result<Void> updateUserRoles(@PathVariable Long userId,
-                                        @Valid @RequestBody UserRolesRequest request) {
+    public Result<Void> updateUserRoles(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserRolesRequest request
+    ) {
         userService.updateRoles(userId, request.getRoleIds());
         return Result.ok();
     }

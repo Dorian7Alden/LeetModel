@@ -1,0 +1,29 @@
+# LeetModel leetmodel.log.v1 final server-side gate.
+# Only schema-valid GENERAL logs reach BanyanDB. Invalid JSON aborts in the parser;
+# a valid JSON object carrying any other schema version is explicitly dropped.
+rules:
+  - name: leetmodel-log-v1
+    layer: GENERAL
+    dsl: |
+      filter {
+        json {
+          abortOnFailure true
+        }
+        extractor {
+          service parsed.service as String
+          instance parsed.instance as String
+          traceId parsed.swTraceId as String
+          tag schema_version: parsed.schemaVersion as String,
+              event_code: parsed.eventCode as String,
+              level: parsed.level as String,
+              business_trace_id: parsed.traceId as String,
+              sw_trace_id: parsed.swTraceId as String,
+              domain_task_id: parsed.domainTaskId as String,
+              ai_call_id: parsed.aiCallId as String
+        }
+        sink {
+          if (parsed.schemaVersion as String != "leetmodel.log.v1") {
+            dropper {}
+          }
+        }
+      }

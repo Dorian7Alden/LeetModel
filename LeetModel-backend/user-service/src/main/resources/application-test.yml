@@ -23,9 +23,3 @@ springdoc:
       display-name: '用户服务'
       paths-to-match: '/**'
       packages-to-scan: com.leetmodel.user.controller
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info

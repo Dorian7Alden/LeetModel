@@ -22,11 +22,8 @@ jwt:
   secret-key: leetmodel-dev-secret-key-2026
   timeout: 604800
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
+audit:
+  internal-token: ${AUDIT_INTERNAL_TOKEN:lm-audit-internal-local-only-change-me}
 
 springdoc:
   swagger-ui:

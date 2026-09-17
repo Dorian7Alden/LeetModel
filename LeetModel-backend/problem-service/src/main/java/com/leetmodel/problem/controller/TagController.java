@@ -5,6 +5,7 @@ import com.leetmodel.common.core.result.Result;
 import com.leetmodel.problem.dto.TagRequest;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.service.TagService;
+import com.leetmodel.problem.vo.TagAdminVO;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,13 +31,25 @@ public class TagController {
 
     private final TagService tagService;
 
+    /**
+     * 查询系统全部领域知识标签列表（含题目引用使用量统计）。
+     *
+     * @return 标签管理视图对象列表
+     */
     @Operation(summary = "查询所有标签")
     @GetMapping
-    public Result<List<Tag>> list() {
-        List<Tag> tags = tagService.list();
+    public Result<List<TagAdminVO>> list() {
+        List<TagAdminVO> tags = tagService.listTagsWithUsage();
         return Result.ok(tags);
     }
 
+
+    /**
+     * 管理员录入并创建新的知识标签。
+     *
+     * @param request 包含标签名称与类型的请求对象，不能为 null
+     * @return 创建成功后的标签实体
+     */
     @Operation(summary = "创建标签")
     @SaCheckRole("admin")
     @PostMapping
@@ -45,6 +58,13 @@ public class TagController {
         return Result.ok(tag);
     }
 
+    /**
+     * 管理员更新已有标签的名称或分类。
+     *
+     * @param id      目标标签 ID，不能为 null
+     * @param request 包含待更新属性的请求对象，不能为 null
+     * @return 更新后的标签实体
+     */
     @Operation(summary = "更新标签")
     @SaCheckRole("admin")
     @PutMapping("/{id}")
@@ -54,6 +74,12 @@ public class TagController {
         return Result.ok(tag);
     }
 
+    /**
+     * 管理员删除未被任何题目引用的标签。
+     *
+     * @param id 目标标签 ID，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "删除标签")
     @SaCheckRole("admin")
     @DeleteMapping("/{id}")

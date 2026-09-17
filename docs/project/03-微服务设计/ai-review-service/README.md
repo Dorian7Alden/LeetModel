@@ -1,13 +1,13 @@
 ## AI 评审服务
 
-ai-review-service 负责将用户提交的 PDF 论文交给指定版本的 AI 评审工作流，最终产生可查询的评审分数。
+ai-review-service 负责将用户某一版本的 PDF 论文交给指定 AI 评审工作流，产生可查询的评分与版本专属评审内容。
 
-当前后端 Maven 模块目录、artifactId 和 Spring 服务名均已统一为 `ai-review-service`。Java 包名仍使用 `com.leetmodel.review`，包名调整不属于本次服务命名统一范围。
+当前 `BASIC_REVIEW_V1`、`EVIDENCE_REVIEW_V2`、`DEEP_EVIDENCE_REVIEW_V3` 与 `DEEP_EVIDENCE_REVIEW_V4` 均已实现。V2 新增强制 PDF 解析、完整题目要求、评分说明、要求覆盖状态和可定位评审发现；V3 基于 `PAPER_PARSE_V2` 增加结构审查、动态任务规划、分项评审、五维确定性汇总与细粒度锚点；V4 增加专业 Markdown 报告、服务端完整原文摘录、优点与问题双向评价、确定性问题排序和可见知识依据。历史版本使用独立工作流和结果表，不覆盖历史语义。
 
-> 分层定位：AI 业务能力层。当前职责边界是后续逐项梳理的起点；V1 已实现事实与后续目标设计必须明确区分。
+> 分层定位：AI 业务能力层。本页会明确标记“当前实现”与“目标设计”，不用设计文档伪装运行事实。
 
 
-### 整体结构与工作流程
+### 整体结构与工作流
 
 ```mermaid
 flowchart LR
@@ -19,18 +19,17 @@ flowchart LR
 
     subgraph review["ai-review-service 版本化评审"]
         taskApi["评审任务与查询 API"]
-        scheduler["任务调度与状态管理"]
-        inputPreparation["提交、题目与 PDF 输入准备"]
-        pdfParser["可选 PDF 解析"]
-        workflow["版本化评审工作流，V1 当前"]
-        resultValidation["结果校验与评分保存"]
+        mqConsumer["REVIEW_TASK_READY 消费者"]
+        scheduler["有界 Worker、租约与状态管理"]
+        inputPreparation["提交与题目快照"]
+        pdfParser["版本化 PDF 解析<br/>V2 强制"]
+        workflow["版本化评审工作流"]
+        resultValidation["引用、分项和总分校验"]
 
         taskApi --> scheduler
+        mqConsumer --> scheduler
         scheduler --> inputPreparation
-        inputPreparation --> pdfParser
-        inputPreparation --> workflow
-        pdfParser --> workflow
-        workflow --> resultValidation
+        inputPreparation --> pdfParser --> workflow --> resultValidation
     end
 
     subgraph dependencies["业务与模型依赖"]
@@ -41,111 +40,87 @@ flowchart LR
 
     subgraph data["评审事实"]
         reviewDatabase[(lm_review)]
+        messageInbox[(message_inbox)]
+        messageOutbox[(message_outbox)]
     end
 
-    submissionService -->|"创建任务"| taskApi
-    evaluationService -.->|"实验运行"| taskApi
+    submissionService -->|"提供 PDF 引用"| taskApi
+    submissionService -->|"REVIEW_TASK_READY"| mqConsumer
+    evaluationService -.->|"隔离实验"| taskApi
     adminService -->|"查询任务与结果"| taskApi
-    inputPreparation -->|"读取提交快照"| submissionService
-    inputPreparation -->|"读取题目摘要"| problemService
-    workflow --> commonAi
-    commonAi --> aiGateway
+    inputPreparation --> problemService
+    workflow --> commonAi --> aiGateway
     scheduler --> reviewDatabase
     pdfParser --> reviewDatabase
     resultValidation --> reviewDatabase
+    mqConsumer --> messageInbox
+    resultValidation --> messageOutbox
 ```
 
-submission-service 创建正式评审任务，ai-review-service 锁定版本后自行调度输入准备、可选 PDF 解析和评审工作流。业务 Prompt、流程和结果校验留在本服务，所有模型调用通过 `common-ai` 进入 ai-gateway-service。ai-evaluation-service 可调用已实现的隔离实验接口，指定评审版本并取得结构化结果；该路径不创建正式评审任务或日志。
+V1 仍按历史语义将 PDF 页面图像直接交给模型，不产生可复用解析产物。V2 先锁定题目和 PDF，必须成功产生通过质量门的版本化解析产物，再执行题目要求对齐、证据定位、分项评分和结果校验。
+
+`REVIEW_TASK_READY` 链路已在 MQ2 实现。消费者只在短事务中写 Inbox 并按 `(submission_id, workflow_version)` 幂等创建 review_task，随后立即 ACK；PDF 解析和 AI 工作流由独立的有界 Worker 执行。MQ3 已将版本化结果、任务完成状态和 `REVIEW_COMPLETED` Outbox 纳入同一 fencing 事务。
 
 
 ### 职责边界
 
 #### 负责
 
-- 根据提交标识获取唯一的原始 PDF。
-- 创建评审任务并锁定工作流版本。
-- 按工作流版本执行自定义评审过程。
-- 在需要时执行 PDF 解析并保存解析产物。
-- 校验并保存 `[0,100]` 范围的最终评分。
-- 维护评审任务状态、失败信息和重试过程。
-- 向 ai-evaluation-service 提供评审结果和评价所需的关联信息。
+- 根据提交标识获取唯一的原始 PDF，锁定题目与论文快照。
+- 创建评审任务，锁定不可变工作流、Prompt、模型执行配置和解析版本。
+- 拥有并执行版本化 PDF 解析；对需要解析的评审版本将它作为强制前置环节。
+- 按工作流版本产生评分、评分说明、要求覆盖和稳定发现标识。
+- 校验页码、引用、分项计算和 `[0,100]` 最终总分。
+- 保留历史版本、任务、解析产物、评审结果和重试轮次。
+- 消费 `REVIEW_TASK_READY`、维护消费 Inbox，并可靠生产不含分数与结果正文的 `REVIEW_COMPLETED`。
+- 使用任务租约、heartbeat 和稳定 AI 幂等键恢复崩溃任务，不在 MQ 消费线程执行评审。
 
 #### 不负责
 
-- 不拥有提交记录和原始 PDF。
-- 不拥有题目、赛事、队伍和用户主数据。
-- 不直接管理模型供应商、密钥、价格和路由。
-- 不负责管理端页面聚合和 AI 成本看板。
-- 不定义 AI 质量评价指标，不执行 AI 裁判。
-- 不使用 AI 质量评价结果覆盖原始评审结果。
+- 不拥有提交记录、原始 PDF、题目、赛事、队伍和用户主数据。
+- 不在评审阶段生成“如何改”的完整修改方案；评审只说明“哪里好 / 哪里有问题 / 为什么影响分数”。
+- 不使用知识检索结果冒充赛事官方标准。V2 的分数是明示标记的平台训练评分。
+- 不直接管理模型供应商、密钥、价格、路由或 AI 评价统计口径。
 
 
 ### 数据与协作边界
 
-ai-review-service 独占 `lm_review` 数据库，拥有评审任务、最终评分、版本专属结果和解析产物。
-
-- submission-service 提供提交摘要和 PDF 文件对象路径。
-- problem-service 提供题目和赛事摘要。
-- ai-review-service 通过 common-ai 访问 ai-gateway-service。
-- ai-evaluation-service 通过内部契约获取评审结果并执行质量评价。
-- admin-service 通过内部接口分别读取评审数据和质量评价数据。
+ai-review-service 独占 `lm_review` 数据库，拥有评审版本、任务、最终评分、版本专属结果、解析工作流版本、解析产物、Inbox、Outbox、任务租约和 attempt。建议服务优先读取某次已完成评审锁定的解析产物；对历史 V1 论文可按明确版本请求补齐。建议服务不自行解析、不选择“当前最新”解析结果。
 
 
 ### 功能清单
 
-| 功能 | 功能说明 | 文档安排 |
+| 功能 | 当前状态 | 目标设计 |
 |------|----------|----------|
-| 评审任务创建 | 根据提交标识创建评审任务，锁定原始 PDF 和评审版本 | 由 AI 评审概述说明公共语义 |
-| 评审任务调度 | 异步执行评审工作流程，维护排队、执行、完成和失败状态 | 后续按需建立功能文档 |
-| 评审版本选择 | 为新任务选择完整工作流程版本，不影响已创建任务 | 由 AI 评审概述说明 |
-| 粗略评审 | Prompt 与 PDF 页面图像一次性交给多模态模型，直接生成统一 JSON | `AI评审/V1基础评审/` |
-| 适中评审 | 在质量、稳定性、成本和响应时间之间取得平衡 | `AI评审/v2.md` |
-| 过度评审 | 使用更完整的工作流程追求最高评审质量 | `AI评审/v3.md` |
-| PDF 解析 | 为需要结构化论文内容的评审版本提供可选解析能力 | [PDF解析/](PDF解析/) |
-| 评审结果校验 | 检查版本输出是否完整，并保证最终评分在 `[0,100]` 范围内 | 各评审版本文档分别说明 |
-| 评审结果查询 | 查询任务进度、失败信息、论文评分和版本详细结果 | 后续按需建立功能文档 |
-| 失败重试 | 对可恢复的失败任务重新执行，保留原失败信息 | 后续按需建立功能文档 |
-| 实验评审 | 按 ai-evaluation-service 指定的提交、版本和轮次产生隔离的评审结果 | 已提供内部实验契约 |
-| 评价数据提供 | 向 ai-evaluation-service 提供评审结果、执行状态和调用关联标识 | 由跨服务边界说明 |
+| 基础评审 | 已实现 `BASIC_REVIEW_V1` | 保留历史语义和可读性，不覆盖 |
+| 证据化评审 | 已实现 | `EVIDENCE_REVIEW_V2` 输出评分说明、要求覆盖、优点与问题发现 |
+| PDF解析V1 | 已实现 `PAPER_PARSE_V1` | 基础单块文本提取，供 EVIDENCE_REVIEW_V2 稳定运行 |
+| PDF解析V2 | 已实现 `PAPER_PARSE_V2` | 双页滑窗调度、重叠页仲裁、HTML表格、整块代码、长图描述与全局平铺组装 |
+| 评审结果校验 | V1/V2 均已实现 | V2 服务端汇总六项总分并校验发现、证据、页码和 blockId |
+| 评审结果查询 | 已实现 | 根据版本返回可展示的评分说明和发现，历史 V1 不伪造 V2 字段 |
+| 隔离评审 | REVIEW 实验入口已存在 | V2 已进入版本目录；V2 专属数据集与质量基线仍需后续评价任务 |
+| 深度证据评审V3 | 已实现并完成真实演练 | 基于 PAPER_DOCUMENT_V2 的多阶段漏斗式评审、五维确定性合成与扣分项裁决 |
+| 专业证据评审V4 | 已实现并完成真实链路验收 | Markdown 解释、真实原文、优点与问题分组、问题确定性排序和知识依据 |
+| RocketMQ 任务接入 | 已实现 | 消费 `REVIEW_TASK_READY`，Inbox 与 review_task 同事务落库，重复投递只创建一个任务 |
+| 崩溃恢复 | 已实现 | 并发 2 的有界 Worker、逐任务 token heartbeat、过期租约恢复、attempt 分类和 AI UNKNOWN 保护 |
+| 完成事件 | 已实现 | 评审结果、任务完成状态与 `REVIEW_COMPLETED` Outbox 同事务提交 |
 
 
-### 文档结构
+### 文档导航
 
-当前目录按三个层级组织。
-
-#### 服务概述
-
-本 README 说明 ai-review-service 的整体职责、服务边界、数据归属和文档导航。
-
-#### 功能概述
-
-功能概述文档定义一组相关功能的共同目标、输入输出、整体流程和公共边界。
-
-| 文档 | 职责 |
+| 文档 | 内容 |
 |------|------|
-| [AI评审/](AI评审/) | 概述 AI 评审功能，定义所有评审版本共享的输入、输出和整体流程 |
-
-#### 功能设计
-
-功能设计文档描述一个可独立理解的具体功能或评审版本，只保留功能级流程、规则和关键取舍。
-
-| 文档 | 职责 |
-|------|------|
-| [PDF解析/](PDF解析/) | 定义可被评审版本选择使用的 PDF 解析能力 |
-| `AI评审/V1基础评审/README.md` | 粗略评审版本独立目录，导航流程、Prompt、数据日志与异常设计 |
-| `AI评审/v2.md` | 适中评审版本，追求各项指标综合最优，待版本一确认后设计 |
-| `AI评审/v3.md` | 过度评审版本，追求最高质量并接受最高成本，待版本二确认后设计 |
-
-待设计的版本只在本页说明命名和顺序，不提前创建空文件。
+| [评审任务与生命周期/](评审任务与生命周期/) | 所有评审版本共享的任务调度、租约控制、公共控制表与生命周期 |
+| [AI评审V1/](AI评审V1/) | 当前基础评审实现（BASIC_REVIEW_V1）与多模态历史契约 |
+| [AI评审V2/](AI评审V2/) | 当前证据化评审实现（EVIDENCE_REVIEW_V2）、题目覆盖、评分说明与结构化发现 |
+| [AI评审V3/](AI评审V3/) | 第三代深度证据评审（DEEP_EVIDENCE_REVIEW_V3）设计与当前实现依据 |
+| [AI评审V4/](AI评审V4/) | 第四代专业证据报告（DEEP_EVIDENCE_REVIEW_V4）实现与验收依据 |
+| [PDF解析V1/](PDF解析V1/) | 初代 PAPER_PARSE_V1 执行流程、结构化产物与版本规则 |
+| [PDF解析V2/](PDF解析V2/) | 第二代 PAPER_PARSE_V2 版面分析、细粒度分块与全量场景设计 |
 
 
-### 编写规则
+### 编写与演进规则
 
-- 一份文档只聚焦一个主题。
-- AI 评审的公共语义只在 `AI评审/` 功能目录定义，具体版本不重复展开。
-- 评审版本必须使用独立文档，放在 `AI评审/` 功能目录并按 `v数字.md` 命名。
-- 所有版本使用相同公共输入并收敛为统一最终得分；版本专属过程 JSON、流程与 Prompt 写入对应版本文档。
-- 公共版本、任务和执行日志进入公共控制表；版本结果和中间产物进入版本独立表。
-- 文档只说明数据是否共享和归属哪个功能，不预先定义表、字段和索引。
-- Flyway SQL、Controller、DTO、VO、业务代码和测试是实现细节的事实来源。
-- 当前优先完成面向用户的 V1 基础评审。后续评审版本、排行榜、admin 和质量评价按当前项目任务顺序逐轮推进。
+- 任何已发布的 AI 功能调整都必须创建新工作流版本，可复用旧代码，但不得改变旧版本语义。
+- 公共版本、任务和执行日志进公共控制数据；版本结果和中间产物保留明确的 schema 版本。
+- 文档中的表名和 DTO 是设计建议；实现后以 Flyway、Controller、DTO、业务代码和测试为事实源。

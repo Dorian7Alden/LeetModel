@@ -7,6 +7,8 @@ spring:
     active: dev            # 默认激活开发环境（可通过命令行 --spring.profiles.active=prod 覆盖）
   config:
     import:
+      - classpath:leetmodel-observability.yml
+      - classpath:leetmodel-logging.yml
       # Nacos 配置中心（optional: Nacos 不可用时回退到本地 yml）
       - optional:nacos:problem-service-${spring.profiles.active}.yml
   cloud:
@@ -19,6 +21,43 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
 # ==================== 优雅关闭 ====================
 server:
   shutdown: graceful
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_NAMESPACE:lm-dev}%pg-problem-v1
+    send-message-timeout: 3000
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: true
+      batch-size: 50
+      interval-ms: 1000
+      lease-seconds: 30
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    environment: ${CACHE_ENVIRONMENT:${spring.profiles.active:dev}}
+    maximum-weight: ${CACHE_LOCAL_MAXIMUM_WEIGHT:67108864}
+    maximum-value-bytes: ${CACHE_MAXIMUM_VALUE_BYTES:524288}
+    degraded-ttl: 5s
+    reconcile-interval: 5000
+    outbox-interval: 1000
+    ttl-jitter: 0.2
+    redis:
+      host: ${CACHE_REDIS_HOST:localhost}
+      port: ${CACHE_REDIS_PORT:6380}
+      database: ${CACHE_REDIS_DATABASE:0}
+      password: ${CACHE_REDIS_PASSWORD:}
+      ssl: ${CACHE_REDIS_SSL:false}
+      connect-timeout: 200ms
+      command-timeout: 100ms

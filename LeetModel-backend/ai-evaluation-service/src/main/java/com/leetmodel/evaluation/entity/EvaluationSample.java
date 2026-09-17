@@ -1,7 +1,7 @@
 package com.leetmodel.evaluation.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.leetmodel.common.core.entity.BaseEntity;
+import com.leetmodel.common.core.bean.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -10,6 +10,9 @@ import lombok.EqualsAndHashCode;
 @TableName("evaluation_sample")
 public class EvaluationSample extends BaseEntity {
     private Long datasetId;
+    private String sampleType;
+    private String payloadSchemaVersion;
+    private String payloadJson;
     private Long submissionId;
     private Long teamId;
     private Long problemId;

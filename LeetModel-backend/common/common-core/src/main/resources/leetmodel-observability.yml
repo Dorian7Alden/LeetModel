@@ -1,0 +1,38 @@
+# LeetModel 全服务 Actuator 与健康语义基线。
+# 业务服务通过 spring.config.import 显式导入，环境可用更高优先级配置收紧暴露范围。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      validate-group-membership: false
+      status:
+        order: DOWN,OUT_OF_SERVICE,DEGRADED,UNKNOWN,UP
+        http-mapping:
+          down: 503
+          out-of-service: 503
+          degraded: 200
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+        degraded:
+          include: degradedState,businessCache,messaging,redis
+        business:
+          include: degradedState,businessCache,messaging
+  metrics:
+    tags:
+      service: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+leetmodel:
+  management:
+    token: ${MANAGEMENT_TOKEN:}

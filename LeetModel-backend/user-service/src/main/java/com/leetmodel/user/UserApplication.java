@@ -6,13 +6,13 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
- * LeetModel 用户服务 —— 负责用户注册登录、RBAC 权限管理。
+ * LeetModel 用户服务：负责用户注册登录、RBAC 权限管理。
  *
  * <p>关键注解：
  * <ul>
- *   <li>{@code @SpringBootApplication} — 启动 Spring Boot 自动配置</li>
- *   <li>{@code @EnableDiscoveryClient} — 注册到 Nacos</li>
- *   <li>{@code @EnableFeignClients} — 扫描 common-api 中的 Feign 接口</li>
+ *   <li>{@code @SpringBootApplication}: 启动 Spring Boot 自动配置</li>
+ *   <li>{@code @EnableDiscoveryClient}: 注册到 Nacos 注册中心</li>
+ *   <li>{@code @EnableFeignClients}: 扫描 common-api 中的 Feign 客户端契约</li>
  * </ul>
  *
  * @since 0.0.1

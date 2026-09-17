@@ -16,6 +16,12 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
 
+    # Sentinel 流量防刷与控制台通信（本地 Dashboard 运行于 8858）
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD_ADDR:127.0.0.1:8858}
+        port: ${SENTINEL_CLIENT_PORT:8719}
+
     # === 路由规则 ===
     # lb:// 前缀 = 从 Nacos 按服务名拉取实例列表 + 负载均衡
     gateway:
@@ -84,6 +90,12 @@ spring:
           predicates:
             - Path=/api/assistant/**
 
+        # ---- 知识库管理与检索服务 ----
+        - id: knowledge-retrieval-service
+          uri: lb://knowledge-retrieval-service
+          predicates:
+            - Path=/api/admin/knowledge/**
+
         # ---- 管理后台 ----
         - id: admin-service
           uri: lb://admin-service
@@ -101,15 +113,6 @@ jwt:
   timeout: 604800
 
 # 暴露 Actuator 端点（K8s 探活/就绪探针）
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
-
 # ==================== Knife4j 网关聚合 ====================
 # 原理：Gateway 自身托管 /doc.html 页面，用户切换服务分组时，
 # Gateway 转发 /v3/api-docs 请求获取 OpenAPI JSON

@@ -15,6 +15,11 @@ import java.util.List;
 public class EvaluationComparisonDTO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long datasetId;
+    private String featureCode;
+    private String datasetVersion;
     private Integer repeatCount;
+    private Boolean comparable;
+    private Boolean rankingApplied;
+    private List<String> incompatibilityReasons;
     private List<EvaluationTaskSummaryDTO> versions;
 }

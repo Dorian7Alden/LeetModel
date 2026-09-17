@@ -7,27 +7,27 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Sa-Token 核心配置 —— JWT 无状态模式 + Redis 黑名单。
+ * Sa-Token 核心配置类。
  *
- * <p>认证架构说明：
- * <ul>
- *   <li>Token 采用无状态 JWT 签发，不在 Redis 存储 Session（轻量、高性能）</li>
- *   <li>Redis 仅存储黑名单 —— 登出/踢人时将 Token 加入黑名单，解决 JWT 无法主动失效的固有问题</li>
- *   <li>JWT Secret Key 通过 Nacos 配置中心下发，不写死在代码中</li>
- * </ul>
- * </p>
- *
- * <p>注意：类名加 Security 前缀避免与 cn.dev33.satoken.config.SaTokenConfig 冲突。</p>
+ * <p>配置 JWT 无状态模式（StpLogicJwtForStateless），不持久化 Session 到 Redis；
+ * 配合 Redis 黑名单机制支持主动失效。类名加 Security 前缀防止与框架同名配置类冲突。</p>
  */
 @Configuration
 public class SecuritySaTokenConfig {
 
+    /** JWT 签名秘钥 */
     @Value("${jwt.secret-key:leetmodel-default-secret-key}")
     private String jwtSecretKey;
 
+    /** Token 有效期秒数，默认 7 天 */
     @Value("${jwt.timeout:604800}")
-    private long timeout; // 默认 7 天（秒）
+    private long timeout;
 
+    /**
+     * 构造无状态 JWT 鉴权逻辑驱动器 Bean。
+     *
+     * @return 注入了秘钥与超时配置的 StpLogic 实例
+     */
     @Bean
     public StpLogic stpLogic() {
         // StpLogicJwtForStateless(String) — 构造参数是 loginType，不是 JWT 密钥

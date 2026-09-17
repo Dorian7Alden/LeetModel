@@ -1,0 +1,77 @@
+{
+  "annotations": {"list": []},
+  "description": "评审、建议、评价和排行异步任务的状态、等待、租约与物理 attempt。",
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_review_tasks", "legendFormat": "review / {{status}}", "refId": "A"}, {"expr": "leetmodel_suggestion_tasks", "legendFormat": "suggestion / {{status}}", "refId": "B"}, {"expr": "leetmodel_evaluation_slots", "legendFormat": "evaluation / {{status}}", "refId": "C"}, {"expr": "leetmodel_ranking_rebuild_tasks", "legendFormat": "ranking / {{status}}", "refId": "D"}],
+      "title": "领域任务状态",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_review_tasks_oldest_waiting_seconds", "legendFormat": "review", "refId": "A"}, {"expr": "leetmodel_suggestion_tasks_oldest_waiting_seconds", "legendFormat": "suggestion", "refId": "B"}, {"expr": "leetmodel_evaluation_slots_oldest_waiting_seconds", "legendFormat": "evaluation", "refId": "C"}, {"expr": "leetmodel_ranking_rebuild_oldest_waiting_seconds", "legendFormat": "ranking", "refId": "D"}],
+      "title": "最老等待任务",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_review_tasks_expired_leases", "legendFormat": "review", "refId": "A"}, {"expr": "leetmodel_suggestion_tasks_expired_leases", "legendFormat": "suggestion", "refId": "B"}, {"expr": "leetmodel_evaluation_slots_expired_leases", "legendFormat": "evaluation", "refId": "C"}, {"expr": "leetmodel_ranking_rebuild_expired_leases", "legendFormat": "ranking", "refId": "D"}],
+      "title": "过期租约",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 8},
+      "id": 4,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (claim_type) (rate({__name__=~\"leetmodel_(review_task|suggestion_task|ranking_rebuild|evaluation_slot)_claims_total\"}[5m]))", "legendFormat": "{{claim_type}}", "refId": "A"}],
+      "title": "领取与接管速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 8},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "leetmodel_evaluation_batch_paused", "legendFormat": "paused", "refId": "A"}, {"expr": "leetmodel_ranking_rebuild_pending_revisions", "legendFormat": "ranking pending", "refId": "B"}],
+      "title": "批处理压力与排行延迟",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "leetmodel-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 15},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_review_task_attempt_duration_seconds_bucket[5m])))", "legendFormat": "review / {{outcome}}", "refId": "A"}, {"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_suggestion_task_attempt_duration_seconds_bucket[5m])))", "legendFormat": "suggestion / {{outcome}}", "refId": "B"}, {"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_evaluation_slot_attempt_duration_seconds_bucket[5m])))", "legendFormat": "evaluation / {{outcome}}", "refId": "C"}, {"expr": "histogram_quantile(0.95, sum by (outcome, le) (rate(leetmodel_ranking_rebuild_attempt_duration_seconds_bucket[5m])))", "legendFormat": "ranking / {{outcome}}", "refId": "D"}],
+      "title": "领域 attempt P95",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["leetmodel", "async"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LeetModel / 异步任务",
+  "uid": "leetmodel-async-tasks",
+  "version": 1
+}

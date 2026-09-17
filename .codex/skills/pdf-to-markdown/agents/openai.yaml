@@ -1,0 +1,3 @@
+interface:
+  display_name: "PDF 转 Markdown 规范流"
+  short_description: "高保真提取题面与论文 PDF 为标准 Markdown，含图片图床托管、居中与复杂表格 HTML 化"

@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.dto.ChangePasswordRequest;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.common.api.dto.UserPageQuery;
 import com.leetmodel.user.dto.UserUpdateRequest;
 import com.leetmodel.user.entity.Role;
@@ -45,11 +46,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
     private final StorageService storageService;
+    private final UserAuditEventProducer audit;
 
     /**
-     * 根据用户名查找用户
-     * @param username 用户名
-     * @return 用户
+     * 根据用户名精确查询用户实体。
+     *
+     * @param username 用户名，不能为 null
+     * @return 匹配的用户实体，未找到返回 null
      */
     @Override
     public User findByUsername(String username) {
@@ -57,9 +60,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 获取用户个人资料
-     * @param userId 用户ID
-     * @return 用户资料
+     * 获取当前用户的脱敏资料信息。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 用户脱敏视图对象
+     * @throws BusinessException 若用户不存在
      */
     @Override
     public UserVO getProfile(Long userId) {
@@ -69,10 +74,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 更新用户个人资料
-     * @param userId 用户ID
-     * @param request 更新请求
-     * @return 更新后的用户资料
+     * 更新用户基本资料（昵称与邮箱）。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含昵称或邮箱的更新请求对象，不能为 null
+     * @return 更新后的用户脱敏视图对象
+     * @throws BusinessException 若用户不存在
      */
     @Override
     public UserVO updateProfile(Long userId, UserUpdateRequest request) {
@@ -98,11 +105,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 修改密码
-     * @param userId 用户ID
-     * @param request 修改密码请求
+     * 修改用户登录密码并重置凭据版本。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含新旧密码的修改请求对象，不能为 null
+     * @throws BusinessException 若用户不存在、旧密码错误或新旧密码相同
      */
     @Override
+    @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = getById(userId);
         BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
@@ -122,14 +132,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 更新密码
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         updateById(user);
+        audit.passwordChanged(userId);
         log.info("用户 {} 修改密码", userId);
     }
 
     /**
-     * 更新用户头像
-     * @param userId 用户ID
-     * @param file 头像文件
-     * @return 头像URL
+     * 上传并更新用户个人头像。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @param file   待上传的头像图片文件，不能为 null
+     * @return 头像访问公网 URL
+     * @throws BusinessException 若对象存储未启用或用户不存在
      */
     @Override
     public String updateAvatar(Long userId, MultipartFile file) {
@@ -146,7 +159,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String avatarPath = storageService.upload(file, "avatars");
         user.setAvatarPath(avatarPath);
         updateById(user);
-        log.info("用户 {} 更新头像: {}", userId, avatarPath);
+        log.info("用户 {} 更新头像", userId);
 
         return storageService.getUrl(avatarPath);
     }
@@ -154,26 +167,37 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     // ==================== 管理员方法 ====================
 
     /**
-     * 分页获取用户列表
-     * @param query 查询参数
-     * @return 用户列表
+     * 管理员分页组合条件查询平台用户列表。
+     *
+     * @param query 查询条件与分页参数对象，不能为 null
+     * @return 分页包装的用户管理视图对象
      */
     @Override
     public IPage<UserAdminVO> listUsers(UserPageQuery query) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
 
-        // 关键词搜索：匹配用户名或昵称
+        // 关键词搜索：匹配用户名、昵称或邮箱
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             wrapper.and(w -> w
                 .like(User::getUsername, query.getKeyword())
                 .or()
                 .like(User::getNickname, query.getKeyword())
+                .or()
+                .like(User::getEmail, query.getKeyword())
             );
         }
 
         // 状态筛选
         if (query.getStatus() != null) {
             wrapper.eq(User::getStatus, query.getStatus());
+        }
+
+        // 角色筛选只使用通过数字类型校验的 roleId，避免字符串拼接注入。
+        if (query.getRoleId() != null) {
+            wrapper.inSql(
+                    User::getId,
+                    "SELECT user_id FROM user_role WHERE role_id = " + query.getRoleId()
+            );
         }
 
         // 按创建时间降序排序
@@ -199,9 +223,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 获取用户详情
-     * @param userId 用户ID
-     * @return 用户详情
+     * 管理员查询用户详细信息（含角色列表）。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 用户管理端视图对象
+     * @throws BusinessException 若用户不存在
      */
     @Override
     public UserAdminVO getUserDetail(Long userId) {
@@ -213,11 +239,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 更新用户状态
-     * @param userId 用户ID
-     * @param status 状态
+     * 管理员修改用户账号状态（启用/禁用）。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @param status 目标状态（1=正常 0=禁用），不能为 null
+     * @throws BusinessException 若用户不存在
      */
     @Override
+    @Transactional
     public void updateStatus(Long userId, Integer status) {
         // 获取用户
         User user = getById(userId);
@@ -226,13 +255,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 更新用户状态
         user.setStatus(status);
         updateById(user);
+        audit.statusChanged(userId, status);
         log.info("管理员更新用户 {} 状态为 {}", userId, status);
     }
 
     /**
-     * 更新用户角色
-     * @param userId 用户ID
-     * @param roleIds 角色ID列表
+     * 管理员全量替换用户绑定的角色集合。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param roleIds 角色 ID 列表，不能为 null
+     * @throws BusinessException 若用户不存在或指定角色 ID 缺失
      */
     @Override
     @Transactional
@@ -260,14 +292,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             userRole.setRoleId(roleId);
             userRoleMapper.insert(userRole);
         }
+        audit.rolesChanged(userId, distinctRoleIds);
 
-        log.info("管理员更新用户 {} 的角色: {}", userId, distinctRoleIds);
+        log.info("管理员更新用户角色完成: userId={}, roleCount={}",
+                userId, distinctRoleIds.size());
     }
 
     // ==================== 私有方法 ====================
 
     /**
-     * User 转换为 UserVO
+     * 将用户实体转换为客户端脱敏视图对象。
+     *
+     * @param user 用户实体
+     * @return 用户脱敏 VO
      */
     private UserVO toVO(User user) {
         return UserVO.builder()
@@ -282,7 +319,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * User 转换为 UserAdminVO
+     * 将用户实体与角色列表组装为管理端视图对象。
+     *
+     * @param user  用户实体
+     * @param roles 角色列表
+     * @return 管理端用户明细 VO
      */
     private UserAdminVO toAdminVO(User user, List<UserAdminVO.RoleSimpleVO> roles) {
         return UserAdminVO.builder()
@@ -299,8 +340,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 将数据库中的头像路径转换为访问地址。
-     * 兼容迁移前已经保存的完整外部头像地址。
+     * 将数据库中的头像路径安全转换为可访问的 URL 地址（兼容完整外部链接）。
+     *
+     * @param avatarPath 存储桶对象路径或外部绝对 URL
+     * @return 最终可访问的头像 URL；若路径为空返回 null
      */
     private String resolveAvatarUrl(String avatarPath) {
         if (avatarPath == null || avatarPath.isBlank()) return null;
@@ -311,9 +354,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 批量获取用户角色 Map。
-     * @param userIds 用户ID 列表
-     * @return userId → 角色列表
+     * 批量获取指定用户集合的角色映射关系。
+     *
+     * @param userIds 用户 ID 列表
+     * @return 用户 ID 到角色列表的映射 Map
      */
     private Map<Long, List<UserAdminVO.RoleSimpleVO>> batchGetRoles(List<Long> userIds) {
         if (userIds.isEmpty()) return Map.of();
@@ -348,10 +392,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return result;
     }
 
+    /**
+     * 为指定用户集合构建初始空角色 Map。
+     *
+     * @param userIds 用户 ID 列表
+     * @return 映射为空列表的初始 Map
+     */
     private Map<Long, List<UserAdminVO.RoleSimpleVO>> buildEmptyRoleMap(List<Long> userIds) {
         return userIds.stream().collect(Collectors.toMap(id -> id, id -> List.of()));
     }
 
+    /**
+     * 将角色实体转换为简要角色 VO。
+     *
+     * @param role 角色实体
+     * @return 简要角色 VO
+     */
     private UserAdminVO.RoleSimpleVO toRoleSimpleVO(Role role) {
         return UserAdminVO.RoleSimpleVO.builder()
                 .id(role.getId())
@@ -361,16 +417,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 根据用户ID获取角色列表
-     * @param userId 用户ID
-     * @return 角色列表
+     * 查询单个用户的全部角色信息列表。
+     *
+     * @param userId 用户 ID
+     * @return 简要角色 VO 列表
      */
     private List<UserAdminVO.RoleSimpleVO> getRolesByUserId(Long userId) {
         // 查询用户角色关联
         LambdaQueryWrapper<UserRole> urWrapper = new LambdaQueryWrapper<>();
         urWrapper.eq(UserRole::getUserId, userId);
         List<UserRole> userRoles = userRoleMapper.selectList(urWrapper);
-
         if (userRoles.isEmpty()) return List.of();
 
         // 获取角色ID列表

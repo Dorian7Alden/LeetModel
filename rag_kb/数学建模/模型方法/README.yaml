@@ -1,0 +1,121 @@
+schema_version: "v1.0"
+directory_name: "模型方法"
+path: "数学建模/模型方法"
+title: "数学建模核心模型与算法库"
+description: "涵盖预测、评价、优化、统计机理及机器学习各类常用数学模型速查、算法分类与 AI 辅助建模实战指南"
+
+tags:
+  contest: "通用"
+  problem_type: "综合方法"
+  methods:
+    - "规划与优化"
+    - "时间序列与预测"
+    - "综合评价"
+    - "微分方程与机理"
+    - "机器学习"
+  authority_level: "L4"
+
+documents:
+  - file: "优化模型与算法分类.md"
+    title: "优化模型与算法分类全景"
+    summary: "优化模型与算法全景分类：按变量类型（连续/离散）与求解方式（直接/解析/智能算法）划分，含双面鼓颠球关键信息与求解器解析。"
+    doc_tags:
+      - "优化模型"
+      - "求解器"
+      - "算法选型"
+    methods:
+      - "非线性规划"
+      - "混合整数规划"
+      - "智能优化算法"
+    authority_level: "L4"
+    estimated_tokens: 2400
+
+  - file: "常用模型速查-优化类.md"
+    title: "常用模型速查-优化类"
+    summary: "优化类模型速查表：线性/整数/0-1/非线性/动态/多目标规划与启发式算法（遗传/模拟退火/粒子群）的三要素建模与求解器清单。"
+    doc_tags:
+      - "优化速查"
+      - "规划模型"
+      - "启发式算法"
+    methods:
+      - "线性规划"
+      - "整数规划"
+      - "遗传算法"
+      - "粒子群算法"
+      - "模拟退火"
+    authority_level: "L4"
+    estimated_tokens: 1600
+
+  - file: "常用模型速查-预测类.md"
+    title: "常用模型速查-预测类"
+    summary: "预测类模型速查表：回归分析、时间序列ARIMA/SARIMA、灰色GM(1,1)、神经网络与马尔可夫链的适用条件、公式要点与误差检验。"
+    doc_tags:
+      - "预测速查"
+      - "时间序列"
+      - "误差检验"
+    methods:
+      - "ARIMA"
+      - "灰色预测GM(1,1)"
+      - "多元回归"
+      - "马尔可夫链"
+    authority_level: "L4"
+    estimated_tokens: 1700
+
+  - file: "常用模型速查-评价类.md"
+    title: "常用模型速查-评价类"
+    summary: "评价类模型速查表：AHP、熵权法、TOPSIS、模糊综合评价、RSR秩和比、主成分分析的标准化、赋权与综合评分三步路线。"
+    doc_tags:
+      - "评价速查"
+      - "指标赋权"
+      - "综合评分"
+    methods:
+      - "层次分析法AHP"
+      - "熵权法"
+      - "TOPSIS"
+      - "模糊综合评价"
+      - "主成分分析PCA"
+    authority_level: "L4"
+    estimated_tokens: 1600
+
+  - file: "常用模型速查-统计与机理类.md"
+    title: "常用模型速查-统计与机理类"
+    summary: "统计与机理类模型速查：微分方程建模（数值解法）、蒙特卡洛/元胞自动机仿真、假设检验与回归诊断的适用条件与常见坑。"
+    doc_tags:
+      - "机理建模"
+      - "统计检验"
+      - "数值仿真"
+    methods:
+      - "常微分方程ODE"
+      - "蒙特卡洛仿真"
+      - "元胞自动机"
+      - "假设检验"
+    authority_level: "L4"
+    estimated_tokens: 1800
+
+  - file: "机器学习与AI模型应用.md"
+    title: "机器学习与AI模型应用"
+    summary: "机器学习在数模中的应用速查：分类、聚类、集成学习（随机森林/XGBoost）与验证指标，及科学建模全流程。"
+    doc_tags:
+      - "机器学习"
+      - "特征工程"
+      - "集成学习"
+    methods:
+      - "随机森林"
+      - "XGBoost"
+      - "K-Means聚类"
+      - "支持向量机SVM"
+    authority_level: "L4"
+    estimated_tokens: 1900
+
+  - file: "AI辅助建模实战.md"
+    title: "AI辅助建模实战与合规红线"
+    summary: "AI在数学建模中的实战运用：定位与提示词模板、工具链选择、学术规范与官方AI使用合规红线。"
+    doc_tags:
+      - "大模型应用"
+      - "提示词工程"
+      - "竞赛合规"
+    methods:
+      - "提示词工程"
+      - "AI辅助验证"
+    authority_level: "L4"
+    estimated_tokens: 2800

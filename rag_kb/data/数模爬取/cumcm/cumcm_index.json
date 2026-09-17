@@ -1,0 +1,149 @@
+{
+  "base": "https://www.mcm.edu.cn/",
+  "picked": [
+    {
+      "url": "https://www.mcm.edu.cn/index_cn.html",
+      "title": "首页",
+      "chars": 729
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/302f2c2355b1179ada9b99a06d7109f5.html",
+      "title": "竞赛组织",
+      "chars": 338
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/d1167c08dd48832f27d76ca861b5d3fa.html",
+      "title": "挑战赛",
+      "chars": 426
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/a21b48970df0067360b63b691fc2d414.html",
+      "title": "中学生",
+      "chars": 713
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/4070e6e850933a30f296992bd8af7459.html",
+      "title": "致敬萧树铁先生",
+      "chars": 301
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/56839f97c847c3ab2646b42819446621.html",
+      "title": "竞赛30周年视频",
+      "chars": 411
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/fef94648f2836ab6cc81586f4c38512b.html",
+      "title": "全国大学生数学建模竞赛人工智能工具使用规定 （2026年试行）",
+      "chars": 774
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/0e05b857c0474518ad1d112d36edc486.html",
+      "title": "2026年全国大学生数学建模竞赛培训与应用研究研讨会成功举行",
+      "chars": 274
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/3703fb7f6e16f999f45aac0593b1e1ff.html",
+      "title": "2026年全国大学生数学建模竞赛培训与应用研究研讨会第二次通知",
+      "chars": 2751
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/cd6947d983e4a465e97c42c6ed0602af.html",
+      "title": "CUMCM通讯2026年第1期（总第67期）",
+      "chars": 339
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/d6fd7a0ee8f3a3d525e30af1c365fcec.html",
+      "title": "2026高教社杯全国大学生数学建模竞赛第一次通知",
+      "chars": 563
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/c579a2643888f6b2f6c7f2d285e09a81.html",
+      "title": "2026年全国大学生数学建模竞赛培训与应用研究研讨会第一次通知",
+      "chars": 2594
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/3d5712ae739253999853bd9aabe0f412.html",
+      "title": "2023-2025全国大学生数学建模竞赛参赛报名按赛区统计",
+      "chars": 312
+    },
+    {
+      "url": "https://www.mcm.edu.cn/",
+      "title": "首页",
+      "chars": 729
+    }
+  ],
+  "all_links": [
+    {
+      "url": "https://www.mcm.edu.cn/index_cn.html",
+      "text": "首页"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/302f2c2355b1179ada9b99a06d7109f5.html",
+      "text": "竞赛组织"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/a657eb64216f6fd724196d37bcb5c1c4.html",
+      "text": "历程与动态"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/033046c1b33c2ea9c1d6bd4c5a4020fb.html",
+      "text": "赛题与评奖"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/d1167c08dd48832f27d76ca861b5d3fa.html",
+      "text": "挑战赛"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/a21b48970df0067360b63b691fc2d414.html",
+      "text": "中学生"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/3137197ac136d77d18d18282a48ec8e5.html",
+      "text": "赞助商专栏"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/section/e65535907708936a3675c245f6021a31.html",
+      "text": "相关信息"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/4070e6e850933a30f296992bd8af7459.html",
+      "text": "致敬萧树铁先生"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/56839f97c847c3ab2646b42819446621.html",
+      "text": "竞赛30周年视频"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/fef94648f2836ab6cc81586f4c38512b.html",
+      "text": "全国大学生数学建模竞赛人工智能工具使用规定 （2026年试行）"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/0e05b857c0474518ad1d112d36edc486.html",
+      "text": "2026年全国大学生数学建模竞赛培训与应用研究研讨会成功举行"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/3703fb7f6e16f999f45aac0593b1e1ff.html",
+      "text": "2026年全国大学生数学建模竞赛培训与应用研究研讨会第二次通知"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/cd6947d983e4a465e97c42c6ed0602af.html",
+      "text": "CUMCM通讯2026年第1期（总第67期）"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/d6fd7a0ee8f3a3d525e30af1c365fcec.html",
+      "text": "2026高教社杯全国大学生数学建模竞赛第一次通知"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/c579a2643888f6b2f6c7f2d285e09a81.html",
+      "text": "2026年全国大学生数学建模竞赛培训与应用研究研讨会第一次通知"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/html_cn/node/3d5712ae739253999853bd9aabe0f412.html",
+      "text": "2023-2025全国大学生数学建模竞赛参赛报名按赛区统计"
+    },
+    {
+      "url": "https://www.mcm.edu.cn/",
+      "text": "首页"
+    }
+  ]
+}

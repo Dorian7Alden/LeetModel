@@ -1,5 +1,5 @@
 <template>
-  <div v-loading="loading" class="team-detail-page">
+  <div v-loading="loading" class="team-detail-page" :class="{ 'is-embedded': embedded }">
     <el-alert
       v-if="refreshAfterCancelError"
       title="申请已取消，但最新队伍状态加载失败"
@@ -12,7 +12,7 @@
       <template #default><el-button type="warning" plain @click="retryRefreshAfterCancel">重新加载</el-button></template>
     </el-alert>
     <template v-if="team">
-      <div class="page-nav">
+      <div v-if="!embedded" class="page-nav">
         <el-button text class="back-button" @click="handleBack">← 返回上一页</el-button>
         <span class="team-id">队伍 ID · {{ team.id }}</span>
       </div>
@@ -75,13 +75,13 @@
                   <strong>{{ selectedPdf.name }}</strong>
                   <span>{{ formatFileSize(selectedPdf.size) }}</span>
                 </div>
-                <el-button text class="remove-file" @click="handlePdfRemove">移除</el-button>
+                <el-button text class="remove-file" :disabled="submitting" @click="handlePdfRemove">移除</el-button>
               </div>
               <div v-else class="file-placeholder">尚未选择文件</div>
-              <el-progress v-if="submitting" type="circle" :percentage="uploadProgress" :width="48" :stroke-width="5" class="upload-progress" />
+              <el-progress v-if="submitting || uploadProgress > 0" type="circle" :percentage="uploadProgress" :width="48" :stroke-width="5" class="upload-progress" />
               <el-button type="primary" :disabled="!selectedPdf" :loading="submitting" class="submit-button" @click="handleSubmitPdf">提交第 {{ nextVersion }} 版</el-button>
             </div>
-            <p class="upload-tip">仅支持 PDF 文件，大小不超过 20MB；每次成功提交都会保留为一个新版本。</p>
+            <p class="upload-tip">{{ uploadStage || '仅支持 20MB 以内 PDF；中断后重新选择同一文件可继续上传。' }}</p>
           </div>
           <div v-if="team.practiceStatus !== 'IN_PROGRESS'" class="final-version-bar">
             <span>{{ finalSubmission ? `最终提交已锁定为 V${finalSubmission.version}` : '练习已经结束，可以锁定并查看最终提交版本。' }}</span>
@@ -90,13 +90,13 @@
           <div v-if="scoreSummary" class="score-summary" :class="{ final: scoreSummary.submission.finalVersion }">
             <div><span>{{ scoreSummaryLabel }}</span><strong>V{{ scoreSummary.submission.version }}</strong></div>
             <div class="score-value"><strong>{{ scoreSummary.review?.score ?? '--' }}</strong><span>/ 100</span></div>
-            <el-tag :type="reviewStatusType(scoreSummary.review?.status)" effect="light">{{ reviewStatusLabel(scoreSummary.review?.status) }}</el-tag>
+            <el-tag :type="reviewStatusType(reviewDisplayStatus(scoreSummary.submission))" effect="light">{{ reviewStatusLabel(reviewDisplayStatus(scoreSummary.submission)) }}</el-tag>
           </div>
           <el-table :data="submissionRows" size="small" class="submission-table" empty-text="暂无提交版本">
             <el-table-column label="版本" width="120"><template #default="scope"><div class="version-cell"><strong>V{{ scope.row.version }}</strong><el-tag v-if="scope.row.finalVersion" type="success" size="small" effect="light">最终版</el-tag></div></template></el-table-column>
             <el-table-column prop="originalFilename" label="文件名" min-width="180" />
             <el-table-column prop="fileSize" label="大小" width="110"><template #default="scope">{{ formatFileSize(scope.row.fileSize) }}</template></el-table-column>
-            <el-table-column label="评审状态" width="110"><template #default="scope"><el-tag :type="reviewStatusType(scope.row.review?.status)" size="small" effect="light">{{ reviewStatusLabel(scope.row.review?.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="评审状态" width="130"><template #default="scope"><el-tag :type="reviewStatusType(reviewDisplayStatus(scope.row))" size="small" effect="light">{{ reviewStatusLabel(reviewDisplayStatus(scope.row)) }}</el-tag></template></el-table-column>
             <el-table-column label="得分" width="90"><template #default="scope"><strong v-if="scope.row.review?.score != null" class="table-score">{{ scope.row.review.score }}</strong><span v-else>--</span></template></el-table-column>
             <el-table-column prop="createTime" label="提交时间" width="170"><template #default="scope">{{ formatDate(scope.row.createTime) }}</template></el-table-column>
             <el-table-column label="操作" width="300"><template #default="scope"><el-button link type="primary"><a :href="scope.row.downloadUrl" target="_blank" rel="noopener">下载</a></el-button><el-button v-if="scope.row.review" type="primary" link @click="showReviewResult(scope.row.review)">查看评审</el-button><el-button v-if="scope.row.review?.status === 'COMPLETED'" type="success" link @click="showSuggestion(scope.row)">改进建议</el-button><el-button v-if="scope.row.review?.status === 'FAILED'" type="danger" link @click="handleRetryReview(scope.row.review.taskId)">重试</el-button></template></el-table-column>
@@ -208,13 +208,24 @@
       <div v-if="selectedReview" class="review-detail">
         <div class="review-version"><div><strong>{{ selectedReview.versionName || selectedReview.workflowVersion }}</strong><p>{{ selectedReview.versionDescription }}</p></div><el-tag :type="reviewStatusType(selectedReview.status)">{{ reviewStatusLabel(selectedReview.status) }}</el-tag></div>
         <p class="review-process">{{ selectedReview.processSummary }}</p>
-        <el-alert v-if="selectedReview.status === 'FAILED'" type="error" :title="selectedReview.errorMessage || '评审执行失败'" :closable="false" show-icon />
+        <el-alert v-if="selectedReview.status === 'UNKNOWN'" type="warning" title="AI 上游结果暂时无法确认，系统不会自动重复计费；请联系管理员核查" :closable="false" show-icon />
+        <el-alert v-else-if="selectedReview.status === 'FAILED'" type="error" :title="selectedReview.errorMessage || '评审执行失败'" :closable="false" show-icon />
         <el-empty v-else-if="selectedReview.status !== 'COMPLETED'" :description="selectedReview.status === 'RUNNING' ? 'AI 正在阅读论文，请稍后刷新' : '评审任务正在等待执行'" :image-size="72" />
         <template v-else-if="selectedReviewResult">
           <div class="review-score"><span>论文总分</span><strong>{{ selectedReviewResult.score }}</strong><small>/ 100</small></div>
-          <p class="review-summary">{{ selectedReviewResult.summary }}</p>
-          <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} 分</span></div><p>{{ item.value?.comment }}</p></div></div>
-          <div v-for="section in reviewLists" :key="section.key" class="review-list"><h4>{{ section.label }}</h4><ul><li v-for="item in section.items" :key="item">{{ item }}</li></ul></div>
+          <template v-if="selectedReviewIsV2">
+            <el-alert title="平台训练评分，用于练习反馈，不代表赛事官方评分" type="info" :closable="false" show-icon />
+            <p class="review-summary">{{ selectedReviewResult.overallAssessment }}</p>
+            <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} / {{ item.value?.maxScore }} 分</span></div><p>{{ item.value?.reason }}</p></div></div>
+            <div class="review-list"><h4>题目要求覆盖</h4><div v-for="item in selectedReviewResult.requirementCoverage" :key="item.requirementId" class="coverage-item"><el-tag size="small" :type="coverageType(item.status)">{{ coverageLabel(item.status) }}</el-tag><div><strong>{{ item.requirement }}</strong><p>{{ item.explanation }}</p></div></div></div>
+            <div class="review-list"><h4>结构化评审发现</h4><div v-for="item in v2Findings" :key="item.findingId" class="finding-item"><div><el-tag size="small" :type="item.type === 'STRENGTH' ? 'success' : 'warning'">{{ item.type === 'STRENGTH' ? '优点' : item.severity }}</el-tag><strong>{{ item.findingId }} · {{ item.statement }}</strong></div><p>{{ item.scoreImpact }}</p><span v-if="item.pages.length">论文第 {{ item.pages.join('、') }} 页</span></div></div>
+            <p v-if="selectedReviewResult.limitations?.length" class="review-limitations">运行限制：{{ selectedReviewResult.limitations.join('；') }}</p>
+          </template>
+          <template v-else>
+            <p class="review-summary">{{ selectedReviewResult.summary }}</p>
+            <div class="dimension-grid"><div v-for="item in reviewDimensions" :key="item.key" class="dimension-card"><div><strong>{{ item.label }}</strong><span>{{ item.value?.score }} 分</span></div><p>{{ item.value?.comment }}</p></div></div>
+            <div v-for="section in reviewLists" :key="section.key" class="review-list"><h4>{{ section.label }}</h4><ul><li v-for="item in section.items" :key="item">{{ item }}</li></ul></div>
+          </template>
         </template>
         <el-alert v-else type="warning" title="评审结果暂时无法解析" :closable="false" show-icon />
       </div>
@@ -232,15 +243,21 @@ import { renderSafeMarkdown } from '@/utils/markdown'
 import { Calendar, User, UserFilled } from '@element-plus/icons-vue'
 import { cancelTeamApplication, closeTeamRecruitment, dissolveTeam, endTeamPractice, getTeamApplications, getTeamDetail, leaveTeam, publishTeamRecruitment, removeTeamMember, reviewTeamApplication, startTeamPractice, submitTeamApplication, updateTeam, updateTeamMemberRoles, updateTeamRecruitment, updateTeamSubmissionPermission } from '@/api/team'
 import { getPublicProblemDetail } from '@/api/problem'
-import { finalizeTeamSubmission, getTeamSubmissionHistory, submitTeamPdf } from '@/api/submission'
+import { finalizeTeamSubmission, getTeamSubmissionHistory } from '@/api/submission'
 import { getTeamReviews, retryReviewTask } from '@/api/review'
 import { useUserStore } from '@/store/user'
+import { uploadPdfResumably } from '@/utils/resumablePdfUpload'
 import UserMiniCardDialog from '../components/UserMiniCardDialog.vue'
 import SubmissionSuggestionDialog from '../components/SubmissionSuggestionDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const props = defineProps({
+  teamId: { type: [String, Number], default: null },
+  embedded: { type: Boolean, default: false },
+})
+const emit = defineEmits(['changed', 'transitioned', 'removed'])
 const loading = ref(false)
 const refreshAfterCancelError = ref('')
 const team = ref(null)
@@ -265,6 +282,7 @@ const suggestionSubmission = ref(null)
 const selectedPdf = ref(null)
 const submitting = ref(false)
 const uploadProgress = ref(0)
+const uploadStage = ref('')
 const finalizing = ref(false)
 const startingPractice = ref(false)
 const endingPractice = ref(false)
@@ -274,6 +292,7 @@ let reviewTimer
 const editForm = reactive({ name: '', description: '' })
 const recruitmentForm = reactive({ needModeler: false, needProgrammer: false, needWriter: false, description: '' })
 const applyForm = reactive({ recruitmentId: null, message: '' })
+const resolvedTeamId = computed(() => String(props.teamId || route.params.id || ''))
 const currentUserId = computed(() => Number(userStore.userId))
 const isLeader = computed(() => team.value?.leaderId === currentUserId.value)
 const isMember = computed(() => team.value?.members.some(member => member.userId === currentUserId.value) || false)
@@ -289,7 +308,11 @@ const allRolesCovered = computed(() => coveredRoleCount.value === 3)
 const remainingSeconds = computed(() => Math.max(0, Math.floor((new Date(team.value?.deadlineAt || 0).getTime() - now.value) / 1000)))
 const remainingTimeText = computed(() => { const seconds = remainingSeconds.value; const hours = Math.floor(seconds / 3600); const minutes = Math.floor((seconds % 3600) / 60); return `${String(hours).padStart(2, '0')} : ${String(minutes).padStart(2, '0')} : ${String(seconds % 60).padStart(2, '0')}` })
 const nextVersion = computed(() => Math.max(0, ...submissions.value.map(item => item.version || 0)) + 1)
-const reviewBySubmissionId = computed(() => new Map(reviews.value.map(item => [String(item.submissionId), item])))
+const reviewBySubmissionId = computed(() => {
+  const map = new Map()
+  reviews.value.forEach(item => { if (!map.has(String(item.submissionId))) map.set(String(item.submissionId), item) })
+  return map
+})
 const submissionRows = computed(() => submissions.value.map(item => ({ ...item, review: reviewBySubmissionId.value.get(String(item.id)) })))
 const finalSubmission = computed(() => submissions.value.find(item => item.finalVersion))
 const scoreSummary = computed(() => {
@@ -304,7 +327,11 @@ const selectedReviewResult = computed(() => {
   if (!selectedReview.value?.resultJson) return null
   try { return JSON.parse(selectedReview.value.resultJson) } catch { return null }
 })
+const selectedReviewIsV2 = computed(() => selectedReview.value?.workflowVersion === 'EVIDENCE_REVIEW_V2')
 const reviewDimensions = computed(() => {
+  if (selectedReviewIsV2.value) {
+    return (selectedReviewResult.value?.dimensions || []).map(item => ({ key: item.dimensionId, label: item.name, value: item }))
+  }
   const values = selectedReviewResult.value?.dimensions || {}
   return [
     { key: 'assumptionRationality', label: '假设合理性', value: values.assumptionRationality },
@@ -318,12 +345,24 @@ const reviewLists = computed(() => [
   { key: 'weaknesses', label: '主要问题', items: selectedReviewResult.value?.weaknesses || [] },
   { key: 'suggestions', label: '改进建议', items: selectedReviewResult.value?.suggestions || [] },
 ])
+const v2Findings = computed(() => {
+  const evidence = new Map((selectedReviewResult.value?.evidence || []).map(item => [item.evidenceId, item]))
+  return (selectedReviewResult.value?.findings || []).map(item => ({
+    ...item,
+    pages: [...new Set((item.evidenceIds || []).map(id => evidence.get(id)?.physicalPage).filter(Boolean))],
+  }))
+})
 const practiceLabel = computed(() => ({ PREPARING: '组建中', IN_PROGRESS: '练习中', ENDED: '已结束' })[team.value?.practiceStatus] || team.value?.practiceStatus || '未知')
 
 async function loadTeam() {
+  if (!resolvedTeamId.value) {
+    team.value = null
+    return false
+  }
   loading.value = true
   try {
-    team.value = (await getTeamDetail(route.params.id)).data
+    team.value = (await getTeamDetail(resolvedTeamId.value)).data
+    emit('changed', team.value)
     problem.value = (await getPublicProblemDetail(team.value.problemId)).data
     const requestedRecruitment = team.value.recruitments?.find(item => String(item.id) === String(route.query.recruitmentId) && item.status === 'OPEN')
     if (route.query.apply === '1' && requestedRecruitment && team.value.canApply) {
@@ -374,8 +413,11 @@ function handleBack() {
 function difficultyLabel(value) { return ({ 1: '简单', 2: '中等', 3: '困难' })[value] || '未知' }
 function formatDuration(minutes) { return minutes % 60 === 0 ? `${minutes / 60} 小时` : `${minutes} 分钟` }
 function formatFileSize(value) { return value == null ? '-' : value < 1024 * 1024 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 / 1024).toFixed(1)} MB` }
-function reviewStatusLabel(value) { return ({ WAITING: '等待评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败' })[value] || '等待评审' }
-function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', RUNNING: 'warning' })[value] || 'info' }
+function reviewDisplayStatus(row) { return row?.review?.status || row?.reviewDispatchStatus || 'NOT_REQUESTED' }
+function reviewStatusLabel(value) { return ({ WAITING_DISPATCH: '等待派发', DISPATCHED: '已派发', DISPATCH_BLOCKED: '派发受阻', NOT_REQUESTED: '尚未派发', WAITING: '等待评审', LEASED: '准备评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败', UNKNOWN: '结果待确认' })[value] || '等待评审' }
+function reviewStatusType(value) { return ({ COMPLETED: 'success', FAILED: 'danger', DISPATCH_BLOCKED: 'danger', UNKNOWN: 'warning', RUNNING: 'warning', LEASED: 'warning' })[value] || 'info' }
+function coverageLabel(value) { return ({ COMPLETED: '已完成', PARTIAL: '部分完成', MISSING: '缺失', UNVERIFIABLE: '无法判断' })[value] || value }
+function coverageType(value) { return ({ COMPLETED: 'success', PARTIAL: 'warning', MISSING: 'danger', UNVERIFIABLE: 'info' })[value] || 'info' }
 function memberRoles(member) { return [member.modeler && '建模', member.programmer && '编程', member.writer && '论文'].filter(Boolean) }
 const MAX_PDF_SIZE = 20 * 1024 * 1024
 function handlePdfChange(file) {
@@ -384,15 +426,19 @@ function handlePdfChange(file) {
   const isPdf = rawFile.name?.toLowerCase().endsWith('.pdf') && (!rawFile.type || rawFile.type === 'application/pdf')
   if (!isPdf) {
     selectedPdf.value = null
+    uploadStage.value = ''
     return ElMessage.warning('请选择 PDF 文件')
   }
   if (rawFile.size > MAX_PDF_SIZE) {
     selectedPdf.value = null
+    uploadStage.value = ''
     return ElMessage.warning('PDF 文件大小不能超过 20MB')
   }
   selectedPdf.value = rawFile
+  uploadProgress.value = 0
+  uploadStage.value = ''
 }
-function handlePdfRemove() { selectedPdf.value = null; uploadProgress.value = 0 }
+function handlePdfRemove() { selectedPdf.value = null; uploadProgress.value = 0; uploadStage.value = '' }
 
 async function loadSubmissions() {
   try { submissions.value = (await getTeamSubmissionHistory(team.value.id)).data || [] }
@@ -422,6 +468,7 @@ async function handleStartPractice() {
     startingPractice.value = true
     team.value = (await startTeamPractice(team.value.id)).data
     await refreshSubmissionReviews()
+    emit('transitioned', team.value)
     ElMessage.success('限时练习已开始')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '开始练习失败') }
   finally { startingPractice.value = false }
@@ -443,16 +490,25 @@ async function handleSubmitPdf() {
   submitting.value = true
   uploadProgress.value = 0
   try {
-    await submitTeamPdf(team.value.id, selectedPdf.value, event => {
-      if (event.total) uploadProgress.value = Math.min(100, Math.round(event.loaded * 100 / event.total))
+    await uploadPdfResumably({
+      teamId: team.value.id,
+      file: selectedPdf.value,
+      onProgress: value => { uploadProgress.value = value },
+      onStage: value => { uploadStage.value = value },
     })
     uploadProgress.value = 100
+    uploadStage.value = '提交完成'
     selectedPdf.value = null
     await refreshSubmissionReviews()
-    ElMessage.success('PDF 提交成功')
+    ElMessage.success('PDF 提交成功，AI 评审已进入可靠派发队列')
+    uploadProgress.value = 0
+    uploadStage.value = ''
   }
-  catch (error) { ElMessage.error(error.message || 'PDF 提交失败') }
-  finally { submitting.value = false; uploadProgress.value = 0 }
+  catch (error) {
+    uploadStage.value = '上传已中断，再次提交将从已上传分片继续'
+    ElMessage.error(error.message || 'PDF 提交失败')
+  }
+  finally { submitting.value = false }
 }
 
 async function handleFinalize() {
@@ -470,6 +526,7 @@ async function handleUpdate() {
   if (!editForm.name.trim()) return ElMessage.warning('请输入队伍名称')
   try {
     team.value = (await updateTeam(team.value.id, { name: editForm.name.trim(), description: editForm.description.trim() })).data
+    emit('changed', team.value)
     showEditDialog.value = false
     ElMessage.success('队伍资料已更新')
   } catch (error) { ElMessage.error(error.message || '队伍更新失败') }
@@ -491,6 +548,7 @@ async function handleRoleChange(member, field, value) {
     Object.assign(member, (await updateTeamMemberRoles(team.value.id, member.userId, {
       modeler: member.modeler, programmer: member.programmer, writer: member.writer,
     })).data)
+    emit('changed', team.value)
     ElMessage.success('成员分工已更新')
   } catch (error) {
     member[field] = previous
@@ -503,6 +561,7 @@ async function handleSubmissionPermissionChange(member, value) {
   member.canSubmit = value
   try {
     Object.assign(member, (await updateTeamSubmissionPermission(team.value.id, member.userId, value)).data)
+    emit('changed', team.value)
     ElMessage.success(value ? '已授予作品提交权限' : '已撤销作品提交权限')
   } catch (error) {
     member.canSubmit = previous
@@ -515,7 +574,8 @@ async function handleLeave() {
     await ElMessageBox.confirm('确定退出当前队伍吗？', '退出队伍', { type: 'warning' })
     await leaveTeam(team.value.id)
     ElMessage.success('已退出队伍')
-    router.push('/team')
+    if (props.embedded) emit('removed', team.value.id)
+    else router.push('/team')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '退出队伍失败') }
 }
 
@@ -523,7 +583,8 @@ async function handleDissolve() {
   try {
     await ElMessageBox.confirm('解散后将保留历史记录，确定继续吗？', '解散队伍', { type: 'warning' })
     await dissolveTeam(team.value.id)
-    await loadTeam()
+    if (props.embedded) emit('removed', team.value.id)
+    else await loadTeam()
     ElMessage.success('队伍已解散')
   } catch (error) { if (error !== 'cancel') ElMessage.error(error.message || '解散队伍失败') }
 }
@@ -544,6 +605,7 @@ async function handleSaveRecruitment() {
       ? updateTeamRecruitment(team.value.id, editingRecruitmentId.value, recruitmentForm)
       : publishTeamRecruitment(team.value.id, recruitmentForm)
     team.value = (await request).data
+    emit('changed', team.value)
     showRecruitmentDialog.value = false
     ElMessage.success(editingRecruitmentId.value ? '招募信息已更新' : '招募已发布')
   } catch (error) { ElMessage.error(error.message || '招募信息保存失败') }
@@ -569,7 +631,8 @@ async function handleCancelApplication() {
     team.value.currentUserRelation = 'none'
     team.value.canApply = openRecruitments.value.length > 0
     try {
-      team.value = (await getTeamDetail(route.params.id)).data
+      team.value = (await getTeamDetail(resolvedTeamId.value)).data
+      emit('changed', team.value)
       problem.value = (await getPublicProblemDetail(team.value.problemId)).data
       ElMessage.success('申请已取消')
     }
@@ -593,13 +656,13 @@ async function handleReview(applicationId, decision) {
 }
 
 onMounted(() => {
-  loadTeam()
   clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
   reviewTimer = window.setInterval(() => {
     if (reviews.value.some(item => ['WAITING', 'RUNNING'].includes(item.status))) loadReviews()
   }, 5000)
 })
 onBeforeUnmount(() => { window.clearInterval(clockTimer); window.clearInterval(reviewTimer) })
+watch(resolvedTeamId, () => { loadTeam() }, { immediate: true })
 watch(remainingSeconds, (value, previous) => {
   if (value === 0 && previous > 0 && team.value?.practiceStatus === 'IN_PROGRESS') loadTeam()
 })
@@ -607,6 +670,17 @@ watch(remainingSeconds, (value, previous) => {
 
 <style scoped>
 @import '../style.css';
+.team-detail-page.is-embedded { max-width: none; padding: 0 0 54px; }
+.team-detail-page.is-embedded .hero-section { overflow: visible; padding: 2px 2px 18px; border: 0; border-bottom: 1px solid var(--lm-border); border-radius: 0; background: transparent; box-shadow: none; color: var(--lm-text-primary); }
+.team-detail-page.is-embedded .hero-section::after { display: none; }
+.team-detail-page.is-embedded .hero-eyebrow { margin-bottom: 5px; color: var(--lm-text-muted); font-size: 9px; }
+.team-detail-page.is-embedded .team-name { margin-bottom: 7px; font-size: 23px; }
+.team-detail-page.is-embedded .team-desc { margin-bottom: 13px; color: var(--lm-text-secondary); font-size: 12px; }
+.team-detail-page.is-embedded .meta-item { color: var(--lm-text-muted); font-size: 10px; }
+.team-detail-page.is-embedded .status-pill { border-color: #dbeafe; background: #eff6ff; color: #2563eb; backdrop-filter: none; }
+.team-detail-page.is-embedded .hero-action .el-button { border-color: var(--lm-border); background: #fff; color: var(--lm-text-primary); }
+.team-detail-page.is-embedded .hero-action .el-button:hover { border-color: var(--lm-primary); background: #f8fafc; color: var(--lm-primary); }
+.team-detail-page.is-embedded .detail-body { margin-top: 18px; }
 .practice-meta { margin: 6px 0; color: var(--lm-text-secondary); font-size: 13px; }
 .submission-table { margin-top: 18px; }
 .score-summary { display: flex; align-items: center; gap: 18px; margin-top: 18px; padding: 16px 18px; border: 1px solid #dbeafe; border-radius: 14px; background: linear-gradient(135deg, #eff6ff, #f8fafc); }
@@ -653,6 +727,11 @@ watch(remainingSeconds, (value, previous) => {
 .dimension-card span { color: var(--el-color-primary); font-weight: 600; }
 .review-list h4 { margin: 0 0 8px; }
 .review-list ul { margin: 0; padding-left: 22px; color: var(--lm-text-secondary); line-height: 1.8; }
+.coverage-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--lm-border-light); }
+.coverage-item p, .finding-item p { margin: 5px 0 0; color: var(--lm-text-secondary); line-height: 1.6; }
+.finding-item { padding: 12px 0; border-bottom: 1px solid var(--lm-border-light); }
+.finding-item > div { display: flex; align-items: center; gap: 8px; }
+.finding-item > span, .review-limitations { color: var(--lm-text-muted); font-size: 12px; }
 @media (max-width: 720px) { .dimension-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
   .upload-toolbar { align-items: stretch; flex-direction: column; }

@@ -1,0 +1,91 @@
+schema_version: "v1.0"
+directory_name: "评审板块"
+path: "数学建模/论文评审/评审板块"
+title: "数学建模论文核心板块评审要点"
+description: "按论文各板块拆解评委阅卷视角、核心得分点、硬性格式要求与常见扣分避坑指南"
+
+tags:
+  contest: "通用"
+  problem_type: "评审规范"
+  authority_level: "L3"
+
+documents:
+  - file: "摘要评审要点.md"
+    title: "论文摘要评审要点与写法规范"
+    summary: "摘要评审要点：评委阅卷第一印象与晋级门槛，五要素规范、关键数字交代与常见失分硬伤避坑。"
+    doc_tags:
+      - "摘要规范"
+      - "核心得分点"
+      - "阅卷视角"
+    authority_level: "L3"
+    estimated_tokens: 1600
+
+  - file: "问题重述与分析评审要点.md"
+    title: "问题重述与分析评审要点"
+    summary: "问题重述与分析评审要点：杜绝机械抄题，逐问展开建模逻辑与技术路线，建立专业第一印象。"
+    doc_tags:
+      - "问题重述"
+      - "问题分析"
+      - "逻辑展开"
+    authority_level: "L3"
+    estimated_tokens: 1500
+
+  - file: "模型假设评审要点.md"
+    title: "模型假设评审要点"
+    summary: "模型假设评审要点：官方第一评审维度，3-5条假设支撑后续模型、说明简化理由与边界条件。"
+    doc_tags:
+      - "模型假设"
+      - "简化理由"
+      - "边界条件"
+    authority_level: "L3"
+    estimated_tokens: 1400
+
+  - file: "模型建立评审要点.md"
+    title: "模型建立评审要点"
+    summary: "模型建立评审要点：最高权重核心板块，数学化规范表达、严密推导链条与题目适配创新。"
+    doc_tags:
+      - "模型建立"
+      - "数学表达"
+      - "推导自洽"
+    authority_level: "L3"
+    estimated_tokens: 1800
+
+  - file: "模型求解评审要点.md"
+    title: "模型求解评审要点"
+    summary: "模型求解评审要点：求解方法与工具交代、结果可复现性抽查、三线表规范与代码正文一致性。"
+    doc_tags:
+      - "模型求解"
+      - "结果复现"
+      - "算法实现"
+    authority_level: "L3"
+    estimated_tokens: 1500
+
+  - file: "模型检验评审要点.md"
+    title: "模型检验评审要点"
+    summary: "模型检验评审要点：区分度最高的获奖分水岭，回代误差、残差分析、误差指标与实测对照规范。"
+    doc_tags:
+      - "模型检验"
+      - "残差分析"
+      - "获奖关键"
+    authority_level: "L3"
+    estimated_tokens: 1700
+
+  - file: "敏感性分析评审要点.md"
+    title: "敏感性分析评审要点"
+    summary: "敏感性分析评审要点：结论稳健性关键证据，参数扰动重求解、灵敏度图表与稳健性解释。"
+    doc_tags:
+      - "敏感性分析"
+      - "参数扰动"
+      - "稳健性分析"
+    authority_level: "L3"
+    estimated_tokens: 1400
+
+  - file: "模型评价与推广评审要点.md"
+    title: "模型评价与推广评审要点"
+    summary: "模型评价与推广评审要点：科研严谨性收尾，优缺点客观真实评价与具体应用场景合理推广。"
+    doc_tags:
+      - "模型评价"
+      - "模型推广"
+      - "论文收尾"
+    authority_level: "L3"
+    estimated_tokens: 1300

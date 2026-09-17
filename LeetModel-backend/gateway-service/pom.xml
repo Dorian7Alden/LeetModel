@@ -60,6 +60,16 @@
             <artifactId>knife4j-gateway-spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- Sentinel 服务保护与流量防刷（基于 WebFlux 的网关流控适配器） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-sentinel-gateway</artifactId>
+        </dependency>
+
         <!-- Redis 响应式客户端：JWT Token 黑名单校验（登出 Token 拒绝） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -76,6 +86,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- 只用于 Reactor 线程切换时恢复 MDC；不包含 Micrometer Tracing 或 Trace Exporter。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
         </dependency>
 
         <!-- 公共模块：仅复用 Result 响应体，排除 MVC 和数据库依赖 -->

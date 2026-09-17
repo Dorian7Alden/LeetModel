@@ -3,11 +3,15 @@ package com.leetmodel.common.api.feign;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemOptionDTO;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -37,4 +41,7 @@ public interface ProblemFeignClient {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer limit
     );
+
+    @PostMapping("/internal/problems/assistant-query")
+    Result<AssistantProblemResultDTO> queryForAssistant(@RequestBody AssistantProblemQueryDTO request);
 }

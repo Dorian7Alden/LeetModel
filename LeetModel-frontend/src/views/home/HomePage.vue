@@ -1,258 +1,620 @@
 <template>
-  <div class="home-page">
-    <!-- 未登录 -->
-    <template v-if="!userStore.isLogin">
-      <section class="hero">
-        <div class="hero-copy">
-          <el-tag type="primary" effect="light">数学建模限时实训</el-tag>
-          <h1>让每一篇建模论文都被认真评审</h1>
-          <p>
-            LeetModel 提供真实的题目、组队、限时提交与 AI 自动评审闭环，
-            用可量化的评分与改进建议帮助你打磨建模作品。
-          </p>
-          <div class="hero-actions">
-            <el-button type="primary" size="large" @click="$router.push('/problem')">浏览题库</el-button>
-            <el-button size="large" @click="$router.push('/register')">免费注册</el-button>
-            <el-button text size="large" @click="$router.push('/login')">已有账号，去登录</el-button>
-          </div>
-        </div>
-        <div class="hero-visual">
-          <div class="visual-card">
-            <span class="visual-kicker">评分概览</span>
-            <div class="score-ring"><strong>88</strong><span>/100</span></div>
-            <ul class="dimension-row">
-              <li>假设合理性</li><li>建模创造性</li><li>结果正确性</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <section class="flow">
-        <h2>练习流程</h2>
-        <div class="flow-grid">
-          <div v-for="(step, index) in steps" :key="step.title" class="flow-card">
-            <span class="step-index">{{ index + 1 }}</span>
-            <h3>{{ step.title }}</h3>
-            <p>{{ step.description }}</p>
-          </div>
-        </div>
-      </section>
-    </template>
-
-    <!-- 已登录 -->
-    <template v-else>
-      <section class="welcome">
-        <div class="welcome-copy">
-          <p class="eyebrow">{{ greeting }}</p>
-          <h1>{{ userStore.nickname || userStore.username }}，继续你的建模练习</h1>
-          <p>这里是你的练习概览，快速回到进行中的队伍、提交与评审。</p>
-        </div>
-        <el-tag :type="roleTagType" effect="light" size="large">{{ userStore.roleLabel }}</el-tag>
-      </section>
-
-      <section class="quick-section">
-        <h2 class="section-title">快捷入口</h2>
-        <div class="quick-grid">
-          <router-link v-for="item in quickLinks" :key="item.path" :to="item.path" class="quick-link">
-            <span class="quick-icon" :style="{ background: item.bgColor, color: item.color }">
-              <el-icon :size="20"><component :is="item.icon" /></el-icon>
-            </span>
-            <span class="quick-label">{{ item.title }}</span>
-          </router-link>
-        </div>
-      </section>
-
-      <el-alert
-        v-if="overviewError"
-        :title="overviewError"
-        type="error"
-        :closable="false"
-        show-icon
-        class="overview-alert"
-      />
-
-      <div v-loading="loading" class="overview-section">
-        <div class="overview-heading">
-          <h2 class="section-title">进行中的练习</h2>
-          <router-link v-if="activeTeams.length" to="/team" class="view-all">查看我的队伍</router-link>
-        </div>
-        <div v-if="activeTeams.length" class="team-grid">
-          <router-link v-for="team in activeTeams" :key="team.id" :to="`/team/${team.id}`" class="team-card">
-            <div class="team-card-head">
-              <strong>{{ team.name }}</strong>
-              <el-tag :type="teamStatusType(team.practiceStatus)" size="small" effect="light">{{ teamStatusLabel(team.practiceStatus) }}</el-tag>
-            </div>
-            <div class="team-card-meta">
-              <span v-if="team.problemId">题号 {{ team.problemCode || team.problemId }}</span>
-              <span>{{ team.memberCount ?? '成员' }}</span>
-            </div>
-          </router-link>
-        </div>
-        <el-empty v-else-if="!loading && !overviewError" description="暂无进行中的队伍，去队伍广场看看吧" :image-size="72">
-          <el-button type="primary" @click="$router.push('/team/square')">前往队伍广场</el-button>
-        </el-empty>
-
-        <template v-if="recentSubmissions.length">
-          <div class="overview-heading recent-heading">
-            <h2 class="section-title">最近提交</h2>
-          </div>
-          <div class="submission-list">
-            <div v-for="item in recentSubmissions" :key="item.id" class="submission-row">
-              <div class="submission-version">V{{ item.version }}</div>
-              <div class="submission-info">
-                <strong>{{ item.originalFilename || '未命名 PDF' }}</strong>
-                <span>{{ formatDate(item.createTime) }}</span>
-              </div>
-              <el-tag v-if="item.finalVersion" type="success" size="small">最终版</el-tag>
-              <el-tag v-else type="info" size="small">草稿版本</el-tag>
-            </div>
-          </div>
-        </template>
+  <div class="home-page" :aria-busy="loading">
+    <section class="home-situation" aria-labelledby="home-heading">
+      <div>
+        <span class="home-eyebrow">LEETMODEL / 赛前作战中枢</span>
+        <h1 id="home-heading">{{ greeting }}，{{ displayName }}</h1>
+        <p>{{ situationMessage }}</p>
       </div>
-    </template>
+      <div class="situation-status" :class="`situation-status--${situationTone}`">
+        <span class="status-pulse" aria-hidden="true"></span>
+        {{ situationStatus }}
+      </div>
+    </section>
+
+    <div v-if="warnings.length" class="home-warning" role="status">
+      <CircleAlert :size="17" aria-hidden="true" />
+      <span>{{ warnings.join('；') }}</span>
+      <button type="button" @click="loadHomeData">
+        <RefreshCw :size="14" aria-hidden="true" />
+        重新同步
+      </button>
+    </div>
+
+    <div v-if="loading" class="home-grid home-grid--loading" aria-label="正在加载首页数据">
+      <div class="home-primary-column">
+        <div class="home-skeleton home-skeleton--hero"></div>
+        <div class="home-skeleton home-skeleton--report"></div>
+        <div class="home-skeleton home-skeleton--problems"></div>
+      </div>
+      <aside class="home-secondary-column">
+        <div class="home-skeleton home-skeleton--profile"></div>
+        <div class="home-skeleton home-skeleton--tools"></div>
+      </aside>
+    </div>
+
+    <div v-else class="home-grid">
+      <main class="home-primary-column">
+        <section class="home-card practice-focus" :class="{ 'practice-focus--empty': !focusTeam }" aria-labelledby="practice-heading">
+          <template v-if="focusTeam">
+            <div class="card-heading">
+              <div>
+                <span class="section-kicker">{{ focusTeam.practiceStatus === 'IN_PROGRESS' ? '当前进行' : '开赛准备' }}</span>
+                <h2 id="practice-heading">{{ focusTeam.name }}</h2>
+              </div>
+              <span class="problem-code">#{{ formatProblemCode(focusTeam.problemCode) }}</span>
+            </div>
+
+            <div class="practice-thesis">
+              <div>
+                <span class="practice-caption">{{ focusTeam.practiceStatus === 'IN_PROGRESS' ? '距离截止' : '当前赛题' }}</span>
+                <strong v-if="focusTeam.practiceStatus === 'IN_PROGRESS'" class="countdown">{{ remainingTimeText }}</strong>
+                <strong v-else class="problem-title">{{ focusTeam.problemTitle || `题目 ${focusTeam.problemCode || focusTeam.problemId}` }}</strong>
+              </div>
+              <div class="practice-meta">
+                <span>{{ focusTeam.practiceStatus === 'IN_PROGRESS' ? formatDeadline(focusTeam.deadlineAt) : '职责覆盖后即可开赛' }}</span>
+                <span>{{ focusTeam.members?.length || 0 }} / {{ focusTeam.maxMembers || 3 }} 人</span>
+              </div>
+            </div>
+
+            <ol class="practice-track" aria-label="当前实训进度">
+              <li v-for="step in practiceSteps" :key="step.label" :class="{ complete: step.complete, current: step.current }">
+                <span class="track-marker" aria-hidden="true"></span>
+                <div>
+                  <small>{{ step.label }}</small>
+                  <strong>{{ step.value }}</strong>
+                </div>
+              </li>
+            </ol>
+
+            <div class="role-row" aria-label="队伍职责覆盖">
+              <div v-for="role in roleCoverage" :key="role.key" :class="{ covered: role.covered }">
+                <component :is="role.icon" :size="16" aria-hidden="true" />
+                <span>{{ role.label }}</span>
+                <strong>{{ role.members || '待认领' }}</strong>
+              </div>
+            </div>
+
+            <router-link :to="focusTeamRoute" class="primary-action">
+              {{ focusTeamActionLabel }}
+              <ArrowUpRight :size="17" aria-hidden="true" />
+            </router-link>
+          </template>
+
+          <template v-else>
+            <div class="empty-illustration" aria-hidden="true">
+              <span class="paper-line paper-line--one"></span>
+              <span class="paper-line paper-line--two"></span>
+              <Flag :size="27" />
+            </div>
+            <span class="section-kicker">NEXT PRACTICE</span>
+            <h2 id="practice-heading">{{ userStore.isLogin ? '建立下一场全真演练' : '登录后接管你的实训进度' }}</h2>
+            <p>{{ userStore.isLogin ? '从一道真题开始，组建队伍、提交论文，完成一次 AI 论文评审闭环。' : '当前仍可浏览真题与榜单；登录后可同步队伍、论文版本和 AI 评审结果。' }}</p>
+            <div class="empty-actions">
+              <router-link :to="userStore.isLogin ? '/problem' : '/login'" class="primary-action primary-action--inline">
+                {{ userStore.isLogin ? '去题库选题' : '登录平台' }}
+                <ArrowUpRight :size="17" aria-hidden="true" />
+              </router-link>
+              <router-link :to="userStore.isLogin ? '/team/square' : '/problem'" class="secondary-action">
+                {{ userStore.isLogin ? '寻找队伍' : '先看真题' }}
+              </router-link>
+            </div>
+          </template>
+        </section>
+
+        <section class="home-card diagnostic-card" aria-labelledby="diagnostic-heading">
+          <div class="card-heading">
+            <div>
+              <span class="section-kicker">LATEST DIAGNOSTIC</span>
+              <h2 id="diagnostic-heading">最近 AI 论文评审</h2>
+            </div>
+            <span v-if="latestDiagnostic" class="report-date">{{ formatShortDate(latestDiagnostic.review.finishedAt) }}</span>
+          </div>
+
+          <router-link v-if="activeReview" :to="activeReviewTeamRoute" class="active-review-banner" aria-live="polite">
+            <span class="active-review-marker" aria-hidden="true"></span>
+            <div>
+              <small>AI 论文评审状态</small>
+              <strong>{{ reviewStatusLabel(activeReview.review.status) }}</strong>
+              <p>{{ activeReviewStatusHint }}</p>
+            </div>
+            <span>查看进度 <ArrowRight :size="15" aria-hidden="true" /></span>
+          </router-link>
+
+          <div v-if="latestDiagnostic" class="diagnostic-content">
+            <div class="score-seal" :aria-label="`评审得分 ${formatScore(latestDiagnostic.review.score)} 分`">
+              <strong>{{ formatScore(latestDiagnostic.review.score) }}</strong>
+              <small>{{ scoreBand(latestDiagnostic.review.score) }}</small>
+            </div>
+
+            <div class="diagnostic-main">
+              <div class="diagnostic-context">
+                <span>#{{ formatProblemCode(latestDiagnostic.team.problemCode) }}</span>
+                <strong>{{ latestDiagnostic.team.name }}</strong>
+                <small>{{ latestDiagnostic.review.versionName || workflowLabel(latestDiagnostic.review.workflowVersion) }}</small>
+              </div>
+
+              <div class="dimension-list">
+                <div v-for="dimension in latestDiagnostic.dimensions" :key="dimension.key" class="dimension-row">
+                  <div>
+                    <span>{{ dimension.label }}</span>
+                    <strong>{{ formatScore(dimension.score) }} / {{ formatScore(dimension.maxScore) }}</strong>
+                  </div>
+                  <div class="dimension-track" aria-hidden="true">
+                    <span :style="{ width: `${dimension.percent}%` }"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="latestDiagnostic" class="diagnostic-summary">
+            <ShieldCheck :size="18" aria-hidden="true" />
+            <p>{{ latestDiagnostic.summary }}</p>
+            <span v-if="latestDiagnostic.riskCount">{{ latestDiagnostic.riskCount }} 个待优化项</span>
+            <span v-else>已生成结构化结论</span>
+          </div>
+
+          <div v-else class="section-empty">
+            <FileCheck2 :size="28" aria-hidden="true" />
+            <div>
+              <strong>{{ userStore.isLogin ? '还没有完成的 AI 论文评审' : '登录后查看 AI 论文评审' }}</strong>
+              <p>{{ userStore.isLogin ? '队伍提交 PDF 并完成评审后，这里会展示总分、分项量表与改进入口。' : '你的评审分数、规范风险和建模推导结果将集中显示在这里。' }}</p>
+            </div>
+          </div>
+
+          <router-link v-if="latestDiagnostic" :to="diagnosticTeamRoute" class="text-action">
+            查看完整评审记录
+            <ArrowRight :size="16" aria-hidden="true" />
+          </router-link>
+        </section>
+
+        <section class="home-card problem-card" aria-labelledby="problems-heading">
+          <div class="card-heading">
+            <div>
+              <span class="section-kicker">FAST TRACK</span>
+              <h2 id="problems-heading">备战真题</h2>
+            </div>
+            <router-link to="/problem" class="text-action">
+              全部真题
+              <ArrowRight :size="16" aria-hidden="true" />
+            </router-link>
+          </div>
+
+          <div v-if="popularProblems.length" class="problem-list">
+            <article v-for="problem in popularProblems" :key="problem.problemId">
+              <span class="problem-index">#{{ formatProblemCode(problem.problemCode) }}</span>
+              <div>
+                <strong>{{ problem.problemTitle || `题目 ${problem.problemCode || problem.problemId}` }}</strong>
+                <span>{{ formatCount(problem.practiceCount) }} 支队伍已练习</span>
+              </div>
+              <router-link :to="{ name: 'ProblemDetail', params: { id: String(problem.problemId) } }" :aria-label="`查看${problem.problemTitle || '该题目'}`">
+                查看题目
+                <ArrowUpRight :size="15" aria-hidden="true" />
+              </router-link>
+            </article>
+          </div>
+
+          <div v-else class="section-empty section-empty--compact">
+            <BookOpen :size="25" aria-hidden="true" />
+            <div>
+              <strong>暂无热门练习数据</strong>
+              <p>可以直接进入题库，按赛事、年份与题号选择真题。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="home-secondary-column" aria-label="个人实训资产与快捷入口">
+        <section class="home-card asset-card" aria-labelledby="assets-heading">
+          <div class="card-heading">
+            <div>
+              <span class="section-kicker">PRACTICE ASSETS</span>
+              <h2 id="assets-heading">实训资产</h2>
+            </div>
+          </div>
+
+          <div class="asset-metrics">
+            <div>
+              <strong>{{ userStore.isLogin ? teamSummary.completed : '—' }}</strong>
+              <span>已完成实训</span>
+            </div>
+            <div>
+              <strong>{{ userStore.isLogin ? highestScore : '—' }}</strong>
+              <span>历史最高分</span>
+            </div>
+          </div>
+
+          <HomeSkillRadar :items="skillRadarItems" />
+
+          <div class="asset-footnote">
+            <BrainCircuit :size="16" aria-hidden="true" />
+            <span>{{ skillRadarItems.length ? '能力轮廓来自最近一次完成的评审量表。' : '完成一次论文评审后，这里将生成真实能力轮廓。' }}</span>
+          </div>
+        </section>
+
+        <section class="home-card toolkit-card" aria-labelledby="toolkit-heading">
+          <div class="card-heading">
+            <div>
+              <span class="section-kicker">QUICK ACCESS</span>
+              <h2 id="toolkit-heading">突击工具箱</h2>
+            </div>
+          </div>
+
+          <nav class="toolkit-list" aria-label="突击工具箱">
+            <router-link :to="userStore.isLogin ? '/team/square' : '/login'">
+              <UsersRound :size="18" aria-hidden="true" />
+              <span><strong>寻找队伍</strong><small>查看当前角色缺口</small></span>
+              <ArrowRight :size="16" aria-hidden="true" />
+            </router-link>
+            <router-link to="/ranking">
+              <Trophy :size="18" aria-hidden="true" />
+              <span><strong>赛题榜单</strong><small>查看同题得分与分位</small></span>
+              <ArrowRight :size="16" aria-hidden="true" />
+            </router-link>
+            <router-link :to="userStore.isLogin ? '/assistant' : '/login'">
+              <MessageCircleQuestion :size="18" aria-hidden="true" />
+              <span><strong>AI 客服</strong><small>咨询选题与平台操作</small></span>
+              <ArrowRight :size="16" aria-hidden="true" />
+            </router-link>
+          </nav>
+        </section>
+      </aside>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { useUserStore } from "@/store/user";
-import { getMyTeams } from "@/api/team";
-import { getTeamSubmissionHistory } from "@/api/submission";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  BookOpen,
+  BrainCircuit,
+  CircleAlert,
+  Code2,
+  FileCheck2,
+  Flag,
+  MessageCircleQuestion,
+  PenLine,
+  RefreshCw,
+  ShieldCheck,
+  Trophy,
+  UsersRound,
+} from '@lucide/vue'
+import { getAllMyTeams, getPopularPracticeProblems } from '@/api/team'
+import { getTeamReviews } from '@/api/review'
+import { getTeamSubmissionHistory } from '@/api/submission'
+import { useUserStore } from '@/store/user'
+import HomeSkillRadar from './components/HomeSkillRadar.vue'
 
-const userStore = useUserStore();
-const loading = ref(false);
-const overviewError = ref("");
-const activeTeams = ref([]);
-const recentSubmissions = ref([]);
+const userStore = useUserStore()
+const loading = ref(true)
+const warnings = ref([])
+const teams = ref([])
+const popularProblems = ref([])
+const reviewRecords = ref([])
+const focusSubmissions = ref([])
+const now = ref(Date.now())
+let clockTimer
+let reviewTimer
 
-const steps = [
-  { title: "选择题目", description: "按赛事、年份、语言和难度找到练习题目。" },
-  { title: "组建队伍", description: "创建题目队伍，添加成员并分配建模、编程和论文职责。" },
-  { title: "限时提交", description: "开始倒计时，在截止前提交可追溯的 PDF 论文版本。" },
-  { title: "查看评审", description: "等待异步 AI 评审完成，与队员共享结果并获取改进建议。" },
-];
-
-const quickLinks = computed(() => {
-  const links = [
-    { path: "/problem", title: "题库", icon: "Document", color: "#2563eb", bgColor: "#eff6ff" },
-    { path: "/team/square", title: "队伍广场", icon: "Team", color: "#0891b2", bgColor: "#ecfeff" },
-    { path: "/team", title: "我的队伍", icon: "User", color: "#16a34a", bgColor: "#f0fdf4" },
-    { path: "/ranking", title: "排行榜", icon: "Trophy", color: "#d97706", bgColor: "#fffbeb" },
-    { path: "/profile/settings", title: "个人设置", icon: "Setting", color: "#475569", bgColor: "#f8fafc" },
-  ];
-  if (userStore.isAdmin) {
-    links.push({ path: "/admin/dashboard", title: "管理后台", icon: "DataAnalysis", color: "#dc2626", bgColor: "#fef2f2" });
-  }
-  return links;
-});
-
-const roleTagType = computed(() => {
-  if (userStore.primaryRole === "admin") return "danger";
-  if (userStore.primaryRole === "vip") return "warning";
-  return "info";
-});
+const routeNameByStatus = {
+  PREPARING: 'TeamPreparing',
+  IN_PROGRESS: 'TeamPracticing',
+  ENDED: 'TeamEnded',
+}
 
 const greeting = computed(() => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "早上好";
-  if (hour < 18) return "下午好";
-  return "晚上好";
-});
-
-function formatDate(value) {
-  return value ? String(value).replace("T", " ").slice(0, 16) : "-";
-}
-
-function teamStatusLabel(status) {
-  return ({ PREPARING: "组建中", IN_PROGRESS: "练习中", ENDED: "已结束" })[status] || status;
-}
-
-function teamStatusType(status) {
-  return ({ PREPARING: "info", IN_PROGRESS: "warning", ENDED: "success" })[status] || "info";
-}
-
-async function loadOverview() {
-  loading.value = true;
-  overviewError.value = "";
-  try {
-    const [preparing, active] = await Promise.all([
-      getMyTeams({ practiceStatus: "PREPARING", page: 1, pageSize: 4 }),
-      getMyTeams({ practiceStatus: "IN_PROGRESS", page: 1, pageSize: 4 }),
-    ]);
-    activeTeams.value = [...(preparing.data?.rows || []), ...(active.data?.rows || [])];
-
-    const submissionTeams = activeTeams.value.slice(0, 6);
-    const items = [];
-    for (const team of submissionTeams) {
-      try {
-        const res = await getTeamSubmissionHistory(team.id);
-        const rows = res.data || [];
-        if (rows.length) items.push({ teamId: team.id, latest: rows[rows.length - 1] });
-      } catch {
-        // 单个队伍提交失败不阻断整页
-      }
-    }
-    recentSubmissions.value = items.map(({ teamId, latest }) => ({ ...latest, teamId }));
-  } catch (error) {
-    overviewError.value = error.message || "练习概览加载失败";
-  } finally {
-    loading.value = false;
+  const hour = new Date().getHours()
+  if (hour < 6) return '夜深了'
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+})
+const displayName = computed(() => userStore.isLogin ? (userStore.nickname || userStore.username || '同学') : '同学')
+const focusTeam = computed(() => {
+  const activeTeams = teams.value.filter((team) => team.practiceStatus === 'IN_PROGRESS')
+  if (activeTeams.length) {
+    return [...activeTeams].sort((a, b) => dateValue(a.deadlineAt) - dateValue(b.deadlineAt))[0]
   }
+  return teams.value.find((team) => team.practiceStatus === 'PREPARING') || null
+})
+const focusTeamRoute = computed(() => teamRoute(focusTeam.value, {
+  panel: focusTeam.value?.practiceStatus === 'IN_PROGRESS' ? 'review' : undefined,
+}))
+const focusTeamActionLabel = computed(() => {
+  if (focusTeam.value?.practiceStatus !== 'IN_PROGRESS') return '继续完成开赛准备'
+  if (!focusSubmissions.value.length) return '提交论文并开始 AI 评审'
+  return '查看论文草稿并开始评审'
+})
+const activeReview = computed(() => reviewRecords.value
+  .filter(record => ['WAITING', 'LEASED', 'RUNNING', 'FAILED', 'UNKNOWN'].includes(record.review?.status))
+  .sort((a, b) => dateValue(b.review.updatedAt || b.review.createTime) - dateValue(a.review.updatedAt || a.review.createTime))[0] || null)
+const activeReviewTeamRoute = computed(() => teamRoute(activeReview.value?.team, { panel: 'review' }))
+const activeReviewStatusHint = computed(() => ({
+  WAITING: '任务已进入队列，等待 AI 开始读取最终论文。',
+  LEASED: '系统正在准备论文解析与评审上下文。',
+  RUNNING: 'AI 正在生成分项评分、问题证据与综合意见。',
+  FAILED: '本次执行失败，可进入论文评审工作台重新排队。',
+  UNKNOWN: '上游执行结果待核查，请进入工作台查看详情。',
+})[activeReview.value?.review?.status] || '评审状态正在同步。')
+const latestDiagnostic = computed(() => {
+  const completed = reviewRecords.value
+    .filter((record) => record.review?.status === 'COMPLETED' && Number.isFinite(Number(record.review?.score)))
+    .sort((a, b) => dateValue(b.review.finishedAt) - dateValue(a.review.finishedAt))[0]
+  if (!completed) return null
+  const result = parseReviewResult(completed.review.resultJson)
+  return {
+    ...completed,
+    dimensions: normalizeDimensions(result),
+    summary: result?.overallAssessment || result?.summary || '评审已完成，可进入队伍工作台查看完整量表与证据。',
+    riskCount: reviewRiskCount(result),
+  }
+})
+const diagnosticTeamRoute = computed(() => teamRoute(latestDiagnostic.value?.team, { panel: 'review' }))
+const skillRadarItems = computed(() => latestDiagnostic.value?.dimensions.slice(0, 5) || [])
+const highestScore = computed(() => {
+  const scores = reviewRecords.value
+    .filter((record) => record.review?.status === 'COMPLETED')
+    .map((record) => Number(record.review.score))
+    .filter(Number.isFinite)
+  if (!scores.length) return '—'
+  return formatScore(Math.max(...scores))
+})
+const teamSummary = computed(() => ({
+  completed: teams.value.filter((team) => team.practiceStatus === 'ENDED').length,
+  active: teams.value.filter((team) => team.practiceStatus === 'IN_PROGRESS').length,
+}))
+const remainingTimeText = computed(() => {
+  if (!focusTeam.value?.deadlineAt) return '-- : -- : --'
+  const remaining = Math.max(0, Math.floor((dateValue(focusTeam.value.deadlineAt) - now.value) / 1000))
+  const hours = Math.floor(remaining / 3600)
+  const minutes = Math.floor((remaining % 3600) / 60)
+  const seconds = remaining % 60
+  return `${String(hours).padStart(2, '0')} : ${String(minutes).padStart(2, '0')} : ${String(seconds).padStart(2, '0')}`
+})
+const roleCoverage = computed(() => {
+  const members = focusTeam.value?.members || []
+  const definitions = [
+    { key: 'modeler', label: '建模', icon: ShieldCheck },
+    { key: 'programmer', label: '编程', icon: Code2 },
+    { key: 'writer', label: '论文', icon: PenLine },
+  ]
+  return definitions.map((role) => {
+    const names = members.filter((member) => member[role.key]).map((member) => member.nickname || '队员')
+    return { ...role, covered: names.length > 0, members: names.join('、') }
+  })
+})
+const focusReviewStatus = computed(() => {
+  if (!focusTeam.value) return '待提交'
+  const statuses = reviewRecords.value
+    .filter((record) => String(record.team.id) === String(focusTeam.value.id))
+    .map((record) => record.review.status)
+  if (statuses.includes('COMPLETED')) return '已完成'
+  if (statuses.some((status) => ['WAITING', 'LEASED', 'RUNNING'].includes(status))) return '评审中'
+  if (statuses.includes('FAILED')) return '需重试'
+  return '待触发'
+})
+const practiceSteps = computed(() => {
+  const coveredCount = roleCoverage.value.filter((role) => role.covered).length
+  const submissionCount = focusSubmissions.value.length
+  const inProgress = focusTeam.value?.practiceStatus === 'IN_PROGRESS'
+  return [
+    { label: '职责就绪', value: `${coveredCount} / 3`, complete: coveredCount === 3, current: coveredCount < 3 },
+    { label: '论文版本', value: submissionCount ? `${submissionCount} 版` : '待提交', complete: submissionCount > 0, current: inProgress && submissionCount === 0 },
+    { label: 'AI 论文评审', value: focusReviewStatus.value, complete: focusReviewStatus.value === '已完成', current: ['评审中', '需重试'].includes(focusReviewStatus.value) },
+  ]
+})
+const situationStatus = computed(() => {
+  if (loading.value) return '正在同步实训数据'
+  if (!userStore.isLogin) return '访客模式 · 实训未同步'
+  if (focusTeam.value?.practiceStatus === 'IN_PROGRESS') return `${teamSummary.value.active} 场实训进行中`
+  if (focusTeam.value?.practiceStatus === 'PREPARING') return '已有队伍等待开赛'
+  return '当前无进行中实训'
+})
+const situationTone = computed(() => focusTeam.value?.practiceStatus === 'IN_PROGRESS' ? 'active' : 'quiet')
+const situationMessage = computed(() => {
+  if (!userStore.isLogin) return '浏览真题与榜单，登录后从同一处继续你的每一场赛前演练。'
+  if (focusTeam.value?.practiceStatus === 'IN_PROGRESS') return '先处理最近截止的队伍，确认论文版本并开始 AI 论文评审。'
+  if (focusTeam.value) return '队伍已创建，补齐三项职责后就能启动全真倒计时。'
+  return '从真题、论文提交到 AI 评审与改进建议，把下一次模拟完整跑通。'
+})
+
+async function loadHomeData() {
+  loading.value = true
+  warnings.value = []
+  teams.value = []
+  reviewRecords.value = []
+  focusSubmissions.value = []
+
+  const requests = [getPopularPracticeProblems(3)]
+  if (userStore.isLogin) requests.push(getAllMyTeams({ page: 1, pageSize: 100 }))
+  const [problemResult, teamResult] = await Promise.allSettled(requests)
+
+  if (problemResult.status === 'fulfilled') {
+    popularProblems.value = problemResult.value.data || []
+  } else {
+    popularProblems.value = []
+    warnings.value.push('备战真题加载失败')
+  }
+
+  if (userStore.isLogin) {
+    if (teamResult?.status === 'fulfilled') {
+      teams.value = teamResult.value.rows || []
+      await loadTeamRelatedData()
+    } else {
+      warnings.value.push('你的实训数据加载失败')
+    }
+  }
+  loading.value = false
+}
+
+async function loadTeamRelatedData() {
+  await refreshReviewRecords({ reportFailure: true })
+
+  if (focusTeam.value?.practiceStatus !== 'IN_PROGRESS') return
+  try {
+    const result = await getTeamSubmissionHistory(focusTeam.value.id)
+    focusSubmissions.value = result.data || []
+  } catch {
+    warnings.value.push('当前队伍的论文版本未能同步')
+  }
+}
+
+async function refreshReviewRecords({ reportFailure = false } = {}) {
+  const reviewTeams = teams.value.filter((team) => team.practiceStatus !== 'PREPARING')
+  const reviewResults = await Promise.allSettled(reviewTeams.map((team) => getTeamReviews(team.id)))
+  const nextRecords = []
+  reviewResults.forEach((result, index) => {
+    if (result.status !== 'fulfilled') return
+    const team = reviewTeams[index]
+    const reviews = result.value.data || []
+    nextRecords.push(...reviews.map((review) => ({ team, review })))
+  })
+  reviewRecords.value = nextRecords
+  if (reportFailure && reviewResults.some((result) => result.status === 'rejected')) {
+    warnings.value.push('部分 AI 论文评审记录未能同步')
+  }
+}
+
+function syncReviewPolling(review) {
+  if (reviewTimer) window.clearInterval(reviewTimer)
+  reviewTimer = review ? window.setInterval(refreshReviewRecords, 5000) : null
+}
+
+function teamRoute(team, { panel } = {}) {
+  if (!team) return '/team'
+  return {
+    name: routeNameByStatus[team.practiceStatus] || 'TeamPreparing',
+    params: { teamId: String(team.id) },
+    ...(panel ? { query: { panel } } : {}),
+  }
+}
+
+function reviewStatusLabel(value) {
+  return ({ WAITING: '评审任务已进入队列', LEASED: '评审任务正在准备', RUNNING: 'AI 正在评审论文', FAILED: '评审失败，需要重试', UNKNOWN: '评审结果待核查' })[value] || '评审状态待同步'
+}
+
+function parseReviewResult(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizeDimensions(result) {
+  if (!result?.dimensions) return []
+  if (Array.isArray(result.dimensions)) {
+    return result.dimensions.map((item, index) => makeDimension(
+      item.dimensionCode || item.dimensionId || `dimension-${index}`,
+      item.dimensionName || item.name || `分项 ${index + 1}`,
+      item.score,
+      item.maxScore || 20,
+    ))
+  }
+  const labels = {
+    assumptionRationality: '假设合理性',
+    modelCreativity: '建模创造性',
+    resultCorrectness: '结果正确性',
+    expressionClarity: '表达清晰性',
+  }
+  return Object.entries(result.dimensions).map(([key, item]) => makeDimension(
+    key,
+    labels[key] || key,
+    item?.score,
+    item?.maxScore || 100,
+  ))
+}
+
+function makeDimension(key, label, score, maxScore) {
+  const numericScore = Number(score) || 0
+  const numericMax = Number(maxScore) || 1
+  return {
+    key,
+    label,
+    score: numericScore,
+    maxScore: numericMax,
+    percent: Math.min(100, Math.max(0, Math.round((numericScore / numericMax) * 100))),
+  }
+}
+
+function reviewRiskCount(result) {
+  if (Array.isArray(result?.findings)) {
+    return result.findings.filter((item) => item.type !== 'STRENGTH').length
+  }
+  return Array.isArray(result?.weaknesses) ? result.weaknesses.length : 0
+}
+
+function dateValue(value) {
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isFinite(time) ? time : 0
+}
+
+function formatProblemCode(value) {
+  if (value === null || value === undefined || value === '') return '--'
+  return String(value).padStart(2, '0')
+}
+
+function formatScore(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '—'
+  return Number.isInteger(number) ? String(number) : number.toFixed(1)
+}
+
+function formatCount(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '0'
+  if (number >= 10000) return `${(number / 10000).toFixed(1)} 万`
+  return new Intl.NumberFormat('zh-CN').format(number)
+}
+
+function formatDeadline(value) {
+  if (!value) return '截止时间待定'
+  return `${new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))} 截止`
+}
+
+function formatShortDate(value) {
+  if (!value) return '最近完成'
+  const date = new Date(value)
+  const options = date.getFullYear() === new Date().getFullYear()
+    ? { month: '2-digit', day: '2-digit' }
+    : { year: 'numeric', month: '2-digit', day: '2-digit' }
+  return new Intl.DateTimeFormat('zh-CN', options).format(date)
+}
+
+function scoreBand(value) {
+  const score = Number(value)
+  if (score >= 90) return '突出'
+  if (score >= 80) return '良好'
+  if (score >= 70) return '稳定'
+  if (score >= 60) return '达标'
+  return '待加固'
+}
+
+function workflowLabel(value) {
+  if (value === 'DEEP_EVIDENCE_REVIEW_V4') return 'V4 专业证据评审'
+  if (value === 'DEEP_EVIDENCE_REVIEW_V3') return 'V3 双阶段深度评审'
+  if (value === 'EVIDENCE_REVIEW_V2') return 'V2 证据化评审'
+  if (value === 'BASIC_REVIEW_V1') return 'V1 基础评审'
+  return value || 'AI 论文评审'
 }
 
 onMounted(() => {
-  if (userStore.isLogin) loadOverview();
-});
+  loadHomeData()
+  clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
+})
+
+watch(activeReview, syncReviewPolling)
+
+onBeforeUnmount(() => {
+  window.clearInterval(clockTimer)
+  if (reviewTimer) window.clearInterval(reviewTimer)
+})
 </script>
 
 <style scoped>
-.home-page { max-width: 1120px; margin: 0 auto; }
-.hero { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px; align-items: center; padding: 56px 40px; background: linear-gradient(135deg, #eff6ff, #f8fafc); border: 1px solid #dbeafe; border-radius: 20px; }
-.hero-copy h1 { margin: 18px 0 14px; font-size: clamp(30px, 4.5vw, 48px); line-height: 1.2; color: var(--lm-text-primary); }
-.hero-copy p { max-width: 560px; margin: 0; color: var(--lm-text-secondary); font-size: 16px; line-height: 1.8; }
-.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
-.hero-visual { display: flex; justify-content: center; }
-.visual-card { width: 260px; padding: 28px; background: #fff; border: 1px solid var(--lm-border); border-radius: 16px; box-shadow: var(--lm-shadow-lg); }
-.visual-kicker { font-size: 12px; color: var(--lm-text-muted); }
-.score-ring { display: flex; align-items: baseline; margin: 14px 0; }
-.score-ring strong { font-size: 56px; line-height: 1; color: var(--lm-primary); }
-.score-ring span { color: var(--lm-text-muted); }
-.dimension-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; list-style: none; }
-.dimension-row li { padding: 5px 10px; border-radius: 999px; background: var(--lm-bg-secondary); color: var(--lm-text-secondary); font-size: 12px; }
-.flow { margin-top: 56px; }
-.flow h2, .section-title { margin: 0 0 20px; color: var(--lm-text-primary); font-size: 20px; }
-.flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.flow-card { padding: 24px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 14px; }
-.step-index { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 50%; background: var(--lm-primary); color: #fff; font-weight: 700; }
-.flow-card h3 { margin: 16px 0 8px; color: var(--lm-text-primary); }
-.flow-card p { margin: 0; color: var(--lm-text-secondary); font-size: 14px; line-height: 1.7; }
-.welcome { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
-.eyebrow { margin: 0 0 6px; color: var(--lm-primary); font-size: 13px; font-weight: 600; }
-.welcome h1 { margin: 0; font-size: clamp(24px, 3.5vw, 34px); color: var(--lm-text-primary); }
-.welcome p { margin: 8px 0 0; color: var(--lm-text-secondary); }
-.quick-section { margin-bottom: 36px; }
-.quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.quick-link { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 12px; text-decoration: none; transition: box-shadow var(--lm-transition), transform var(--lm-transition); }
-.quick-link:hover { box-shadow: var(--lm-shadow); transform: translateY(-2px); }
-.quick-icon { display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 10px; }
-.quick-label { color: var(--lm-text-secondary); font-size: 15px; font-weight: 600; }
-.overview-alert { margin-bottom: 20px; }
-.overview-section { min-height: 120px; }
-.overview-heading { display: flex; align-items: baseline; justify-content: space-between; }
-.view-all { color: var(--lm-primary); font-size: 14px; }
-.team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 32px; }
-.team-card { padding: 18px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 12px; text-decoration: none; }
-.team-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.team-card-head strong { color: var(--lm-text-primary); }
-.team-card-meta { display: flex; gap: 14px; margin-top: 8px; color: var(--lm-text-muted); font-size: 13px; }
-.recent-heading { margin-top: 8px; }
-.submission-list { display: flex; flex-direction: column; gap: 10px; }
-.submission-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: var(--lm-surface); border: 1px solid var(--lm-border); border-radius: 10px; }
-.submission-version { display: inline-flex; width: 52px; height: 42px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 8px; background: var(--lm-primary-bg); color: var(--lm-primary); font-weight: 700; }
-.submission-info { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
-.submission-info strong { overflow: hidden; color: var(--lm-text-primary); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.submission-info span { color: var(--lm-text-muted); font-size: 12px; }
-@media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding: 40px 24px; } .quick-grid { grid-template-columns: repeat(2, 1fr); } .team-grid { grid-template-columns: 1fr; } }
-@media (max-width: 720px) { .flow-grid { grid-template-columns: repeat(2, 1fr); } .hero-visual { display: none; } }
-@media (max-width: 520px) { .flow-grid { grid-template-columns: 1fr; } .quick-grid { grid-template-columns: 1fr; } }
+@import './style.css';
 </style>

@@ -7,8 +7,9 @@ RUNTIME_DIR="${BACKEND_DIR}/.mvp-runtime"
 
 services=(
   gateway-service admin-service ai-evaluation-service ai-assistant-service
-  ai-suggestion-service ranking-service ai-review-service submission-service
-  ai-gateway-service team-service problem-service user-service
+  audit-service
+  ai-suggestion-service knowledge-retrieval-service ranking-service ai-review-service submission-service
+  ai-gateway-service team-service file-service problem-service user-service
 )
 
 for service in "${services[@]}"; do
@@ -39,4 +40,4 @@ for _ in {1..20}; do
   sleep 1
 done
 
-echo "MVP 后端服务已停止；MySQL、Redis、MinIO 和本地 Nacos 保持运行。"
+echo "MVP 后端服务已停止；Docker 基础设施保持运行。"

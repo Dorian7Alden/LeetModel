@@ -4,15 +4,19 @@ import com.leetmodel.aigateway.config.AiRoutingProperties;
 import com.leetmodel.aigateway.config.AiModelCatalogProperties;
 import com.leetmodel.aigateway.enums.AiGatewayErrorCode;
 import com.leetmodel.aigateway.provider.AiProviderAdapter;
+import com.leetmodel.aigateway.model.ModelExecutionSnapshot;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.ai.logging.AiCallLogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * 统一 AI 对话服务。
@@ -32,7 +36,7 @@ public class AiChatService {
     /**
      * 创建统一 AI 对话服务。
      *
-     * @param routingProperties 场景路由配置
+     * @param routingProperties 输入模态路由配置
      * @param providerRegistry 供应商注册表
      */
     public AiChatService(
@@ -48,15 +52,91 @@ public class AiChatService {
     }
 
     /**
-     * 根据场景路由发起同步 AI 对话。
+     * 根据输入模态路由发起同步 AI 对话。
      *
      * @param request 统一请求
      * @return 统一响应
      */
-    public AiChatResponse chat(AiChatRequest request) {
+    /**
+     * 根据输入模态路由发起流式 AI 对话。
+     *
+     * @param request 统一请求
+     * @param onChunk 增量回调
+     * @return 最终聚合响应
+     */
+    public AiChatResponse streamChat(AiChatRequest request, Consumer<AiChatStreamChunk> onChunk) {
         String callId = UUID.randomUUID().toString();
+        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.effectiveModality());
         long startedAt = System.currentTimeMillis();
-        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.scene());
+        String routeProvider = route == null || route.getProvider() == null ? null : route.getProvider().name();
+        String routeModel = route == null ? null : route.getModel();
+        try {
+            BusinessException.throwIf(
+                    route == null || route.getProvider() == null || route.getModel() == null,
+                    AiGatewayErrorCode.ROUTE_NOT_FOUND
+            );
+            AiModelCatalogProperties.ModelProfile profile = validateCapabilities(route, request);
+            AiProviderAdapter adapter = providerRegistry.get(route.getProvider());
+
+            AiChatResponse providerResponse = adapter.streamChat(
+                    route.getModel(), profile.getProtocol(), request,
+                    chunk -> forwardStreamDelta(callId, chunk, onChunk));
+            long durationMs = System.currentTimeMillis() - startedAt;
+            callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
+                    providerResponse, durationMs, 0L);
+
+            AiCallLogEvents.completed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(), durationMs);
+            AiChatResponse response = withCallId(callId, providerResponse);
+            if (onChunk != null) {
+                onChunk.accept(new AiChatStreamChunk(
+                        callId, null, response.finishReason(), response));
+            }
+            return response;
+        } catch (RuntimeException exception) {
+            long durationMs = System.currentTimeMillis() - startedAt;
+            callAuditService.recordFailure(callId, request, routeProvider, routeModel,
+                    exception, durationMs, 0L);
+            AiCallLogEvents.failed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(),
+                    exception instanceof BusinessException businessException
+                            ? String.valueOf(businessException.getCode()) : "AI_CALL_FAILED",
+                    durationMs, exception);
+            throw exception;
+        }
+    }
+
+    private void forwardStreamDelta(String callId, AiChatStreamChunk chunk,
+                                    Consumer<AiChatStreamChunk> onChunk) {
+        if (onChunk == null || chunk == null
+                || chunk.deltaText() == null || chunk.deltaText().isEmpty()) {
+            return;
+        }
+        onChunk.accept(new AiChatStreamChunk(callId, chunk.deltaText(), null, null));
+    }
+
+    public AiChatResponse chat(AiChatRequest request) {
+        return chat(request, UUID.randomUUID().toString(), 0L);
+    }
+
+    public AiChatResponse chat(AiChatRequest request, String callId, long queueMs) {
+        AiRoutingProperties.Route route = routingProperties.getRoutes().get(request.effectiveModality());
+        return chat(request, callId, queueMs, route);
+    }
+
+    public AiChatResponse chat(AiChatRequest request, String callId, long queueMs,
+                               ModelExecutionSnapshot snapshot) {
+        AiRoutingProperties.Route locked = new AiRoutingProperties.Route();
+        locked.setProvider(snapshot.provider());
+        locked.setModel(snapshot.model());
+        return chat(request, callId, queueMs, locked);
+    }
+
+    private AiChatResponse chat(AiChatRequest request, String callId, long queueMs,
+                                AiRoutingProperties.Route route) {
+        long startedAt = System.currentTimeMillis();
         String routeProvider = route == null || route.getProvider() == null
                 ? null : route.getProvider().name();
         String routeModel = route == null ? null : route.getModel();
@@ -71,19 +151,22 @@ public class AiChatService {
             AiChatResponse providerResponse = adapter.chat(route.getModel(), profile.getProtocol(), request);
             long durationMs = System.currentTimeMillis() - startedAt;
             callAuditService.recordSuccess(callId, request, routeProvider, routeModel,
-                    providerResponse, durationMs);
+                    providerResponse, durationMs, queueMs);
 
-            log.info(
-                    "AI 调用完成 callId={}, provider={}, model={}, totalTokens={}",
-                    callId,
-                    providerResponse.provider(),
-                    providerResponse.model(),
-                    providerResponse.usage().totalTokens()
-            );
+            AiCallLogEvents.completed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(), durationMs);
             return withCallId(callId, providerResponse);
         } catch (RuntimeException exception) {
+            long durationMs = System.currentTimeMillis() - startedAt;
             callAuditService.recordFailure(callId, request, routeProvider, routeModel,
-                    exception, System.currentTimeMillis() - startedAt);
+                    exception, durationMs, queueMs);
+            AiCallLogEvents.failed(log, callId, "CHAT",
+                    request.context() == null || request.context().priority() == null
+                            ? null : request.context().priority().name(),
+                    exception instanceof BusinessException businessException
+                            ? String.valueOf(businessException.getCode()) : "AI_CALL_FAILED",
+                    durationMs, exception);
             throw exception;
         }
     }
@@ -102,6 +185,8 @@ public class AiChatService {
         BusinessException.throwIf(request.responseFormat() != null && !profile.isJsonOutput(),
                 AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         BusinessException.throwIf(Boolean.TRUE.equals(request.thinkingEnabled()) && !profile.isThinking(),
+                AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
+        BusinessException.throwIf(request.tools() != null && !request.tools().isEmpty() && !profile.isTools(),
                 AiGatewayErrorCode.CAPABILITY_NOT_SUPPORTED);
         var imageParts = request.messages().stream().flatMap(message -> message.content().stream())
                 .filter(part -> part.type() == AiContentType.IMAGE_URL).toList();
@@ -164,7 +249,9 @@ public class AiChatService {
                 response.content(),
                 response.reasoningContent(),
                 response.finishReason(),
-                response.usage()
+                response.usage(),
+                response.cost(),
+                response.toolCalls()
         );
     }
 }

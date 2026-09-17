@@ -1,7 +1,7 @@
 package com.leetmodel.evaluation.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.leetmodel.common.core.entity.BaseEntity;
+import com.leetmodel.common.core.bean.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -13,9 +13,21 @@ import java.time.LocalDateTime;
 @TableName("evaluation_task")
 public class EvaluationTask extends BaseEntity {
     private Long datasetId;
+    private String datasetVersion;
+    private String featureCode;
     private String workflowVersion;
+    private String modelExecutionConfigVersion;
+    private String ragIndexVersion;
+    private String metricSetVersion;
+    private Long weightSchemeId;
+    private String weightSchemeVersion;
+    private String weightSchemeSnapshotJson;
+    private String workflowSnapshotJson;
+    private String metricDefinitionSnapshotJson;
+    private String rawMetricsJson;
     private Integer repeatCount;
     private String clientRequestId;
+    private String traceId;
     private String status;
     private Integer totalSlots;
     private Integer terminalSlots;
@@ -29,6 +41,9 @@ public class EvaluationTask extends BaseEntity {
     private Long avgDurationMs;
     private Integer retryCount;
     private String errorMessage;
+    private Long lastOperatedBy;
+    private String lastOperation;
+    private LocalDateTime lastOperatedAt;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
 }

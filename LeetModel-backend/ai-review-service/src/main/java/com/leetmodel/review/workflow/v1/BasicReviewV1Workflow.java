@@ -2,14 +2,18 @@ package com.leetmodel.review.workflow.v1;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
+import com.leetmodel.common.ai.model.AiCallContext;
+import com.leetmodel.common.ai.model.AiCallPriority;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
+import com.leetmodel.common.ai.model.AiFeatureCode;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
-import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.review.entity.ReviewTask;
@@ -24,9 +28,11 @@ import org.springframework.stereotype.Component;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class BasicReviewV1Workflow implements ReviewWorkflow {
@@ -97,7 +103,25 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
             List<AiContentPart> parts = new ArrayList<>();
             parts.add(new AiContentPart(AiContentType.TEXT, task.getPromptSnapshot(), null));
             paper.pageDataUrls().forEach(url -> parts.add(new AiContentPart(AiContentType.IMAGE_URL, null, url)));
-            AiChatRequest request = new AiChatRequest(AiScene.MULTIMODAL,
+            boolean experiment = task.getId() == null;
+            String taskId = experiment
+                    ? "experiment:" + (task.getExperimentRunId() == null
+                    ? UUID.randomUUID() : task.getExperimentRunId())
+                    : "task:" + task.getId();
+            String attempt = task.getAttemptNo() == null ? "1" : task.getAttemptNo().toString();
+            AiCallContext context = new AiCallContext(
+                    "ai-review-service", AiFeatureCode.PAPER_REVIEW,
+                    experiment ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
+                    taskId, task.getWorkflowVersion(), "PROMPT_BASIC_REVIEW_0001",
+                    task.getModelExecutionConfigVersion() == null
+                            ? "MODEL_CFG_REVIEW_MULTIMODAL_0001"
+                            : task.getModelExecutionConfigVersion(), task.getEvaluationTaskId(),
+                    experiment ? AiCallPriority.P3 : AiCallPriority.P1,
+                    experiment && task.getExperimentIdempotencyKey() != null
+                            ? task.getExperimentIdempotencyKey()
+                            : stableFormalIdempotencyKey(task, taskId, attempt),
+                    Instant.now().plusSeconds(540));
+            AiChatRequest request = new AiChatRequest(AiModality.MULTIMODAL, context,
                     List.of(new AiMessage(AiRole.USER, parts)), 4096, 0.1,
                     AiResponseFormat.JSON_OBJECT, false);
             AiChatResponse response = aiClient.chat(request);
@@ -113,6 +137,13 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
             logService.fail(step, error);
             throw error;
         }
+    }
+
+    private String stableFormalIdempotencyKey(ReviewTask task, String taskId, String attempt) {
+        if (task.getAiIdempotencyKey() != null && !task.getAiIdempotencyKey().isBlank()) {
+            return task.getAiIdempotencyKey();
+        }
+        return "review:" + taskId + ":attempt:" + attempt;
     }
 
     private BasicReviewV1Output validate(ReviewTask task, String json) throws Exception {

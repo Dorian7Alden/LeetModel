@@ -1,5 +1,6 @@
 package com.leetmodel.problem.dto;
 
+import com.leetmodel.problem.enums.ProblemNumber;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -28,8 +29,16 @@ public class ProblemUpdateRequest {
     /** 可直接渲染的 Markdown 题面，空字符串表示清空 */
     private String contentMarkdown;
 
+    /** 精短解题提示，空字符串表示清空。 */
+    @Size(max = 200, message = "解题提示不能超过 200 个字符")
+    private String solutionHint;
+
     @Positive(message = "赛事 ID 必须为正数")
     private Long contestId;
+
+    /** 赛事内题号：A-F 或 X。 */
+    @Pattern(regexp = ProblemNumber.PATTERN, message = "题号分类只支持 A-F 或 X")
+    private String problemNumber;
 
     @Min(value = 2000, message = "题目年份不能早于 2000 年")
     @Max(value = 2100, message = "题目年份不能晚于 2100 年")

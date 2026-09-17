@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import AppLayout from "@/components/layout/AppLayout.vue";
 
+import officialRoutes from "./modules/official";
 import homeRoutes from "./modules/home";
 import problemRoutes from "./modules/problem";
 import teamRoutes from "./modules/team";
@@ -12,6 +13,10 @@ import adminRoutes from "./modules/admin";
 import { useUserStore } from "@/store/user";
 
 const routes = [
+  // 官网独立页：独占根路径，不经过 AppLayout
+  ...officialRoutes,
+
+  // 应用内页面：共享 AppLayout（含顶栏与全局底栏）
   {
     path: "/",
     component: AppLayout,
@@ -47,9 +52,9 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !userStore.isLogin) {
     next("/login");
   } else if (to.meta.guestOnly && userStore.isLogin) {
-    next("/");
+    next("/home");
   } else if (to.path.startsWith("/admin") && !userStore.isAdmin) {
-    next("/");
+    next("/home");
   } else {
     next();
   }

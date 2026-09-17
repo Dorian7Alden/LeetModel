@@ -4,6 +4,7 @@ import random
 from datetime import date
 from typing import Any
 
+from app.snowflake import Snowflake, default_snowflake
 import bcrypt
 from faker import Faker
 
@@ -156,6 +157,15 @@ def gen_bcrypt_passwords(count: int, password: str | None = None) -> list[dict[s
 
 def gen_ids(start: int = 1, count: int = 10) -> list[int]:
     return list(range(start, start + count))
+
+
+def gen_snowflake_ids(
+    count: int,
+    datacenter_id: int = 1,
+    worker_id: int = 1,
+) -> list[int]:
+    sf = Snowflake(datacenter_id=datacenter_id, worker_id=worker_id)
+    return sf.next_ids(count)
 
 
 def gen_avatars(

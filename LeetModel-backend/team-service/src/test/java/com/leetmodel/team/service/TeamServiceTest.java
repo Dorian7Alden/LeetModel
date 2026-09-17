@@ -27,7 +27,9 @@ import com.leetmodel.team.mapper.TeamJoinApplicationMapper;
 import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.impl.TeamServiceImpl;
 import com.leetmodel.team.vo.TeamMemberVO;
+import com.leetmodel.team.vo.PopularPracticeProblemVO;
 import com.leetmodel.team.vo.TeamVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +94,23 @@ class TeamServiceTest {
     }
 
     @Test
+    @DisplayName("聚合题目的有效队伍与参赛人数")
+    void aggregateProblemParticipationStats() {
+        when(teamMapper.selectProblemParticipationStats(100L))
+                .thenReturn(ProblemParticipationStatsVO.builder()
+                        .teamCount(3L)
+                        .participantCount(8L)
+                        .build());
+
+        ProblemParticipationStatsVO stats = teamService.getProblemParticipationStats(100L);
+
+        assertEquals(100L, stats.getProblemId());
+        assertEquals(3L, stats.getTeamCount());
+        assertEquals(8L, stats.getParticipantCount());
+        verify(teamMapper).selectProblemParticipationStats(100L);
+    }
+
+    @Test
     @DisplayName("创建团队成功")
     void createTeamSuccess() {
         when(teamMapper.insert(any(Team.class))).thenReturn(1);
@@ -123,6 +142,30 @@ class TeamServiceTest {
 
         assertEquals(List.of(51008L, 51006L), teamService.listPublicPreparingProblemIds());
         verify(teamMapper).selectObjs(any(QueryWrapper.class));
+    }
+
+    @Test
+    @DisplayName("热门练习题按队伍练习次数返回且忽略未发布题目")
+    void listPopularPracticeProblems() {
+        List<PopularPracticeProblemVO> candidates = List.of(
+                new PopularPracticeProblemVO(100L, null, null, 8L),
+                new PopularPracticeProblemVO(200L, null, null, 5L),
+                new PopularPracticeProblemVO(300L, null, null, 3L)
+        );
+        when(teamMapper.selectPopularPracticeProblems(30)).thenReturn(candidates);
+        when(problemFeignClient.getPracticeProblems(List.of(100L, 200L, 300L))).thenReturn(Result.ok(List.of(
+                new ProblemPracticeDTO(100L, 1001, "高频练习题", 180, 1),
+                new ProblemPracticeDTO(300L, 1003, "次高频练习题", 180, 1)
+        )));
+
+        List<PopularPracticeProblemVO> result = teamService.listPopularPracticeProblems(3);
+
+        assertEquals(2, result.size());
+        assertEquals(100L, result.get(0).getProblemId());
+        assertEquals(1001, result.get(0).getProblemCode());
+        assertEquals("高频练习题", result.get(0).getProblemTitle());
+        assertEquals(8L, result.get(0).getPracticeCount());
+        assertEquals(300L, result.get(1).getProblemId());
     }
 
     @Test
@@ -318,6 +361,35 @@ class TeamServiceTest {
         assertTrue(sql.contains("problem_id"));
         assertTrue(sql.contains("tr.need_modeler = 1 AND tr.need_programmer = 1"));
         assertTrue(sql.contains("joined_tm.user_id"));
+    }
+
+    @Test
+    @DisplayName("公共队伍查询遇到已删除成员时降级展示")
+    void pagePublicTeamsToleratesMissingUserSummary() {
+        TeamMember deletedMember = new TeamMember();
+        deletedMember.setId(12L);
+        deletedMember.setTeamId(1L);
+        deletedMember.setUserId(99L);
+        deletedMember.setRole("member");
+        deletedMember.setJoinedAt(LocalDateTime.now());
+        Page<Team> resultPage = new Page<>(1, 9, 1);
+        resultPage.setRecords(List.of(team));
+        when(teamMapper.selectPage(any(Page.class), any(QueryWrapper.class))).thenReturn(resultPage);
+        when(teamMemberMapper.selectList(any())).thenReturn(List.of(deletedMember));
+        when(userFeignClient.getPublicSummaries(List.of(99L))).thenReturn(Result.ok(List.of()));
+        when(problemFeignClient.getPracticeProblems(List.of(100L)))
+                .thenReturn(Result.ok(List.of(new ProblemPracticeDTO(100L, 1001, "测试题目", 180, 1))));
+        when(applicationMapper.selectList(any())).thenReturn(List.of());
+        when(recruitmentMapper.selectList(any())).thenReturn(List.of());
+        TeamPublicPageQuery query = new TeamPublicPageQuery();
+        query.setPage(1);
+        query.setPageSize(9);
+
+        PageResult<TeamVO> result = teamService.pagePublicTeams(query, 20L);
+
+        assertEquals(1, result.getRows().size());
+        assertEquals(99L, result.getRows().get(0).getMembers().get(0).getUserId());
+        assertNull(result.getRows().get(0).getMembers().get(0).getNickname());
     }
 
     @Test

@@ -1,7 +1,12 @@
 package com.leetmodel.problem.service;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.entity.Tag;
+import com.leetmodel.problem.entity.ProblemTag;
+import com.leetmodel.problem.vo.TagAdminVO;
+import java.util.List;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.enums.TagType;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
@@ -35,14 +40,50 @@ class TagServiceTest {
     @Mock
     private ProblemTagMapper problemTagMapper;
 
+    @Mock
+    private CacheInvalidator cacheInvalidator;
+
     @InjectMocks
     private TagServiceImpl tagService;
 
     private Tag tag;
 
+    @Test
+    @DisplayName("查询标签列表附带使用量统计成功")
+    void listTagsWithUsageSuccess() {
+        Tag tag2 = new Tag();
+        tag2.setId(2L);
+        tag2.setName("机器学习");
+        tag2.setType(TagType.MODEL_ALGORITHM.name());
+
+        when(tagMapper.selectList(any())).thenReturn(List.of(tag, tag2));
+
+        ProblemTag pt1 = new ProblemTag();
+        pt1.setTagId(1L);
+        ProblemTag pt2 = new ProblemTag();
+        pt2.setTagId(1L);
+        ProblemTag pt3 = new ProblemTag();
+        pt3.setTagId(2L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(pt1, pt2, pt3));
+
+        List<TagAdminVO> results = tagService.listTagsWithUsage();
+
+        assertEquals(2, results.size());
+        TagAdminVO vo1 = results.stream().filter(v -> v.getId().equals(1L)).findFirst().orElseThrow();
+        assertEquals(2L, vo1.getProblemCount());
+        TagAdminVO vo2 = results.stream().filter(v -> v.getId().equals(2L)).findFirst().orElseThrow();
+        assertEquals(1L, vo2.getProblemCount());
+    }
+
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(tagService, "baseMapper", tagMapper);
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(true);
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, ""),
+                ProblemTag.class
+        );
         tag = new Tag();
         tag.setId(1L);
         tag.setName("预测");

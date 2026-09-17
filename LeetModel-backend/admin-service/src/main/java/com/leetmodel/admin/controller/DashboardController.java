@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.leetmodel.admin.vo.AdminDashboardVO;
 import com.leetmodel.admin.vo.AdminMetricVO;
 import com.leetmodel.common.api.dto.AiCallStatsDTO;
+import com.leetmodel.common.api.dto.AiCallQueryDTO;
 import com.leetmodel.common.api.feign.AiGatewayFeignClient;
 import com.leetmodel.common.api.feign.AssistantFeignClient;
 import com.leetmodel.common.api.feign.EvaluationFeignClient;
@@ -45,6 +46,11 @@ public class DashboardController {
     private final EvaluationFeignClient evaluationFeignClient;
     private final AiGatewayFeignClient aiGatewayFeignClient;
 
+    /**
+     * 聚合平台全量微服务的关键运行态统计大盘指标（容忍局部下游服务不可用）。
+     *
+     * @return 包含用户、队伍、题目、提交、评审、排行与 AI 调用的指标聚合视图对象
+     */
     @Operation(summary = "获取真实汇总统计及局部失败状态")
     @GetMapping("/stats")
     public Result<AdminDashboardVO> stats() {
@@ -65,7 +71,7 @@ public class DashboardController {
 
     private AdminMetricVO aiCallMetric() {
         try {
-            Result<AiCallStatsDTO> result = aiGatewayFeignClient.getCallStats();
+            Result<AiCallStatsDTO> result = aiGatewayFeignClient.getCallStats(new AiCallQueryDTO());
             if (result != null && result.isSuccess() && result.getData() != null) {
                 return AdminMetricVO.available(result.getData().getTotalCount());
             }

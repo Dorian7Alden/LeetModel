@@ -4,15 +4,24 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
+import com.leetmodel.common.api.dto.ProblemPracticeDTO;
+import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
+import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.cache.internal.NoOpCacheSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.leetmodel.ranking.entity.RankingSnapshot;
+import com.leetmodel.ranking.entity.RankingRebuildTask;
 import com.leetmodel.ranking.mapper.RankingSnapshotMapper;
+import com.leetmodel.ranking.mapper.RankingRebuildTaskMapper;
 import com.leetmodel.ranking.vo.RankingOverviewVO;
 import com.leetmodel.ranking.vo.TeamRankingContextVO;
+import com.leetmodel.ranking.vo.ProblemScoreDistributionVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +36,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,18 +49,32 @@ class RankingServiceTest {
     @Mock
     private RankingSnapshotMapper snapshotMapper;
     @Mock
+    private RankingRebuildTaskMapper rebuildTaskMapper;
+    @Mock
     private SubmissionFeignClient submissionFeignClient;
     @Mock
     private ReviewFeignClient reviewFeignClient;
     @Mock
     private TeamFeignClient teamFeignClient;
+    @Mock
+    private ProblemFeignClient problemFeignClient;
 
     private RankingService rankingService;
 
     @BeforeEach
     void setUp() {
+        NoOpCacheSupport cacheSupport = new NoOpCacheSupport();
         rankingService = new RankingService(
-                snapshotMapper, submissionFeignClient, reviewFeignClient, teamFeignClient);
+                snapshotMapper,
+                rebuildTaskMapper,
+                submissionFeignClient,
+                reviewFeignClient,
+                teamFeignClient,
+                problemFeignClient,
+                cacheSupport,
+                cacheSupport,
+                new ObjectMapper().registerModule(new JavaTimeModule())
+        );
     }
 
     @Test
@@ -100,6 +124,35 @@ class RankingServiceTest {
         verify(reviewFeignClient, never()).listCompleted(any());
         verify(snapshotMapper, never()).deactivateCurrent(any());
         verify(snapshotMapper, never()).insert(any(RankingSnapshot.class));
+    }
+
+    @Test
+    void claimedRebuildChecksFencingTokenAndCompletesRevisionInSameWritePhase() {
+        LocalDateTime base = LocalDateTime.now();
+        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(reviewFeignClient.listCompleted(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        RankingRebuildTask task = claimedTask("token", base.plusMinutes(2));
+        when(rebuildTaskMapper.selectForCompletion(9L)).thenReturn(task);
+        when(rebuildTaskMapper.complete(eq(9L), eq("token"), eq(3L), any())).thenReturn(1);
+
+        rankingService.rebuildClaimed(PROBLEM_ID, 9L, "token", 3L);
+
+        verify(snapshotMapper).deactivateCurrent(PROBLEM_ID);
+        verify(rebuildTaskMapper).complete(eq(9L), eq("token"), eq(3L), any());
+    }
+
+    @Test
+    void expiredOrStolenLeaseCannotReplaceCurrentRanking() {
+        when(submissionFeignClient.listFinalSubmissions(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(reviewFeignClient.listCompleted(PROBLEM_ID)).thenReturn(Result.ok(List.of()));
+        when(rebuildTaskMapper.selectForCompletion(9L))
+                .thenReturn(claimedTask("new-token", LocalDateTime.now().plusMinutes(2)));
+
+        assertThatThrownBy(() -> rankingService.rebuildClaimed(PROBLEM_ID, 9L, "stale-token", 3L))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(snapshotMapper, never()).deactivateCurrent(any());
+        verify(rebuildTaskMapper, never()).complete(any(), any(), any(), any());
     }
 
     @Test
@@ -165,6 +218,53 @@ class RankingServiceTest {
         assertThat(result.getItems().get(0).getTeamName()).isEqualTo("Beta 数据队");
     }
 
+    @Test
+    void scoreDistributionRoundsScoresIntoCompleteZeroToHundredBuckets() {
+        RankingSnapshot high = snapshot(1L, 1);
+        high.setScore(new BigDecimal("99.50"));
+        RankingSnapshot nearHigh = snapshot(2L, 2);
+        nearHigh.setScore(new BigDecimal("99.40"));
+        RankingSnapshot low = snapshot(3L, 3);
+        low.setScore(new BigDecimal("0.50"));
+        when(snapshotMapper.selectList(org.mockito.ArgumentMatchers.<Wrapper<RankingSnapshot>>any()))
+                .thenReturn(List.of(high, nearHigh, low));
+
+        ProblemScoreDistributionVO result = rankingService.getScoreDistribution(PROBLEM_ID);
+
+        assertThat(result.getBuckets()).hasSize(101);
+        assertThat(result.getBuckets().get(100).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().get(99).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().get(1).getTeamCount()).isEqualTo(1L);
+        assertThat(result.getBuckets().stream().mapToLong(ProblemScoreDistributionVO.ScoreBucketVO::getTeamCount)
+                .sum()).isEqualTo(3L);
+    }
+
+    @Test
+    void globalStatsUseAllSubmissionFactsAndLatestCompletedReviewPerSubmission() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
+        ReviewSummaryDTO older = review(1001L, 101L, 1L, "70", now.minusMinutes(2));
+        ReviewSummaryDTO latest = review(1002L, 101L, 1L, "90", now);
+        when(submissionFeignClient.getProblemSubmissionStats()).thenReturn(Result.ok(List.of(
+                new ProblemSubmissionStatsDTO(PROBLEM_ID, 8L),
+                new ProblemSubmissionStatsDTO(52L, 3L))));
+        when(reviewFeignClient.listCompleted(null)).thenReturn(Result.ok(List.of(older, latest)));
+        when(snapshotMapper.selectList(org.mockito.ArgumentMatchers.<Wrapper<RankingSnapshot>>any()))
+                .thenReturn(List.of());
+        when(problemFeignClient.getPracticeProblems(any())).thenReturn(Result.ok(List.of(
+                new ProblemPracticeDTO(PROBLEM_ID, 1001, "题目 A", 120, 1),
+                new ProblemPracticeDTO(52L, 1002, "题目 B", 120, 1))));
+
+        var result = rankingService.getGlobalStats();
+
+        assertThat(result.getTotalSubmissions()).isEqualTo(11L);
+        assertThat(result.getReviewedSubmissions()).isEqualTo(1L);
+        assertThat(result.getOverallAverageScore()).isEqualByComparingTo("90.00");
+        assertThat(result.getItems()).extracting(item -> item.getProblemTitle())
+                .containsExactly("题目 A", "题目 B");
+        assertThat(result.getItems().get(0).getSubmissionCount()).isEqualTo(8L);
+        assertThat(result.getItems().get(0).getAverageScore()).isEqualByComparingTo("90.00");
+    }
+
     private SubmissionSnapshotDTO submission(Long id, Long teamId, LocalDateTime createdAt) {
         return new SubmissionSnapshotDTO(
                 id, teamId, PROBLEM_ID, 9L, 1, "paper.pdf", "papers/paper.pdf",
@@ -201,5 +301,16 @@ class RankingServiceTest {
         snapshot.setComputedAt(LocalDateTime.of(2026, 8, 26, 12, 0));
         snapshot.setCurrentMarker(1);
         return snapshot;
+    }
+
+    private RankingRebuildTask claimedTask(String token, LocalDateTime expiry) {
+        RankingRebuildTask task = new RankingRebuildTask();
+        task.setId(9L);
+        task.setProblemId(PROBLEM_ID);
+        task.setStatus("RUNNING");
+        task.setLeaseToken(token);
+        task.setLeaseExpiresAt(expiry);
+        task.setRunningRevision(3L);
+        return task;
     }
 }

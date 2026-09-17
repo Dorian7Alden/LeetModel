@@ -39,6 +39,7 @@ A - BB - CC
 | 10 | 管理后台 | 预留 |
 | 11 | AI 质量评价 | 固定数据集、评价任务与依赖错误 |
 | 12 | AI 网关 | 模型路由、能力校验与供应商错误 |
+| 13 | 文件资产 | 文件登记、分组、访问与生命周期治理 |
 
 ---
 
@@ -115,6 +116,55 @@ A - BB - CC
 | INVALID_DIFFICULTY | 40405 | 难度值不合法 |
 | INVALID_STATUS | 40406 | 题目状态不合法 |
 | TAG_IN_USE | 40407 | 标签仍被题目使用 |
+| CONTEST_NOT_FOUND | 40408 | 赛事不存在 |
+| PROBLEM_POOL_EXHAUSTED | 40409 | 题号已达上限，无法创建更多题目 |
+| ATTACHMENT_NOT_FOUND | 40410 | 题目附件不存在 |
+| STORAGE_NOT_ENABLED | 40411 | 附件存储服务未启用 |
+| TAG_TYPE_CONFLICT | 40412 | 背景领域只能选择一个标签 |
+| INVALID_SCORE_RANGE | 40413 | 最低分不能大于最高分 |
+| CONTEST_CODE_DUPLICATE | 40414 | 赛事编码已存在 |
+| ATTACHMENT_IN_USE | 40415 | 附件仍被题目引用，不能删除 |
+| CONTEST_IN_USE | 40416 | 赛事仍被题目使用，不能删除 |
+
+### BB=05：AI 客服
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| CONVERSATION_NOT_FOUND | 40501 | AI 客服会话不存在 |
+| CONVERSATION_CLOSED | 40502 | 会话已结束，不能继续发送消息 |
+| MESSAGE_NOT_FOUND | 40503 | AI 客服消息不存在 |
+| MESSAGE_NOT_FAILED | 40504 | 只有失败的 AI 回复可以重试 |
+| PRODUCTION_CONFIG_UNAVAILABLE | 40505 | AI 客服生产配置不存在或不可用 |
+| PRODUCTION_CHANGE_INVALID | 40506 | AI 客服生产配置变更请求不合法 |
+| PRODUCTION_CHANGE_CONFLICT | 40507 | 生产配置已经变化 |
+| PRODUCTION_DEPENDENCY_UNAVAILABLE | 50501 | AI 客服目标配置依赖暂不可用 |
+
+### BB=06：作品提交（SubmissionErrorCode）
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| TEAM_NOT_AVAILABLE | 40601 | 队伍不存在或暂不可用 |
+| NOT_TEAM_MEMBER | 40602 | 用户不是队伍成员 |
+| PRACTICE_NOT_STARTED | 40603 | 练习尚未开始 |
+| DEADLINE_PASSED | 40604 | 提交截止时间已过 |
+| PDF_ONLY | 40605 | 仅支持 PDF 文件 |
+| SUBMISSION_NOT_FOUND | 40606 | 提交记录不存在 |
+| FINAL_SUBMISSION_NOT_FOUND | 40607 | 没有可锁定的成功提交 |
+| DEADLINE_NOT_REACHED | 40608 | 截止时间尚未到达 |
+| SUBMISSION_PERMISSION_DENIED | 40609 | 当前成员没有作品提交权限 |
+| PDF_SIZE_EXCEEDED | 40610 | 论文 PDF 超过 20MB |
+| UPLOAD_NOT_FOUND | 40611 | 上传会话不存在或不属于当前用户 |
+| UPLOAD_ALREADY_ACTIVE | 40612 | 队伍已有其他成员正在上传论文 |
+| UPLOAD_STATE_INVALID | 40613 | 上传会话状态不允许当前操作 |
+| UPLOAD_EXPIRED | 40614 | 上传会话已过期 |
+| CHUNK_INDEX_INVALID | 40615 | 分片序号不正确 |
+| CHUNK_SIZE_INVALID | 40616 | 分片大小不正确 |
+| CHUNK_CHECKSUM_MISMATCH | 40617 | 分片摘要校验失败 |
+| CHUNK_CONFLICT | 40618 | 同序号分片内容冲突 |
+| CHUNK_MISSING | 40619 | 分片尚未全部上传 |
+| FILE_CHECKSUM_MISMATCH | 40620 | 合并文件大小或摘要校验失败 |
+| UPLOAD_COMPLETING | 40621 | 论文正在合并 |
+| REVIEW_TASK_CREATE_FAILED | 50601 | 评审任务创建失败 |
 
 ### BB=11：AI 质量评价
 
@@ -127,6 +177,13 @@ A - BB - CC
 | TASK_NOT_FOUND | 41105 | 质量评价任务不存在 |
 | TASK_NOT_FAILED | 41106 | 当前任务不可重试 |
 | IDEMPOTENCY_CONFLICT | 41107 | 请求标识已用于其他评价配置 |
+| SCALE_LIMIT_EXCEEDED | 41108 | 评价批次规模超过服务端限制 |
+| DUPLICATE_CANDIDATE | 41109 | 评价批次包含重复候选版本 |
+| TASK_STATE_CONFLICT | 41110 | 评价任务状态不允许当前操作 |
+| WEIGHT_SCHEME_INVALID | 41111 | 权重方案配置与指标口径不兼容 |
+| WEIGHT_SCHEME_VERSION_DUPLICATE | 41112 | 权重方案版本已存在 |
+| WEIGHT_SCHEME_NOT_FOUND | 41113 | 权重方案不存在 |
+| SCORE_RECALCULATION_NOT_ALLOWED | 41114 | 当前评价数据不满足重新计算条件 |
 | DEPENDENCY_UNAVAILABLE | 51101 | 质量评价依赖服务暂不可用 |
 
 ### BB=12：AI 网关
@@ -145,6 +202,16 @@ A - BB - CC
 | PROVIDER_NOT_CONFIGURED | 51201 | AI 供应商未配置 |
 | PROVIDER_UNAVAILABLE | 51202 | AI 供应商暂不可用 |
 | RESPONSE_INVALID | 51203 | AI 供应商响应无效 |
+
+### BB=13：文件资产
+
+| 常量 | 编码 | 说明 |
+|------|------|------|
+| FILE_NOT_FOUND | 41301 | 文件资产不存在 |
+| GROUP_PATH_INVALID | 41302 | 文件分组路径不合法 |
+| FILE_NOT_DELETABLE | 41303 | 文件来源或引用状态不允许删除 |
+| FILE_STATUS_INVALID | 41304 | 文件生命周期状态不允许当前操作 |
+| STORAGE_UNAVAILABLE | 51301 | 对象存储暂不可用 |
 
 ---
 

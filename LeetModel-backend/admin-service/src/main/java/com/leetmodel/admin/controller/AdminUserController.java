@@ -33,6 +33,12 @@ public class AdminUserController {
 
     private final UserAdminFeignClient userAdminFeignClient;
 
+    /**
+     * 管理员分页组合条件查询用户列表。
+     *
+     * @param query 分页与关键词过滤参数对象，不能为 null
+     * @return 分页包装的用户管理端明细 VO
+     */
     @Operation(summary = "分页查询用户列表")
     @SaCheckPermission("user:read")
     @GetMapping
@@ -40,6 +46,12 @@ public class AdminUserController {
         return userAdminFeignClient.page(query);
     }
 
+    /**
+     * 查看指定用户的详细资料与角色分配。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 用户管理端明细 VO
+     */
     @Operation(summary = "查看用户详情")
     @SaCheckPermission("user:read")
     @GetMapping("/{userId}")
@@ -47,6 +59,13 @@ public class AdminUserController {
         return userAdminFeignClient.detail(userId);
     }
 
+    /**
+     * 管理员启用或禁用指定用户的登录账号。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含新状态的请求对象，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "启用或禁用用户")
     @SaCheckPermission("user:update")
     @PutMapping("/{userId}/status")
@@ -55,6 +74,13 @@ public class AdminUserController {
         return userAdminFeignClient.updateStatus(userId, request);
     }
 
+    /**
+     * 管理员全量更新指定用户的角色分配。
+     *
+     * @param userId  目标用户 ID，不能为 null
+     * @param request 包含角色 ID 列表的请求对象，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "更新用户角色")
     @SaCheckPermission("user:update")
     @PutMapping("/{userId}/roles")

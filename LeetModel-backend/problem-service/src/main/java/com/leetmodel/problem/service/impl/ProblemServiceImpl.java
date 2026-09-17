@@ -5,8 +5,17 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.core.exception.ErrorCodeEnum;
+import com.leetmodel.common.core.storage.StorageContentTypes;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.cache.CacheInvalidator;
+import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
+import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
+import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
+import com.leetmodel.problem.cache.ProblemDetailReadModel;
+import com.leetmodel.problem.audit.ProblemAuditEventProducer;
+import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Problem;
@@ -53,9 +62,17 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private final ProblemAttachmentMapper problemAttachmentMapper;
     private final ContestMapper contestMapper;
     private final ObjectProvider<StorageService> storageServiceProvider;
+    private final CacheInvalidator cacheInvalidator;
+    private final ProblemAuditEventProducer audit;
 
     // ==================== 分页查询 ====================
 
+    /**
+     * 管理员分页组合条件查询题目列表（含标签与赛事信息）。
+     *
+     * @param query 分页与组合筛选条件对象，不能为 null
+     * @return 分页包装的题目视图列表
+     */
     @Override
     public IPage<ProblemVO> pageProblems(ProblemPageQuery query) {
         validateScoreRange(query);
@@ -67,6 +84,9 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             wrapper.eq(Problem::getDifficulty, query.getDifficulty());
         }
         if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getProblemNumber() != null) {
+            wrapper.eq(Problem::getProblemNumber, query.getProblemNumber());
+        }
         if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
         if (query.getStatementLanguage() != null) {
             wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
@@ -113,6 +133,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
     // ==================== 详情查询 ====================
 
+    /**
+     * 查询题目的完整明细信息（含未发布题目与所有附件）。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @return 题目详情视图对象
+     * @throws BusinessException 若题目不存在
+     */
     @Override
     public ProblemVO getProblemDetail(Long id) {
         Problem problem = getById(id);
@@ -129,22 +156,107 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      */
     @Override
     public ProblemVO getPublishedProblemDetail(Long id) {
+        ProblemDetailReadModel readModel = findPublishedProblemReadModel(id);
+        BusinessException.throwIf(readModel == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        return materializePublishedProblem(readModel);
+    }
+
+    /**
+     * 查找不含预签名 URL 的已发布题目读模型。
+     *
+     * @param id 题目 ID
+     * @return 稳定读模型；不存在时为 null
+     */
+    @Override
+    public ProblemDetailReadModel findPublishedProblemReadModel(Long id) {
         Problem problem = getById(id);
-        BusinessException.throwIf(
-                problem == null || !Integer.valueOf(1).equals(problem.getStatus()),
-                ProblemErrorCode.PROBLEM_NOT_FOUND
-        );
-        List<String> tagNames = getTagNames(id);
-        List<ProblemAttachment> attachments = getAttachments(id);
-        return toVO(problem, tagNames, attachments);
+        if (problem == null && id != null) {
+            problem = getOne(new LambdaQueryWrapper<Problem>()
+                    .eq(Problem::getCode, id)
+                    .eq(Problem::getStatus, 1)
+                    .last("LIMIT 1"));
+        }
+        if (problem == null || !Integer.valueOf(1).equals(problem.getStatus())) return null;
+        List<String> tagNames = getTagNames(problem.getId());
+        List<ProblemAttachment> attachments = getAttachments(problem.getId());
+        ProblemVO stableProblem = toVO(problem, tagNames, List.of());
+        List<ProblemDetailReadModel.AttachmentReadModel> stableAttachments = attachments.stream()
+                .map(attachment -> new ProblemDetailReadModel.AttachmentReadModel(
+                        attachment.getId(),
+                        attachment.getFileName(),
+                        attachment.getObjectKey(),
+                        attachment.getContentType(),
+                        attachment.getFileSize(),
+                        attachment.getDescription(),
+                        attachment.getSortOrder()
+                ))
+                .toList();
+        return new ProblemDetailReadModel(stableProblem, stableAttachments);
+    }
+
+    /**
+     * 为稳定题目读模型生成当前附件下载 URL。
+     *
+     * @param readModel 稳定读模型
+     * @return 公开题目响应
+     */
+    @Override
+    public ProblemVO materializePublishedProblem(ProblemDetailReadModel readModel) {
+        ProblemVO source = readModel.getProblem();
+        StorageService storageService = storageServiceProvider.getIfAvailable();
+        List<ProblemVO.AttachmentVO> attachments = readModel.getAttachments().stream()
+                .map(attachment -> ProblemVO.AttachmentVO.builder()
+                        .id(attachment.getId())
+                        .fileName(attachment.getFileName())
+                        .contentType(attachment.getContentType())
+                        .fileSize(attachment.getFileSize())
+                        .description(attachment.getDescription())
+                        .sortOrder(attachment.getSortOrder())
+                        .downloadUrl(storageService == null
+                                ? null : storageService.getUrl(attachment.getObjectKey()))
+                        .build())
+                .toList();
+        return ProblemVO.builder()
+                .id(source.getId())
+                .code(source.getCode())
+                .problemNumber(source.getProblemNumber())
+                .title(source.getTitle())
+                .contentMarkdown(source.getContentMarkdown())
+                .solutionHint(source.getSolutionHint())
+                .contestId(source.getContestId())
+                .contestCode(source.getContestCode())
+                .contestName(source.getContestName())
+                .year(source.getYear())
+                .statementLanguage(source.getStatementLanguage())
+                .durationMinutes(source.getDurationMinutes())
+                .difficulty(source.getDifficulty())
+                .averageScore(source.getAverageScore())
+                .status(source.getStatus())
+                .creatorId(source.getCreatorId())
+                .createTime(source.getCreateTime())
+                .updateTime(source.getUpdateTime())
+                .tagNames(source.getTagNames())
+                .tags(source.getTags())
+                .attachments(attachments)
+                .build();
     }
 
     @Override
+    /**
+     * 根据条件在已发布的题目中随机抽取一道题目。
+     *
+     * @param query 过滤条件，不能为 null
+     * @return 随机匹配的题目视图对象
+     * @throws BusinessException 若未匹配到符合条件的已发布题目
+     */
     public ProblemVO getRandomPublishedProblem(ProblemPageQuery query) {
         validateScoreRange(query);
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
                 .eq(Problem::getStatus, 1);
         if (query.getContestId() != null) wrapper.eq(Problem::getContestId, query.getContestId());
+        if (query.getProblemNumber() != null) {
+            wrapper.eq(Problem::getProblemNumber, query.getProblemNumber());
+        }
         if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
         if (query.getStatementLanguage() != null) {
             wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
@@ -169,8 +281,223 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         return toVO(problem, getTagNames(problem.getId()), getAttachments(problem.getId()));
     }
 
+    // ==================== AI 客服查询 ====================
+
+    /**
+     * 查询供 AI 客服使用的最小已发布题目事实。
+     *
+     * @param query 受控查询条件
+     * @return 题目工具结果
+     */
+    @Override
+    public AssistantProblemResultDTO queryForAssistant(AssistantProblemQueryDTO query) {
+        // 防御服务层直接调用
+        BusinessException.throwIf(
+                query == null || query.getMode() == null || !query.isModeFieldsValid(),
+                ErrorCodeEnum.PARAM_INVALID
+        );
+
+        // 查询比返回上限多一条，用于标记候选截断
+        int limit = assistantLimit(query);
+        List<Problem> selected = selectAssistantProblems(query, limit + 1);
+        boolean truncated = selected.size() > limit;
+        List<Problem> problems = truncated ? selected.subList(0, limit) : selected;
+
+        // 批量组装标签、赛事和受限题面概览
+        List<Long> problemIds = problems.stream().map(Problem::getId).toList();
+        Map<Long, List<String>> tagMap = batchGetTagNames(problemIds);
+        Map<Long, Contest> contestMap = batchGetContests(problems);
+        List<AssistantProblemResultDTO.Item> items = new ArrayList<>();
+        for (Problem problem : problems) {
+            OverviewValue overview = overview(problem, query);
+            truncated = truncated || overview.truncated();
+            Contest contest = contestMap.get(problem.getContestId());
+            items.add(new AssistantProblemResultDTO.Item(
+                    problem.getCode(),
+                    problem.getTitle(),
+                    contest == null ? null : contest.getCode(),
+                    contest == null ? null : contest.getName(),
+                    problem.getYear(),
+                    problem.getStatementLanguage(),
+                    problem.getDifficulty(),
+                    problem.getDurationMinutes(),
+                    tagMap.getOrDefault(problem.getId(), List.of()),
+                    overview.text()
+            ));
+        }
+        return new AssistantProblemResultDTO(
+                items,
+                assistantMatchType(query),
+                truncated,
+                matchedConditions(query)
+        );
+    }
+
+    /**
+     * 查询符合条件的已发布题目。
+     *
+     * @param query 受控查询条件
+     * @param fetchLimit 数据库读取上限
+     * @return 稳定排序的候选
+     */
+    private List<Problem> selectAssistantProblems(AssistantProblemQueryDTO query, int fetchLimit) {
+        LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<Problem>()
+                .eq(Problem::getStatus, 1);
+        String keyword = normalized(query.getKeyword());
+        if (query.getMode() == AssistantProblemQueryMode.SEARCH) {
+            wrapper.eq(query.getCode() != null, Problem::getCode, query.getCode())
+                    .like(keyword != null, Problem::getTitle, keyword);
+        } else {
+            applyRecommendationKeyword(wrapper, keyword);
+            Contest contest = assistantContest(query.getContestCode());
+            if (contest != null) wrapper.eq(Problem::getContestId, contest.getId());
+            if (query.getYear() != null) wrapper.eq(Problem::getYear, query.getYear());
+            if (query.getDifficulty() != null) wrapper.eq(Problem::getDifficulty, query.getDifficulty());
+            if (query.getStatementLanguage() != null) {
+                wrapper.eq(Problem::getStatementLanguage, query.getStatementLanguage());
+            }
+            if (query.getMaxDurationMinutes() != null) {
+                wrapper.le(Problem::getDurationMinutes, query.getMaxDurationMinutes());
+            }
+        }
+        wrapper.orderByDesc(Problem::getYear)
+                .orderByAsc(Problem::getCode)
+                .last("LIMIT " + fetchLimit);
+        return baseMapper.selectList(wrapper);
+    }
+
+    /**
+     * 应用标题或标签关键词条件。
+     *
+     * @param wrapper 题目查询
+     * @param keyword 标准化关键词
+     */
+    private void applyRecommendationKeyword(LambdaQueryWrapper<Problem> wrapper, String keyword) {
+        if (keyword == null) return;
+        List<Tag> tags = tagMapper.selectList(new LambdaQueryWrapper<Tag>().like(Tag::getName, keyword));
+        if (tags.isEmpty()) {
+            wrapper.like(Problem::getTitle, keyword);
+            return;
+        }
+        List<Long> problemIds = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                        .in(ProblemTag::getTagId, tags.stream().map(Tag::getId).toList()))
+                .stream()
+                .map(ProblemTag::getProblemId)
+                .distinct()
+                .toList();
+        if (problemIds.isEmpty()) {
+            wrapper.like(Problem::getTitle, keyword);
+            return;
+        }
+        wrapper.and(nested -> nested.like(Problem::getTitle, keyword)
+                .or()
+                .in(Problem::getId, problemIds));
+    }
+
+    /**
+     * 按赛事编码解析赛事。
+     *
+     * @param contestCode 赛事编码
+     * @return 赛事；未传时为 null
+     */
+    private Contest assistantContest(String contestCode) {
+        if (contestCode == null) return null;
+        Contest contest = contestMapper.selectOne(new LambdaQueryWrapper<Contest>()
+                .eq(Contest::getCode, contestCode));
+        BusinessException.throwIf(contest == null, ProblemErrorCode.CONTEST_NOT_FOUND);
+        return contest;
+    }
+
+    /**
+     * 计算工具返回数量。
+     *
+     * @param query 查询条件
+     * @return 1 到 5 的返回上限
+     */
+    private int assistantLimit(AssistantProblemQueryDTO query) {
+        if (query.getMode() == AssistantProblemQueryMode.SEARCH && query.getCode() != null) return 1;
+        int defaultLimit = query.getMode() == AssistantProblemQueryMode.RECOMMEND ? 3 : 5;
+        int requested = query.getLimit() == null ? defaultLimit : query.getLimit();
+        return Math.max(1, Math.min(requested, 5));
+    }
+
+    /**
+     * 生成最多 500 个 Unicode 码点的题面概览。
+     *
+     * @param problem 题目
+     * @param query 查询条件
+     * @return 概览与截断标识
+     */
+    private OverviewValue overview(Problem problem, AssistantProblemQueryDTO query) {
+        if (query.getMode() != AssistantProblemQueryMode.SEARCH
+                || !Boolean.TRUE.equals(query.getIncludeOverview())) {
+            return new OverviewValue(null, false);
+        }
+        String markdown = problem.getContentMarkdown();
+        if (markdown == null || markdown.isBlank()) return new OverviewValue(null, false);
+        int codePoints = markdown.codePointCount(0, markdown.length());
+        if (codePoints <= 500) return new OverviewValue(markdown, false);
+        int end = markdown.offsetByCodePoints(0, 500);
+        return new OverviewValue(markdown.substring(0, end), true);
+    }
+
+    /**
+     * 返回匹配方式。
+     *
+     * @param query 查询条件
+     * @return 匹配方式
+     */
+    private String assistantMatchType(AssistantProblemQueryDTO query) {
+        if (query.getMode() == AssistantProblemQueryMode.RECOMMEND) return "FILTER";
+        return query.getCode() == null ? "KEYWORD" : "CODE";
+    }
+
+    /**
+     * 返回已经应用的推荐条件。
+     *
+     * @param query 查询条件
+     * @return 稳定顺序的条件摘要
+     */
+    private List<String> matchedConditions(AssistantProblemQueryDTO query) {
+        if (query.getMode() != AssistantProblemQueryMode.RECOMMEND) return List.of();
+        List<String> conditions = new ArrayList<>();
+        if (normalized(query.getKeyword()) != null) conditions.add("keyword:" + normalized(query.getKeyword()));
+        if (query.getContestCode() != null) conditions.add("contestCode:" + query.getContestCode());
+        if (query.getYear() != null) conditions.add("year:" + query.getYear());
+        if (query.getDifficulty() != null) conditions.add("difficulty:" + query.getDifficulty());
+        if (query.getStatementLanguage() != null) {
+            conditions.add("statementLanguage:" + query.getStatementLanguage());
+        }
+        if (query.getMaxDurationMinutes() != null) {
+            conditions.add("maxDurationMinutes:" + query.getMaxDurationMinutes());
+        }
+        return conditions;
+    }
+
+    /**
+     * 标准化可空关键词。
+     *
+     * @param value 原始值
+     * @return 去除首尾空白后的值
+     */
+    private String normalized(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
+    }
+
+    /** 题面概览和截断标识。 */
+    private record OverviewValue(String text, boolean truncated) {
+    }
+
     // ==================== 创建 ====================
 
+    /**
+     * 创建新的建模题目并持久化初始标签关联。
+     *
+     * @param request   题目创建参数对象，不能为 null
+     * @param creatorId 创建人用户 ID，不能为 null
+     * @return 创建成功后的题目视图对象
+     */
     @Override
     @Transactional
     public ProblemVO createProblem(ProblemCreateRequest request, Long creatorId) {
@@ -179,7 +506,9 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Problem problem = new Problem();
         problem.setTitle(request.getTitle());
         problem.setContentMarkdown(request.getContentMarkdown());
+        problem.setSolutionHint(normalized(request.getSolutionHint()));
         problem.setContestId(request.getContestId());
+        problem.setProblemNumber(request.getProblemNumber());
         problem.setYear(request.getYear());
         problem.setStatementLanguage(request.getStatementLanguage());
         problem.setDurationMinutes(request.getDurationMinutes());
@@ -190,26 +519,36 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         problem.setCode(nextProblemCode());
 
         save(problem);
-        log.info("创建题目: {} [ID: {}]", problem.getTitle(), problem.getId());
+        audit.problemCreated(problem.getId());
+        log.info("创建题目完成: id={}", problem.getId());
 
         // 保存标签
         List<String> tagNames = saveTags(problem.getId(), request.getTagIds());
+        recordPublicInvalidation();
         return toVO(problem, tagNames, List.of());
     }
 
     /**
-     * 生成下一个短题号：基于现有最大 code + 1，起始 1001，上限 10000。
-     * 题目量有限（通常 <= 10000），该编号用于用户展示，不暴露内部雪花主键。
+     * 生成下一个题号：基于现有最大 code + 1，起始从 1 开始依次增加。
+     * 标识是标识（雪花主键 ID），题号是题号（code），面向用户展示自然连续序列。
      */
     private int nextProblemCode() {
         Integer maxCode = baseMapper.selectMaxCode();
-        int next = maxCode == null ? 1001 : maxCode + 1;
-        BusinessException.throwIf(next > 10000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
+        int next = (maxCode == null || maxCode < 1) ? 1 : maxCode + 1;
+        BusinessException.throwIf(next > 100000, ProblemErrorCode.PROBLEM_POOL_EXHAUSTED);
         return next;
     }
 
     // ==================== 更新 ====================
 
+    /**
+     * 更新已有题目的基本信息、题面 Markdown 或发布状态。
+     *
+     * @param id      目标题目 ID，不能为 null
+     * @param request 包含修改内容的请求对象，不能为 null
+     * @return 更新后的题目视图对象
+     * @throws BusinessException 若题目不存在
+     */
     @Override
     @Transactional
     public ProblemVO updateProblem(Long id, ProblemUpdateRequest request) {
@@ -228,8 +567,16 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                     ? null : request.getContentMarkdown());
             changed = true;
         }
+        if (request.getSolutionHint() != null) {
+            problem.setSolutionHint(normalized(request.getSolutionHint()));
+            changed = true;
+        }
         if (request.getContestId() != null) {
             problem.setContestId(request.getContestId());
+            changed = true;
+        }
+        if (request.getProblemNumber() != null) {
+            problem.setProblemNumber(request.getProblemNumber());
             changed = true;
         }
         if (request.getYear() != null) { problem.setYear(request.getYear()); changed = true; }
@@ -256,8 +603,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         if (request.getTagIds() != null) {
             tagNames = replaceTags(id, request.getTagIds());
         }
+        if (changed || request.getTagIds() != null) audit.problemUpdated(id);
 
         log.info("更新题目: {}", id);
+        recordPublicInvalidation();
         return toVO(problem, tagNames, getAttachments(id));
     }
 
@@ -284,9 +633,11 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         // 逻辑删除题目
         removeById(id);
+        audit.problemDeleted(id);
         deleteObjectsAfterCommit(attachments.stream()
                 .map(ProblemAttachment::getObjectKey)
                 .toList());
+        recordPublicInvalidation();
         log.info("删除题目: {}", id);
     }
 
@@ -301,6 +652,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * @return 附件响应
      */
     @Override
+    @Transactional
     public ProblemVO.AttachmentVO uploadAttachment(
             Long problemId,
             MultipartFile file,
@@ -312,7 +664,11 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         StorageService storageService = getStorageService();
 
         // 先上传对象，再保存元数据
-        String objectKey = storageService.upload(file, "problems/" + problemId + "/attachments");
+        String objectKey = storageService.upload(
+                file,
+                "problems/" + problemId + "/attachments",
+                StorageContentTypes.ARCHIVE
+        );
         ProblemAttachment attachment = new ProblemAttachment();
         attachment.setProblemId(problemId);
         attachment.setFileName(normalizeFileName(file.getOriginalFilename()));
@@ -325,6 +681,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         try {
             problemAttachmentMapper.insert(attachment);
+            recordPublicInvalidation();
         } catch (RuntimeException exception) {
             deleteUploadedObject(storageService, objectKey);
             throw exception;
@@ -349,11 +706,19 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         // 删除元数据，提交后删除对象
         problemAttachmentMapper.deleteById(attachmentId);
+        audit.attachmentDeleted(attachmentId);
         deleteObjectsAfterCommit(List.of(attachment.getObjectKey()));
+        recordPublicInvalidation();
     }
 
     // ==================== 标签名称查询 ====================
 
+    /**
+     * 查询指定题目关联的所有标签名称列表。
+     *
+     * @param problemId 目标题目 ID，不能为 null
+     * @return 标签名称字符串列表
+     */
     @Override
     public List<String> getTagNames(Long problemId) {
         LambdaQueryWrapper<ProblemTag> wrapper = new LambdaQueryWrapper<>();
@@ -365,6 +730,23 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         }
         return tagMapper.selectBatchIds(tagIds).stream()
                 .map(Tag::getName).toList();
+    }
+
+    /** 查询指定题目关联的标签名称及其业务分类，仅用于详情响应。 */
+    private List<ProblemVO.TagVO> getTagDetails(Long problemId) {
+        List<Long> tagIds = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                        .eq(ProblemTag::getProblemId, problemId))
+                .stream()
+                .map(ProblemTag::getTagId)
+                .toList();
+        if (tagIds.isEmpty()) return List.of();
+        return tagMapper.selectBatchIds(tagIds).stream()
+                .map(tag -> ProblemVO.TagVO.builder()
+                        .id(tag.getId())
+                        .name(tag.getName())
+                        .type(tag.getType())
+                        .build())
+                .toList();
     }
 
     // ==================== 私有方法 ====================
@@ -433,7 +815,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     }
 
     /**
-     * 校验标签存在；背景领域与题目类型最多选择一个，模型算法允许多选。
+     * 校验标签存在；背景领域最多选择一个，题目类型与模型算法允许多选。
+     * 数学建模实际赛题常包含多个题型不同的小问，允许单题关联多个题目类型标签。
      */
     private List<Tag> validateTags(List<Long> tagIds) {
         if (tagIds == null || tagIds.isEmpty()) return List.of();
@@ -445,7 +828,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         Map<String, Long> typeCounts = tags.stream()
                 .collect(Collectors.groupingBy(Tag::getType, Collectors.counting()));
         boolean hasExclusiveTypeConflict = typeCounts.entrySet().stream()
-                .anyMatch(entry -> !TagType.MODEL_ALGORITHM.name().equals(entry.getKey())
+                .anyMatch(entry -> TagType.BACKGROUND_DOMAIN.name().equals(entry.getKey())
                         && entry.getValue() > 1);
         BusinessException.throwIf(hasExclusiveTypeConflict, ProblemErrorCode.TAG_TYPE_CONFLICT);
         return tags;
@@ -465,16 +848,22 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      */
     private void applySort(LambdaQueryWrapper<Problem> wrapper, ProblemPageQuery query) {
         boolean ascending = "asc".equals(query.getSortOrder());
-        if ("year".equals(query.getSortBy())) {
+        if ("code".equals(query.getSortBy())) {
+            wrapper.orderBy(true, ascending, Problem::getCode);
+            wrapper.orderBy(true, ascending, Problem::getId);
+        } else if ("year".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getYear);
+            wrapper.orderByDesc(Problem::getId);
         } else if ("difficulty".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getDifficulty);
+            wrapper.orderByDesc(Problem::getId);
         } else if ("averageScore".equals(query.getSortBy())) {
             wrapper.orderBy(true, ascending, Problem::getAverageScore);
+            wrapper.orderByDesc(Problem::getId);
         } else {
-            wrapper.orderByDesc(Problem::getCreateTime);
+            wrapper.orderByAsc(Problem::getCode);
+            wrapper.orderByAsc(Problem::getId);
         }
-        wrapper.orderByDesc(Problem::getId);
     }
 
     /**
@@ -528,8 +917,10 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         ProblemVO.ProblemVOBuilder builder = ProblemVO.builder()
                 .id(p.getId())
                 .code(p.getCode())
+                .problemNumber(p.getProblemNumber())
                 .title(p.getTitle())
                 .contentMarkdown(attachments == null ? null : p.getContentMarkdown())
+                .solutionHint(attachments == null ? null : p.getSolutionHint())
                 .contestId(p.getContestId())
                 .contestCode(contest == null ? null : contest.getCode())
                 .contestName(contest == null ? null : contest.getName())
@@ -542,7 +933,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .creatorId(p.getCreatorId())
                 .createTime(p.getCreateTime())
                 .updateTime(p.getUpdateTime())
-                .tagNames(tagNames);
+                .tagNames(tagNames)
+                .tags(attachments == null ? null : getTagDetails(p.getId()));
 
         if (attachments != null) {
             builder.attachments(attachments.stream()
@@ -601,7 +993,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         try {
             storageService.delete(objectKey);
         } catch (RuntimeException cleanupException) {
-            log.error("附件元数据保存失败且对象清理失败: {}", objectKey, cleanupException);
+            log.error("附件元数据保存失败且对象清理失败", cleanupException);
         }
     }
 
@@ -631,15 +1023,26 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private void deleteObjects(List<String> objectKeys) {
         StorageService storageService = storageServiceProvider.getIfAvailable();
         if (storageService == null) {
-            log.error("附件存储服务未启用，无法删除对象: {}", objectKeys);
+            log.error("附件存储服务未启用，无法删除对象: count={}", objectKeys.size());
             return;
         }
         for (String objectKey : objectKeys) {
             try {
                 storageService.delete(objectKey);
             } catch (RuntimeException exception) {
-                log.error("删除附件对象失败: {}", objectKey, exception);
+                log.error("删除附件对象失败", exception);
             }
         }
+    }
+
+    /**
+     * 在当前业务事务中记录公开题库失效事件。
+     */
+    private void recordPublicInvalidation() {
+        cacheInvalidator.record(
+                ProblemPublicCacheService.REGION,
+                ProblemPublicCacheService.SCOPE,
+                ProblemPublicCacheService.SCHEMA_VERSION
+        );
     }
 }

@@ -1,103 +1,137 @@
-## AI 论文改善服务
+## AI 论文建议服务
 
-ai-suggestion-service 负责根据用户提交的论文 PDF 和可选的已有评审结果，生成面向论文修改的具体建议。
+ai-suggestion-service 负责将题目要求、某一论文版本的结构化解析与已完成评审、知识检索返回的参考上下文组合为可定位、可执行、可验收的数学建模论文修改建议。
 
-当前只建立服务边界和功能组成，为后续逐项设计预留清晰位置。
+当前 Maven 运行模块、正式任务入口、异步工作流、数据库迁移和前端入口均已落地。公共创建入口使用 `GROUNDED_SUGGESTION_V4`；历史 `GROUNDED_SUGGESTION_V3`、`GROUNDED_SUGGESTION_V2` 与 `IMPROVEMENT_V1` 继续可读，代码和结果不被覆盖。
 
-> 分层定位：AI 业务能力层。当前服务尚无 Maven 运行模块，以下职责边界是待逐项讨论确认的初始草案。
+`GROUNDED_SUGGESTION_V4` 将建议语义调整为确定性补缺、完整性增强和可选探索，所有长说明使用 Markdown，并由服务端补全真实原文和强相关知识依据。V4 禁止把主观建模选择描述为唯一正确路径，也不承诺通过迭代建议自动产生获奖论文。
+
+> 分层定位：AI 业务能力层。已完成 V3 双阶段动态任务流水线、按需精准 RAG 与 Markdown 富文本产物落地，MQ4 已完成可靠消息唤醒与租约恢复；隔离评价与生产版本切换不在本服务范围。
+
+V3 文本调用锁定 `MODEL_CFG_SUGGESTION_TEXT_0003`，规划、子任务与汇总统一使用 8192 输出 Token、0.15 温度和 `gemini-3.8-flash-high`。输出仍严格保存已发布 Schema 的类别枚举；服务端会把算法、优化、不确定性、验证、评价、稳健性、可视化和表达等稳定同义类别确定性收敛到已发布枚举，其他未知类别继续拒绝。
 
 
-### 整体结构与工作流程
+### 整体结构与工作流
 
 ```mermaid
 flowchart LR
-    subgraph callers["上游调用方，目标设计"]
+    subgraph callers["上游调用方"]
         apiGateway["gateway-service"]
-        evaluationService["ai-evaluation-service"]
         adminService["admin-service"]
     end
 
-    subgraph suggestion["ai-suggestion-service 论文改善，目标设计"]
-        taskApi["改善任务与查询 API"]
-        taskLifecycle["任务调度与状态管理"]
-        inputPreparation["题目、PDF 与评审输入准备"]
+    subgraph suggestion["ai-suggestion-service 论文建议"]
+        taskApi["手动创建与查询 API"]
+        mqWakeup["SUGGESTION_TASK_READY<br/>Inbox 消费者"]
+        taskLifecycle["单并发租约 Worker<br/>多次生成"]
+        inputSnapshot["题目、解析与评审依据快照"]
         suggestionWorkflow["版本化建议工作流"]
-        evidence["建议依据与位置关联"]
-        result["建议校验与结果保存"]
+        evidenceValidation["依据链与页码校验"]
+        result["独立建议报告"]
 
         taskApi --> taskLifecycle
-        taskLifecycle --> inputPreparation
-        inputPreparation --> suggestionWorkflow
-        suggestionWorkflow --> evidence
-        evidence --> result
+        mqWakeup --> taskLifecycle
+        taskLifecycle --> inputSnapshot --> suggestionWorkflow
+        suggestionWorkflow --> evidenceValidation --> result
     end
 
-    subgraph dependencies["业务与模型依赖"]
+    subgraph dependencies["业务、检索与模型依赖"]
         submissionService["submission-service"]
         problemService["problem-service"]
-        reviewService["ai-review-service"]
+        reviewService["ai-review-service<br/>评审 + 解析产物"]
+        retrievalService["knowledge-retrieval-service<br/>版本化上下文检索"]
         commonAi["common-ai 客户端 Jar"]
         aiGateway["ai-gateway-service"]
     end
 
-    subgraph data["建议事实，目标设计"]
+    subgraph data["建议事实"]
         suggestionDatabase[(lm_ai_suggestion)]
+        messageStore[(Outbox、Inbox 与任务租约)]
     end
 
     apiGateway --> taskApi
-    evaluationService -->|"实验运行"| taskApi
     adminService -->|"查询任务与结果"| taskApi
-    inputPreparation --> submissionService
-    inputPreparation --> problemService
-    inputPreparation --> reviewService
-    suggestionWorkflow --> commonAi
-    commonAi --> aiGateway
+    inputSnapshot --> submissionService
+    inputSnapshot --> problemService
+    inputSnapshot --> reviewService
+    suggestionWorkflow --> retrievalService
+    suggestionWorkflow --> commonAi --> aiGateway
     taskLifecycle --> suggestionDatabase
-    evidence --> suggestionDatabase
+    taskLifecycle --> messageStore
+    mqWakeup --> messageStore
     result --> suggestionDatabase
 ```
 
-目标流程是创建改善任务后读取提交 PDF、题目和可选评审结果，由版本化建议工作流生成并定位具体改善依据，最后保存建议结果。业务编排归 ai-suggestion-service，模型访问统一经过 `common-ai` 和 ai-gateway-service。当前整张图均为目标设计，不表示已经存在运行模块。
+目标流程是具备论文访问权限和建议功能权限的用户，对任何“存在已完成且兼容评审”的论文版本手动发起建议。同一论文版本和同一评审可以多次发起，每次产生独立任务、输入快照和报告；仅同一用户操作的重复请求由 `clientRequestId` 幂等去重。
+
+RocketMQ 链路中，建议任务与 `SUGGESTION_TASK_READY` Outbox 在创建事务中一起提交，消息只负责可靠唤醒。消费者快速写 Inbox 并唤醒既有 task 后 ACK，耗时工作流由单并发、有界信号队列和 fencing 租约保护的本地 Worker 执行。30 秒低频 reconciliation 只修复到期等待或租约过期任务，不扫描执行任意等待任务。
 
 
 ### 职责边界
 
 #### 负责
 
-- 创建并执行论文改善建议任务。
-- 组合题目、PDF、AI 评审结果和必要上下文。
-- 生成论文整体、章节、模型、求解、验证和写作方面的改善建议。
-- 保存建议结果、任务状态和生成版本。
-- 向 ai-evaluation-service 提供建议结果和评价关联信息。
+- 创建、执行并保留多次论文建议任务。
+- 锁定题目快照、论文版本、用于解锁的已完成评审、实际评审依据、PDF 解析产物和检索运行快照。
+- 编排历史论文的解析补齐和评审依据准备；具体解析与新评审仍由 ai-review-service 执行。
+- 从问题覆盖、假设、数据、建模、求解、结果、验证、稳健性、表达与规范等数学建模维度生成建议。
+- 对每条建议保存问题、影响、修改动作、验收方式以及论文 / 评审 / 知识依据链。
+- 校验页码、评审发现标识和检索引用确实存在，不让模型自由伪造依据。
+- 生产并消费建议任务就绪消息，以任务表、120 秒租约、20 秒 heartbeat、fencing token 和稳定 AI 幂等键恢复崩溃。
 
 #### 不负责
 
-- 不修改或覆盖用户原始 PDF。
-- 不代替 ai-review-service 产生论文评分。
-- 不定义自身输出的质量评价综合口径。
-- 不管理模型供应商和调用密钥。
+- 不修改或覆盖用户原始 PDF、评审结果和历史建议报告。
+- 不代替 ai-review-service 解析论文或产生评分。
+- 不直接读取知识库文件、Elasticsearch 或实现自己的 RAG。
+- 不管理模型供应商、调用密钥或知识索引生命周期。
 
 
 ### 数据与协作边界
 
-ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有改善建议任务、生成版本和建议结果。原始 PDF 由 submission-service 拥有，题目由 problem-service 拥有，评审结果由 ai-review-service 拥有，模型调用通过 ai-gateway-service 完成。
+ai-suggestion-service 独占 `lm_ai_suggestion` 数据库，拥有建议版本目录、手动生成任务、输入快照引用、历史评语兼容投影、建议条目和报告，以及消息 Outbox、Inbox 和任务租约。原始 PDF 归 submission-service，题目归 problem-service，评审与 PDF 解析产物归 ai-review-service，检索运行与引用快照归 knowledge-retrieval-service，模型调用通过 ai-gateway-service 完成。兼容投影只引用原评语字段，不成为第二份评审结果。
 
 
 ### 功能清单
 
-| 功能 | 功能说明 |
-|------|----------|
-| 改善任务创建 | 根据提交标识和可选评审结果创建建议任务 |
-| 输入准备 | 获取题目、原始 PDF、解析产物和已有评审结果 |
-| 整体改善建议 | 识别论文最重要的优先改进方向 |
-| 分部分建议 | 按章节或问题类型给出具体建议 |
-| 建议依据定位 | 将建议关联到 PDF 页码、章节或评审问题 |
-| 任务进度与重试 | 查询生成进度并重试可恢复失败 |
-| 建议结果查询 | 查看整体建议、详细建议、优先级和依据 |
-| 建议版本对比 | 后续对不同建议工作流程进行对比 |
-| 建议质量评价 | 由 ai-evaluation-service 评价准确性、具体性、可执行性和忠实性 |
+| 功能 | 当前状态 | 目标设计 |
+|------|----------|----------|
+| 建议任务创建 | V3 已实现 | 任意已完成评审的论文版本可手动创建，同版本支持多次生成；动作级请求幂等 |
+| 输入准备 | V4 已实现 | 自动晋级补齐 `PAPER_PARSE_V2` 与兼容的证据化评审资产 |
+| 知识上下文 | V3 已实现 | 子任务按需精准 RAG（`SUGGESTION_DEEP_RETRIEVAL_V1`，向量 + BM25 RRF 融合） |
+| 动态建议编排 | V3 已实现 | 规划算子动态派发 + 局部切片装配 + 子任务并发推演 + 汇总 AI 优先级统筹 |
+| 双轨证据化建议 | V3 已实现 | 改错类（论文+评审+知识）与升华类（论文+知识库标准）双轨驱动，输出结构化 Markdown 富文本 |
+| 任务进度与重试 | V2 已实现 | 展示准备、解析、评审准备、检索、生成和校验阶段；重试复用锁定快照 |
+| RocketMQ 任务唤醒 | MQ4 已实现 | task 与 Outbox 同事务创建，Inbox 幂等推进并重复发出本地信号，低频对账修复漏唤醒 |
+| 崩溃恢复 | MQ4 已实现 | 120 秒租约、20 秒 heartbeat、逐任务 fencing、稳定 attempt 幂等键和 AI UNKNOWN 保护 |
+| 版本目录 | 已实现 | Flyway 发布 `GROUNDED_SUGGESTION_V4`，保留 V1-V3 历史可读 |
+| 专业方向建议V4 | 已实现并完成真实链路验收 | 三类建议语义、非唯一解措辞、完整原文证据、强相关知识依据和统一 Markdown 展示 |
+| 隔离实验与质量评价 | 尚未实现 | 后续通过新版本接入，不修改已发布版本 |
+
+2026 年 9 月 15 日使用 2025 MCM A 完整题面、匹配的 25 页论文 PDF 与已完成 `DEEP_EVIDENCE_REVIEW_V3` 结果完成真实演练。最终任务包含 7 个成功子任务和 5 条建议，优先级、修改动作、验收条件、三类依据链与页码范围均通过结构校验。
+
+2026 年 9 月 16 日又以同题 31 页最终版论文完成“最终版锁定 → V3 评审 → V3 建议”真实闭环。汇总模型返回超过数量上限的候选和自然同义类别后，服务端按优先级去重截取、类别归一化，并逐项丢弃缺少完整依据链的候选；最终任务保留 11 条建议，所有保留项均具有修改动作、验收条件、论文依据和知识依据，改错类同时满足评审发现引用规则。局部候选失败不会再丢弃整份可靠报告，全部候选无效时仍失败为“缺少可验证建议”。
 
 
-### 文档规则
+### MQ4 运行策略
 
-后续先建立 AI 论文改善概述，再逐个设计任务、生成和质量评价功能。当前不创建空文档。
+- Worker 单实例并发固定为 1，有界本地信号容量 256；信号丢失不会丢任务事实，由 Outbox 与 reconciliation 修复。
+- 短暂依赖失败最多 3 个业务 attempt，进入第 2、3 次 attempt 前分别等待 10 秒、1 分钟；等待证据评审不增加 attempt。AI 明确失败结束本次任务，AI 结果未知进入 `UNKNOWN`，禁止自动重试和重复计费。
+- 用户显式重试只接受 `FAILED`，增加 attempt 并生成新的稳定键 `suggestion:task:{taskId}:attempt:{attemptNo}`；既有报告和输入快照不被覆盖。
+- 活跃任务达到 1000，或最老到期任务等待达到 10 分钟时，新创建返回稳定错误 `40807`；同一 `clientRequestId` 的幂等查询优先返回既有任务，不受水位拒绝影响。
+- 指标按稳定状态暴露任务数，并提供过期租约数与最老到期等待时长；Outbox `BLOCKED` 需要运维修复，不由对账持续制造新消息。
+
+
+### 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [AI提建议/README.md](AI提建议/README.md) | 目标、适用条件、当前版本与 V2 边界 |
+| [AI提建议/01-业务流程.md](AI提建议/01-业务流程.md) | 用户手动生成、输入锁定和执行流程 |
+| [AI提建议/02-建议范围与优先级.md](AI提建议/02-建议范围与优先级.md) | 数学建模建议维度、优先级和数量边界 |
+| [AI提建议/03-输入输出与依据链.md](AI提建议/03-输入输出与依据链.md) | 报告结构、三类依据和校验规则 |
+| [AI提建议/04-任务与多次生成.md](AI提建议/04-任务与多次生成.md) | 任务状态、幂等、重试与多份报告 |
+| [AI提建议/05-异常与取舍.md](AI提建议/05-异常与取舍.md) | 无可靠资料、版本不兼容和失败处理 |
+| [AI提建议/06-V3动态流水线与双轨依据架构设计.md](AI提建议/06-V3动态流水线与双轨依据架构设计.md) | V3 动态任务规划、按需精准 RAG、双轨依据与自动晋级架构 |
+| [AI提建议/07-V3数据契约与产物Schema设计.md](AI提建议/07-V3数据契约与产物Schema设计.md) | V3 产物 JSON Schema、Markdown 富文本规范与渲染契约 |
+| [AI提建议V4/](AI提建议V4/) | V4 建模自由度、输出契约、Prompt 边界、依据排序和迁移验收 |

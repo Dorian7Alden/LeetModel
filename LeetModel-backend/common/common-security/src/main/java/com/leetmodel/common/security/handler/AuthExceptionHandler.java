@@ -12,26 +12,20 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 认证鉴权异常处理器 —— 将 Sa-Token 异常转换为统一的 {@link Result} 响应。
+ * 认证鉴权异常拦截处理器。
  *
- * <p>错误码 BB=01（认证鉴权模块）：
- * <ul>
- *   <li>40101 — 未登录（Token 过期、格式错误、在黑名单中）</li>
- *   <li>40103 — 权限不足（@SaCheckPermission 校验失败）</li>
- *   <li>40104 — 角色不满足（@SaCheckRole 校验失败）</li>
- * </ul>
- * </p>
- *
- * <p>与 common-core 的 {@code GlobalExceptionHandler} 互补：
- * common-core 处理业务异常，common-security 处理认证鉴权异常。</p>
+ * <p>拦截 Sa-Token 抛出的未登录、权限不足及角色不匹配异常，将其转换为标准统一 Result 响应，
+ * 并准确映射为 HTTP 401 与 403 状态码。与 common-core 的 GlobalExceptionHandler 互补配合。</p>
  */
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AuthExceptionHandler {
 
     /**
-     * 未登录异常 → HTTP 401。
-     * 触发场景：Token 过期、Token 格式错误、Token 在黑名单中。
+     * 拦截未登录异常并映射为 HTTP 401。
+     *
+     * @param e 包含未登录原因的 NotLoginException 异常对象
+     * @return 状态码为 40101 的错误响应对象
      */
     @ExceptionHandler(NotLoginException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
@@ -40,8 +34,10 @@ public class AuthExceptionHandler {
     }
 
     /**
-     * 无权限异常 → HTTP 403。
-     * 触发场景：{@code @SaCheckPermission} 校验失败。
+     * 拦截权限不匹配异常并映射为 HTTP 403。
+     *
+     * @param e 权限缺失的 NotPermissionException 异常对象
+     * @return 状态码为 40103 的错误响应对象
      */
     @ExceptionHandler(NotPermissionException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
@@ -50,8 +46,10 @@ public class AuthExceptionHandler {
     }
 
     /**
-     * 角色不匹配异常 → HTTP 403。
-     * 触发场景：{@code @SaCheckRole} 校验失败。
+     * 拦截角色不满足异常并映射为 HTTP 403。
+     *
+     * @param e 角色不足的 NotRoleException 异常对象
+     * @return 状态码为 40104 的错误响应对象
      */
     @ExceptionHandler(NotRoleException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)

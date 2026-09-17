@@ -1,0 +1,4 @@
+# 美赛ABCDEF,我到底该选哪一个
+作者: 小***狗 | 链接: https://zhuanlan.zhihu.com/p/17329649089 | 赞同: 17 | 来源关键词: 美赛
+
+美赛题目较多，建议赛前就选好题目，并且有针对性的学习模型和代码一、24年美赛题目Problem A: Resource Availability and Sex RatiosProblem B: Searching for SubmersiblesProblem C: Momentum in TennisProblem D: Great Lakes Water ProblemProblem E: Sustainability of Property InsuranceProblem F: Reducing Illegal Wildlife Trade二、美赛题型MCM：A连续 B离散 C大数据ICM：D运筹学/网络 E可持续 F政策三、题型选择及分析根据美赛24年选题数据，排序，选择最多的是C题，有10184队伍选择其次是  A5698  E5436  F2981  B2643  D1970ABD题都是很吃专业功底的题，对建模和编程要求较高D题选的人最少，因为D题是图论优化相关的题目，没有一点编程和数据结构基础很难拿下这个题，别的题不是特别会还能搞出个结果，这个题不会结果都搞不出来。但是选的人少，竞争小，有一点创新点+运行出结果就可以拿奖。CEF相对较为简单C题选的人做多，因为，有数据！有数据可以节省至少半天的时间去找数据，拿到题目就可以直接开做，大数据题目运用Python有很多机器学习库，也不难上手，但是选的人多，就意味着竞争大，想拿好的奖还是要，卷模型的，要有足够的创新点才能拿奖。EF对编程要求较小，基本常用模型+一点创新就可以把题目解出来，题目简单，那就要卷美工和写作了总结：新手推荐EF题，所需要的模型积累少，也好上手，但需要花时间美工和写作 EF题：55%在论文+绘图 35%在模型 10%在运气C题，有数据，会数据分析可选，但竞争大，不容易拿奖ABD，专业性较强，建议有专业功底的可以直接选，选的人少，竞争小，有功底，会编程直接降维打击ABCD题： 55%在模型创新点  35%在论文+绘图 10%在运气

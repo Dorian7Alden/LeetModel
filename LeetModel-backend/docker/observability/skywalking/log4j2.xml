@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OAP keeps stdout and a bounded local file. The latter is read-only input for mtail. -->
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout>
+                <LevelPatternSelector defaultPattern="%d %c %L [%t] %-5p %x - %m%n">
+                    <PatternMatch key="ERROR"
+                                  pattern="%d %c %L [%t] %-5p %x - [%swversion] %m%n"/>
+                </LevelPatternSelector>
+            </PatternLayout>
+        </Console>
+        <RollingFile name="OapFile"
+                     fileName="/skywalking/logs/skywalking-oap.log"
+                     filePattern="/skywalking/logs/archive/skywalking-oap.%d{yyyy-MM-dd}.%i.log.gz">
+            <PatternLayout pattern="%d %c %L [%t] %-5p %x - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="7">
+                <Delete basePath="/skywalking/logs/archive" maxDepth="1">
+                    <IfFileName glob="skywalking-oap.*.log.gz"/>
+                    <IfLastModified age="7d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <!-- LAL schema drops are DEBUG upstream; scope DEBUG to this class only. -->
+        <Logger name="org.apache.skywalking.oap.log.analyzer.v2.dsl.spec.filter.FilterSpec"
+                level="DEBUG"/>
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="OapFile"/>
+        </Root>
+    </Loggers>
+</Configuration>

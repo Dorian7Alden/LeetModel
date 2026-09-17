@@ -3,6 +3,8 @@ package com.leetmodel.suggestion.workflow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiModality;
+import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
@@ -52,7 +54,7 @@ class SuggestionV1WorkflowTest {
                 + "\"title\":\"补参数检验\",\"action\":\"改变参数并重算\","
                 + "\"evidence\":\"第2页只给出单组结果\",\"page\":2}]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", "provider-1", json,
+                "call-s", AiProvider.NEW_API, "model-s", "provider-1", json,
                 null, "stop", null));
 
         SuggestionWorkflowResult result = workflow.execute(
@@ -63,6 +65,9 @@ class SuggestionV1WorkflowTest {
         ArgumentCaptor<com.leetmodel.common.ai.model.AiChatRequest> captor =
                 ArgumentCaptor.forClass(com.leetmodel.common.ai.model.AiChatRequest.class);
         verify(aiClient).chat(captor.capture());
+        assertThat(captor.getValue().modality()).isEqualTo(AiModality.TEXT);
+        assertThat(captor.getValue().context().operationCode())
+                .isEqualTo(AiOperationCode.GENERATE_SUGGESTION);
         String userText = captor.getValue().messages().get(1).content().get(0).text();
         assertThat(userText).contains("调度题", "已有评审", "第 2 页", "论文原文");
     }
@@ -75,7 +80,7 @@ class SuggestionV1WorkflowTest {
                 + "\"title\":\"标题\",\"action\":\"行动\","
                 + "\"evidence\":\"依据\",\"page\":99}]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", null, json,
+                "call-s", AiProvider.NEW_API, "model-s", null, json,
                 null, "stop", null));
 
         assertThatThrownBy(() -> workflow.execute(task(), submission(), problem(), review()))
@@ -89,7 +94,7 @@ class SuggestionV1WorkflowTest {
         String json = "{\"summary\":\"建议\",\"items\":["
                 + itemJson("LOW", 1) + "," + itemJson("HIGH", 2) + "]}";
         when(aiClient.chat(any())).thenReturn(new AiChatResponse(
-                "call-s", AiProvider.DEEPSEEK, "model-s", null, json,
+                "call-s", AiProvider.NEW_API, "model-s", null, json,
                 null, "stop", null));
 
         assertThatThrownBy(() -> workflow.execute(task(), submission(), problem(), review()))

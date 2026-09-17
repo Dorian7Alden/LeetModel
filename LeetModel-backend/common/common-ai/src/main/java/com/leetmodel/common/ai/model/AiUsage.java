@@ -1,23 +1,49 @@
 package com.leetmodel.common.ai.model;
 
-/**
- * 统一 AI 用量。
- *
- * @param promptTokens 输入 Token
- * @param cacheHitTokens 缓存命中输入 Token
- * @param cacheMissTokens 缓存未命中输入 Token
- * @param completionTokens 输出 Token
- * @param reasoningTokens 推理 Token
- * @param totalTokens 总 Token
- * @param complete 用量是否完整
- */
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.PositiveOrZero;
+
+import java.util.stream.Stream;
+
+/** 统一 AI Token 用量；null 表示上游没有提供，明确的 0 保持为 0。 */
 public record AiUsage(
-        Long promptTokens,
-        Long cacheHitTokens,
-        Long cacheMissTokens,
-        Long completionTokens,
-        Long reasoningTokens,
-        Long totalTokens,
-        boolean complete
+        @PositiveOrZero Long inputTokens,
+        @PositiveOrZero Long outputTokens,
+        @PositiveOrZero Long reasoningTokens,
+        @PositiveOrZero Long cacheHitTokens,
+        @PositiveOrZero Long cacheCreationTokens,
+        @PositiveOrZero Long cacheMissTokens,
+        @PositiveOrZero Long totalTokens,
+        AiMetricCompleteness completeness
 ) {
+    @JsonIgnore
+    @AssertTrue(message = "用量值与完整性不一致")
+    public boolean isCompletenessValid() {
+        if (completeness == null) return false;
+        boolean any = Stream.of(inputTokens, outputTokens, reasoningTokens, cacheHitTokens,
+                cacheCreationTokens, cacheMissTokens, totalTokens).anyMatch(value -> value != null);
+        return switch (completeness) {
+            case UNKNOWN -> !any;
+            case PARTIAL -> any;
+            case COMPLETE -> inputTokens != null && outputTokens != null && totalTokens != null;
+        };
+    }
+
+    @JsonIgnore
+    public boolean complete() {
+        return completeness == AiMetricCompleteness.COMPLETE;
+    }
+
+    @Deprecated
+    @JsonIgnore
+    public Long promptTokens() {
+        return inputTokens;
+    }
+
+    @Deprecated
+    @JsonIgnore
+    public Long completionTokens() {
+        return outputTokens;
+    }
 }

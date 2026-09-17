@@ -27,14 +27,20 @@ public class ProblemVO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
-    /** 题号：短顺序编号（1001 起始），面向用户展示。 */
+    /** 题号：顺序编号（从 1 起始自增），面向用户展示。 */
     private Integer code;
+
+    /** 赛事内题号：A-F 或 X。 */
+    private String problemNumber;
 
     /** 题目标题 */
     private String title;
 
     /** 题目详情使用的 Markdown 题面，列表中不返回 */
     private String contentMarkdown;
+
+    /** 题目详情使用的精短解题提示，列表中不返回。 */
+    private String solutionHint;
 
     private Long contestId;
     private String contestCode;
@@ -64,6 +70,9 @@ public class ProblemVO {
     /** 标签名称列表 */
     private List<String> tagNames;
 
+    /** 题目详情中的标签及其业务分类。 */
+    private List<TagVO> tags;
+
     /** 附件列表，仅详情接口返回 */
     private List<AttachmentVO> attachments;
 
@@ -79,5 +88,16 @@ public class ProblemVO {
         private String description;
         private Integer sortOrder;
         private String downloadUrl;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TagVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String name;
+        private String type;
     }
 }

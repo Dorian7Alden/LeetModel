@@ -1,132 +1,296 @@
 package com.leetmodel.suggestion.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leetmodel.common.ai.client.AiClientException;
+import com.leetmodel.common.api.dto.AiExperimentRequestDTO;
+import com.leetmodel.common.api.dto.AiExperimentResultDTO;
+import com.leetmodel.common.api.dto.AiFeatureDefinitionDTO;
+import com.leetmodel.common.api.dto.AiWorkflowVersionDTO;
+import com.leetmodel.common.api.dto.KnowledgeRetrievalRequestDTO;
+import com.leetmodel.common.api.dto.KnowledgeRetrievalResultDTO;
+import com.leetmodel.common.api.dto.PaperParseDTO;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SuggestionTaskSummaryDTO;
+import com.leetmodel.common.api.feign.KnowledgeRetrievalFeignClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.ReviewFeignClient;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.core.util.TraceIdUtil;
+import com.leetmodel.common.core.telemetry.CorrelationContext;
+import com.leetmodel.common.core.telemetry.CorrelationSnapshot;
+import com.leetmodel.suggestion.config.SuggestionWorkerProperties;
+import com.leetmodel.suggestion.dto.SuggestionCreateRequest;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import com.leetmodel.suggestion.enums.SuggestionErrorCode;
 import com.leetmodel.suggestion.mapper.SuggestionTaskMapper;
+import com.leetmodel.suggestion.messaging.SuggestionReadyMessageService;
+import com.leetmodel.suggestion.service.evidence.ReviewEvidenceProjector;
+import com.leetmodel.suggestion.service.evidence.ReviewEvidenceSnapshot;
 import com.leetmodel.suggestion.vo.SuggestionVO;
+import com.leetmodel.suggestion.vo.SuggestionKnowledgeCitationVO;
 import com.leetmodel.suggestion.workflow.SuggestionV1Output;
 import com.leetmodel.suggestion.workflow.SuggestionV1Workflow;
 import com.leetmodel.suggestion.workflow.SuggestionWorkflowResult;
-import lombok.RequiredArgsConstructor;
+import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Output;
+import com.leetmodel.suggestion.workflow.v2.GroundedSuggestionV2Workflow;
+import com.leetmodel.suggestion.workflow.v3.GroundedSuggestionV3Workflow;
+import com.leetmodel.suggestion.workflow.v4.GroundedSuggestionV4Output;
+import com.leetmodel.suggestion.workflow.v4.GroundedSuggestionV4Workflow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 
-/**
- * 管理论文建议任务的权限、幂等创建、异步执行、失败与恢复。
- */
+/** 论文建议任务：显式评审选择、动作级幂等、多次生成和三段依据链。 */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SuggestionService {
+    private static final String PAPER_PARSE_VERSION = "PAPER_PARSE_V1";
+    public static final String SUGGESTION_V3_VERSION = "GROUNDED_SUGGESTION_V3";
+    public static final String SUGGESTION_V4_VERSION = "GROUNDED_SUGGESTION_V4";
+    public static final String PAPER_PARSE_V2_VERSION = "PAPER_PARSE_V2";
+    public static final String DEEP_EVIDENCE_REVIEW_V3_VERSION = "DEEP_EVIDENCE_REVIEW_V3";
+    public static final String DEEP_EVIDENCE_REVIEW_V4_VERSION = "DEEP_EVIDENCE_REVIEW_V4";
+    public static final String SUGGESTION_DEEP_RETRIEVAL_V1 = "SUGGESTION_DEEP_RETRIEVAL_V1";
+    private static final String DEFAULT_RETRIEVAL_VERSION = "VECTOR_RAG_V1";
+    private static final java.util.Set<String> ALLOWED_RETRIEVAL_VERSIONS = java.util.Set.of(
+            DEFAULT_RETRIEVAL_VERSION, SUGGESTION_DEEP_RETRIEVAL_V1);
 
     private final SuggestionTaskMapper taskMapper;
     private final SubmissionFeignClient submissionFeignClient;
     private final ReviewFeignClient reviewFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final TeamFeignClient teamFeignClient;
-    private final SuggestionV1Workflow workflow;
+    private final KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient;
+    private final SuggestionV1Workflow v1Workflow;
+    private final GroundedSuggestionV2Workflow v2Workflow;
+    private final GroundedSuggestionV3Workflow v3Workflow;
+    @Autowired(required = false)
+    private GroundedSuggestionV4Workflow v4Workflow;
+    private final ReviewEvidenceProjector evidenceProjector;
+    private final SuggestionReadyMessageService readyMessageService;
+    private final SuggestionWorkerProperties workerProperties;
     private final ObjectMapper objectMapper;
 
-    /**
-     * 为有权访问的最终提交幂等创建建议任务。
-     *
-     * @param submissionId 提交 ID
-     * @param userId 当前用户 ID
-     * @return 建议任务
-     */
-    @Transactional
-    public SuggestionVO create(Long submissionId, Long userId) {
-        SubmissionReviewDTO submission = requiredSubmission(submissionId);
-        checkMember(submission.getTeamId(), userId);
-        ReviewSummaryDTO review = requiredCompletedReview(submissionId);
-        validateSource(submission, review);
+    @Autowired
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             GroundedSuggestionV2Workflow v2Workflow,
+                             @Autowired(required = false) GroundedSuggestionV3Workflow v3Workflow,
+                             ReviewEvidenceProjector evidenceProjector,
+                             SuggestionReadyMessageService readyMessageService,
+                             SuggestionWorkerProperties workerProperties,
+                             ObjectMapper objectMapper) {
+        this.taskMapper = taskMapper;
+        this.submissionFeignClient = submissionFeignClient;
+        this.reviewFeignClient = reviewFeignClient;
+        this.problemFeignClient = problemFeignClient;
+        this.teamFeignClient = teamFeignClient;
+        this.knowledgeRetrievalFeignClient = knowledgeRetrievalFeignClient;
+        this.v1Workflow = v1Workflow;
+        this.v2Workflow = v2Workflow;
+        this.v3Workflow = v3Workflow;
+        this.evidenceProjector = evidenceProjector;
+        this.readyMessageService = readyMessageService;
+        this.workerProperties = workerProperties;
+        this.objectMapper = objectMapper;
+    }
 
-        SuggestionTask existing = findBySubmission(submissionId);
-        if (existing != null) {
-            return toVO(existing);
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             GroundedSuggestionV2Workflow v2Workflow,
+                             ReviewEvidenceProjector evidenceProjector,
+                             SuggestionReadyMessageService readyMessageService,
+                             SuggestionWorkerProperties workerProperties,
+                             ObjectMapper objectMapper) {
+        this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
+                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, null, evidenceProjector,
+                readyMessageService, workerProperties, objectMapper);
+    }
+
+    /** 保留面向服务单元测试的构造契约。 */
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             KnowledgeRetrievalFeignClient knowledgeRetrievalFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             GroundedSuggestionV2Workflow v2Workflow,
+                             ReviewEvidenceProjector evidenceProjector,
+                             ObjectMapper objectMapper) {
+        this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
+                knowledgeRetrievalFeignClient, v1Workflow, v2Workflow, null, evidenceProjector,
+                null, defaultWorkerProperties(), objectMapper);
+    }
+
+    /** 保留给 V1 单元测试和历史嵌入调用的构造契约。 */
+    public SuggestionService(SuggestionTaskMapper taskMapper,
+                             SubmissionFeignClient submissionFeignClient,
+                             ReviewFeignClient reviewFeignClient,
+                             ProblemFeignClient problemFeignClient,
+                             TeamFeignClient teamFeignClient,
+                             SuggestionV1Workflow v1Workflow,
+                             ObjectMapper objectMapper) {
+        this(taskMapper, submissionFeignClient, reviewFeignClient, problemFeignClient, teamFeignClient,
+                null, v1Workflow, null, null, null, null, defaultWorkerProperties(), objectMapper);
+    }
+
+    /** 新建一次独立生成意图；clientRequestId 只对本次用户动作幂等。 */
+    @Transactional
+    public SuggestionVO create(SuggestionCreateRequest request, Long userId) {
+        SubmissionReviewDTO submission = requiredSubmission(request.getSubmissionId());
+        checkMember(submission.getTeamId(), userId);
+        ReviewSummaryDTO review = requiredCompletedReview(request.getReviewTaskId());
+        validateSource(submission, review);
+        validateClientRequestId(request.getClientRequestId());
+        if (request.getRetrievalWorkflowVersion() != null
+                && !ALLOWED_RETRIEVAL_VERSIONS.contains(request.getRetrievalWorkflowVersion())) {
+            throw new IllegalArgumentException("正式论文建议当前只允许 VECTOR_RAG_V1 或 SUGGESTION_DEEP_RETRIEVAL_V1");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        SuggestionTask existing = findByClientRequest(userId, request.getClientRequestId());
+        if (existing != null) return toVO(validateIdempotentPayload(existing, submission, review));
+        assertAdmissionAvailable();
+
         SuggestionTask task = new SuggestionTask();
-        task.setSubmissionId(submissionId);
+        task.setSubmissionId(submission.getId());
         task.setTeamId(submission.getTeamId());
         task.setProblemId(submission.getProblemId());
+        task.setClientRequestId(request.getClientRequestId());
+        task.setRequestedByUserId(userId);
         task.setReviewTaskId(review.getTaskId());
-        task.setWorkflowVersion(SuggestionV1Workflow.VERSION);
+        task.setEligibilityReviewTaskId(review.getTaskId());
+        task.setEvidenceReviewTaskId(review.getTaskId());
+        boolean useV4 = v4Workflow != null;
+        boolean useV3 = !useV4 && v3Workflow != null;
+        String workflowVersion = useV4
+                ? SUGGESTION_V4_VERSION
+                : (useV3 ? SUGGESTION_V3_VERSION : GroundedSuggestionV2Workflow.VERSION);
+        String parseVersion = useV4 || useV3 ? PAPER_PARSE_V2_VERSION : PAPER_PARSE_VERSION;
+        String resultSchema = useV4
+                ? GroundedSuggestionV4Workflow.RESULT_SCHEMA_VERSION
+                : (useV3 ? GroundedSuggestionV3Workflow.RESULT_SCHEMA_VERSION
+                : GroundedSuggestionV2Workflow.RESULT_SCHEMA_VERSION);
+        String promptSnapshot = useV4
+                ? v4Workflow.currentPrompt()
+                : (useV3 ? v3Workflow.currentPrompt()
+                : (v2Workflow != null ? v2Workflow.currentPrompt() : "prompt-v2"));
+        String defaultRetrieval = useV4 || useV3
+                ? SUGGESTION_DEEP_RETRIEVAL_V1
+                : DEFAULT_RETRIEVAL_VERSION;
+        task.setWorkflowVersion(workflowVersion);
         task.setReviewWorkflowVersion(review.getWorkflowVersion());
+        task.setPaperParsingWorkflowVersion(parseVersion);
+        task.setRetrievalWorkflowVersion(request.getRetrievalWorkflowVersion() == null
+                || request.getRetrievalWorkflowVersion().isBlank()
+                ? defaultRetrieval : request.getRetrievalWorkflowVersion());
+        task.setResultSchemaVersion(resultSchema);
         task.setStatus("WAITING");
-        task.setPromptSnapshot(workflow.currentPrompt());
+        task.setCurrentStage("PREPARING");
+        task.setPromptSnapshot(promptSnapshot);
         task.setRetryCount(0);
-        task.setNextRunAt(now);
-        task.setCreateTime(now);
-        task.setUpdateTime(now);
+        task.setAttemptNo(1);
+        task.setMaxAttempts(workerProperties.getMaxAttempts());
+        task.setTraceId(currentTraceId());
+        task.setRecoveryCount(0);
+        task.setNextRunAt(LocalDateTime.now());
         try {
             taskMapper.insert(task);
+            task.setAiIdempotencyKey(aiIdempotencyKey(task.getId(), task.getAttemptNo()));
+            enqueueReady(task, 0L);
             return toVO(task);
         } catch (DuplicateKeyException exception) {
-            SuggestionTask concurrent = findBySubmission(submissionId);
+            SuggestionTask concurrent = findByClientRequest(userId, request.getClientRequestId());
             if (concurrent != null) {
-                return toVO(concurrent);
+                return toVO(validateIdempotentPayload(concurrent, submission, review));
             }
             throw exception;
         }
     }
 
-    /**
-     * 查询任务并校验队伍成员权限。
-     *
-     * @param taskId 任务 ID
-     * @param userId 当前用户 ID
-     * @return 建议任务
-     */
+    /** 兼容历史服务内调用，保持 IMPROVEMENT_V1 的单任务语义；公共 API 不再调用此方法。 */
+    @Transactional
+    public SuggestionVO create(Long submissionId, Long userId) {
+        SubmissionReviewDTO submission = requiredSubmission(submissionId);
+        checkMember(submission.getTeamId(), userId);
+        ReviewSummaryDTO review = requiredCompletedReviewBySubmission(submissionId);
+        validateSource(submission, review);
+        SuggestionTask existing = taskMapper.selectOne(new LambdaQueryWrapper<SuggestionTask>()
+                .eq(SuggestionTask::getSubmissionId, submissionId)
+                .eq(SuggestionTask::getWorkflowVersion, SuggestionV1Workflow.VERSION)
+                .last("LIMIT 1"));
+        if (existing != null) return toVO(existing);
+        SuggestionTask task = new SuggestionTask();
+        task.setSubmissionId(submissionId); task.setTeamId(submission.getTeamId());
+        task.setProblemId(submission.getProblemId()); task.setReviewTaskId(review.getTaskId());
+        task.setEligibilityReviewTaskId(review.getTaskId()); task.setEvidenceReviewTaskId(review.getTaskId());
+        task.setWorkflowVersion(SuggestionV1Workflow.VERSION);
+        task.setReviewWorkflowVersion(review.getWorkflowVersion()); task.setStatus("WAITING");
+        task.setCurrentStage("PREPARING"); task.setPromptSnapshot(v1Workflow.currentPrompt());
+        task.setRetryCount(0); task.setAttemptNo(1); task.setMaxAttempts(workerProperties.getMaxAttempts());
+        task.setTraceId(currentTraceId()); task.setRecoveryCount(0); task.setNextRunAt(LocalDateTime.now());
+        try {
+            taskMapper.insert(task);
+            task.setAiIdempotencyKey(aiIdempotencyKey(task.getId(), task.getAttemptNo()));
+            enqueueReady(task, 0L);
+            return toVO(task);
+        } catch (DuplicateKeyException exception) {
+            SuggestionTask concurrent = taskMapper.selectOne(new LambdaQueryWrapper<SuggestionTask>()
+                    .eq(SuggestionTask::getSubmissionId, submissionId)
+                    .eq(SuggestionTask::getWorkflowVersion, SuggestionV1Workflow.VERSION)
+                    .last("LIMIT 1"));
+            if (concurrent != null) return toVO(concurrent);
+            throw exception;
+        }
+    }
+
     public SuggestionVO get(Long taskId, Long userId) {
         SuggestionTask task = requiredTask(taskId);
         checkMember(task.getTeamId(), userId);
         return toVO(task);
     }
 
-    /**
-     * 查询指定提交的建议任务。
-     *
-     * @param submissionId 提交 ID
-     * @param userId 当前用户 ID
-     * @return 建议任务
-     */
-    public SuggestionVO getBySubmission(Long submissionId, Long userId) {
-        SuggestionTask task = findBySubmission(submissionId);
-        BusinessException.throwIf(task == null, SuggestionErrorCode.TASK_NOT_FOUND);
-        checkMember(task.getTeamId(), userId);
-        return toVO(task);
+    public List<SuggestionVO> listBySubmission(Long submissionId, Long userId) {
+        SubmissionReviewDTO submission = requiredSubmission(submissionId);
+        checkMember(submission.getTeamId(), userId);
+        return taskMapper.selectList(new LambdaQueryWrapper<SuggestionTask>()
+                        .eq(SuggestionTask::getSubmissionId, submissionId)
+                        .orderByDesc(SuggestionTask::getCreateTime))
+                .stream().map(this::toVO).toList();
     }
 
-    /**
-     * 查询队伍的建议任务历史。
-     *
-     * @param teamId 队伍 ID
-     * @param userId 当前用户 ID
-     * @return 新任务优先的历史列表
-     */
+    /** 兼容旧服务内调用，返回最新一份；公共 API 已改为返回完整历史。 */
+    public SuggestionVO getBySubmission(Long submissionId, Long userId) {
+        List<SuggestionVO> history = listBySubmission(submissionId, userId);
+        BusinessException.throwIf(history.isEmpty(), SuggestionErrorCode.TASK_NOT_FOUND);
+        return history.get(0);
+    }
+
     public List<SuggestionVO> listTeam(Long teamId, Long userId) {
         checkMember(teamId, userId);
         return taskMapper.selectList(new LambdaQueryWrapper<SuggestionTask>()
@@ -135,132 +299,508 @@ public class SuggestionService {
                 .stream().map(this::toVO).toList();
     }
 
-    /**
-     * 重试失败任务。
-     *
-     * @param taskId 任务 ID
-     * @param userId 当前用户 ID
-     * @return 重置后的任务
-     */
     @Transactional
     public SuggestionVO retry(Long taskId, Long userId) {
         SuggestionTask task = requiredTask(taskId);
         checkMember(task.getTeamId(), userId);
         BusinessException.throwIf(!"FAILED".equals(task.getStatus()), SuggestionErrorCode.TASK_NOT_FAILED);
-        int updated = taskMapper.resetForRetry(taskId, LocalDateTime.now());
+        int nextAttempt = (task.getAttemptNo() == null ? 1 : task.getAttemptNo()) + 1;
+        LocalDateTime now = LocalDateTime.now();
+        String nextIdempotencyKey = aiIdempotencyKey(taskId, nextAttempt);
+        int updated = taskMapper.resetForRetry(taskId, now, nextIdempotencyKey);
         BusinessException.throwIf(updated == 0, SuggestionErrorCode.TASK_NOT_FAILED);
         task.setStatus("WAITING");
+        task.setCurrentStage("PREPARING");
         task.setRetryCount(task.getRetryCount() + 1);
+        task.setAttemptNo(nextAttempt);
+        task.setAiIdempotencyKey(nextIdempotencyKey);
         task.setStartedAt(null);
         task.setFinishedAt(null);
         task.setErrorMessage(null);
         task.setResultJson(null);
         task.setModelName(null);
         task.setAiCallId(null);
+        enqueueReady(task, 0L);
         return toVO(task);
     }
 
-    /**
-     * 执行一个等待中的建议任务。
-     */
-    @Scheduled(fixedDelayString = "${suggestion.worker.delay-ms:2000}")
-    public void processNext() {
+    /** 由消息唤醒协调器调用；只有当前 fencing token 能推进任务。 */
+    public void executeClaimed(Long taskId, String owner, String leaseToken) {
+        SuggestionTask task = taskMapper.selectById(taskId);
+        if (task == null) return;
         LocalDateTime now = LocalDateTime.now();
-        SuggestionTask task = taskMapper.selectNextWaiting(now);
-        if (task == null || taskMapper.claim(task.getId(), now) == 0) {
-            return;
-        }
+        String idempotencyKey = aiIdempotencyKey(taskId,
+                task.getAttemptNo() == null ? 1 : task.getAttemptNo());
+        if (taskMapper.markRunning(taskId, owner, leaseToken, idempotencyKey, now,
+                now.plusSeconds(workerProperties.getLeaseSeconds())) == 0) return;
         task.setStatus("RUNNING");
         task.setStartedAt(now);
-        try {
-            SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
-            ReviewSummaryDTO review = requiredCompletedReview(task.getSubmissionId());
-            ProblemContextDTO problem = requiredData(
-                    () -> problemFeignClient.getProblemContext(task.getProblemId()));
-            validateTaskSource(task, submission, review, problem);
-            SuggestionWorkflowResult result = workflow.execute(task, submission, problem, review);
-            task.setStatus("COMPLETED");
-            task.setResultJson(result.resultJson());
-            task.setModelName(result.modelName());
-            task.setAiCallId(result.aiCallId());
-            task.setFinishedAt(LocalDateTime.now());
-            task.setErrorMessage(null);
-            taskMapper.updateById(task);
+        task.setLeaseOwner(owner);
+        task.setLeaseToken(leaseToken);
+        task.setAiIdempotencyKey(idempotencyKey);
+        CorrelationSnapshot snapshot = CorrelationSnapshot.EMPTY
+                .withTraceId(task.getTraceId())
+                .withDomainTask(task.getId().toString(), task.getAttemptNo());
+        try (CorrelationContext.Scope ignored = CorrelationContext.open(snapshot)) {
+            if (SuggestionV1Workflow.VERSION.equals(task.getWorkflowVersion())) {
+                processV1(task, leaseToken);
+            } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
+                processV2(task, leaseToken);
+            } else if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+                processV3(task, leaseToken);
+            } else if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+                processV4(task, leaseToken);
+            } else {
+                throw new IllegalArgumentException("未知建议工作流版本: " + task.getWorkflowVersion());
+            }
+        } catch (PendingEvidenceReview pending) {
+            taskMapper.waitForEvidence(task.getId(), leaseToken, LocalDateTime.now().plusSeconds(10));
         } catch (Exception exception) {
-            log.error("论文建议任务失败 taskId={}", task.getId(), exception);
-            task.setStatus("FAILED");
-            task.setFinishedAt(LocalDateTime.now());
-            task.setErrorMessage(truncate(exception.getMessage()));
-            taskMapper.updateById(task);
+            handleFailure(task, leaseToken, exception);
         }
     }
 
-    /**
-     * 自动恢复长时间停留在运行态的中断任务。
-     */
-    @Scheduled(fixedDelayString = "${suggestion.worker.recovery-delay-ms:60000}")
-    public void recoverStaleTasks() {
-        LocalDateTime now = LocalDateTime.now();
-        taskMapper.recoverStale(now.minusMinutes(10), now);
+    private void processV1(SuggestionTask task, String leaseToken) throws Exception {
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO review = requiredCompletedReviewBySubmission(task.getSubmissionId());
+        ProblemContextDTO problem = requiredData(
+                "problem-service.getProblemContext",
+                () -> problemFeignClient.getProblemContext(task.getProblemId())
+        );
+        validateTaskSource(task, submission, review, problem);
+        SuggestionWorkflowResult result = v1Workflow.execute(task, submission, problem, review);
+        complete(task, result, leaseToken);
     }
 
-    /**
-     * 获取任务总数。
-     *
-     * @return 任务总数
-     */
-    public long count() {
-        return taskMapper.selectCount(null);
+    private void processV3(SuggestionTask task, String leaseToken) throws Exception {
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
+        ProblemContextDTO problem = requiredData(
+                "problem-service.getProblemContext",
+                () -> problemFeignClient.getProblemContext(task.getProblemId())
+        );
+        validateTaskSource(task, submission, eligibility, problem);
+
+        updateStage(task, leaseToken, "PARSING");
+        PaperParseDTO parse = requiredData(
+                "ai-review-service.ensureParse",
+                () -> reviewFeignClient.ensureParse(task.getSubmissionId(), PAPER_PARSE_V2_VERSION)
+        );
+        if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
+            throw new IllegalStateException("PDF 解析未产生可用产物");
+        }
+        task.setParseArtifactId(parse.getArtifactId());
+        task.setPaperParsingWorkflowVersion(PAPER_PARSE_V2_VERSION);
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
+
+        task.setCurrentStage("PREPARING_REVIEW");
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
+        task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
+        task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
+        task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
+        requireLease(taskMapper.saveReviewEvidence(task.getId(), leaseToken,
+                reviewEvidence.evidenceReviewTaskId(), reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()));
+
+        task.setCurrentStage("GENERATING");
+        SuggestionWorkflowResult result = v3Workflow.execute(task, problem, parse, reviewEvidence);
+        updateStage(task, leaseToken, "VALIDATING");
+        complete(task, result, leaseToken);
     }
 
-    /**
-     * 获取最近任务摘要供管理端聚合。
-     *
-     * @param limit 安全限制 1 到 100
-     * @return 最近任务
-     */
+    private void processV4(SuggestionTask task, String leaseToken) throws Exception {
+        if (v4Workflow == null) {
+            throw new IllegalStateException("V4 建议工作流未配置");
+        }
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
+        ProblemContextDTO problem = requiredData(
+                "problem-service.getProblemContext",
+                () -> problemFeignClient.getProblemContext(task.getProblemId())
+        );
+        validateTaskSource(task, submission, eligibility, problem);
+
+        updateStage(task, leaseToken, "PARSING");
+        PaperParseDTO parse = requiredData(
+                "ai-review-service.ensureParse",
+                () -> reviewFeignClient.ensureParse(task.getSubmissionId(), PAPER_PARSE_V2_VERSION)
+        );
+        if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
+            throw new IllegalStateException("PDF 解析未产生可用产物");
+        }
+        task.setParseArtifactId(parse.getArtifactId());
+        task.setPaperParsingWorkflowVersion(PAPER_PARSE_V2_VERSION);
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
+
+        task.setCurrentStage("PREPARING_REVIEW");
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
+        task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
+        task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
+        task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
+        requireLease(taskMapper.saveReviewEvidence(
+                task.getId(),
+                leaseToken,
+                reviewEvidence.evidenceReviewTaskId(),
+                reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()
+        ));
+
+        updateStage(task, leaseToken, "RETRIEVING");
+        KnowledgeRetrievalResultDTO knowledge = loadOrRetrieveKnowledge(task, problem, reviewEvidence);
+        if (knowledge.getCitations() == null || knowledge.getCitations().isEmpty()) {
+            throw new IllegalStateException("知识检索未返回可用于 V4 建议的参考资料");
+        }
+        task.setRetrievalRunId(knowledge.getRetrievalRunId());
+        task.setRetrievalWorkflowVersion(knowledge.getWorkflowVersion());
+        task.setKnowledgeSnapshotJson(objectMapper.writeValueAsString(knowledge));
+        requireLease(taskMapper.saveKnowledge(
+                task.getId(),
+                leaseToken,
+                task.getRetrievalRunId(),
+                task.getRetrievalWorkflowVersion(),
+                task.getKnowledgeSnapshotJson()
+        ));
+
+        updateStage(task, leaseToken, "GENERATING");
+        SuggestionWorkflowResult result = v4Workflow.execute(
+                task,
+                problem,
+                parse,
+                reviewEvidence,
+                knowledge
+        );
+        updateStage(task, leaseToken, "VALIDATING");
+        complete(task, result, leaseToken);
+    }
+
+    private void processV2(SuggestionTask task, String leaseToken) throws Exception {
+        SubmissionReviewDTO submission = requiredSubmission(task.getSubmissionId());
+        ReviewSummaryDTO eligibility = requiredCompletedReview(task.getEligibilityReviewTaskId());
+        ProblemContextDTO problem = requiredData(
+                "problem-service.getProblemContext",
+                () -> problemFeignClient.getProblemContext(task.getProblemId())
+        );
+        validateTaskSource(task, submission, eligibility, problem);
+
+        updateStage(task, leaseToken, "PARSING");
+        PaperParseDTO parse = requiredData(
+                "ai-review-service.ensureParse",
+                () -> reviewFeignClient.ensureParse(
+                        task.getSubmissionId(),
+                        task.getPaperParsingWorkflowVersion()
+                )
+        );
+        if (!("SUCCESS".equals(parse.getStatus()) || "PARTIAL_SUCCESS".equals(parse.getStatus()))) {
+            throw new IllegalStateException("PDF 解析未产生可用产物");
+        }
+        task.setParseArtifactId(parse.getArtifactId());
+        requireLease(taskMapper.saveParse(task.getId(), leaseToken, parse.getArtifactId()));
+
+        task.setCurrentStage("PREPARING_REVIEW");
+        ReviewEvidenceSnapshot reviewEvidence = resolveReviewEvidence(task, eligibility, leaseToken);
+        task.setEvidenceReviewTaskId(reviewEvidence.evidenceReviewTaskId());
+        task.setReviewWorkflowVersion(reviewEvidence.reviewWorkflowVersion());
+        task.setReviewEvidenceProjectionVersion(reviewEvidence.projectionVersion());
+
+        task.setCurrentStage("RETRIEVING");
+        requireLease(taskMapper.saveReviewEvidence(task.getId(), leaseToken,
+                reviewEvidence.evidenceReviewTaskId(), reviewEvidence.reviewWorkflowVersion(),
+                reviewEvidence.projectionVersion()));
+        KnowledgeRetrievalResultDTO knowledge = loadOrRetrieveKnowledge(task, problem, reviewEvidence);
+        if (knowledge.getCitations() == null || knowledge.getCitations().isEmpty()) {
+            throw new IllegalStateException("知识检索未返回可用于正式建议的参考资料");
+        }
+        task.setRetrievalRunId(knowledge.getRetrievalRunId());
+        task.setRetrievalWorkflowVersion(knowledge.getWorkflowVersion());
+        task.setKnowledgeSnapshotJson(objectMapper.writeValueAsString(knowledge));
+        requireLease(taskMapper.saveKnowledge(
+                task.getId(),
+                leaseToken,
+                task.getRetrievalRunId(),
+                task.getRetrievalWorkflowVersion(),
+                task.getKnowledgeSnapshotJson()
+        ));
+
+        task.setCurrentStage("GENERATING");
+        SuggestionWorkflowResult result = v2Workflow.execute(task, problem, parse, reviewEvidence, knowledge);
+        updateStage(task, leaseToken, "VALIDATING");
+        complete(task, result, leaseToken);
+    }
+
+    ReviewEvidenceSnapshot resolveReviewEvidence(SuggestionTask task,
+                                                         ReviewSummaryDTO eligibility,
+                                                         String leaseToken) {
+        if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+            if (evidenceProjector.isNativeV4(eligibility)) {
+                return evidenceProjector.nativeV4(eligibility, eligibility);
+            }
+            Long evidenceTaskId = task.getEvidenceReviewTaskId();
+            if (evidenceTaskId == null || Objects.equals(evidenceTaskId, eligibility.getTaskId())) {
+                Long evidenceTaskIdCreated = requiredData(
+                        "ai-review-service.createVersionedTask",
+                        () -> reviewFeignClient.createVersionedTask(
+                                task.getSubmissionId(),
+                                task.getTeamId(),
+                                task.getProblemId(),
+                                DEEP_EVIDENCE_REVIEW_V4_VERSION
+                        )
+                );
+                evidenceTaskId = evidenceTaskIdCreated;
+                task.setEvidenceReviewTaskId(evidenceTaskId);
+                requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
+            }
+            ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
+            if ("FAILED".equals(evidenceReview.getStatus())) {
+                throw new IllegalStateException("为论文补建的 V4 专业评审失败");
+            }
+            if (!"COMPLETED".equals(evidenceReview.getStatus())
+                    || evidenceReview.getResultJson() == null
+                    || evidenceReview.getResultJson().isBlank()) {
+                throw new PendingEvidenceReview();
+            }
+            return evidenceProjector.nativeV4(eligibility, evidenceReview);
+        }
+        if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+            if (evidenceProjector.isNativeV3(eligibility)) {
+                return evidenceProjector.nativeV3(eligibility, eligibility);
+            }
+            Long evidenceTaskId = task.getEvidenceReviewTaskId();
+            if (evidenceTaskId == null || Objects.equals(evidenceTaskId, eligibility.getTaskId())) {
+                Long evidenceTaskIdCreated = requiredData(
+                        "ai-review-service.createVersionedTask",
+                        () -> reviewFeignClient.createVersionedTask(
+                                task.getSubmissionId(),
+                                task.getTeamId(),
+                                task.getProblemId(),
+                                DEEP_EVIDENCE_REVIEW_V3_VERSION
+                        )
+                );
+                evidenceTaskId = evidenceTaskIdCreated;
+                task.setEvidenceReviewTaskId(evidenceTaskId);
+                requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
+            }
+            ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
+            if ("FAILED".equals(evidenceReview.getStatus())) {
+                throw new IllegalStateException("为历史论文自动晋级补建的 V3 深度评审失败");
+            }
+            if (!"COMPLETED".equals(evidenceReview.getStatus())
+                    || evidenceReview.getResultJson() == null || evidenceReview.getResultJson().isBlank()) {
+                throw new PendingEvidenceReview();
+            }
+            return evidenceProjector.nativeV3(eligibility, evidenceReview);
+        }
+        if (evidenceProjector.isNativeV2(eligibility)) {
+            return evidenceProjector.nativeV2(eligibility, eligibility);
+        }
+        if (evidenceProjector.hasStructuredLegacyEvidence(eligibility)) {
+            return evidenceProjector.projectLegacy(eligibility);
+        }
+        Long evidenceTaskId = task.getEvidenceReviewTaskId();
+        if (evidenceTaskId == null || Objects.equals(evidenceTaskId, eligibility.getTaskId())) {
+            Long evidenceTaskIdCreated = requiredData(
+                    "ai-review-service.createVersionedTask",
+                    () -> reviewFeignClient.createVersionedTask(
+                            task.getSubmissionId(),
+                            task.getTeamId(),
+                            task.getProblemId(),
+                            "EVIDENCE_REVIEW_V2"
+                    )
+            );
+            evidenceTaskId = evidenceTaskIdCreated;
+            task.setEvidenceReviewTaskId(evidenceTaskId);
+            requireLease(taskMapper.saveEvidenceTask(task.getId(), leaseToken, evidenceTaskId));
+        }
+        ReviewSummaryDTO evidenceReview = requiredReview(evidenceTaskId);
+        if ("FAILED".equals(evidenceReview.getStatus())) {
+            throw new IllegalStateException("为历史分数补建的 V2 证据评审失败");
+        }
+        if (!"COMPLETED".equals(evidenceReview.getStatus())
+                || evidenceReview.getResultJson() == null || evidenceReview.getResultJson().isBlank()) {
+            throw new PendingEvidenceReview();
+        }
+        return evidenceProjector.nativeV2(eligibility, evidenceReview);
+    }
+
+    private KnowledgeRetrievalResultDTO loadOrRetrieveKnowledge(SuggestionTask task,
+                                                                 ProblemContextDTO problem,
+                                                                 ReviewEvidenceSnapshot evidence) {
+        if (task.getKnowledgeSnapshotJson() != null && !task.getKnowledgeSnapshotJson().isBlank()) {
+            try {
+                return objectMapper.readValue(task.getKnowledgeSnapshotJson(),
+                        KnowledgeRetrievalResultDTO.class);
+            } catch (Exception exception) {
+                throw new IllegalStateException("已锁定的知识检索快照无法读取", exception);
+            }
+        }
+        KnowledgeRetrievalRequestDTO request = new KnowledgeRetrievalRequestDTO();
+        request.setWorkflowVersion(resolveRetrievalWorkflowVersion(task));
+        request.setScene("PAPER_SUGGESTION");
+        request.setTopK(8);
+        request.setTokenBudget(4000);
+        request.setQuery(buildKnowledgeQuery(problem, evidence));
+        return requiredData(
+                "knowledge-retrieval-service.retrieve",
+                () -> knowledgeRetrievalFeignClient.retrieve(request)
+        );
+    }
+
+    String resolveRetrievalWorkflowVersion(SuggestionTask task) {
+        if (task.getRetrievalWorkflowVersion() != null
+                && !task.getRetrievalWorkflowVersion().isBlank()) {
+            return task.getRetrievalWorkflowVersion();
+        }
+        if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())
+                || SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+            return SUGGESTION_DEEP_RETRIEVAL_V1;
+        }
+        return DEFAULT_RETRIEVAL_VERSION;
+    }
+
+    private String buildKnowledgeQuery(ProblemContextDTO problem, ReviewEvidenceSnapshot evidence) {
+        StringBuilder query = new StringBuilder("数学建模论文改进。题目：")
+                .append(problem.getTitle()).append("。需要解决的评审发现：");
+        evidence.findings().stream().filter(item -> "ISSUE".equals(item.type())).limit(8)
+                .forEach(item -> query.append('[').append(item.category()).append("] ")
+                        .append(item.statement()).append('；'));
+        return query.substring(0, Math.min(query.length(), 3800));
+    }
+
+    private void complete(SuggestionTask task, SuggestionWorkflowResult result, String leaseToken) {
+        LocalDateTime finishedAt = LocalDateTime.now();
+        requireLease(taskMapper.complete(task.getId(), leaseToken, result.resultJson(),
+                result.modelName(), result.aiCallId(), finishedAt));
+        task.setStatus("COMPLETED");
+        task.setCurrentStage("COMPLETED");
+        task.setResultJson(result.resultJson());
+        task.setModelName(result.modelName());
+        task.setAiCallId(result.aiCallId());
+        task.setFinishedAt(finishedAt);
+        task.setErrorMessage(null);
+    }
+
+    private void handleFailure(SuggestionTask task, String leaseToken, Exception exception) {
+        if (exception instanceof LeaseLostException) return;
+        String error = truncate(exception.getMessage());
+        if (exception instanceof AiClientException aiError) {
+            if (aiError.getCode() == 51212) {
+                taskMapper.scheduleSameAttempt(task.getId(), leaseToken,
+                        LocalDateTime.now().plusSeconds(10), "AI_PENDING", error);
+                return;
+            }
+            if (aiError.getCode() == 51213 || aiError.getCode() == 50002) {
+                taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                        "UNKNOWN", "AI_UNKNOWN", "AI 上游结果未知，禁止自动重试");
+                return;
+            }
+            taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                    "FAILED", "AI_FAILED", error);
+            return;
+        }
+        int maxAttempts = task.getMaxAttempts() == null
+                ? workerProperties.getMaxAttempts() : task.getMaxAttempts();
+        int attempt = task.getAttemptNo() == null ? 1 : task.getAttemptNo();
+        if (isTransientDependency(exception) && attempt < maxAttempts) {
+            int nextAttempt = attempt + 1;
+            taskMapper.scheduleRetry(task.getId(), leaseToken,
+                    LocalDateTime.now().plusSeconds(retryDelaySeconds(attempt)),
+                    "DEPENDENCY_TRANSIENT", error, aiIdempotencyKey(task.getId(), nextAttempt));
+            return;
+        }
+        taskMapper.markTerminalFailure(task.getId(), leaseToken,
+                "FAILED", "WORKFLOW_FAILED", error);
+        log.error("论文建议任务失败 taskId={}, attempt={}", task.getId(), attempt, exception);
+    }
+
+    private long retryDelaySeconds(int failedAttempt) {
+        return switch (failedAttempt) {
+            case 1 -> 10L;
+            case 2 -> 60L;
+            default -> 300L;
+        };
+    }
+
+    private boolean isTransientDependency(Exception exception) {
+        return exception instanceof BusinessException businessException
+                && businessException.getCode() == SuggestionErrorCode.DEPENDENCY_UNAVAILABLE.getCode();
+    }
+
+    private void updateStage(SuggestionTask task, String leaseToken, String stage) {
+        requireLease(taskMapper.updateStage(task.getId(), leaseToken, stage));
+        task.setCurrentStage(stage);
+    }
+
+    private void requireLease(int updated) {
+        if (updated == 0) throw new LeaseLostException();
+    }
+
+    public long count() { return taskMapper.selectCount(null); }
+
     public List<SuggestionTaskSummaryDTO> listRecent(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
         return taskMapper.selectList(new LambdaQueryWrapper<SuggestionTask>()
-                        .orderByDesc(SuggestionTask::getCreateTime)
-                        .last("LIMIT " + safeLimit))
+                        .orderByDesc(SuggestionTask::getCreateTime).last("LIMIT " + safeLimit))
                 .stream().map(this::toSummary).toList();
     }
 
     private SubmissionReviewDTO requiredSubmission(Long submissionId) {
-        return requiredData(() -> submissionFeignClient.getForReview(submissionId));
+        return requiredData(
+                "submission-service.getForReview",
+                () -> submissionFeignClient.getForReview(submissionId)
+        );
     }
 
-    private ReviewSummaryDTO requiredCompletedReview(Long submissionId) {
-        Result<ReviewSummaryDTO> response;
-        try {
-            response = reviewFeignClient.getBySubmission(submissionId);
-        } catch (RuntimeException exception) {
-            throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
-        }
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            if (response != null && response.getCode() >= 50000) {
-                throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
-            }
-            throw new BusinessException(SuggestionErrorCode.REVIEW_NOT_READY);
-        }
-        ReviewSummaryDTO review = response.getData();
+    private ReviewSummaryDTO requiredCompletedReview(Long taskId) {
+        ReviewSummaryDTO review = requiredReview(taskId);
         BusinessException.throwIf(!"COMPLETED".equals(review.getStatus())
                         || review.getResultJson() == null || review.getResultJson().isBlank(),
                 SuggestionErrorCode.REVIEW_NOT_READY);
         return review;
     }
 
-    private void checkMember(Long teamId, Long userId) {
-        Result<List<Long>> response;
+    private ReviewSummaryDTO requiredCompletedReviewBySubmission(Long submissionId) {
+        String dependency = "ai-review-service.getBySubmission";
         try {
-            response = teamFeignClient.getMemberIds(teamId);
+            Result<ReviewSummaryDTO> response = reviewFeignClient.getBySubmission(submissionId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                logUnavailableResult(dependency, response);
+                throw new BusinessException(SuggestionErrorCode.REVIEW_NOT_READY);
+            }
+            ReviewSummaryDTO review = response.getData();
+            BusinessException.throwIf(!"COMPLETED".equals(review.getStatus())
+                            || review.getResultJson() == null || review.getResultJson().isBlank(),
+                    SuggestionErrorCode.REVIEW_NOT_READY);
+            return review;
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
+            logDependencyException(dependency, exception);
             throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
         }
-        BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null,
-                SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
-        BusinessException.throwIf(!response.getData().contains(userId), SuggestionErrorCode.NOT_TEAM_MEMBER);
+    }
+
+    private ReviewSummaryDTO requiredReview(Long taskId) {
+        String dependency = "ai-review-service.getByTask";
+        try {
+            Result<ReviewSummaryDTO> response = reviewFeignClient.getByTask(taskId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                logUnavailableResult(dependency, response);
+                throw new BusinessException(SuggestionErrorCode.REVIEW_NOT_READY);
+            }
+            return response.getData();
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            logDependencyException(dependency, exception);
+            throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
+        }
+    }
+
+    private void checkMember(Long teamId, Long userId) {
+        List<Long> memberIds = requiredData(
+                "team-service.getMemberIds",
+                () -> teamFeignClient.getMemberIds(teamId)
+        );
+        BusinessException.throwIf(!memberIds.contains(userId), SuggestionErrorCode.NOT_TEAM_MEMBER);
     }
 
     private void validateSource(SubmissionReviewDTO submission, ReviewSummaryDTO review) {
@@ -273,19 +813,64 @@ public class SuggestionService {
     private void validateTaskSource(SuggestionTask task, SubmissionReviewDTO submission,
                                     ReviewSummaryDTO review, ProblemContextDTO problem) {
         validateSource(submission, review);
+        Long expectedReviewTaskId = SuggestionV1Workflow.VERSION.equals(task.getWorkflowVersion())
+                ? task.getReviewTaskId() : task.getEligibilityReviewTaskId();
         BusinessException.throwIf(!Objects.equals(task.getSubmissionId(), submission.getId())
                         || !Objects.equals(task.getTeamId(), submission.getTeamId())
                         || !Objects.equals(task.getProblemId(), submission.getProblemId())
-                        || !Objects.equals(task.getReviewTaskId(), review.getTaskId())
+                        || !Objects.equals(expectedReviewTaskId, review.getTaskId())
                         || !Objects.equals(task.getProblemId(), problem.getId()),
                 SuggestionErrorCode.SOURCE_DATA_INVALID);
     }
 
-    private SuggestionTask findBySubmission(Long submissionId) {
+    private void validateClientRequestId(String value) {
+        if (value == null || !value.matches("[A-Za-z0-9_-]{8,64}")) {
+            throw new IllegalArgumentException("clientRequestId 必须是 8 到 64 位安全标识");
+        }
+    }
+
+    private void assertAdmissionAvailable() {
+        long count = taskMapper.countActiveBacklog();
+        LocalDateTime oldest = taskMapper.selectOldestDue(LocalDateTime.now());
+        boolean oldestSevere = oldest != null && Duration.between(oldest, LocalDateTime.now()).getSeconds()
+                >= workerProperties.getSevereOldestWaitingSeconds();
+        BusinessException.throwIf(count >= workerProperties.getSevereBacklogCount() || oldestSevere,
+                SuggestionErrorCode.SERVICE_BUSY);
+    }
+
+    private void enqueueReady(SuggestionTask task, long bucket) {
+        if (readyMessageService != null) readyMessageService.enqueue(task, bucket);
+    }
+
+    public static String aiIdempotencyKey(Long taskId, int attemptNo) {
+        return "suggestion:task:" + taskId + ":attempt:" + attemptNo;
+    }
+
+    private String currentTraceId() {
+        String traceId = TraceIdUtil.getTraceId();
+        return traceId == null || traceId.isBlank() || traceId.length() > 100
+                ? UUID.randomUUID().toString() : traceId;
+    }
+
+    private static SuggestionWorkerProperties defaultWorkerProperties() {
+        return new SuggestionWorkerProperties();
+    }
+
+    private SuggestionTask findByClientRequest(Long userId, String clientRequestId) {
         return taskMapper.selectOne(new LambdaQueryWrapper<SuggestionTask>()
-                .eq(SuggestionTask::getSubmissionId, submissionId)
-                .eq(SuggestionTask::getWorkflowVersion, SuggestionV1Workflow.VERSION)
+                .eq(SuggestionTask::getRequestedByUserId, userId)
+                .eq(SuggestionTask::getClientRequestId, clientRequestId)
                 .last("LIMIT 1"));
+    }
+
+    private SuggestionTask validateIdempotentPayload(SuggestionTask existing,
+                                                      SubmissionReviewDTO submission,
+                                                      ReviewSummaryDTO review) {
+        if (!Objects.equals(existing.getSubmissionId(), submission.getId())
+                || !Objects.equals(existing.getEligibilityReviewTaskId(), review.getTaskId())) {
+            throw new IllegalArgumentException("clientRequestId 已用于不同的建议生成请求");
+        }
+        return existing;
     }
 
     private SuggestionTask requiredTask(Long taskId) {
@@ -295,58 +880,231 @@ public class SuggestionService {
     }
 
     private SuggestionVO toVO(SuggestionTask task) {
-        SuggestionV1Output output = null;
+        Object output = null;
+        KnowledgeViewSnapshot knowledge = readKnowledgeSnapshot(task);
         if (task.getResultJson() != null && !task.getResultJson().isBlank()) {
             try {
-                output = objectMapper.readValue(task.getResultJson(), SuggestionV1Output.class);
-            } catch (JsonProcessingException exception) {
+                if (SUGGESTION_V4_VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(task.getResultJson(), GroundedSuggestionV4Output.class);
+                } else if (SUGGESTION_V3_VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(
+                            task.getResultJson(),
+                            com.leetmodel.suggestion.workflow.v3.GroundedSuggestionV3Output.class
+                    );
+                } else if (GroundedSuggestionV2Workflow.VERSION.equals(task.getWorkflowVersion())) {
+                    output = objectMapper.readValue(task.getResultJson(), GroundedSuggestionV2Output.class);
+                } else {
+                    output = objectMapper.readValue(task.getResultJson(), SuggestionV1Output.class);
+                }
+            } catch (Exception exception) {
                 throw new IllegalStateException("已保存的论文建议结果无法解析", exception);
             }
         }
         return SuggestionVO.builder()
-                .taskId(task.getId())
-                .submissionId(task.getSubmissionId())
-                .teamId(task.getTeamId())
-                .problemId(task.getProblemId())
+                .taskId(task.getId()).submissionId(task.getSubmissionId())
+                .teamId(task.getTeamId()).problemId(task.getProblemId())
                 .reviewTaskId(task.getReviewTaskId())
+                .eligibilityReviewTaskId(task.getEligibilityReviewTaskId())
+                .evidenceReviewTaskId(task.getEvidenceReviewTaskId())
+                .parseArtifactId(task.getParseArtifactId())
                 .workflowVersion(task.getWorkflowVersion())
                 .reviewWorkflowVersion(task.getReviewWorkflowVersion())
-                .status(task.getStatus())
-                .retryCount(task.getRetryCount())
-                .errorMessage(task.getErrorMessage())
-                .result(output)
-                .modelName(task.getModelName())
-                .aiCallId(task.getAiCallId())
-                .createTime(task.getCreateTime())
-                .startedAt(task.getStartedAt())
-                .finishedAt(task.getFinishedAt())
-                .build();
+                .reviewEvidenceProjectionVersion(task.getReviewEvidenceProjectionVersion())
+                .paperParsingWorkflowVersion(task.getPaperParsingWorkflowVersion())
+                .retrievalRunId(task.getRetrievalRunId())
+                .retrievalWorkflowVersion(task.getRetrievalWorkflowVersion())
+                .knowledgeIndexVersion(knowledge.indexVersion())
+                .knowledgeManifestVersion(knowledge.manifestVersion())
+                .knowledgeSourceVersion(knowledge.sourceVersion())
+                .resultSchemaVersion(task.getResultSchemaVersion())
+                .status(task.getStatus()).currentStage(task.getCurrentStage())
+                .retryCount(task.getRetryCount()).attemptNo(task.getAttemptNo())
+                .errorMessage(task.getErrorMessage()).result(output)
+                .knowledgeCitations(knowledge.citations())
+                .modelName(task.getModelName()).aiCallId(task.getAiCallId())
+                .createTime(task.getCreateTime()).startedAt(task.getStartedAt())
+                .finishedAt(task.getFinishedAt()).build();
     }
+
+    private KnowledgeViewSnapshot readKnowledgeSnapshot(SuggestionTask task) {
+        if (task.getKnowledgeSnapshotJson() == null || task.getKnowledgeSnapshotJson().isBlank()) {
+            return new KnowledgeViewSnapshot(null, null, null, List.of());
+        }
+        try {
+            KnowledgeRetrievalResultDTO snapshot = objectMapper.readValue(
+                    task.getKnowledgeSnapshotJson(), KnowledgeRetrievalResultDTO.class);
+            List<SuggestionKnowledgeCitationVO> citations = snapshot.getCitations() == null
+                    ? List.of() : snapshot.getCitations().stream().map(item -> new SuggestionKnowledgeCitationVO(
+                    item.getCitationId(), item.getTitle(), item.getSourcePath(), item.getContentHash(),
+                    item.getAuthorityLevel(), item.getApplicability())).toList();
+            return new KnowledgeViewSnapshot(snapshot.getIndexVersion(), snapshot.getManifestVersion(),
+                    snapshot.getSourceVersion(), citations);
+        } catch (Exception exception) {
+            throw new IllegalStateException("已保存的知识引用快照无法解析", exception);
+        }
+    }
+
+    private record KnowledgeViewSnapshot(String indexVersion, String manifestVersion,
+                                         String sourceVersion,
+                                         List<SuggestionKnowledgeCitationVO> citations) {}
 
     private SuggestionTaskSummaryDTO toSummary(SuggestionTask task) {
-        return new SuggestionTaskSummaryDTO(
-                task.getId(), task.getSubmissionId(), task.getTeamId(), task.getProblemId(),
-                task.getStatus(), task.getWorkflowVersion(), task.getModelName(), task.getAiCallId(),
-                task.getErrorMessage(), task.getCreateTime(), task.getFinishedAt());
+        return new SuggestionTaskSummaryDTO(task.getId(), task.getSubmissionId(), task.getTeamId(),
+                task.getProblemId(), task.getStatus(), task.getWorkflowVersion(), task.getModelName(),
+                task.getAiCallId(), task.getErrorMessage(), task.getCreateTime(), task.getFinishedAt());
     }
 
-    private <T> T requiredData(Supplier<Result<T>> call) {
+    /**
+     * 读取一个必须成功返回数据的远程依赖，并保留脱敏诊断信息。
+     *
+     * @param dependency 稳定依赖名称，不包含动态标识或用户数据
+     * @param call        远程调用函数
+     * @param <T>         响应数据类型
+     * @return 非空的成功响应数据
+     * @throws BusinessException 依赖不可用时抛出统一业务异常
+     */
+    private <T> T requiredData(
+            String dependency,
+            Supplier<Result<T>> call
+    ) {
         try {
             Result<T> result = call.get();
-            BusinessException.throwIf(result == null || !result.isSuccess() || result.getData() == null,
-                    SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
+            if (result == null || !result.isSuccess() || result.getData() == null) {
+                logUnavailableResult(dependency, result);
+                throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
+            }
             return result.getData();
         } catch (BusinessException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logDependencyException(dependency, exception);
             throw new BusinessException(SuggestionErrorCode.DEPENDENCY_UNAVAILABLE);
         }
     }
 
-    private String truncate(String message) {
-        if (message == null || message.isBlank()) {
-            return "未知错误";
+    /**
+     * 记录不含响应正文的依赖业务失败。
+     *
+     * @param dependency 稳定依赖名称
+     * @param result     远程响应，允许为 null
+     */
+    private void logUnavailableResult(String dependency, Result<?> result) {
+        if (result == null) {
+            log.warn("论文建议依赖返回空响应 dependency={}", dependency);
+            return;
         }
+        log.warn(
+                "论文建议依赖返回不可用结果 dependency={}, code={}, hasData={}",
+                dependency,
+                result.getCode(),
+                result.getData() != null
+        );
+    }
+
+    /**
+     * 记录依赖调用异常类型与堆栈，不记录请求或响应正文。
+     *
+     * @param dependency 稳定依赖名称
+     * @param exception  原始运行时异常
+     */
+    private void logDependencyException(String dependency, RuntimeException exception) {
+        log.error(
+                "论文建议依赖调用异常 dependency={}, exceptionType={}",
+                dependency,
+                exception.getClass().getName(),
+                exception
+        );
+    }
+
+    private String truncate(String message) {
+        if (message == null || message.isBlank()) return "未知错误";
         return message.substring(0, Math.min(message.length(), 500));
+    }
+
+    private static final class PendingEvidenceReview extends RuntimeException {
+    }
+
+    private static final class LeaseLostException extends RuntimeException {
+    }
+
+    /**
+     * 查询建议功能定义与可用工作流版本目录。
+     *
+     * @return 业务功能定义 DTO
+     */
+    public AiFeatureDefinitionDTO getFeatureDefinition() {
+        List<AiWorkflowVersionDTO> versions = List.of(
+                new AiWorkflowVersionDTO(
+                        SuggestionV1Workflow.VERSION, "首版结构化改善建议", "ENABLED",
+                        "SUGGESTION_SUBMISSION_V1", "SUGGESTION_RESULT_V1",
+                        "输入为 submission-service 的不可变提交与评审结果；输出分模块结构化改善建议"),
+                new AiWorkflowVersionDTO(
+                        GroundedSuggestionV2Workflow.VERSION, "三段依据链论文改善建议V2", "ENABLED",
+                        "SUGGESTION_SUBMISSION_V1", "GROUNDED_SUGGESTION_V2",
+                        "输入结合题目、PDF解析、评审依据与知识检索；输出严格三段依据链建议"));
+        return new AiFeatureDefinitionDTO(
+                "SUGGESTION", "AI 论文建议", "ai-suggestion-service",
+                List.of("SUBMISSION_REFERENCE"),
+                List.of("RUN_SUCCESS_RATE", "STRUCTURE_VALID_RATE", "TOTAL_DURATION_MS"),
+                versions);
+    }
+
+    /**
+     * 执行一次不写入正式建议任务表的隔离实验，供质量评价平台使用。
+     *
+     * @param request 隔离实验请求
+     * @return 隔离实验结果 DTO
+     */
+    public AiExperimentResultDTO runExperiment(AiExperimentRequestDTO request) {
+        LocalDateTime startedAt = LocalDateTime.now();
+        try {
+            if (!"SUGGESTION".equals(request.getFeatureCode())
+                    || !"SUBMISSION_REFERENCE".equals(request.getSample().getSampleType())
+                    || !"SUGGESTION_SUBMISSION_V1".equals(request.getSample().getSchemaVersion())
+                    || !"P3".equals(request.getPriority())) {
+                throw new IllegalArgumentException("建议实验配置与 SUGGESTION 契约不匹配");
+            }
+            Long submissionId = objectMapper.readTree(request.getSample().getPayloadJson())
+                    .path("submissionId").asLong();
+            if (submissionId <= 0) throw new IllegalArgumentException("submissionId 必须为正整数");
+
+            SubmissionReviewDTO submission = requiredSubmission(submissionId);
+            ProblemContextDTO problem = requiredData(
+                    "problem-service.getProblemContext",
+                    () -> problemFeignClient.getProblemContext(submission.getProblemId())
+            );
+            ReviewSummaryDTO review = requiredCompletedReviewBySubmission(submissionId);
+
+            SuggestionTask transientTask = new SuggestionTask();
+            transientTask.setSubmissionId(submissionId);
+            transientTask.setProblemId(submission.getProblemId());
+            transientTask.setTeamId(submission.getTeamId());
+            transientTask.setWorkflowVersion(request.getWorkflowVersion());
+            transientTask.setAttemptNo(request.getAttemptNo() == null ? 1 : request.getAttemptNo());
+            transientTask.setExperimentRunId(request.getExperimentRunId());
+            transientTask.setEvaluationTaskId(request.getEvaluationTaskId());
+            transientTask.setExperimentIdempotencyKey(request.getIdempotencyKey());
+            transientTask.setModelExecutionConfigVersion(request.getModelExecutionConfigVersion());
+            transientTask.setPriority(request.getPriority());
+            transientTask.setPromptSnapshot(v1Workflow.currentPrompt());
+
+            SuggestionWorkflowResult result = v1Workflow.execute(transientTask, submission, problem, review);
+            long durationMs = Duration.between(startedAt, LocalDateTime.now()).toMillis();
+            return new AiExperimentResultDTO(
+                    request.getExperimentRunId(), "SUGGESTION",
+                    request.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
+                    "SUCCEEDED", null, "SUGGESTION_RESULT_V1", result.resultJson(),
+                    "SUGGESTION_RUN_METRICS_V1", "{}",
+                    result.modelName(), result.aiCallId(), durationMs, null);
+        } catch (Exception exception) {
+            log.warn("隔离建议实验失败 experimentRunId={}, workflowVersion={}, type={}",
+                    request.getExperimentRunId(), request.getWorkflowVersion(), exception.getClass().getSimpleName());
+            long durationMs = Duration.between(startedAt, LocalDateTime.now()).toMillis();
+            return new AiExperimentResultDTO(
+                    request.getExperimentRunId(), "SUGGESTION",
+                    request.getWorkflowVersion(), request.getModelExecutionConfigVersion(), null,
+                    "FAILED", "ENVIRONMENT", null, null, null, null, null, null,
+                    durationMs, exception.getMessage() == null ? "建议实验执行失败" : exception.getMessage());
+        }
     }
 }

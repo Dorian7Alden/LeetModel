@@ -24,6 +24,7 @@ token="$(jq -er '.data.token' <<<"$login_response")"
 
 import_problem() {
   local problem_file="$1"
+  local tag_ids_json="${2:-[]}"
   local title
   title="$(sed -n 's/^# //p' "$problem_file" | head -n 1)"
   if [[ -z "$title" ]]; then
@@ -48,9 +49,10 @@ import_problem() {
   payload="$(jq -n --rawfile content "$problem_file" \
     --arg title "$title" \
     --argjson contestId "$contest_id" \
+    --argjson tagIds "$tag_ids_json" \
     '{title: $title, contentMarkdown: $content, contestId: $contestId,
       year: 2025, statementLanguage: "ZH", durationMinutes: 4320,
-      difficulty: 3, status: 1, tagIds: []}')"
+      difficulty: 3, status: 1, tagIds: $tagIds}')"
   create_response="$(curl --fail-with-body --silent --show-error \
     --request POST "$api_base/api/problems" \
     --header 'Content-Type: application/json' \
@@ -60,8 +62,11 @@ import_problem() {
   echo "导入成功: $created_id $title"
 }
 
-import_problem "$script_dir/problem-01/problem.md"
-import_problem "$script_dir/problem-02/problem.md"
+# 导入测试题目并赋予多题目类型标签样例：
+# problem-01：楼梯持续磨损（MCM A题） -> 环境生态(6001) + 预测(6101) + 评价(6102) + 回归分析(6201)
+import_problem "$script_dir/problem-01/problem.md" '[6001, 6101, 6102, 6201]'
+# problem-02：可持续旅游业管理（MCM B题） -> 环境生态(6001) + 预测(6101) + 评价(6102) + 优化(6103) + 线性规划(6203)
+import_problem "$script_dir/problem-02/problem.md" '[6001, 6101, 6102, 6103, 6203]'
 
 echo "公开接口复核："
 for problem_file in "$script_dir/problem-01/problem.md" "$script_dir/problem-02/problem.md"; do
@@ -77,5 +82,5 @@ for problem_file in "$script_dir/problem-01/problem.md" "$script_dir/problem-02/
     "$api_base/api/public/problems/$problem_id" \
     | jq -er --arg title "$title" \
       '.data | select(.title == $title and (.contentMarkdown | length) > 0)
-        | {id, title, markdownLength: (.contentMarkdown | length)}'
+        | {id, title, tagNames, markdownLength: (.contentMarkdown | length)}'
 done

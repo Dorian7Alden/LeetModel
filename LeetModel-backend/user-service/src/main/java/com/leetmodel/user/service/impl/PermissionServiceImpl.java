@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 权限管理服务实现。
@@ -30,31 +32,49 @@ public class PermissionServiceImpl implements PermissionService {
     private final RolePermissionMapper rolePermissionMapper;
 
     /**
-     * 获取权限列表。
-     * @return 权限列表
+     * 查询系统中全部权限定义列表。
+     *
+     * @return 权限视图对象列表
      */
     @Override
     public List<PermissionVO> listPermissions() {
-        return permissionMapper.selectList(null).stream()
-                .map(this::toVO)
+        List<Permission> permissions = permissionMapper.selectList(null);
+        if (permissions.isEmpty()) return List.of();
+
+        List<Long> permissionIds = permissions.stream().map(Permission::getId).toList();
+        Map<Long, Long> roleCounts = rolePermissionMapper.selectList(
+                        new LambdaQueryWrapper<RolePermission>()
+                                .in(RolePermission::getPermissionId, permissionIds)
+                ).stream()
+                .collect(Collectors.groupingBy(RolePermission::getPermissionId, Collectors.counting()));
+
+        return permissions.stream()
+                .map(permission -> toVO(
+                        permission,
+                        roleCounts.getOrDefault(permission.getId(), 0L)
+                ))
                 .toList();
     }
 
     /**
-     * 获取权限详情。
-     * @param permissionId 权限 ID
-     * @return 权限详情
+     * 根据权限 ID 查询权限详情。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 权限视图对象
+     * @throws BusinessException 若权限不存在
      */
     @Override
     public PermissionVO getPermissionById(Long permissionId) {
         Permission permission = getExistingPermission(permissionId);
-        return toVO(permission);
+        return toVO(permission, countPermissionRoles(permissionId));
     }
 
     /**
-     * 创建权限。
-     * @param request 权限信息
-     * @return 创建后的权限
+     * 创建新的系统权限定义。
+     *
+     * @param request 包含权限属性的创建请求对象，不能为 null
+     * @return 创建成功后的权限视图对象
+     * @throws BusinessException 若权限编码重复
      */
     @Override
     @Transactional
@@ -70,15 +90,17 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setUpdateTime(now);
         permissionMapper.insert(permission);
 
-        log.info("创建权限: {} ({})", permission.getCode(), permission.getId());
-        return toVO(permission);
+        log.info("创建权限完成: id={}", permission.getId());
+        return toVO(permission, 0L);
     }
 
     /**
-     * 更新权限。
-     * @param permissionId 权限 ID
-     * @param request 权限信息
-     * @return 更新后的权限
+     * 更新指定权限的属性定义。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @param request      包含待修改信息的请求对象，不能为 null
+     * @return 更新后的权限视图对象
+     * @throws BusinessException 若权限不存在或修改后的编码重复
      */
     @Override
     @Transactional
@@ -96,13 +118,15 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setUpdateTime(LocalDateTime.now());
         permissionMapper.updateById(permission);
 
-        log.info("更新权限: {} ({})", permission.getCode(), permissionId);
-        return toVO(permission);
+        log.info("更新权限完成: id={}", permissionId);
+        return toVO(permission, countPermissionRoles(permissionId));
     }
 
     /**
-     * 删除未被角色使用的权限。
-     * @param permissionId 权限 ID
+     * 删除指定权限（若权限仍被角色引用则禁止删除）。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @throws BusinessException 若权限不存在或仍被角色使用
      */
     @Override
     @Transactional
@@ -120,15 +144,17 @@ public class PermissionServiceImpl implements PermissionService {
 
         // 删除权限
         permissionMapper.deleteById(permissionId);
-        log.info("删除权限: {} ({})", permission.getCode(), permissionId);
+        log.info("删除权限完成: id={}", permissionId);
     }
 
     // ==================== 私有方法 ====================
 
     /**
-     * 获取存在的权限。
-     * @param permissionId 权限 ID
-     * @return 权限实体
+     * 校验并获取已存在的权限实体。
+     *
+     * @param permissionId 目标权限 ID，不能为 null
+     * @return 存在的权限实体
+     * @throws BusinessException 若权限不存在
      */
     private Permission getExistingPermission(Long permissionId) {
         Permission permission = permissionMapper.selectById(permissionId);
@@ -137,8 +163,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 校验权限编码唯一。
-     * @param code 权限编码
+     * 检查权限编码是否全局唯一。
+     *
+     * @param code 待检查的权限编码，不能为 null
+     * @throws BusinessException 若编码已被占用
      */
     private void ensurePermissionCodeUnique(String code) {
         LambdaQueryWrapper<Permission> wrapper = new LambdaQueryWrapper<>();
@@ -150,9 +178,10 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 使用请求数据更新权限字段。
-     * @param permission 权限实体
-     * @param request 权限请求
+     * 将请求对象的数据映射填充至实体字段。
+     *
+     * @param permission 目标权限实体
+     * @param request    来源请求对象
      */
     private void updatePermissionFields(Permission permission, PermissionRequest request) {
         permission.setCode(request.getCode());
@@ -161,11 +190,12 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     /**
-     * 将权限实体转换为 VO。
+     * 将权限实体转换为视图对象。
+     *
      * @param permission 权限实体
-     * @return 权限 VO
+     * @return 权限视图对象
      */
-    private PermissionVO toVO(Permission permission) {
+    private PermissionVO toVO(Permission permission, long roleCount) {
         return PermissionVO.builder()
                 .id(permission.getId())
                 .code(permission.getCode())
@@ -173,6 +203,19 @@ public class PermissionServiceImpl implements PermissionService {
                 .description(permission.getDescription())
                 .createTime(permission.getCreateTime())
                 .updateTime(permission.getUpdateTime())
+                .roleCount(roleCount)
                 .build();
+    }
+
+    /**
+     * 统计权限当前关联的角色数。
+     *
+     * @param permissionId 权限 ID
+     * @return 角色关联数
+     */
+    private long countPermissionRoles(Long permissionId) {
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getPermissionId, permissionId);
+        return rolePermissionMapper.selectCount(wrapper);
     }
 }

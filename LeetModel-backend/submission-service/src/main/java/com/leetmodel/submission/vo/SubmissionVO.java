@@ -16,5 +16,8 @@ public class SubmissionVO {
     private Integer problemCode;
     private Long submitterId;
     private Integer version; private String originalFilename; private Long fileSize;
-    private String status; private Boolean finalVersion; private String downloadUrl; private LocalDateTime createTime;
+    private String status;
+    /** WAITING_DISPATCH、DISPATCHED、DISPATCH_BLOCKED 或 NOT_REQUESTED。 */
+    private String reviewDispatchStatus;
+    private Boolean finalVersion; private String downloadUrl; private LocalDateTime createTime;
 }

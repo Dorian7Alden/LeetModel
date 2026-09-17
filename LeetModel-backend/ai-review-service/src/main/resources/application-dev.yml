@@ -22,6 +22,10 @@ common:
     enabled: true
     base-url: ${AI_GATEWAY_BASE_URL:http://localhost:8090}
 review:
+  parse:
+    v1:
+      max-pages: 80
+      max-characters: 240000
   v1:
     max-pages: 40
     render-dpi: 110

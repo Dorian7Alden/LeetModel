@@ -45,8 +45,3 @@ minio:
   expiry-seconds: ${MINIO_EXPIRY_SECONDS:604800}
 
 # 暴露 Actuator 端点
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info

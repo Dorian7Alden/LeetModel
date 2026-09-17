@@ -1,0 +1,100 @@
+## common-messaging
+
+### 模块定位
+
+`common-messaging` 是可靠消息公共 Jar。它提供 `MessageEnvelopeV1<T>`、UUID/ULID 与 64 KiB 契约校验、环境 namespace、事务 Outbox、短租约 Relay、RocketMQ Spring 发布适配器、事务 Inbox、消息关联上下文、低基数指标、健康检查和 `RecordingMessagePublisher` 测试替身。唯一纳入的跨域专用适配是 `OperationAuditMessageCodec`：它引用 common-api 的封闭审计目录并校验信封与载荷等式，不在消息模块复制领域规则。
+
+`MessageEnvelopeV1` 固定保存 `eventId` 和 `traceId`，并以可选 `operationId` 连接人工治理命令。该可选字段向后兼容，旧信封解码为 null。`MessageCorrelationContext` 只在信封校验后恢复 Trace、Operation、Event 与明确的任务 attempt，作用域关闭时恢复消费线程 MDC。
+
+模块保证至少一次发布和消费端业务一次效果的基础条件，不承诺端到端恰好一次。MQ 消费线程必须只执行契约校验、Inbox 去重和领域任务落库；PDF 处理、AI 调用、知识检索和排行全量重建仍由带租约的领域 Worker 执行。
+
+### 事务边界
+
+生产端在业务服务自己的 `@Transactional` 方法中先写业务事实，再调用 `MessageOutbox.enqueue`。两项写入使用同一数据源与事务；Broker 暂时不可用不会回滚已完整保存的业务事实，Relay 会按 1 秒、5 秒、30 秒、2 分钟、10 分钟和之后每 30 分钟的策略持续退避。
+
+消费端由 RocketMQ Spring 将 Broker 消息体转换为 UTF-8 `String`，再通过 `MessageCodec.decode(String, payloadType)` 校验消息，最后调用 `MessageInbox.executeOnce`。不要把注解监听器声明为 `RocketMQListener<byte[]>`：当框架无法从代理类解析泛型时会按 `Object` 转换为字符串，并在编译器桥接方法处触发 `ClassCastException`。低层协议集成测试若直接读取 `MessageExt.getBody()`，必须显式按 UTF-8 转为字符串后进入领域消费者。
+
+Inbox 唯一键为 `consumer_group + event_id`，首次消息的 Inbox 与调用方短事务动作一起提交；动作抛异常时两者一起回滚，重复消息返回 `DUPLICATE`。不要在 `domainAction` 中执行远程调用或长计算。
+
+每次 Outbox 发布由 `Messaging/OutboxPublishAttempt` 包围，每次 Inbox 事务由 `Messaging/InboxConsumeAttempt` 包围。Relay 从持久化信封恢复业务 Trace、Event 和可选 Operation；消费端只在信封通过校验后打开 Span。成功、重试、阻断、正常消费、重复抑制和事务失败都使用固定结果/错误分类。Topic、消费组、eventId、消息 Key 和 Payload 不进入自定义 Span tag。RocketMQ 5.3.1 生产端 Exit Span 仍由 Agent 管理；兼容 Agent 未观察到消费端 Entry，因此由 Inbox 边界提供消费侧业务 Entry。
+
+### 数据表契约
+
+每个生产服务通过自己的 Flyway 迁移创建 `message_outbox`，至少包含事件、物理 Topic、Tag、Key、契约字段、JSON、`PENDING/SENDING/PUBLISHED/BLOCKED` 状态、重试时间、租约、Broker messageId、错误摘要和审计时间，并建立 `(status, next_attempt_at, lease_expires_at, create_time)` 索引。
+
+每个消费服务创建 `message_inbox`，保存消费组、eventId、事件类型、来源、`PROCESSING/CONSUMED` 状态与时间，并对 `(consumer_group, event_id)` 建立唯一约束。公共测试所用参考结构位于后端模块的 `src/test/resources/messaging-schema.sql`；业务服务必须复制为自己的版本化 Flyway 文件，不能依赖测试资源自动建表。
+
+### 默认配置
+
+模块默认禁用，业务服务完成 Flyway 后才可显式启用：
+
+```yaml
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: lm-dev%pg-submission-v1
+    # access-key 与 secret-key 只通过环境变量或配置中心提供
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: lm-dev
+    max-payload-bytes: 65536
+    send-timeout-ms: 3000
+    relay:
+      enabled: true
+      batch-size: 50
+      interval-ms: 1000
+      lease-seconds: 30
+```
+
+配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Relay 开启时，发布器通过 `RocketMQTemplate` 依赖注入完成装配；不能使用方法级 `@ConditionalOnBean` 检查同一自动配置链中稍后创建的模板或发布器，否则服务会静默缺少 `MessagePublisher` 与 `OutboxRelay`，使 Outbox 永久停在 `PENDING`。Relay 已显式关闭时不要求存在传输发布器；Relay 开启但没有发布器时启动失败，避免假健康。
+
+Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness。
+
+操作审计固定使用 `leetmodel-operation-audit-v1`、`OPERATION_AUDIT_RECORDED` 和 `cg-audit-archive-v1`。专用 Codec 拒绝未知 JSON 字段，并要求 `auditEventId=eventId=idempotencyKey`、`aggregateId=operationId` 及来源、发生时间、Trace 完全一致；编码仍受当前环境配置和项目 64 KiB 双重上限约束。
+
+Micrometer 指标覆盖以下稳定事实：
+
+| 指标 | 维度与语义 |
+|------|------------|
+| `leetmodel.messaging.outbox.records` / `oldest.seconds` | 固定 `PENDING/SENDING/PUBLISHED/BLOCKED` 状态的数量与最老年龄 |
+| `leetmodel.messaging.outbox.claims` | 固定 Topic 下的 `normal/takeover` 领取；过期 `SENDING` 重新领取单独计数 |
+| `leetmodel.messaging.publish` / `publish.duration` | 固定 Topic 下的 `success/retry/blocked` 吞吐与 Relay 耗时 |
+| `leetmodel.messaging.inbox.records` / `oldest.processing.seconds` | `PROCESSING/CONSUMED` 状态与未完成短事务年龄 |
+| `leetmodel.messaging.consume` / `consume.duration` | 本地消费组的 `consumed/duplicate/failure` 吞吐与短事务耗时 |
+| `leetmodel.messaging.consumer.backlog` / `consumer.oldest.seconds` | 本地消费组与固定 Topic 的 Broker 最大位点减消费位点，以及消费位点下一条消息的最老等待时间 |
+| `leetmodel.messaging.dlq.records` / `dlq.oldest.seconds` | 本地消费组对应 `%DLQ%ConsumerGroup` 的存量与最老消息年龄 |
+
+Broker 位点与 DLQ 查询各有 `*.metrics.available` 仪表。读取失败时数值为不可解释的占位值，必须与 `available=0` 联合判断，不能把不可用解释为零积压。指标标签不包含 `eventId`、`traceId`、`operationId`、消息 Key 或 Payload。
+
+### MQ6 运维边界
+
+启用模块的服务会暴露 `/internal/messaging` 内网契约，返回脱敏 Outbox、Inbox、领域积压、真实 consumer 运行状态和 Broker DLQ 摘要。consumer 暂停/恢复直接调用 RocketMQ Push Consumer 的 `suspend`/`resume`；Outbox 补发只接受 `PUBLISHED` 或 `BLOCKED` 的原 eventId，最多 20 条，不生成新业务事件。
+
+DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%ConsumerGroup`，不会创建 DLQ 消费者或移动 offset。公共模块只负责精确定位死信并解码信封元数据；实际重放由 admin-service 校验完整 eventId 集合后，委托信封中的来源服务重置原 Outbox。DLQ 永不自动回灌，所有写操作都由管理员入口提供原因并形成操作结果。
+
+### MQ6 运维边界
+
+启用模块的服务会暴露 `/internal/messaging` 内网契约，返回脱敏 Outbox、Inbox、领域积压、真实 consumer 运行状态和 Broker DLQ 摘要。consumer 暂停/恢复直接调用 RocketMQ Push Consumer 的 `suspend`/`resume`；Outbox 补发只接受 `PUBLISHED` 或 `BLOCKED` 的原 eventId，最多 20 条，不生成新业务事件。
+
+DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%ConsumerGroup`，不会创建 DLQ 消费者或移动 offset。公共模块只负责精确定位死信并解码信封元数据；实际重放由 admin-service 校验完整 eventId 集合后，委托信封中的来源服务重置原 Outbox。DLQ 永不自动回灌，所有写操作都由管理员入口提供原因并形成操作结果。
+
+### 本地验证
+
+```bash
+cd LeetModel-backend
+docker compose up -d --wait rocketmq-namesrv rocketmq-broker
+./scripts/init-rocketmq.sh
+./scripts/verify-rocketmq.sh
+./scripts/verify-audit-contract.sh
+./scripts/verify-audit-rocketmq.sh
+./scripts/verify-skywalking-async.sh
+mvn -pl common/common-messaging test
+RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test
+./scripts/verify-skywalking-async.sh --runtime
+```
+
+RocketMQ 集成命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。SkyWalking 运行门禁使用唯一临时消费组，并直接在 OAP 验证 Outbox 成功/重试、Inbox consumed/duplicate、Producer Exit、独立 attempt Trace ID 与 tag 最小化。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。
+
+操作审计门禁使用一次性非标准端口 Broker 和运行时随机凭据，不接触常驻开发 Broker。它验证严格序列化、ACL 正负路径、固定重试和真实 DLQ 后自动删除隔离容器；运行目录被 Git 忽略且不会输出凭据。生产部署使用 `docker/rocketmq/broker-acl.conf.example` 的 ACL 2.0 开关，通过 Secret Manager 补齐管理凭据，再以 `init-audit-rocketmq-acl.sh` 创建两个最小权限应用账号。

@@ -1,49 +1,63 @@
-# 2025 MCM 问题 A：测试时间：楼梯的持续磨损
+# 2025 MCM
 
-石头是坚定持久的象征，雕刻的岩石被用作建筑材料，因为它能够抵抗磨损。尽管它非常耐用，但即使是石头也无法完全免受磨损。比石头更顽强的少数几样东西之一就是人的毅力。
+## Problem A: Testing Time: The Constant Wear On Stairs
 
-![图1：长期使用后磨损不均匀的台阶示例。](图片占位符)
+Stone is a symbol of steadfast **permanence**, and carved rock is used as a building material because of its ability to resist wear. Despite its durability, even stone is not **impervious** to wear. One of the few things more resilient is the persistence of people.
 
-<center>图1：长期使用后磨损不均匀的台阶示例。</center>
 
-石材和其他用于建造台阶的材料会受到持续的、长期的磨损，而且这种磨损可能是不均匀的。例如，在极为古老的寺庙和教堂中，台阶的中心部分可能比边缘部分磨损得更严重，路面不再平整，可能会出现弯曲的现象。由于这些建筑结构的性质，这些建筑往往在很长一段时间内有人居住，但在某个特定地点的人类活动往往早于建筑物的建造。这使得准确确定建筑物的建造日期变得困难。当建筑物的施工时间非常长、进行了翻修并且随着时间的推移添加了新的部分时，情况会更加复杂。
 
-你的团队被要求为考古学家提供指导，说明他们可以从一组磨损的台阶中确定哪些信息。这些台阶可能由各种材料构成，例如石材或木材。此外，关于台阶建造时间的估计可能是可用的，但要精确确定时间可能很困难。从历史记录中可能不清楚结构中的每组台阶是在何时建造的。
+<div align="center">
+<img src="https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/mcm-2025-mcm-a.png" alt="Figure 1: Example of steps that have uneven wear after long term use" style="zoom: 100%;" />
+</div>
 
-除了年龄，考古学家还可能有兴趣确定与台阶使用相关的交通模式。例如，人们是同时上下台阶，还是在任何给定时间内主要是单向使用？考古学家还可能想确定台阶外的使用频率。例如，是很多人在短时间内使用它，还是少数人在很长时间内使用它？
+<p align="center">Figure 1: Example of steps that have uneven wear after long term use</p>
 
-你的团队需要开发一个模型，能够在给定一组台阶的情况下得出基本结论。你的模型应提供一些基本预测，基于某组台阶的磨损模式：
 
-- 这些台阶使用的频率如何？
-- 使用这些台阶的人们是否偏好某个方向的行走？
-- 有多少人同时使用这些台阶？（例如，人们是成对并排上楼，还是单列行进？）
 
-你可以假设考古学家可以接触到相关结构，并且能够获取你的团队认为重要的任何测量数据。这些测量必须以非破坏性的方式进行，成本相对较低，并且可以由一个小团队使用最少的工具完成。你应该明确指出需要进行哪些测量。
 
-还有一些问题可能更难解决。假设已有大致的年龄估计、台阶井的使用方式以及结构中日常生活模式的估计，请确定可以为以下问题提供哪些指导：
+The stone and other materials used to create steps are subject to constant, long-term wear, and the wear can be uneven. For example, extremely old temples and churches may have stairs in which the center of the steps has been worn down more than their edges, and the treads no longer have a level top but can appear to be bowed. Due to the nature of such structures, the buildings tend to have been inhabited by people over a very long period, but the presence of people at a particular site often predates the construction of buildings. This can make it difficult to accurately determine the date a structure was constructed. The situation is further complicated when construction on a structure occurs over a very long time, renovations have been made, and new parts to the structure have been added over time.
 
-- 磨损是否与现有信息一致？
-- 台阶井的年龄是多少，该估计有多可靠？
-- 进行了哪些修复或翻新？
-- 能否确定材料的来源？例如，如果使用的是石材，磨损是否与考古学家认为的原始采石场的材料一致；如果使用的是木材，磨损是否与假定使用的树木的年龄和类型一致？
-- 关于每天使用台阶的人数，可以确定哪些信息？是短时间内有大量人员使用，还是长时间内有少量人员使用？
+Your team is asked to provide guidance on what information archaeologists can determine from a set of worn stairs. The stairs may be constructed from various materials, for example stone or wood. Also, an estimate of when a set of stairs was constructed may be available, however, it may be difficult to get a precise time. It may not be clear from the historical records which set of stairs in a structure was constructed in each time period.
 
-您的PDF解决方案最多25页，应包括以下内容：
+In addition to age, an archaeologist may also be interested in determining the traffic patterns associated with how a stairwell was used. For example, were people moving up as well as down the stairs at the same time or was a predominant direction used at any given time? An archaeologist may also want to determine how often the stair well was used. For example, did a large number of people use it over a short period or did a few people use it over a very long period?
 
-- 一页的摘要。
-- 目录。
-- 完整的解决方案。
-- 参考文献列表。
-- AI使用报告（如果使用了AI，不计入25页限制）。
+Your team is asked to develop a model that can determine what basic conclusions can be drawn given a set of stairs. Your model should provide some basic predictions given the patterns of wear on a particular set of stairs:
+- How often were the stairs used?
+- Was a certain direction of travel favored by the people using the stairs?
+- How many people used the stairs simultaneously? (For example, did pairs of people climb the stairs side-by-side or did they travel single file?)
 
-注意：完整的MCM提交没有特定的最低页数要求。您可以使用最多25页来展示您的解决方案和任何您希望包含的附加信息（例如：图纸、图表、计算、表格）。接受部分解决方案。我们允许谨慎使用如ChatGPT之类的AI，尽管这不是解决此问题的必要手段。如果您选择利用生成性AI，必须遵循COMAP的AI使用政策。这将产生一个附加的AI使用报告，您必须将其添加到您的PDF解决方案文件的末尾，并且不计入25页的解决方案限制。
+You can assume that an archaeologist has access to the structure in question and can obtain whatever measurement your team believes is important. The measurements must be made in a **non-destructive** manner, be relatively inexpensive, and be doable by a small team using minimal tools. You should specify what measurements should be taken.
 
-## NEW MCM/ICM：在线提交流程
+There are also some questions that may be more difficult to address. Assuming there are rough estimates of the age, how the stairwell was used, and of the daily patterns of life in the structure, determine what guidance can be given on the following questions:
+- Is the wear consistent with the existing information?
+- What is the age of the stairwell, and how reliable is that estimate?
+- What repairs or renovations have been made?
+- Can the source of the materials be determined? For example, if stone is used, is the wear consistent with materials from the quarry the archaeologists think was originally used; if wood was used, is the wear consistent with the age and type of tree assumed to have been used?
+- What information can be determined about the number of people who used the stairs per day? Was it used by large numbers of people over a short time or a small number of people over a longer time?
 
-本文旨在协助和指导参与HiMCM/MidMCM的学生和导师。文章中，COMAP提供了有关使用新的在线提交页面 https://forms.comap.org/241335097294056 进行新在线提交流程的信息。您将需要您的团队控制号码、导师ID号码和您的问题选择来完成提交。
 
-## 术语表
 
-- **Permanence（持久性）**：指持续或保持不变的状态或质量。
-- **Impervious（不可渗透）**：无法被影响的。
-- **Non-destructive（非破坏性）**：不涉及对被评估对象或材料的损坏或破坏。
+## Requirements
+
+Your PDF solution of no more than 25 total pages should include:
+- One-page Summary Sheet.
+- Table of Contents.
+- Your complete solution.
+- References list.
+- AI Use Report (If used does not count toward the 25-page limit.)
+
+**Note:** There is no specific required minimum page length for a complete MCM submission. You may use up to 25 total pages for all your solution work and any additional information you want to include (for example: drawings, diagrams, calculations, tables). Partial solutions are accepted. We permit the careful use of AI such as ChatGPT, although it is not necessary to create a solution to this problem. If you choose to utilize a generative AI, you must follow the COMAP AI use policy. This will result in an additional AI use report that you must add to the end of your PDF solution file and does not count toward the 25 total page limit for your solution.
+
+
+
+## NEW MCM/ICM: Online Submission Process
+
+The purpose of this article is to assist and guide students and advisors participating in HiMCM/MidMCM. In the article, COMAP, provides information about the new online submission process using the new online submission page https://forms.comap.org/241335097294056. You will need your team's control number, advisor id number and your problem choice to complete your submission.
+
+
+
+## Glossary
+
+- **Permanence:** The state or quality of lasting or remaining unchanged indefinitely.
+- **Impervious:** Unable to be affected by.
+- **Non-destructive:** Not involving damage or destruction, especially of an object or material that is being evaluated.

@@ -1,0 +1,26 @@
+-- 知识库文档元数据表
+CREATE TABLE IF NOT EXISTS knowledge_document (
+    id BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID (雪花算法生成)',
+    doc_code VARCHAR(64) NOT NULL UNIQUE COMMENT '文档业务唯一编码 (如 KM_OPT_001)',
+    title VARCHAR(128) NOT NULL COMMENT '文档标题',
+    category VARCHAR(64) NOT NULL COMMENT '物理分类目录 (如 数学建模/模型方法)',
+    file_name VARCHAR(128) NOT NULL COMMENT '物理 Markdown 文件名',
+    relative_path VARCHAR(255) NOT NULL UNIQUE COMMENT '知识库相对路径',
+    s3_key VARCHAR(255) NULL COMMENT 'MinIO 对象存储键路径',
+    authority_level VARCHAR(16) NOT NULL DEFAULT 'L4' COMMENT '权威层级: L1, L2, L3, L4, L5',
+    applicability_scope VARCHAR(64) NOT NULL DEFAULT 'GENERAL_MODELING' COMMENT '适用范围',
+    tags JSON NULL COMMENT '多维复合标签 (JSON 数组)',
+    methods JSON NULL COMMENT '算法模型族清单 (JSON 数组)',
+    summary VARCHAR(512) NOT NULL DEFAULT '' COMMENT '一句话核心摘要',
+    content_hash VARCHAR(64) NOT NULL COMMENT '文件正文 SHA-256 哈希',
+    status VARCHAR(32) NOT NULL DEFAULT 'PUBLISHED' COMMENT '生命周期状态: DRAFT, PUBLISHED, ARCHIVED',
+    estimated_tokens INT NOT NULL DEFAULT 0 COMMENT '预估 Token 总数',
+    chunk_count INT NOT NULL DEFAULT 0 COMMENT 'ES 切片数量',
+    indexed TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'ES 索引同步状态: 0未同步, 1已同步',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标记: 0未删除, 1已删除',
+    INDEX idx_category_status (category, status),
+    INDEX idx_authority (authority_level),
+    INDEX idx_indexed (indexed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档元数据表';

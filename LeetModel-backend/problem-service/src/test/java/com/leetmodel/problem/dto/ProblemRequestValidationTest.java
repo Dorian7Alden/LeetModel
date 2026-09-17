@@ -35,6 +35,28 @@ class ProblemRequestValidationTest {
     }
 
     @Test
+    @DisplayName("创建题目要求选择赛事题号")
+    void createRequestRequiresProblemNumber() {
+        ProblemCreateRequest request = validCreateRequest();
+        request.setProblemNumber(null);
+
+        Set<ConstraintViolation<ProblemCreateRequest>> violations = validator.validate(request);
+
+        assertTrue(hasViolation(violations, "problemNumber"));
+    }
+
+    @Test
+    @DisplayName("题号筛选拒绝旧 OTHER 值")
+    void pageQueryRejectsLegacyOtherProblemNumber() {
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setProblemNumber("OTHER");
+
+        Set<ConstraintViolation<ProblemPageQuery>> violations = validator.validate(query);
+
+        assertTrue(hasViolation(violations, "problemNumber"));
+    }
+
+    @Test
     @DisplayName("更新题目拒绝空白标题")
     void updateRequestRejectsBlankTitle() {
         ProblemUpdateRequest request = new ProblemUpdateRequest();
@@ -76,6 +98,7 @@ class ProblemRequestValidationTest {
         ProblemCreateRequest request = new ProblemCreateRequest();
         request.setTitle("测试题目");
         request.setContestId(2L);
+        request.setProblemNumber("X");
         request.setYear(2026);
         request.setStatementLanguage("ZH");
         request.setDurationMinutes(4320);

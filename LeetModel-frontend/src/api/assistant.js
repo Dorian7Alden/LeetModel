@@ -8,8 +8,23 @@ export function listConversations() {
   return request({ url: "/assistant/conversations", method: "get" });
 }
 
-export function getConversation(conversationId) {
-  return request({ url: `/assistant/conversations/${conversationId}`, method: "get" });
+export function getConversation(conversationId, params) {
+  return request({ url: `/assistant/conversations/${conversationId}`, method: "get", params });
+}
+
+export function renameConversation(conversationId, title) {
+  return request({
+    url: `/assistant/conversations/${conversationId}/title`,
+    method: "put",
+    data: { title },
+  });
+}
+
+export function deleteConversation(conversationId) {
+  return request({
+    url: `/assistant/conversations/${conversationId}`,
+    method: "delete",
+  });
 }
 
 export function sendMessage(conversationId, content, clientRequestId) {

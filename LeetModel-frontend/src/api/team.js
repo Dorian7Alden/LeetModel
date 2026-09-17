@@ -31,6 +31,19 @@ export function getPublicPreparingProblemIds() {
   return request.get("/teams/public/preparing-problem-ids");
 }
 
+export function getPopularPracticeProblems(limit = 3) {
+  return request.get("/teams/public/popular-practice-problems", {
+    params: { limit },
+    skipAuthRedirect: true
+  });
+}
+
+export function getProblemParticipationStats(problemId) {
+  return request.get(`/teams/public/problems/${problemId}/stats`, {
+    skipAuthRedirect: true
+  });
+}
+
 export function getTeamDetail(teamId) {
   return request.get(`/teams/${teamId}`);
 }

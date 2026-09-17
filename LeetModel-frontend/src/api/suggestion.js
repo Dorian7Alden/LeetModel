@@ -1,7 +1,11 @@
 import request from "./request";
 
-export function createSuggestion(submissionId) {
-  return request({ url: "/suggestions", method: "post", data: { submissionId } });
+export function createSuggestion({ submissionId, reviewTaskId, clientRequestId, retrievalWorkflowVersion }) {
+  return request({
+    url: "/suggestions",
+    method: "post",
+    data: { submissionId, reviewTaskId, clientRequestId, retrievalWorkflowVersion },
+  });
 }
 
 export function getSuggestion(taskId) {

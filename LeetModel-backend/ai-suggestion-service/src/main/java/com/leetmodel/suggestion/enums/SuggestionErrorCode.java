@@ -13,6 +13,7 @@ public enum SuggestionErrorCode implements ErrorCode {
     TASK_NOT_FOUND(40804, "论文建议任务不存在"),
     TASK_NOT_FAILED(40805, "只有失败的论文建议任务可以重试"),
     PDF_TEXT_EMPTY(40806, "论文未提取到可用文字，请确认 PDF 不是纯扫描件"),
+    SERVICE_BUSY(40807, "AI 建议任务繁忙，请稍后重试"),
     DEPENDENCY_UNAVAILABLE(50801, "论文建议依赖服务暂不可用"),
     SOURCE_DATA_INVALID(50802, "论文建议源数据不完整或互相矛盾");
 

@@ -14,6 +14,11 @@ public enum AiGatewayErrorCode implements ErrorCode {
     PROVIDER_NOT_CONFIGURED(51201, "AI 供应商未配置"),
     PROVIDER_UNAVAILABLE(51202, "AI 供应商暂不可用"),
     RESPONSE_INVALID(51203, "AI 供应商响应无效"),
+    PROVIDER_TIMEOUT(51204, "AI 模型调用超时，结果状态未知"),
+    UPSTREAM_AUTHENTICATION_FAILED(51205, "AI 上游认证失败"),
+    UPSTREAM_QUOTA_EXCEEDED(51206, "AI 上游额度不足"),
+    UPSTREAM_RATE_LIMITED(51207, "AI 上游请求受限"),
+    UPSTREAM_MODEL_NOT_FOUND(51208, "AI 上游模型不存在"),
     CAPABILITY_NOT_SUPPORTED(41202, "当前模型不支持请求的能力"),
     MODEL_DISABLED(41203, "当前模型未配置或已停用"),
     INPUT_TYPE_UNSUPPORTED(41204, "当前模型不支持请求的输入类型"),
@@ -21,7 +26,19 @@ public enum AiGatewayErrorCode implements ErrorCode {
     IMAGE_COUNT_EXCEEDED(41206, "图片数量超过当前模型上限"),
     IMAGE_BYTES_EXCEEDED(41207, "图片总体积超过当前模型上限"),
     CONTEXT_WINDOW_EXCEEDED(41208, "请求可能超过当前模型上下文窗口"),
-    OUTPUT_LIMIT_EXCEEDED(41209, "最大输出超过当前模型上限");
+    OUTPUT_LIMIT_EXCEEDED(41209, "最大输出超过当前模型上限"),
+    EMBEDDING_BATCH_EXCEEDED(41210, "Embedding 批量超过逻辑模型上限"),
+    EMBEDDING_INPUT_EXCEEDED(41211, "Embedding 单条输入超过逻辑模型上限"),
+    EMBEDDING_TOTAL_INPUT_EXCEEDED(41212, "Embedding 输入总量超过逻辑模型上限"),
+    EMBEDDING_DIMENSION_MISMATCH(51209, "Embedding 响应维度与模型配置不一致"),
+    AI_QUEUE_FULL(51210, "AI 调用队列已满"),
+    AI_QUEUE_EXPIRED(51211, "AI 调用在派发前已过期"),
+    AI_RESULT_PENDING(51212, "AI 调用仍在处理中，请使用相同请求标识重试"),
+    AI_UPSTREAM_RESULT_UNKNOWN(51213, "AI 上游执行结果未知，禁止自动重试"),
+    AI_TASK_NOT_FOUND(41213, "AI 调用任务不存在"),
+    AI_TASK_NOT_CANCELLABLE(41214, "AI 调用任务已结束，不能取消"),
+    MODEL_EXECUTION_CONFIG_UNAVAILABLE(41215, "模型执行配置不存在或已停用"),
+    MODEL_EXECUTION_CONFIG_MISMATCH(41216, "请求与模型执行配置不一致");
 
     private final int code;
     private final String message;

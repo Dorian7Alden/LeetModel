@@ -6,6 +6,12 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.leetmodel.common.api.dto.AdminTeamCreateDTO;
+import com.leetmodel.common.api.dto.AdminTeamPageQuery;
+import com.leetmodel.common.api.dto.AdminTeamPracticeStatusDTO;
+import com.leetmodel.common.api.dto.AdminTeamStatsDTO;
+import com.leetmodel.common.api.dto.AdminTeamUpdateDTO;
+import com.leetmodel.common.api.vo.TeamAdminVO;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
@@ -36,6 +42,8 @@ import com.leetmodel.team.mapper.TeamMemberMapper;
 import com.leetmodel.team.mapper.TeamRecruitmentMapper;
 import com.leetmodel.team.service.TeamService;
 import com.leetmodel.team.vo.JoinApplicationVO;
+import com.leetmodel.team.vo.PopularPracticeProblemVO;
+import com.leetmodel.team.vo.ProblemParticipationStatsVO;
 import com.leetmodel.team.vo.TeamMemberVO;
 import com.leetmodel.team.vo.TeamRecruitmentVO;
 import com.leetmodel.team.vo.TeamVO;
@@ -52,7 +60,9 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 团队服务实现。
@@ -62,19 +72,19 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements TeamService {
 
-    private static final String ROLE_LEADER = "leader";
-    private static final String ROLE_MEMBER = "member";
-    private static final String PENDING = "pending";
-    private static final String APPROVED = "approved";
-    private static final String REJECTED = "rejected";
-    private static final String CANCELLED = "cancelled";
-    private static final String CLOSED = "closed";
-    private static final String RECRUITMENT_OPEN = "OPEN";
-    private static final String RECRUITMENT_FILLED = "FILLED";
-    private static final String RECRUITMENT_CLOSED = "CLOSED";
-    private static final int DEFAULT_MAX_MEMBERS = 3;
-    private static final int STATUS_ACTIVE = 1;
-    private static final int STATUS_DISBANDED = 0;
+    private static final String ROLE_LEADER = "leader";          // 队长身份
+    private static final String ROLE_MEMBER = "member";          // 普通队员身份
+    private static final String PENDING = "pending";              // 入队申请：待审核
+    private static final String APPROVED = "approved";            // 入队申请：已批准
+    private static final String REJECTED = "rejected";            // 入队申请：已拒绝
+    private static final String CANCELLED = "cancelled";          // 入队申请：申请人已取消
+    private static final String CLOSED = "closed";                // 入队申请：队伍已满或解散关闭
+    private static final String RECRUITMENT_OPEN = "OPEN";        // 招募位置：开放中
+    private static final String RECRUITMENT_FILLED = "FILLED";    // 招募位置：已满额
+    private static final String RECRUITMENT_CLOSED = "CLOSED";    // 招募位置：已主动关闭
+    private static final int DEFAULT_MAX_MEMBERS = 3;            // 默认队伍人数上限（3人队伍）
+    private static final int STATUS_ACTIVE = 1;                  // 队伍状态：正常
+    private static final int STATUS_DISBANDED = 0;               // 队伍状态：已解散
 
     private final TeamMemberMapper teamMemberMapper;
     private final TeamJoinApplicationMapper applicationMapper;
@@ -160,6 +170,52 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 .groupBy("problem_id")
                 .orderByDesc("MAX(create_time)");
         return baseMapper.selectObjs(wrapper).stream().map(value -> ((Number) value).longValue()).toList();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<PopularPracticeProblemVO> listPopularPracticeProblems(int limit) {
+        int resultLimit = Math.max(1, Math.min(limit, 10));
+        int candidateLimit = Math.max(30, resultLimit * 3);
+        List<PopularPracticeProblemVO> candidates = baseMapper.selectPopularPracticeProblems(candidateLimit);
+        if (candidates.isEmpty()) return List.of();
+
+        List<Long> problemIds = candidates.stream()
+                .map(PopularPracticeProblemVO::getProblemId)
+                .toList();
+        Result<List<ProblemPracticeDTO>> response = problemFeignClient.getPracticeProblems(problemIds);
+        BusinessException.throwIf(response == null || !response.isSuccess() || response.getData() == null,
+                ErrorCodeEnum.SYSTEM_ERROR);
+
+        Map<Long, ProblemPracticeDTO> publishedProblems = new HashMap<>();
+        for (ProblemPracticeDTO problem : response.getData()) {
+            publishedProblems.put(problem.getId(), problem);
+        }
+
+        List<PopularPracticeProblemVO> result = new ArrayList<>();
+        for (PopularPracticeProblemVO candidate : candidates) {
+            ProblemPracticeDTO problem = publishedProblems.get(candidate.getProblemId());
+            if (problem == null) continue;
+            candidate.setProblemCode(problem.getCode());
+            candidate.setProblemTitle(problem.getTitle());
+            result.add(candidate);
+            if (result.size() == resultLimit) break;
+        }
+        return result;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public ProblemParticipationStatsVO getProblemParticipationStats(Long problemId) {
+        ProblemParticipationStatsVO stats = baseMapper.selectProblemParticipationStats(problemId);
+        if (stats == null) {
+            stats = ProblemParticipationStatsVO.builder()
+                    .teamCount(0L)
+                    .participantCount(0L)
+                    .build();
+        }
+        stats.setProblemId(problemId);
+        return stats;
     }
 
     /** {@inheritDoc} */
@@ -874,7 +930,12 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 ErrorCodeEnum.SYSTEM_ERROR);
         Map<Long, UserPublicSummaryDTO> summaries = new HashMap<>();
         for (UserPublicSummaryDTO summary : result.getData()) summaries.put(summary.getUserId(), summary);
-        BusinessException.throwIf(summaries.size() != distinctIds.size(), ErrorCodeEnum.SYSTEM_ERROR);
+        List<Long> missingIds = distinctIds.stream().filter(id -> !summaries.containsKey(id)).toList();
+        if (!missingIds.isEmpty()) {
+            // 用户属于其他服务的数据。历史队伍可能在用户清理后暂时保留，
+            // 列表展示应降级为空摘要，而不是让一条孤儿引用拖垮整页。
+            log.warn("用户公开摘要缺失，按空摘要降级展示: count={}", missingIds.size());
+        }
         return summaries;
     }
 
@@ -981,5 +1042,335 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
         if (writer) roleConditions.add("tr.need_writer = 1");
         wrapper.exists("SELECT 1 FROM team_recruitment tr WHERE tr.team_id = team.id AND tr.status = 'OPEN' AND "
                 + String.join(" AND ", roleConditions));
+    }
+
+    @Override
+    public PageResult<TeamAdminVO> pageAdminTeams(AdminTeamPageQuery query) {
+        Page<Team> page = new Page<>(query.getPage(), query.getPageSize());
+        LambdaQueryWrapper<Team> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
+            String kw = query.getKeyword().trim();
+            wrapper.and(w -> {
+                w.like(Team::getName, kw);
+                try {
+                    long idVal = Long.parseLong(kw);
+                    w.or().eq(Team::getId, idVal).or().eq(Team::getLeaderId, idVal);
+                } catch (NumberFormatException ignored) {}
+            });
+        }
+        if (query.getProblemId() != null) {
+            wrapper.eq(Team::getProblemId, query.getProblemId());
+        }
+        if (query.getStatus() != null) {
+            wrapper.eq(Team::getStatus, query.getStatus());
+        }
+        if (query.getPracticeStatus() != null && !query.getPracticeStatus().isBlank()) {
+            wrapper.eq(Team::getPracticeStatus, query.getPracticeStatus());
+        }
+        wrapper.orderByDesc(Team::getCreateTime);
+
+        IPage<Team> teamPage = baseMapper.selectPage(page, wrapper);
+        if (teamPage.getRecords().isEmpty()) {
+            return new PageResult<>(teamPage.getTotal(), (int) teamPage.getCurrent(), (int) teamPage.getSize(), List.of());
+        }
+
+        List<Long> teamIds = teamPage.getRecords().stream().map(Team::getId).toList();
+        List<TeamMember> allMembers = teamMemberMapper.selectList(new LambdaQueryWrapper<TeamMember>()
+                .in(TeamMember::getTeamId, teamIds));
+        Map<Long, List<TeamMember>> membersByTeam = allMembers.stream()
+                .collect(Collectors.groupingBy(TeamMember::getTeamId));
+
+        List<Long> problemIds = teamPage.getRecords().stream()
+                .map(Team::getProblemId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, ProblemPracticeDTO> problemMap = Map.of();
+        try {
+            if (!problemIds.isEmpty()) {
+                Result<List<ProblemPracticeDTO>> probRes = problemFeignClient.getPracticeProblems(problemIds);
+                if (probRes != null && probRes.isSuccess() && probRes.getData() != null) {
+                    problemMap = probRes.getData().stream()
+                            .filter(p -> p.getId() != null)
+                            .collect(Collectors.toMap(ProblemPracticeDTO::getId, p -> p, (a, b) -> a));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取赛题元数据失败: exceptionType={}", e.getClass().getSimpleName());
+        }
+
+        List<Long> userIds = allMembers.stream().map(TeamMember::getUserId).distinct().toList();
+        Map<Long, UserPublicSummaryDTO> userSummaries = getUserSummaries(userIds);
+
+        Map<Long, ProblemPracticeDTO> finalProblemMap = problemMap;
+        List<TeamAdminVO> voList = teamPage.getRecords().stream().map(team -> {
+            List<TeamMember> teamMembers = membersByTeam.getOrDefault(team.getId(), List.of());
+            ProblemPracticeDTO prob = finalProblemMap.get(team.getProblemId());
+            UserPublicSummaryDTO leaderUser = userSummaries.get(team.getLeaderId());
+
+            List<TeamAdminVO.MemberSimpleVO> memberVOs = teamMembers.stream().map(m -> {
+                UserPublicSummaryDTO u = userSummaries.get(m.getUserId());
+                return TeamAdminVO.MemberSimpleVO.builder()
+                        .userId(m.getUserId())
+                        .nickname(u != null ? u.getNickname() : null)
+                        .avatarUrl(u != null ? u.getAvatarUrl() : null)
+                        .role(m.getRole())
+                        .modeler(m.getModeler())
+                        .programmer(m.getProgrammer())
+                        .writer(m.getWriter())
+                        .canSubmit(m.getCanSubmit())
+                        .joinedAt(m.getJoinedAt())
+                        .build();
+            }).toList();
+
+            return TeamAdminVO.builder()
+                    .id(team.getId())
+                    .name(team.getName())
+                    .description(team.getDescription())
+                    .leaderId(team.getLeaderId())
+                    .leaderNickname(leaderUser != null ? leaderUser.getNickname() : null)
+                    .leaderAvatarUrl(leaderUser != null ? leaderUser.getAvatarUrl() : null)
+                    .problemId(team.getProblemId())
+                    .problemCode(prob != null ? prob.getCode() : null)
+                    .problemTitle(prob != null ? prob.getTitle() : null)
+                    .maxMembers(DEFAULT_MAX_MEMBERS)
+                    .memberCount(teamMembers.size())
+                    .status(team.getStatus())
+                    .practiceStatus(team.getPracticeStatus())
+                    .startedAt(team.getStartedAt())
+                    .deadlineAt(team.getDeadlineAt())
+                    .endedAt(team.getEndedAt())
+                    .createTime(team.getCreateTime())
+                    .members(memberVOs)
+                    .build();
+        }).toList();
+
+        return new PageResult<>(teamPage.getTotal(), (int) teamPage.getCurrent(), (int) teamPage.getSize(), voList);
+    }
+
+    @Override
+    public AdminTeamStatsDTO getAdminStats() {
+        long totalTeams = count();
+        long activeTeams = count(new LambdaQueryWrapper<Team>().eq(Team::getStatus, STATUS_ACTIVE));
+        long disbandedTeams = count(new LambdaQueryWrapper<Team>().eq(Team::getStatus, STATUS_DISBANDED));
+
+        long preparing = count(new LambdaQueryWrapper<Team>().eq(Team::getPracticeStatus, "PREPARING"));
+        long inProgress = count(new LambdaQueryWrapper<Team>().eq(Team::getPracticeStatus, "IN_PROGRESS"));
+        long ended = count(new LambdaQueryWrapper<Team>().eq(Team::getPracticeStatus, "ENDED"));
+
+        Map<Integer, Long> sizeDistribution = new HashMap<>();
+        sizeDistribution.put(1, 0L);
+        sizeDistribution.put(2, 0L);
+        sizeDistribution.put(3, 0L);
+        List<Map<String, Object>> countMaps = teamMemberMapper.selectMaps(
+                new QueryWrapper<TeamMember>().select("team_id, count(*) as cnt").groupBy("team_id")
+        );
+        for (Map<String, Object> map : countMaps) {
+            int cnt = ((Number) map.get("cnt")).intValue();
+            if (cnt >= 1 && cnt <= 3) {
+                sizeDistribution.put(cnt, sizeDistribution.get(cnt) + 1);
+            }
+        }
+
+        List<PopularPracticeProblemVO> popular = listPopularPracticeProblems(5);
+        List<AdminTeamStatsDTO.TopProblemStats> topProblems = popular.stream().map(p ->
+                AdminTeamStatsDTO.TopProblemStats.builder()
+                        .problemId(p.getProblemId())
+                        .problemCode(p.getProblemCode())
+                        .problemTitle(p.getProblemTitle())
+                        .teamCount(p.getPracticeCount())
+                        .build()
+        ).toList();
+
+        return AdminTeamStatsDTO.builder()
+                .totalTeams(totalTeams)
+                .activeTeams(activeTeams)
+                .disbandedTeams(disbandedTeams)
+                .preparingTeams(preparing)
+                .inProgressTeams(inProgress)
+                .endedTeams(ended)
+                .memberSizeDistribution(sizeDistribution)
+                .topProblems(topProblems)
+                .build();
+    }
+
+    @Override
+    public TeamAdminVO getAdminDetail(Long teamId) {
+        Team team = getRequiredTeam(teamId);
+        List<TeamMember> members = getMembersByTeamId(teamId);
+        List<Long> userIds = memberUserIds(members);
+        if (!userIds.contains(team.getLeaderId())) {
+            userIds = new ArrayList<>(userIds);
+            userIds.add(team.getLeaderId());
+        }
+        Map<Long, UserPublicSummaryDTO> userSummaries = getUserSummaries(userIds);
+        ProblemPracticeDTO prob = null;
+        try {
+            prob = getPracticeProblem(team.getProblemId());
+        } catch (Exception ignored) {}
+
+        UserPublicSummaryDTO leaderUser = userSummaries.get(team.getLeaderId());
+        List<TeamAdminVO.MemberSimpleVO> memberVOs = members.stream().map(m -> {
+            UserPublicSummaryDTO u = userSummaries.get(m.getUserId());
+            return TeamAdminVO.MemberSimpleVO.builder()
+                    .userId(m.getUserId())
+                    .nickname(u != null ? u.getNickname() : null)
+                    .avatarUrl(u != null ? u.getAvatarUrl() : null)
+                    .role(m.getRole())
+                    .modeler(m.getModeler())
+                    .programmer(m.getProgrammer())
+                    .writer(m.getWriter())
+                    .canSubmit(m.getCanSubmit())
+                    .joinedAt(m.getJoinedAt())
+                    .build();
+        }).toList();
+
+        return TeamAdminVO.builder()
+                .id(team.getId())
+                .name(team.getName())
+                .description(team.getDescription())
+                .leaderId(team.getLeaderId())
+                .leaderNickname(leaderUser != null ? leaderUser.getNickname() : null)
+                .leaderAvatarUrl(leaderUser != null ? leaderUser.getAvatarUrl() : null)
+                .problemId(team.getProblemId())
+                .problemCode(prob != null ? prob.getCode() : null)
+                .problemTitle(prob != null ? prob.getTitle() : null)
+                .maxMembers(DEFAULT_MAX_MEMBERS)
+                .memberCount(members.size())
+                .status(team.getStatus())
+                .practiceStatus(team.getPracticeStatus())
+                .startedAt(team.getStartedAt())
+                .deadlineAt(team.getDeadlineAt())
+                .endedAt(team.getEndedAt())
+                .createTime(team.getCreateTime())
+                .members(memberVOs)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public TeamAdminVO adminCreateTeam(AdminTeamCreateDTO request) {
+        ProblemPracticeDTO prob = getPracticeProblem(request.getProblemId());
+        BusinessException.throwIf(prob == null, TeamErrorCode.PROBLEM_NOT_AVAILABLE);
+
+        Team team = new Team();
+        team.setName(request.getName());
+        team.setDescription(request.getDescription());
+        team.setProblemId(request.getProblemId());
+        team.setLeaderId(request.getLeaderId());
+        team.setStatus(STATUS_ACTIVE);
+        team.setPracticeStatus("PREPARING");
+        team.setCreateTime(LocalDateTime.now());
+        team.setUpdateTime(LocalDateTime.now());
+        baseMapper.insert(team);
+
+        TeamMember leaderMember = new TeamMember();
+        leaderMember.setTeamId(team.getId());
+        leaderMember.setUserId(request.getLeaderId());
+        leaderMember.setRole(ROLE_LEADER);
+        leaderMember.setModeler(false);
+        leaderMember.setProgrammer(false);
+        leaderMember.setWriter(false);
+        leaderMember.setCanSubmit(true);
+        leaderMember.setJoinedAt(LocalDateTime.now());
+        leaderMember.setCreateTime(LocalDateTime.now());
+        teamMemberMapper.insert(leaderMember);
+
+        return getAdminDetail(team.getId());
+    }
+
+    @Override
+    @Transactional
+    public TeamAdminVO adminUpdateTeam(Long teamId, AdminTeamUpdateDTO request) {
+        Team team = baseMapper.selectByIdForUpdate(teamId);
+        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            team.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            team.setDescription(request.getDescription());
+        }
+        if (request.getLeaderId() != null && !request.getLeaderId().equals(team.getLeaderId())) {
+            Long newLeaderId = request.getLeaderId();
+            TeamMember newLeaderMember = teamMemberMapper.selectOne(new LambdaQueryWrapper<TeamMember>()
+                    .eq(TeamMember::getTeamId, teamId)
+                    .eq(TeamMember::getUserId, newLeaderId));
+            if (newLeaderMember == null) {
+                newLeaderMember = new TeamMember();
+                newLeaderMember.setTeamId(teamId);
+                newLeaderMember.setUserId(newLeaderId);
+                newLeaderMember.setRole(ROLE_LEADER);
+                newLeaderMember.setCanSubmit(true);
+                newLeaderMember.setJoinedAt(LocalDateTime.now());
+                newLeaderMember.setCreateTime(LocalDateTime.now());
+                teamMemberMapper.insert(newLeaderMember);
+            } else {
+                newLeaderMember.setRole(ROLE_LEADER);
+                newLeaderMember.setCanSubmit(true);
+                teamMemberMapper.updateById(newLeaderMember);
+            }
+            teamMemberMapper.update(null, new UpdateWrapper<TeamMember>()
+                    .eq("team_id", teamId)
+                    .eq("user_id", team.getLeaderId())
+                    .set("role", ROLE_MEMBER));
+
+            team.setLeaderId(newLeaderId);
+        }
+        team.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(team);
+        return getAdminDetail(teamId);
+    }
+
+    @Override
+    @Transactional
+    public TeamAdminVO adminUpdatePracticeStatus(Long teamId, AdminTeamPracticeStatusDTO request) {
+        Team team = baseMapper.selectByIdForUpdate(teamId);
+        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
+
+        String status = request.getPracticeStatus();
+        team.setPracticeStatus(status);
+        if ("IN_PROGRESS".equals(status)) {
+            if (team.getStartedAt() == null) {
+                team.setStartedAt(LocalDateTime.now());
+            }
+            if (request.getDeadlineAt() != null) {
+                team.setDeadlineAt(request.getDeadlineAt());
+            } else if (team.getDeadlineAt() == null) {
+                team.setDeadlineAt(LocalDateTime.now().plusHours(72));
+            }
+            team.setEndedAt(null);
+        } else if ("ENDED".equals(status)) {
+            if (team.getEndedAt() == null) {
+                team.setEndedAt(LocalDateTime.now());
+            }
+        } else if ("DISBANDED".equals(status)) {
+            team.setStatus(STATUS_DISBANDED);
+            team.setEndedAt(LocalDateTime.now());
+        }
+        team.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(team);
+        return getAdminDetail(teamId);
+    }
+
+    @Override
+    @Transactional
+    public void adminDissolveTeam(Long teamId, String reason) {
+        Team team = baseMapper.selectByIdForUpdate(teamId);
+        BusinessException.throwIf(team == null, TeamErrorCode.TEAM_NOT_FOUND);
+
+        team.setStatus(STATUS_DISBANDED);
+        team.setPracticeStatus("DISBANDED");
+        team.setEndedAt(LocalDateTime.now());
+        team.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(team);
+
+        recruitmentMapper.update(null, new UpdateWrapper<TeamRecruitment>()
+                .eq("team_id", teamId)
+                .eq("status", RECRUITMENT_OPEN)
+                .set("status", RECRUITMENT_CLOSED));
+
+        applicationMapper.update(null, new UpdateWrapper<TeamJoinApplication>()
+                .eq("team_id", teamId)
+                .eq("status", PENDING)
+                .set("status", CLOSED));
     }
 }

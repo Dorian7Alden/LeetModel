@@ -8,6 +8,7 @@ import com.leetmodel.evaluation.mapper.EvaluationDatasetMapper;
 import com.leetmodel.evaluation.mapper.EvaluationRunAttemptMapper;
 import com.leetmodel.evaluation.mapper.EvaluationSampleMapper;
 import com.leetmodel.evaluation.mapper.EvaluationTaskMapper;
+import com.leetmodel.evaluation.observability.EvaluationDispatchMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class EvaluationPersistenceService {
     private final EvaluationSampleMapper sampleMapper;
     private final EvaluationTaskMapper taskMapper;
     private final EvaluationRunAttemptMapper runMapper;
+    private final EvaluationDispatchMetrics metrics;
 
     @Transactional
     public void createDataset(EvaluationDataset dataset, List<EvaluationSample> samples) {
@@ -38,6 +40,7 @@ public class EvaluationPersistenceService {
         taskMapper.insert(task);
         for (EvaluationRunAttempt run : runs) {
             run.setTaskId(task.getId());
+            fillRunIdentity(run, task);
             runMapper.insert(run);
         }
     }
@@ -48,24 +51,26 @@ public class EvaluationPersistenceService {
         if (taskMapper.resetForRetry(task.getId(), now) == 0) return false;
         for (EvaluationRunAttempt retry : retries) {
             retry.setTaskId(task.getId());
+            fillRunIdentity(retry, task);
             runMapper.insert(retry);
         }
         return true;
     }
 
     @Transactional
-    public boolean recoverStale(EvaluationRunAttempt stale, LocalDateTime cutoff) {
-        LocalDateTime now = LocalDateTime.now();
-        if (runMapper.failStale(stale.getId(), cutoff, now) == 0) return false;
-        EvaluationRunAttempt retry = new EvaluationRunAttempt();
-        retry.setTaskId(stale.getTaskId());
-        retry.setSampleId(stale.getSampleId());
-        retry.setRepetitionNo(stale.getRepetitionNo());
-        retry.setAttemptNo(stale.getAttemptNo() + 1);
-        retry.setStatus("WAITING");
-        retry.setCreateTime(now);
-        retry.setUpdateTime(now);
-        runMapper.insert(retry);
-        return true;
+    public boolean recoverExpired(EvaluationRunAttempt stale, LocalDateTime now) {
+        boolean recovered = runMapper.markExpiredUnknown(stale.getId(), now) == 1;
+        if (recovered) metrics.recoveredUnknown();
+        return recovered;
+    }
+
+    private void fillRunIdentity(EvaluationRunAttempt run, EvaluationTask task) {
+        String slotKey = task.getId() + ":" + run.getSampleId() + ":" + run.getRepetitionNo();
+        run.setSlotKey(slotKey);
+        run.setExperimentRunId(task.getFeatureCode().toLowerCase() + "-eval:" + slotKey);
+        run.setIdempotencyKey("evaluation:" + task.getId() + ":" + slotKey
+                + ":attempt:" + run.getAttemptNo());
+        run.setModelExecutionConfigVersion(task.getModelExecutionConfigVersion());
+        run.setRagIndexVersion(task.getRagIndexVersion());
     }
 }

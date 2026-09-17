@@ -7,22 +7,18 @@ const service = axios.create({
   timeout: 30000,
   transformResponse: [
     (data) => {
-      // 数据库主键使用 Long，超出 JS 安全整数范围时转成字符串，
-      // 避免精度丢失导致路由跳转 / 接口拼接拿到错误 ID。
+      // 数据库主键使用 Long，超出 JS 安全整数范围时正则替换为字符串，
+      // 防止 JSON.parse 原生解析时发生低位截断（如 ...2369 变成 ...2400）。
       if (typeof data !== "string" || !data) return data;
       try {
-        return JSON.parse(data, (key, value) => {
-          if (
-            typeof value === "number" &&
-            Number.isInteger(value) &&
-            (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
-          ) {
-            return String(value);
-          }
-          return value;
-        });
+        const sanitized = data.replace(/:\s*(\d{16,})/g, ': "$1"');
+        return JSON.parse(sanitized);
       } catch {
-        return data;
+        try {
+          return JSON.parse(data);
+        } catch {
+          return data;
+        }
       }
     },
   ],
@@ -58,6 +54,12 @@ service.interceptors.response.use(
   (response) => {
     const body = response.data;
 
+    // 二进制下载接口（例如知识库 ZIP 导出）不携带统一 Result 包装，
+    // 直接把 Blob/ArrayBuffer 返回给调用方，避免被误判为“系统内部错误”。
+    if (["blob", "arraybuffer"].includes(response.config?.responseType)) {
+      return body;
+    }
+
     // 业务成功（2xxxx）
     if (body && typeof body.code === "number" && body.code >= 20000 && body.code < 30000) {
       return body;
@@ -66,7 +68,9 @@ service.interceptors.response.use(
     // 兜底处理携带业务错误码的情况（部分路径仍可能以 HTTP 200 返回错误体）。
     const { code, message } = parseErrorBody(body);
     if (code === 40101 || code === 40103) {
-      toLogin();
+      if (!response.config?.skipAuthRedirect) {
+        toLogin();
+      }
       return Promise.reject(new Error(message || "请先登录"));
     }
     const error = new Error(message || "请求失败");
@@ -81,7 +85,9 @@ service.interceptors.response.use(
     const { code, message } = parseErrorBody(body);
 
     if (status === 401 || code === 40101 || code === 40103) {
-      toLogin();
+      if (!error.config?.skipAuthRedirect) {
+        toLogin();
+      }
     } else if (status === 403 || code === 40104) {
       const err = new Error(message || "没有权限执行该操作");
       err.code = code || 40104;

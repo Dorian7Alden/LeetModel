@@ -42,6 +42,12 @@ public class ProblemController {
 
     private final ProblemService problemService;
 
+    /**
+     * 管理员分页组合条件查询题目列表。
+     *
+     * @param query 分页与组合筛选参数对象，不能为 null
+     * @return 分页包装的题目视图列表
+     */
     @Operation(summary = "分页查询题目")
     @GetMapping
     public Result<PageResult<ProblemVO>> page(@Valid ProblemPageQuery query) {
@@ -49,6 +55,12 @@ public class ProblemController {
         return Result.ok(PageResult.from(page));
     }
 
+    /**
+     * 管理员查询指定题目的全量详情（含未发布状态与附件列表）。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @return 题目详情视图对象
+     */
     @Operation(summary = "查询题目详情")
     @GetMapping("/{id}")
     public Result<ProblemVO> detail(@PathVariable Long id) {
@@ -56,6 +68,12 @@ public class ProblemController {
         return Result.ok(vo);
     }
 
+    /**
+     * 管理员录入并创建新的建模题目。
+     *
+     * @param request 包含题目标题、题面 Markdown 与元数据的请求对象，不能为 null
+     * @return 创建成功后的题目视图对象
+     */
     @Operation(summary = "创建题目")
     @PostMapping
     public Result<ProblemVO> create(@Valid @RequestBody ProblemCreateRequest request) {
@@ -64,6 +82,13 @@ public class ProblemController {
         return Result.ok(vo);
     }
 
+    /**
+     * 管理员更新题目的基本信息、题面内容或发布状态。
+     *
+     * @param id      目标题目 ID，不能为 null
+     * @param request 包含修改属性的请求对象，不能为 null
+     * @return 更新后的题目视图对象
+     */
     @Operation(summary = "更新题目")
     @PutMapping("/{id}")
     public Result<ProblemVO> update(@PathVariable Long id,
@@ -72,6 +97,12 @@ public class ProblemController {
         return Result.ok(vo);
     }
 
+    /**
+     * 管理员逻辑删除指定题目。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "删除题目（逻辑删除）")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
@@ -79,6 +110,15 @@ public class ProblemController {
         return Result.ok();
     }
 
+    /**
+     * 为指定题目上传附件资料（PDF、数据集等）。
+     *
+     * @param id          目标题目 ID，不能为 null
+     * @param file        待上传的附件文件，不能为 null
+     * @param description 可选的附件描述说明
+     * @param sortOrder   可选的展示排序序号
+     * @return 上传成功后的附件视图对象
+     */
     @Operation(summary = "上传题目附件")
     @PostMapping(path = "/{id}/attachments", consumes = "multipart/form-data")
     public Result<ProblemVO.AttachmentVO> uploadAttachment(
@@ -90,6 +130,13 @@ public class ProblemController {
         return Result.ok(problemService.uploadAttachment(id, file, description, sortOrder));
     }
 
+    /**
+     * 删除指定题目下关联的附件文件。
+     *
+     * @param problemId    目标题目 ID，不能为 null
+     * @param attachmentId 目标附件记录 ID，不能为 null
+     * @return 统一成功空响应
+     */
     @Operation(summary = "删除题目附件")
     @DeleteMapping("/{problemId}/attachments/{attachmentId}")
     public Result<Void> deleteAttachment(

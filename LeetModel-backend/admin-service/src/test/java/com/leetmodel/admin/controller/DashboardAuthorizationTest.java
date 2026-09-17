@@ -13,6 +13,7 @@ import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.security.config.SaTokenAnnotationConfig;
 import com.leetmodel.common.security.config.SecurityConfig;
 import com.leetmodel.common.security.handler.AuthExceptionHandler;
+import com.leetmodel.admin.service.AdminFeignExecutor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -23,12 +24,16 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = {
         DashboardAuthorizationTest.TestApplication.class,
         DashboardController.class,
+        AdminAiController.class,
+        AdminEvaluationController.class,
+        AdminAssistantProductionController.class,
         SaTokenAnnotationConfig.class,
         SecurityConfig.class,
         AuthExceptionHandler.class
@@ -58,6 +63,7 @@ class DashboardAuthorizationTest {
     @MockBean AssistantFeignClient assistant;
     @MockBean EvaluationFeignClient evaluations;
     @MockBean AiGatewayFeignClient aiGateway;
+    @MockBean AdminFeignExecutor adminFeignExecutor;
 
     @Test
     void unauthenticatedRequestMustNotReachDashboard() throws Exception {
@@ -67,5 +73,34 @@ class DashboardAuthorizationTest {
 
         verifyNoInteractions(users, teams, problems, submissions, reviews,
                 suggestions, rankings, assistant, evaluations, aiGateway);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachAiCallProxy() throws Exception {
+        mockMvc.perform(get("/api/admin/ai/calls").param("evaluationTaskId", "eval-1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(aiGateway, adminFeignExecutor);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachEvaluationWriteProxy() throws Exception {
+        mockMvc.perform(post("/api/admin/ai/evaluations/weight-schemes/1/deactivate"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(evaluations, adminFeignExecutor);
+    }
+
+    @Test
+    void unauthenticatedRequestMustNotReachProductionChangeProxy() throws Exception {
+        mockMvc.perform(post("/api/admin/ai/assistant/production/changes/apply")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"changeRequestId\":\"0123456789abcdef0123456789abcdef\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40101));
+
+        verifyNoInteractions(assistant, adminFeignExecutor);
     }
 }

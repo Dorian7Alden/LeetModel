@@ -6,13 +6,20 @@ import com.leetmodel.aigateway.config.AiRoutingProperties;
 import com.leetmodel.aigateway.provider.AiProviderAdapter;
 import com.leetmodel.common.ai.model.AiChatRequest;
 import com.leetmodel.common.ai.model.AiChatResponse;
+import com.leetmodel.common.ai.model.AiChatStreamChunk;
 import com.leetmodel.common.ai.model.AiContentPart;
 import com.leetmodel.common.ai.model.AiContentType;
 import com.leetmodel.common.ai.model.AiMessage;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.model.AiRole;
+import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiScene;
 import com.leetmodel.common.ai.model.AiUsage;
+import com.leetmodel.common.ai.model.AiMetricCompleteness;
+import com.leetmodel.common.ai.model.AiToolChoice;
+import com.leetmodel.common.ai.model.AiToolChoiceType;
+import com.leetmodel.common.ai.model.AiToolDefinition;
+import com.leetmodel.common.ai.model.AiToolType;
 import com.leetmodel.common.core.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,18 +58,64 @@ class AiChatServiceTest {
     @Test
     void shouldAssignCallIdAndAuditSuccessfulCall() {
         configureRoute();
-        when(registry.get(AiProvider.DEEPSEEK)).thenReturn(adapter);
-        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.DEEPSEEK,
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
                 "deepseek-test", "provider-id", "answer", null, "stop",
-                new AiUsage(2L, 0L, 2L, 3L, 0L, 5L, true));
+                new AiUsage(2L, 3L, 0L, 0L, null, 2L, 5L,
+                        AiMetricCompleteness.COMPLETE));
         when(adapter.chat(eq("deepseek-test"), eq(AiApiProtocol.OPENAI_COMPLETIONS), any()))
                 .thenReturn(providerResponse);
 
         AiChatResponse response = service().chat(request());
 
         assertThat(response.callId()).isNotBlank();
-        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("DEEPSEEK"),
-                eq("deepseek-test"), eq(providerResponse), anyLong());
+        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
+                eq("deepseek-test"), eq(providerResponse), anyLong(), eq(0L));
+    }
+
+    @Test
+    void shouldKeepSuccessfulCallWhenUsageIsMissing() {
+        configureRoute();
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
+                "deepseek-test", "provider-id", "answer", null, "stop", null);
+        when(adapter.chat(eq("deepseek-test"), eq(AiApiProtocol.OPENAI_COMPLETIONS), any()))
+                .thenReturn(providerResponse);
+
+        AiChatResponse response = service().chat(request());
+
+        assertThat(response.callId()).isNotBlank();
+        assertThat(response.usage()).isNull();
+        verify(auditService).recordSuccess(eq(response.callId()), any(), eq("NEW_API"),
+                eq("deepseek-test"), eq(providerResponse), anyLong(), eq(0L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldForwardDeltaBeforeOneCompletedResponseWithAssignedCallId() {
+        configureRoute();
+        when(registry.get(AiProvider.NEW_API)).thenReturn(adapter);
+        AiChatResponse providerResponse = new AiChatResponse(null, AiProvider.NEW_API,
+                "deepseek-test", "provider-id", "先建模", null, "stop", null);
+        when(adapter.streamChat(eq("deepseek-test"),
+                eq(AiApiProtocol.OPENAI_COMPLETIONS), any(), any()))
+                .thenAnswer(invocation -> {
+                    java.util.function.Consumer<AiChatStreamChunk> consumer =
+                            invocation.getArgument(3);
+                    consumer.accept(new AiChatStreamChunk(null, "先", null, null));
+                    consumer.accept(new AiChatStreamChunk(
+                            null, null, "stop", providerResponse));
+                    return providerResponse;
+                });
+        List<AiChatStreamChunk> chunks = new ArrayList<>();
+
+        AiChatResponse response = service().streamChat(request(), chunks::add);
+
+        assertThat(chunks).hasSize(2);
+        assertThat(chunks.get(0).deltaText()).isEqualTo("先");
+        assertThat(chunks.get(0).callId()).isEqualTo(response.callId());
+        assertThat(chunks.get(1).completedResponse()).isEqualTo(response);
+        assertThat(chunks.get(1).callId()).isEqualTo(response.callId());
     }
 
     @Test
@@ -72,7 +126,23 @@ class AiChatServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(41201);
         verify(auditService).recordFailure(any(), eq(request), eq(null), eq(null),
-                any(BusinessException.class), anyLong());
+                any(BusinessException.class), anyLong(), eq(0L));
+    }
+
+    @Test
+    void shouldRejectToolsWhenModelCapabilityIsDisabled() {
+        configureRoute();
+        AiMessage message = new AiMessage(AiRole.USER,
+                List.of(new AiContentPart(AiContentType.TEXT, "查询题目", null)));
+        AiToolDefinition tool = new AiToolDefinition(AiToolType.FUNCTION,
+                "search_problem", "查询题目", Map.of("type", "object"));
+        AiChatRequest request = new AiChatRequest(AiScene.GENERAL_TEXT, null, null,
+                List.of(message), 10, null, null, false,
+                List.of(tool), new AiToolChoice(AiToolChoiceType.AUTO, null));
+
+        assertThatThrownBy(() -> service().chat(request))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(41202);
     }
 
     private AiChatService service() {
@@ -81,16 +151,16 @@ class AiChatServiceTest {
 
     private void configureRoute() {
         AiRoutingProperties.Route route = new AiRoutingProperties.Route();
-        route.setProvider(AiProvider.DEEPSEEK);
+        route.setProvider(AiProvider.NEW_API);
         route.setModel("deepseek-test");
-        routes.setRoutes(Map.of(AiScene.GENERAL_TEXT, route));
+        routes.setRoutes(Map.of(AiModality.TEXT, route));
 
         AiModelCatalogProperties.ModelProfile profile = new AiModelCatalogProperties.ModelProfile();
         profile.setProtocol(AiApiProtocol.OPENAI_COMPLETIONS);
         profile.setInputTypes(Set.of(AiContentType.TEXT));
         profile.setMaxOutputTokens(100);
         profile.setContextTokens(1000);
-        models.setModels(Map.of("DEEPSEEK/deepseek-test", profile));
+        models.setModels(Map.of("NEW_API/deepseek-test", profile));
     }
 
     private AiChatRequest request() {

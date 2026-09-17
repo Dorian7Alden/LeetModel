@@ -1,0 +1,12 @@
+# RocketMQ 5.5 ACL 2.0 security fragment.
+#
+# Do not place real credentials in this repository. Deployment automation must append this
+# fragment to broker.conf and inject both JSON properties below from its secret manager.
+authenticationEnabled=true
+authenticationMetadataProvider=org.apache.rocketmq.auth.authentication.provider.LocalAuthenticationMetadataProvider
+authorizationEnabled=true
+authorizationMetadataProvider=org.apache.rocketmq.auth.authorization.provider.LocalAuthorizationMetadataProvider
+
+# Required secret-backed values (examples intentionally omitted):
+# initAuthenticationUser={"username":"<admin-user>","password":"<secret>"}
+# innerClientAuthenticationCredentials={"accessKey":"<admin-user>","secretKey":"<secret>"}

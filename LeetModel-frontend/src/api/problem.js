@@ -92,6 +92,18 @@ export function getAdminContentContests() {
   return request({ url: "/admin/content/contests", method: "get" });
 }
 
+export function createAdminContentContest(data) {
+  return request({ url: "/admin/content/contests", method: "post", data });
+}
+
+export function updateAdminContentContest(contestId, data) {
+  return request({ url: `/admin/content/contests/${contestId}`, method: "put", data });
+}
+
+export function deleteAdminContentContest(contestId) {
+  return request({ url: `/admin/content/contests/${contestId}`, method: "delete" });
+}
+
 export function uploadAdminAttachment(problemId, file, options = {}) {
   const formData = new FormData();
   formData.append("file", file);
@@ -110,4 +122,26 @@ export function deleteAdminAttachment(problemId, attachmentId) {
     url: `/admin/content/problems/${problemId}/attachments/${attachmentId}`,
     method: "delete",
   });
+}
+
+// ==================== 题目收藏接口（需登录） ====================
+
+export function addProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "post" });
+}
+
+export function removeProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "delete" });
+}
+
+export function checkProblemFavorite(problemId) {
+  return request({ url: `/problems/${problemId}/favorite`, method: "get" });
+}
+
+export function getFavoriteRecords() {
+  return request({ url: "/problems/favorites", method: "get" });
+}
+
+export function getFavoriteProblemsPage(params) {
+  return request({ url: "/problems/favorites/page", method: "get", params });
 }

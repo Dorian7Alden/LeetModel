@@ -3,6 +3,8 @@ package com.leetmodel.problem.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
+import com.leetmodel.common.cache.CacheInvalidator;
+import com.leetmodel.problem.cache.ProblemPublicCacheService;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
@@ -10,9 +12,14 @@ import com.leetmodel.problem.enums.TagType;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.TagService;
+import com.leetmodel.problem.vo.TagAdminVO;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 标签服务实现。
@@ -22,20 +29,70 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagService {
 
-    private final ProblemTagMapper problemTagMapper;
-
+    /**
+     * 查询系统全部标签，并按标签 ID 聚合统计各标签在 problem_tag 中的引用题量。
+     *
+     * @return 包含 problemCount 的标签视图对象列表
+     */
     @Override
+    public List<TagAdminVO> listTagsWithUsage() {
+        List<Tag> tags = list();
+        if (tags.isEmpty()) {
+            return List.of();
+        }
+
+        // 统计各 tagId 出现的频次
+        List<ProblemTag> relations = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                .select(ProblemTag::getTagId));
+        Map<Long, Long> countMap = relations.stream()
+                .collect(Collectors.groupingBy(ProblemTag::getTagId, Collectors.counting()));
+
+        return tags.stream().map(t -> TagAdminVO.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .type(t.getType())
+                .problemCount(countMap.getOrDefault(t.getId(), 0L))
+                .createTime(t.getCreateTime())
+                .updateTime(t.getUpdateTime())
+                .build()
+        ).toList();
+    }
+
+    private final ProblemTagMapper problemTagMapper;
+    private final CacheInvalidator cacheInvalidator;
+
+    /**
+     * 创建新标签（含名称唯一性校验）并失效公开题库缓存。
+     *
+     * @param name 标签名称，不能为 null
+     * @param type 标签所属业务分类，不能为 null
+     * @return 创建成功后的标签实体
+     * @throws BusinessException 若标签名称已被占用
+     */
+    @Override
+    @Transactional
     public Tag createTag(String name, TagType type) {
         checkNameDuplicate(name, null);
         Tag tag = new Tag();
         tag.setName(name);
         tag.setType(type.name());
         save(tag);
-        log.info("创建标签: {} [ID: {}]", name, tag.getId());
+        recordPublicInvalidation();
+        log.info("创建标签完成: id={}", tag.getId());
         return tag;
     }
 
+    /**
+     * 更新已有标签的名称与分类（若变更分类须保证未被题目引用）。
+     *
+     * @param id   目标标签 ID，不能为 null
+     * @param name 新标签名称，不能为 null
+     * @param type 目标标签分类，不能为 null
+     * @return 更新后的标签实体
+     * @throws BusinessException 若标签不存在、名称已被占用或标签正在使用中
+     */
     @Override
+    @Transactional
     public Tag updateTag(Long id, String name, TagType type) {
         Tag tag = getById(id);
         BusinessException.throwIf(tag == null, ProblemErrorCode.TAG_NOT_FOUND);
@@ -51,7 +108,8 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
         tag.setName(name);
         tag.setType(type.name());
         updateById(tag);
-        log.info("更新标签: {} [ID: {}]", name, id);
+        recordPublicInvalidation();
+        log.info("更新标签完成: id={}", id);
         return tag;
     }
 
@@ -60,6 +118,7 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
      * @param id 标签 ID
      */
     @Override
+    @Transactional
     public void deleteTag(Long id) {
         // 校验标签存在
         Tag tag = getById(id);
@@ -72,7 +131,19 @@ public class TagServiceImpl extends ServiceImpl<TagMapper, Tag> implements TagSe
 
         // 删除标签
         removeById(id);
-        log.info("删除标签: {} [ID: {}]", tag.getName(), id);
+        recordPublicInvalidation();
+        log.info("删除标签完成: id={}", id);
+    }
+
+    /**
+     * 在当前事务中记录公开题库失效事件。
+     */
+    private void recordPublicInvalidation() {
+        cacheInvalidator.record(
+                ProblemPublicCacheService.REGION,
+                ProblemPublicCacheService.SCOPE,
+                ProblemPublicCacheService.SCHEMA_VERSION
+        );
     }
 
     /**

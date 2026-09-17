@@ -10,11 +10,13 @@ import com.leetmodel.user.entity.Permission;
 import com.leetmodel.user.entity.Role;
 import com.leetmodel.user.entity.RolePermission;
 import com.leetmodel.user.entity.UserRole;
+import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.PermissionMapper;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.RolePermissionMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
+import com.leetmodel.user.mapper.model.RoleUserCountRow;
 import com.leetmodel.user.service.RoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,11 +45,13 @@ public class RoleServiceImpl implements RoleService {
     private final RoleMapper roleMapper;
     private final RolePermissionMapper rolePermissionMapper;
     private final PermissionMapper permissionMapper;
+    private final UserAuditEventProducer audit;
 
     /**
-     * 查询用户角色与权限编码。
-     * @param userId 用户 ID
-     * @return 角色与权限数据
+     * 查询用户的角色编码与权限编码集合。
+     *
+     * @param userId 目标用户 ID，不能为 null
+     * @return 角色与权限 DTO 对象
      */
     @Override
     public UserRoleDTO getUserRoles(Long userId) {
@@ -89,32 +94,52 @@ public class RoleServiceImpl implements RoleService {
     // ==================== 角色 CRUD ====================
 
     /**
-     * 获取角色列表。
-     * @return 角色列表
+     * 获取系统中所有角色列表。
+     *
+     * @return 角色视图对象列表
      */
     @Override
     public List<RoleVO> listRoles() {
-        return roleMapper.selectList(null).stream()
-                .map(this::toVO)
+        List<Role> roles = roleMapper.selectList(null);
+        if (roles.isEmpty()) return List.of();
+
+        List<Long> roleIds = roles.stream().map(Role::getId).toList();
+        Map<Long, Long> userCounts = userRoleMapper.countActiveUsersByRoleIds(roleIds).stream()
+                .collect(Collectors.toMap(RoleUserCountRow::getRoleId, RoleUserCountRow::getUserCount));
+        Map<Long, Long> permissionCounts = rolePermissionMapper.selectList(
+                        new LambdaQueryWrapper<RolePermission>().in(RolePermission::getRoleId, roleIds)
+                ).stream()
+                .collect(Collectors.groupingBy(RolePermission::getRoleId, Collectors.counting()));
+
+        return roles.stream()
+                .map(role -> toVO(
+                        role,
+                        userCounts.getOrDefault(role.getId(), 0L),
+                        permissionCounts.getOrDefault(role.getId(), 0L)
+                ))
                 .toList();
     }
 
     /**
-     * 获取角色详情。
-     * @param roleId 角色 ID
-     * @return 角色详情
+     * 根据角色 ID 查询角色详情。
+     *
+     * @param roleId 目标角色 ID，不能为 null
+     * @return 角色视图对象
+     * @throws BusinessException 若角色不存在
      */
     @Override
     public RoleVO getRoleById(Long roleId) {
         Role role = roleMapper.selectById(roleId);
         BusinessException.throwIf(role == null, UserErrorCode.ROLE_NOT_FOUND);
-        return toVO(role);
+        return toVO(role, countRoleUsers(roleId), countRolePermissions(roleId));
     }
 
     /**
-     * 创建角色。
-     * @param request 角色信息
-     * @return 创建后的角色
+     * 创建新的系统角色。
+     *
+     * @param request 角色创建请求对象，不能为 null
+     * @return 创建成功后的角色视图对象
+     * @throws BusinessException 若角色编码重复
      */
     @Override
     @Transactional
@@ -129,15 +154,17 @@ public class RoleServiceImpl implements RoleService {
         role.setDescription(request.getDescription());
         roleMapper.insert(role);
 
-        log.info("创建角色: {} ({})", role.getCode(), role.getId());
-        return toVO(role);
+        log.info("创建角色完成: id={}", role.getId());
+        return toVO(role, 0L, 0L);
     }
 
     /**
-     * 更新角色。
-     * @param roleId 角色 ID
-     * @param request 更新信息
-     * @return 更新后的角色
+     * 更新指定角色的属性信息。
+     *
+     * @param roleId  目标角色 ID，不能为 null
+     * @param request 包含待修改信息的请求对象，不能为 null
+     * @return 更新后的角色视图对象
+     * @throws BusinessException 若角色不存在、编码重复或尝试修改预设角色
      */
     @Override
     @Transactional
@@ -160,13 +187,15 @@ public class RoleServiceImpl implements RoleService {
         role.setDescription(request.getDescription());
         roleMapper.updateById(role);
 
-        log.info("更新角色: {} ({})", role.getCode(), roleId);
-        return toVO(role);
+        log.info("更新角色完成: id={}", roleId);
+        return toVO(role, countRoleUsers(roleId), countRolePermissions(roleId));
     }
 
     /**
-     * 删除角色，并清理角色关联数据。
-     * @param roleId 角色 ID
+     * 删除指定非预设角色，并级联清理关联的用户与权限映射。
+     *
+     * @param roleId 目标角色 ID，不能为 null
+     * @throws BusinessException 若角色不存在或尝试删除系统预设角色
      */
     @Override
     @Transactional
@@ -190,15 +219,17 @@ public class RoleServiceImpl implements RoleService {
 
         // 删除角色
         roleMapper.deleteById(roleId);
-        log.info("删除角色: {} ({})", role.getCode(), roleId);
+        log.info("删除角色完成: id={}", roleId);
     }
 
     // ==================== 角色权限绑定 ====================
 
     /**
-     * 获取角色拥有的权限。
-     * @param roleId 角色 ID
-     * @return 权限列表
+     * 查询指定角色拥有的全部细粒度权限列表。
+     *
+     * @param roleId 目标角色 ID，不能为 null
+     * @return 权限视图对象列表
+     * @throws BusinessException 若角色不存在
      */
     @Override
     public List<PermissionVO> getRolePermissions(Long roleId) {
@@ -222,9 +253,11 @@ public class RoleServiceImpl implements RoleService {
     }
 
     /**
-     * 全量更新角色权限。
-     * @param roleId 角色 ID
-     * @param permissionIds 权限 ID 列表
+     * 全量替换指定角色拥有的权限集合并触发操作审计。
+     *
+     * @param roleId        目标角色 ID，不能为 null
+     * @param permissionIds 权限 ID 列表，不能为 null
+     * @throws BusinessException 若角色不存在或部分权限 ID 不存在
      */
     @Override
     @Transactional
@@ -254,15 +287,19 @@ public class RoleServiceImpl implements RoleService {
             rolePermission.setPermissionId(permissionId);
             rolePermissionMapper.insert(rolePermission);
         }
+        audit.rolePermissionsChanged(roleId, distinctPermissionIds);
 
-        log.info("更新角色 {} 的权限: {}", roleId, distinctPermissionIds);
+        log.info("更新角色权限完成: roleId={}, permissionCount={}",
+                roleId, distinctPermissionIds.size());
     }
 
     // ==================== 私有方法 ====================
 
     /**
-     * 校验角色编码唯一。
-     * @param code 角色编码
+     * 校验角色编码是否全局唯一。
+     *
+     * @param code 待检查的角色编码，不能为 null
+     * @throws BusinessException 若角色编码已存在
      */
     private void ensureRoleCodeUnique(String code) {
         LambdaQueryWrapper<Role> wrapper = new LambdaQueryWrapper<>();
@@ -271,9 +308,12 @@ public class RoleServiceImpl implements RoleService {
     }
 
     /**
-     * Role 转换为 RoleVO。
+     * 将角色实体转换为角色 VO。
+     *
+     * @param role 角色实体
+     * @return 角色 VO
      */
-    private RoleVO toVO(Role role) {
+    private RoleVO toVO(Role role, long userCount, long permissionCount) {
         return RoleVO.builder()
                 .id(role.getId())
                 .code(role.getCode())
@@ -281,11 +321,40 @@ public class RoleServiceImpl implements RoleService {
                 .description(role.getDescription())
                 .createTime(role.getCreateTime())
                 .updateTime(role.getUpdateTime())
+                .userCount(userCount)
+                .permissionCount(permissionCount)
+                .system(SYSTEM_ROLE_CODES.contains(role.getCode()))
                 .build();
     }
 
     /**
-     * 将权限实体转换为 VO。
+     * 统计角色当前关联的用户数。
+     *
+     * @param roleId 角色 ID
+     * @return 用户关联数
+     */
+    private long countRoleUsers(Long roleId) {
+        return userRoleMapper.countActiveUsersByRoleIds(List.of(roleId)).stream()
+                .findFirst()
+                .map(RoleUserCountRow::getUserCount)
+                .orElse(0L);
+    }
+
+    /**
+     * 统计角色当前关联的权限数。
+     *
+     * @param roleId 角色 ID
+     * @return 权限关联数
+     */
+    private long countRolePermissions(Long roleId) {
+        LambdaQueryWrapper<RolePermission> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(RolePermission::getRoleId, roleId);
+        return rolePermissionMapper.selectCount(wrapper);
+    }
+
+    /**
+     * 将权限实体转换为权限 VO。
+     *
      * @param permission 权限实体
      * @return 权限 VO
      */
@@ -297,6 +366,7 @@ public class RoleServiceImpl implements RoleService {
                 .description(permission.getDescription())
                 .createTime(permission.getCreateTime())
                 .updateTime(permission.getUpdateTime())
+                .roleCount(null)
                 .build();
     }
 

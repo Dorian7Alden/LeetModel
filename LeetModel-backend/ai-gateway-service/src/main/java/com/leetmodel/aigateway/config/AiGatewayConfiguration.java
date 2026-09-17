@@ -8,10 +8,12 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties({
-        DeepSeekProperties.class,
-        KimiProperties.class,
+        NewApiProperties.class,
+        CostEnrichmentProperties.class,
         AiRoutingProperties.class,
-        AiModelCatalogProperties.class
+        AiEmbeddingProperties.class,
+        AiModelCatalogProperties.class,
+        ModelExecutionConfigProperties.class
 })
 public class AiGatewayConfiguration {
 }

@@ -1,15 +1,20 @@
 package com.leetmodel.problem.service;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
 import com.leetmodel.problem.dto.ProblemUpdateRequest;
 import com.leetmodel.problem.entity.Contest;
 import com.leetmodel.problem.entity.Problem;
 import com.leetmodel.problem.entity.ProblemAttachment;
+import com.leetmodel.problem.entity.ProblemTag;
 import com.leetmodel.problem.entity.Tag;
 import com.leetmodel.problem.enums.ProblemErrorCode;
 import com.leetmodel.problem.mapper.ContestMapper;
@@ -19,12 +24,14 @@ import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.service.impl.ProblemServiceImpl;
 import com.leetmodel.problem.vo.ProblemVO;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -34,12 +41,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,6 +59,16 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ProblemServiceTest {
 
+    @BeforeAll
+    static void initializeMybatisMetadata() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(true);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(configuration, "problem-service-test"),
+                Problem.class
+        );
+    }
+
     @Mock private ProblemMapper problemMapper;
     @Mock private ProblemTagMapper problemTagMapper;
     @Mock private TagMapper tagMapper;
@@ -57,6 +76,8 @@ class ProblemServiceTest {
     @Mock private ContestMapper contestMapper;
     @Mock private ObjectProvider<StorageService> storageServiceProvider;
     @Mock private StorageService storageService;
+    @Mock private CacheInvalidator cacheInvalidator;
+    @Mock private ProblemAuditEventProducer audit;
 
     @InjectMocks
     private ProblemServiceImpl problemService;
@@ -71,6 +92,7 @@ class ProblemServiceTest {
         problem.setTitle("测试题目");
         problem.setContentMarkdown("## 题面");
         problem.setContestId(10L);
+        problem.setProblemNumber("B");
         problem.setYear(2026);
         problem.setStatementLanguage("ZH");
         problem.setDurationMinutes(4320);
@@ -129,6 +151,21 @@ class ProblemServiceTest {
     }
 
     @Test
+    @DisplayName("分页查询按赛事题号过滤")
+    void pageProblemsFiltersByProblemNumber() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setProblemNumber("A");
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        assertTrue(wrapperCaptor.getValue().getSqlSegment().contains("problem_number ="));
+    }
+
+    @Test
     @DisplayName("分页查询按平均分降序排列")
     void pageProblemsSortsByAverageScoreDescending() {
         when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
@@ -143,6 +180,38 @@ class ProblemServiceTest {
         verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
         String sql = wrapperCaptor.getValue().getSqlSegment();
         assertTrue(sql.contains("average_score DESC"));
+    }
+
+    @Test
+    @DisplayName("分页查询默认按题号从小到大升序排列")
+    void pageProblemsSortsByCodeAscendingByDefault() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("code ASC"));
+    }
+
+    @Test
+    @DisplayName("分页查询支持指定按题号升序与降序排列")
+    void pageProblemsSortsByCodeExplicitly() {
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setSortBy("code");
+        query.setSortOrder("desc");
+
+        problemService.pageProblems(query);
+
+        ArgumentCaptor<Wrapper<Problem>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemMapper).selectPage(any(IPage.class), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertTrue(sql.contains("code DESC"));
     }
 
     @Test
@@ -176,8 +245,27 @@ class ProblemServiceTest {
         ProblemVO result = problemService.getProblemDetail(1L);
 
         assertEquals("## 题面", result.getContentMarkdown());
+        assertEquals("B", result.getProblemNumber());
         assertEquals(2, result.getAttachments().size());
         assertEquals("data.xlsx", result.getAttachments().get(0).getFileName());
+    }
+
+    @Test
+    @DisplayName("题目详情返回可用于编辑的标签标识")
+    void getProblemDetailReturnsTagIds() {
+        ProblemTag relation = new ProblemTag();
+        relation.setProblemId(1L);
+        relation.setTagId(6201L);
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(relation));
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(tag(6201L, "回归分析", "MODEL_ALGORITHM")));
+        when(problemAttachmentMapper.selectList(any())).thenReturn(List.of());
+
+        ProblemVO result = problemService.getProblemDetail(1L);
+
+        assertEquals(1, result.getTags().size());
+        assertEquals(6201L, result.getTags().get(0).getId());
+        assertEquals("回归分析", result.getTags().get(0).getName());
     }
 
     @Test
@@ -208,9 +296,28 @@ class ProblemServiceTest {
 
         ProblemVO result = problemService.createProblem(request, 100L);
 
+        assertEquals(1, result.getCode());
+        assertEquals("X", result.getProblemNumber());
         assertEquals("# 新题面", result.getContentMarkdown());
         assertEquals("CUSTOM_CONTEST", result.getContestCode());
         verify(problemMapper).insert(any(Problem.class));
+    }
+
+    @Test
+    @DisplayName("创建题目按当前最大题号连续自增且初始从1开始")
+    void createProblemIncrementsCodeSequentiallyFromOne() {
+        when(problemMapper.selectMaxCode()).thenReturn(10);
+        when(problemMapper.insert(any(Problem.class))).thenAnswer(invocation -> {
+            Problem entity = invocation.getArgument(0);
+            entity.setId(2L);
+            return 1;
+        });
+        ProblemCreateRequest request = validCreateRequest();
+
+        ProblemVO result = problemService.createProblem(request, 100L);
+
+        assertEquals(11, result.getCode());
+        verify(problemMapper).selectMaxCode();
     }
 
     @Test
@@ -230,8 +337,8 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName("创建题目拒绝同类型的多个标签")
-    void createProblemRejectsTagsOfSameType() {
+    @DisplayName("创建题目拒绝多个背景领域标签")
+    void createProblemRejectsMultipleBackgroundDomainTags() {
         Tag first = tag(6001L, "环境生态", "BACKGROUND_DOMAIN");
         Tag second = tag(6002L, "交通物流", "BACKGROUND_DOMAIN");
         when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
@@ -244,6 +351,20 @@ class ProblemServiceTest {
         );
 
         assertEquals(ProblemErrorCode.TAG_TYPE_CONFLICT.getCode(), exception.getCode());
+    }
+
+    @Test
+    @DisplayName("创建题目允许关联多个题目类型标签")
+    void createProblemAcceptsMultipleProblemTypeTags() {
+        Tag first = tag(6101L, "预测", "PROBLEM_TYPE");
+        Tag second = tag(6103L, "优化", "PROBLEM_TYPE");
+        when(tagMapper.selectBatchIds(any())).thenReturn(List.of(first, second));
+        ProblemCreateRequest request = validCreateRequest();
+        request.setTagIds(List.of(6101L, 6103L));
+
+        ProblemVO result = problemService.createProblem(request, 100L);
+
+        assertEquals(List.of("预测", "优化"), result.getTagNames());
     }
 
     @Test
@@ -281,7 +402,7 @@ class ProblemServiceTest {
     void uploadAttachmentStoresObjectAndMetadata() {
         when(problemMapper.selectById(1L)).thenReturn(problem);
         when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
-        when(storageService.upload(any(), any())).thenReturn("problems/1/attachments/file.pdf");
+        when(storageService.upload(any(), any(), any())).thenReturn("problems/1/attachments/file.pdf");
         when(storageService.getUrl(any())).thenReturn("https://example.com/file.pdf");
         when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
             ProblemAttachment attachment = invocation.getArgument(0);
@@ -298,7 +419,15 @@ class ProblemServiceTest {
 
         assertEquals("statement.pdf", result.getFileName());
         assertEquals("原始题面", result.getDescription());
-        verify(storageService).upload(file, "problems/1/attachments");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<String>> contentTypesCaptor = ArgumentCaptor.forClass(Set.class);
+        verify(storageService).upload(
+                eq(file),
+                eq("problems/1/attachments"),
+                contentTypesCaptor.capture()
+        );
+        assertTrue(contentTypesCaptor.getValue().contains("application/zip"));
+        assertTrue(contentTypesCaptor.getValue().contains("application/x-7z-compressed"));
         verify(problemAttachmentMapper).insert(any(ProblemAttachment.class));
     }
 
@@ -324,6 +453,7 @@ class ProblemServiceTest {
         ProblemCreateRequest request = new ProblemCreateRequest();
         request.setTitle("新题目");
         request.setContestId(10L);
+        request.setProblemNumber("X");
         request.setYear(2026);
         request.setStatementLanguage("ZH");
         request.setDurationMinutes(4320);
