@@ -13,9 +13,65 @@ LeetModel，中文名力模，是一款面向数学建模学习者的在线实�
 
 ### 发布状态
 
-当前已发布稳定版本为 `v2.0.0`。`dev` 分支在该发布基线上继续开发，已经完成微服务架构下的 MVP 主链验收。普通用户可完成“选题 → 组队 → 提交 PDF → AI 评审 → 论文建议 → 排行榜”闭环，管理员可使用完整管理看板和 AI 质量评价能力。
+当前已发布版本为 `v2.0.0`。`dev` 已完成最终封版开发，不再新增业务功能。普通用户可完成“选题 → 组队 → 提交 PDF → AI 评审 → 论文建议 → 排行榜”闭环，管理员可使用完整管理看板和 AI 质量评价能力。
 
-当前 `dev` 基线已通过前端生产构建、后端 20 项 Maven Reactor 全量构建与 605 项自动化测试、13 个业务服务真实启动，以及桌面端和 `390x844` 移动端浏览器复验。RocketMQ 五条业务消息协议、六个相关服务的全新 MySQL 迁移和统一消息运维接口也已完成真实环境验收。这些标签之后的开发成果不追溯计入 `v2.0.0` 发布内容。
+当前封版基线已通过前端生产构建、后端 22 项 Maven Reactor 全量测试、15 个业务服务统一脚本启动和桌面浏览器页面复验。后端当前共执行 955 项测试，其中 929 项通过、26 项外部门禁按设计跳过、零失败。RocketMQ 五条业务消息协议、独立审计链路、三级缓存和统一消息运维接口均已纳入验收范围。
+
+
+### 前端预览
+
+以下截图来自本地真实运行的前后端联调环境，不包含设计稿或手工合成界面。
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/official-home.png" alt="LeetModel 官网首页" />
+      <br />
+      <strong>官网首页</strong>
+      <br />
+      论文 AI 评审价值主张、真实结果切面与工作台入口
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/home-command-center.png" alt="LeetModel 赛前作战中枢首页" />
+      <br />
+      <strong>赛前作战中枢</strong>
+      <br />
+      队伍进度、最近论文评审、真题与个人能力概览
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/problem-library.png" alt="LeetModel 题库页面" />
+      <br />
+      <strong>公开题库</strong>
+      <br />
+      赛事、年份、语言、难度与标签组合筛选
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/ranking-workspace.png" alt="LeetModel 排行榜工作台" />
+      <br />
+      <strong>排行榜工作台</strong>
+      <br />
+      赛题天梯总览、分数分布、领奖台与队伍定位
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/login.png" alt="LeetModel 登录页" />
+      <br />
+      <strong>账号登录</strong>
+      <br />
+      统一身份入口与角色权限分流
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/admin-dashboard.png" alt="LeetModel 管理端总览" />
+      <br />
+      <strong>管理端总览</strong>
+      <br />
+      用户、题库、评审、AI 调用与可靠消息治理
+    </td>
+  </tr>
+</table>
 
 #### 版本沿革
 

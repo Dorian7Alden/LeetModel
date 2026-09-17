@@ -36,7 +36,7 @@ flowchart LR
         evaluationService["ai-evaluation-service"]
         aiGateway["ai-gateway-service"]
         assistantService["ai-assistant-service"]
-        auditService["audit-service（目标，尚未实现）"]
+        auditService["audit-service（已实现归档与查询）"]
         fileService["file-service（已实现第一阶段）"]
     end
 
