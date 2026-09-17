@@ -81,7 +81,7 @@ V1 AI 评审开发期间，以本目录中的两个 `problem.md` 作为测试题
 本地完整服务启动后，可以使用以下脚本通过真实登录、题目管理和公开查询接口执行幂等导入：
 
 ```bash
-LEETMODEL_API_BASE=http://localhost:8080 ./data/import-problems.sh
+LEETMODEL_API_BASE=http://localhost:8080 ./data/scripts/import-problems.sh
 ```
 
 脚本默认使用本地演示管理员 `admin / 123456` 和赛事 ID `3`。其他环境必须通过

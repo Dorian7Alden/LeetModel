@@ -66,7 +66,7 @@ RAG V1 归 `ai-assistant-service`。`ai-review-service` 不是第一版知识检
 
 #### 代码与配置证据
 
-- `LeetModel-backend/docker-compose.yml` 定义了 `calciumion/new-api:v1.0.0-rc.26` 和 `127.0.0.1:3000`。
+- `compose.yaml` 定义了 `calciumion/new-api:v1.0.0-rc.26` 和 `127.0.0.1:3000`。
 - D-01 核验时，`application.yml` 仍配置供应商官方地址并直接读取供应商密钥。
 - D-01 核验时，`DeepSeekAdapter` 和 `KimiAdapter` 仍是生产适配器；S1 已增加 new-api 配置与模型映射并删除这些旧实现。
 

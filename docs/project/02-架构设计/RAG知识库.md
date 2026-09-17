@@ -164,11 +164,10 @@ V1 不做查询改写、多路召回、关键词混合检索、Rerank 或由 AI 
 
 ### 基础设施和配置
 
-本地 Elasticsearch 固定为 `8.14.3`，由根后端编排文件启动：
+本地 Elasticsearch 固定为 `8.14.3`，由仓库根 `compose.yaml` 启动：
 
 ```bash
-cd LeetModel-backend
-docker compose up -d elasticsearch
+docker compose -f compose.yaml up -d elasticsearch
 curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow'
 ```
 

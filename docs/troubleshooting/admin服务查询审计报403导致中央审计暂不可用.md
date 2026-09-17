@@ -144,7 +144,7 @@ private boolean isLoopback(String address) {
 ## 验证
 
 1. **静态契约测试**：运行 `mvn test -Dtest="AuditQueryContractTest,AuditInternalAccessFilterTest"`，全部通过。
-2. **契约验证脚本**：运行 `./scripts/verify-audit-contract.sh`，审计静态契约校验通过。
+2. **契约验证脚本**：运行 `./scripts/verify/verify-audit-contract.sh`，审计静态契约校验通过。
 3. **接口连通性验证**：带管理员 Token 访问 `http://127.0.0.1:8080/api/admin/audit/events`，返回 HTTP 200 且 `code: 20000`，`data.events` 正常加载。
 4. **前端管理端渲染**：访问管理端 `/admin/audit`，原“中央审计暂不可用”警示条完全消失，操作事件列表与时间线正常渲染。
 
