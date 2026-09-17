@@ -62,6 +62,7 @@ class ProblemServiceTest {
     @BeforeAll
     static void initializeMybatisMetadata() {
         MybatisConfiguration configuration = new MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(true);
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(configuration, "problem-service-test"),
                 Problem.class
