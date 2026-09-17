@@ -64,11 +64,15 @@ class RankingEventProtocolIntegrationTest {
         DefaultMQPushConsumer submissionMq = consumer(
                 "lm-dev%cg-ranking-submission-v1", "mq3-submission-" + suffix,
                 SUBMISSION_TOPIC, FinalSubmissionChangedConsumer.EVENT_TYPE,
-                submission.eventId(), codec, body -> finalConsumer.onMessage(body), deliveries);
+                submission.eventId(), codec,
+                body -> finalConsumer.onMessage(new String(body, StandardCharsets.UTF_8)),
+                deliveries);
         DefaultMQPushConsumer reviewMq = consumer(
                 "lm-dev%cg-ranking-review-v1", "mq3-review-" + suffix,
                 REVIEW_TOPIC, ReviewCompletedConsumer.EVENT_TYPE,
-                review.eventId(), codec, body -> reviewConsumer.onMessage(body), deliveries);
+                review.eventId(), codec,
+                body -> reviewConsumer.onMessage(new String(body, StandardCharsets.UTF_8)),
+                deliveries);
         RocketMQTemplate template = template(suffix);
         MessagePublisher publisher = new RocketMqMessagePublisher(template, 3000);
         try {

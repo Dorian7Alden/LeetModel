@@ -19,6 +19,7 @@ import com.leetmodel.review.workflow.ReviewWorkflow;
 import com.leetmodel.review.workflow.ReviewWorkflowRegistry;
 import com.leetmodel.review.workflow.ReviewWorkflowResult;
 import com.leetmodel.review.workflow.v2.EvidenceReviewV2Workflow;
+import com.leetmodel.review.workflow.v3.DeepEvidenceReviewV3Workflow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -116,6 +117,7 @@ class ReviewServiceTest {
         when(taskMapper.selectById(23L)).thenReturn(task);
         when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
         when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(1);
 
         var result = service.retry(23L, 10L);
 
@@ -138,6 +140,41 @@ class ReviewServiceTest {
 
         assertEquals(ReviewErrorCode.TASK_NOT_FAILED.getCode(), error.getCode());
         verify(taskMapper, never()).resetForRetry(any());
+    }
+
+    @Test
+    void allowMemberToManuallyRetryUnknownTask() {
+        ReviewTask task = task(25L, "UNKNOWN");
+        task.setRetryCount(0);
+        task.setAttemptNo(1);
+        task.setFailureType("AI_UNKNOWN");
+        task.setErrorMessage("AI 上游结果未知，禁止自动重试");
+        when(taskMapper.selectById(25L)).thenReturn(task);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(1);
+
+        var result = service.retry(25L, 10L);
+
+        assertEquals("WAITING", result.getStatus());
+        assertEquals(1, result.getRetryCount());
+        assertEquals(2, result.getAttemptNo());
+        verify(taskMapper).resetForRetry(argThat(value -> value.getFailureType() == null
+                && value.getErrorMessage() == null));
+    }
+
+    @Test
+    void rejectRetryWhenTaskStateChangedConcurrently() {
+        ReviewTask task = task(27L, "FAILED");
+        when(taskMapper.selectById(27L)).thenReturn(task);
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(teamFeignClient.getMemberIds(41L)).thenReturn(Result.ok(java.util.List.of(10L)));
+        when(taskMapper.resetForRetry(any())).thenReturn(0);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.retry(27L, 10L));
+
+        assertEquals(ReviewErrorCode.TASK_NOT_FAILED.getCode(), error.getCode());
     }
 
     @Test
@@ -277,6 +314,34 @@ class ReviewServiceTest {
         assertEquals("MODEL_CFG_REVIEW_TEXT_0002", result.getModelExecutionConfigVersion());
         verify(workflow).execute(argThat(task ->
                 "MODEL_CFG_REVIEW_TEXT_0002".equals(task.getModelExecutionConfigVersion())), any());
+    }
+
+    @Test
+    void deepEvidenceV3ExperimentUsesDedicatedTextModelConfig() throws Exception {
+        when(workflowRegistry.required(DeepEvidenceReviewV3Workflow.VERSION_CODE)).thenReturn(workflow);
+        when(workflow.versionId()).thenReturn(DeepEvidenceReviewV3Workflow.VERSION_ID);
+        when(workflow.versionCode()).thenReturn(DeepEvidenceReviewV3Workflow.VERSION_CODE);
+        when(workflow.currentPrompt()).thenReturn("prompt-v3");
+        when(submissionFeignClient.getForReview(31L)).thenReturn(Result.ok(submission()));
+        when(workflow.execute(any(), any())).thenReturn(new ReviewWorkflowResult(
+                new java.math.BigDecimal("91.5"),
+                "{\"score\":91.5}",
+                "model-v3",
+                "call-v3",
+                78L
+        ));
+
+        var result = service.runExperiment(
+                31L,
+                DeepEvidenceReviewV3Workflow.VERSION_CODE
+        );
+
+        assertEquals("SUCCEEDED", result.getStatus());
+        verify(workflow).execute(argThat(task ->
+                DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION.equals(
+                        task.getModelExecutionConfigVersion()
+                )), any());
+        verify(taskMapper, never()).insert(any(ReviewTask.class));
     }
 
     @Test

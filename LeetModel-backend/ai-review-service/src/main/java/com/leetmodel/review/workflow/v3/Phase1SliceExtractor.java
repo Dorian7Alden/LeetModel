@@ -68,7 +68,7 @@ public class Phase1SliceExtractor {
             for (PaperDocumentV2.SectionIndex sec : sections) {
                 String title = sec.title().toLowerCase(Locale.ROOT);
                 if (title.contains("摘要") || title.contains("summary") || title.contains("abstract")) {
-                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec.headingBlockId());
+                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec);
                     for (var b : blocks) {
                         if (b.text() != null && !b.text().isBlank()) {
                             sb.append(b.text()).append("\n\n");
@@ -94,9 +94,9 @@ public class Phase1SliceExtractor {
         List<PaperDocumentV2.SectionIndex> sections = document.sections();
         if (sections != null) {
             for (PaperDocumentV2.SectionIndex sec : sections) {
-                String title = sec.title();
-                if (title.contains("重述") || title.contains("分析") || title.contains("背景") || title.contains("问题提出")) {
-                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec.headingBlockId());
+                String title = normalizedTitle(sec.title());
+                if (matchesProblemAnalysisSection(title)) {
+                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec);
                     for (var b : blocks) {
                         if (b.text() != null && !b.text().isBlank()) {
                             sb.append(b.text()).append("\n\n");
@@ -113,9 +113,9 @@ public class Phase1SliceExtractor {
         List<PaperDocumentV2.SectionIndex> sections = document.sections();
         if (sections != null) {
             for (PaperDocumentV2.SectionIndex sec : sections) {
-                String title = sec.title();
-                if (title.contains("假设") || title.contains("符号") || title.contains("说明") || title.contains("名词解释")) {
-                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec.headingBlockId());
+                String title = normalizedTitle(sec.title());
+                if (matchesAssumptionOrNomenclatureSection(title)) {
+                    List<PaperDocumentV2.ContentBlockV2> blocks = getSectionBlocks(document, sec);
                     for (var b : blocks) {
                         if (b.type() == PaperDocumentV2.BlockType.TABLE && b.table() != null) {
                             sb.append("[符号说明表格]\n").append(b.table().html()).append("\n\n");
@@ -161,19 +161,51 @@ public class Phase1SliceExtractor {
         return sb.toString().trim();
     }
 
-    private List<PaperDocumentV2.ContentBlockV2> getSectionBlocks(PaperDocumentV2 document, String headingBlockId) {
+    private boolean matchesProblemAnalysisSection(String title) {
+        return title.contains("重述")
+                || title.contains("分析")
+                || title.contains("背景")
+                || title.contains("问题提出")
+                || title.contains("problem restatement")
+                || title.contains("problem analysis")
+                || title.contains("problem background")
+                || title.contains("problem statement")
+                || title.contains("problem description");
+    }
+
+    private boolean matchesAssumptionOrNomenclatureSection(String title) {
+        return title.contains("假设")
+                || title.contains("符号")
+                || title.contains("说明")
+                || title.contains("名词解释")
+                || title.contains("assumption")
+                || title.contains("notation")
+                || title.contains("nomenclature")
+                || title.contains("symbol definition")
+                || title.contains("variable definition");
+    }
+
+    private String normalizedTitle(String title) {
+        return title == null ? "" : title.toLowerCase(Locale.ROOT).strip();
+    }
+
+    private List<PaperDocumentV2.ContentBlockV2> getSectionBlocks(
+            PaperDocumentV2 document,
+            PaperDocumentV2.SectionIndex section
+    ) {
         List<PaperDocumentV2.ContentBlockV2> result = new ArrayList<>();
         List<PaperDocumentV2.ContentBlockV2> blocks = document.blocks();
         if (blocks == null) return result;
         boolean collecting = false;
         for (var b : blocks) {
-            if (b.blockId().equals(headingBlockId)) {
+            if (b.blockId().equals(section.headingBlockId())) {
                 collecting = true;
                 continue;
             }
             if (collecting) {
                 if (b.type() == PaperDocumentV2.BlockType.HEADING) {
-                    break;
+                    int headingLevel = b.heading() == null ? 1 : b.heading().level();
+                    if (headingLevel <= section.level()) break;
                 }
                 result.add(b);
             }
@@ -182,7 +214,7 @@ public class Phase1SliceExtractor {
     }
 
     private String limitText(String text, int max) {
-        if (text == null) return "（无）";
+        if (text == null || text.isBlank()) return "（无）";
         return text.length() <= max ? text : text.substring(0, max) + "\n...（超出部分已省略）";
     }
 }

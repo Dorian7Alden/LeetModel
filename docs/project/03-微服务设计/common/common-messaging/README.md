@@ -12,7 +12,9 @@
 
 生产端在业务服务自己的 `@Transactional` 方法中先写业务事实，再调用 `MessageOutbox.enqueue`。两项写入使用同一数据源与事务；Broker 暂时不可用不会回滚已完整保存的业务事实，Relay 会按 1 秒、5 秒、30 秒、2 分钟、10 分钟和之后每 30 分钟的策略持续退避。
 
-消费端先通过 `MessageCodec.decode` 校验消息，再调用 `MessageInbox.executeOnce`。Inbox 唯一键为 `consumer_group + event_id`，首次消息的 Inbox 与调用方短事务动作一起提交；动作抛异常时两者一起回滚，重复消息返回 `DUPLICATE`。不要在 `domainAction` 中执行远程调用或长计算。
+消费端由 RocketMQ Spring 将 Broker 消息体转换为 UTF-8 `String`，再通过 `MessageCodec.decode(String, payloadType)` 校验消息，最后调用 `MessageInbox.executeOnce`。不要把注解监听器声明为 `RocketMQListener<byte[]>`：当框架无法从代理类解析泛型时会按 `Object` 转换为字符串，并在编译器桥接方法处触发 `ClassCastException`。低层协议集成测试若直接读取 `MessageExt.getBody()`，必须显式按 UTF-8 转为字符串后进入领域消费者。
+
+Inbox 唯一键为 `consumer_group + event_id`，首次消息的 Inbox 与调用方短事务动作一起提交；动作抛异常时两者一起回滚，重复消息返回 `DUPLICATE`。不要在 `domainAction` 中执行远程调用或长计算。
 
 每次 Outbox 发布由 `Messaging/OutboxPublishAttempt` 包围，每次 Inbox 事务由 `Messaging/InboxConsumeAttempt` 包围。Relay 从持久化信封恢复业务 Trace、Event 和可选 Operation；消费端只在信封通过校验后打开 Span。成功、重试、阻断、正常消费、重复抑制和事务失败都使用固定结果/错误分类。Topic、消费组、eventId、消息 Key 和 Payload 不进入自定义 Span tag。RocketMQ 5.3.1 生产端 Exit Span 仍由 Agent 管理；兼容 Agent 未观察到消费端 Entry，因此由 Inbox 边界提供消费侧业务 Entry。
 
@@ -46,7 +48,9 @@ leetmodel:
       lease-seconds: 30
 ```
 
-配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness。
+配置有范围校验并在启动时输出 namespace、批量、租约和消息上限摘要。Relay 开启时，发布器通过 `RocketMQTemplate` 依赖注入完成装配；不能使用方法级 `@ConditionalOnBean` 检查同一自动配置链中稍后创建的模板或发布器，否则服务会静默缺少 `MessagePublisher` 与 `OutboxRelay`，使 Outbox 永久停在 `PENDING`。Relay 已显式关闭时不要求存在传输发布器；Relay 开启但没有发布器时启动失败，避免假健康。
+
+Topic、Tag、消费组和事件类型属于发布契约，不提供运行时动态改名能力。`messagingHealthIndicator` 在出现 `BLOCKED` 消息时返回 `DEGRADED`，使运维可观测但不污染 Liveness。
 
 操作审计固定使用 `leetmodel-operation-audit-v1`、`OPERATION_AUDIT_RECORDED` 和 `cg-audit-archive-v1`。专用 Codec 拒绝未知 JSON 字段，并要求 `auditEventId=eventId=idempotencyKey`、`aggregateId=operationId` 及来源、发生时间、Trace 完全一致；编码仍受当前环境配置和项目 64 KiB 双重上限约束。
 

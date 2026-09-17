@@ -49,7 +49,8 @@ public class SubTaskEvaluationWorker {
             ReviewTask task, SubTaskPlanDTO plan, PaperDocumentV2 document, ProblemContextDTO problem) {
         try {
             TaskAssembledContextDTO assembled = slicingEngine.assembleContext(document, plan, problem);
-            String promptTemplate = selectPromptTemplate(plan.getTaskType());
+            boolean v4 = "DEEP_EVIDENCE_REVIEW_V4".equals(task.getWorkflowVersion());
+            String promptTemplate = selectPromptTemplate(plan.getTaskType(), v4);
             Map<String, String> variables = buildVariables(assembled);
             String renderedPrompt = PromptTemplateRenderer.render(promptTemplate, variables);
 
@@ -62,9 +63,12 @@ public class SubTaskEvaluationWorker {
                     AiFeatureCode.PAPER_REVIEW,
                     task.getId() == null ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                     taskKey,
-                    "DEEP_EVIDENCE_REVIEW_V3",
-                    "PROMPT_SUBTASK_" + plan.getTaskType() + "_0001",
-                    task.getModelExecutionConfigVersion() == null ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
+                    v4 ? "DEEP_EVIDENCE_REVIEW_V4" : "DEEP_EVIDENCE_REVIEW_V3",
+                    "PROMPT_SUBTASK_" + plan.getTaskType() + (v4 ? "_0002" : "_0001"),
+                    task.getModelExecutionConfigVersion() == null
+                            ? (v4 ? "MODEL_CFG_REVIEW_TEXT_0004"
+                            : DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION)
+                            : task.getModelExecutionConfigVersion(),
                     task.getEvaluationTaskId(),
                     task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
                     "subtask:" + taskKey + ":attempt:" + task.getAttemptNo(),
@@ -78,8 +82,8 @@ public class SubTaskEvaluationWorker {
                             new AiMessage(AiRole.SYSTEM, List.of(new AiContentPart(AiContentType.TEXT, renderedPrompt, null))),
                             new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, "请严格根据上述背景与正文切片，输出符合要求的 JSON 结构化评审结果：", null)))
                     ),
-                    4096,
-                    0.1,
+                    DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS,
+                    DeepEvidenceReviewV3Workflow.TEMPERATURE,
                     AiResponseFormat.JSON_OBJECT,
                     false
             );
@@ -87,7 +91,7 @@ public class SubTaskEvaluationWorker {
             AiChatResponse response = aiClient.chat(request);
             if (response == null || response.content() == null || response.content().isBlank()) {
                 log.warn("子任务调用未返回内容，启动降级容错: taskId={}", plan.getTaskId());
-                return fallbackDegradedResult(plan, "模型响应为空，启动容错保护");
+                return fallbackDegradedResult(plan);
             }
 
             SubTaskEvaluationResultDTO result = V3OutputParser.parse(
@@ -97,15 +101,22 @@ public class SubTaskEvaluationWorker {
         } catch (Exception exception) {
             log.warn("子任务执行失败，启动局部降级隔离: taskId={}, error={}",
                     plan.getTaskId(), exception.getMessage());
-            return fallbackDegradedResult(plan, exception.getMessage());
+            return fallbackDegradedResult(plan);
         }
     }
 
-    private String selectPromptTemplate(String taskType) {
+    private String selectPromptTemplate(String taskType, boolean v4) {
+        String suffix = v4 ? "-v4.st" : ".st";
         return switch (taskType) {
-            case "ABSTRACT_VERIFICATION" -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-abstract-verification.st");
-            case "SENSITIVITY_EVALUATION" -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-sensitivity-evaluation.st");
-            default -> PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-subtask-evaluation.st");
+            case "ABSTRACT_VERIFICATION" -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-abstract-verification" + suffix
+            );
+            case "SENSITIVITY_EVALUATION" -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-sensitivity-evaluation" + suffix
+            );
+            default -> PromptTemplateRenderer.loadClasspathPrompt(
+                    "prompts/phase2-subtask-evaluation" + suffix
+            );
         };
     }
 
@@ -201,7 +212,7 @@ public class SubTaskEvaluationWorker {
         };
     }
 
-    private SubTaskEvaluationResultDTO fallbackDegradedResult(SubTaskPlanDTO plan, String reason) {
+    private SubTaskEvaluationResultDTO fallbackDegradedResult(SubTaskPlanDTO plan) {
         BigDecimal maxScore = determineMaxScore(plan.getTaskType());
         BigDecimal degradedScore = maxScore.multiply(BigDecimal.valueOf(0.6)).setScale(1, RoundingMode.HALF_UP);
 
@@ -212,7 +223,8 @@ public class SubTaskEvaluationWorker {
                 .executionStatus("DEGRADED")
                 .maxScore(maxScore)
                 .score(degradedScore)
-                .evaluationSummary("由于该章节复杂推导在当前调用中触发容错保底，系统赋予基准保底分并标记复核。原因: " + reason)
+                .evaluationSummary("该小题的自动评审未能完整完成，当前仅保留保守覆盖状态，"
+                        + "请重新评审后再依据完整结果修改论文。")
                 .aspectScores(List.of(
                         SubTaskEvaluationResultDTO.SubTaskAspectScoreDTO.builder()
                                 .aspectCode("FALLBACK")

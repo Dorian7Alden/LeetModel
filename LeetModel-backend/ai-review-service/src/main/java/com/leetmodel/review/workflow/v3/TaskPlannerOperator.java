@@ -49,7 +49,11 @@ public class TaskPlannerOperator {
         List<SubProblemCategoryDTO> categories = classifier.parseAndClassifyQuestions(
                 problem == null ? "" : problem.getContentMarkdown());
 
-        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase2-task-planner.st");
+        boolean v4 = "DEEP_EVIDENCE_REVIEW_V4".equals(task.getWorkflowVersion());
+        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt(
+                v4 ? "prompts/phase2-task-planner-v4.st"
+                        : "prompts/phase2-task-planner.st"
+        );
         String userPrompt = buildPlannerUserPrompt(categories, document);
 
         String taskKey = task.getId() == null
@@ -61,9 +65,12 @@ public class TaskPlannerOperator {
                 AiFeatureCode.PAPER_REVIEW,
                 task.getId() == null ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                 taskKey,
-                "DEEP_EVIDENCE_REVIEW_V3",
-                "PROMPT_PHASE2_PLANNER_0001",
-                task.getModelExecutionConfigVersion() == null ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
+                v4 ? "DEEP_EVIDENCE_REVIEW_V4" : "DEEP_EVIDENCE_REVIEW_V3",
+                v4 ? "PROMPT_PHASE2_PLANNER_0002" : "PROMPT_PHASE2_PLANNER_0001",
+                task.getModelExecutionConfigVersion() == null
+                        ? (v4 ? "MODEL_CFG_REVIEW_TEXT_0004"
+                        : DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION)
+                        : task.getModelExecutionConfigVersion(),
                 task.getEvaluationTaskId(),
                 task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
                 "planner:" + taskKey + ":attempt:" + task.getAttemptNo(),
@@ -77,8 +84,8 @@ public class TaskPlannerOperator {
                         new AiMessage(AiRole.SYSTEM, List.of(new AiContentPart(AiContentType.TEXT, systemPrompt, null))),
                         new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))
                 ),
-                3000,
-                0.1,
+                DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS,
+                DeepEvidenceReviewV3Workflow.TEMPERATURE,
                 AiResponseFormat.JSON_OBJECT,
                 false
         );
@@ -208,42 +215,88 @@ public class TaskPlannerOperator {
             return taskDto;
         }
         List<SubTaskPlanDTO.SectionAnchorDTO> anchors = new ArrayList<>();
+        Set<String> selectedSectionIds = new HashSet<>();
+
+        // 优先采用规划模型返回的明确章节 ID，并由服务端校验它们确实存在。
+        if (taskDto.getSuggestedSectionIds() != null) {
+            selectedSectionIds.addAll(taskDto.getSuggestedSectionIds());
+        }
+        for (int i = 0; i < document.sections().size(); i++) {
+            var section = document.sections().get(i);
+            if (selectedSectionIds.contains(section.sectionId())) {
+                anchors.add(toSectionAnchor(document, i, section));
+            }
+        }
+        if (!anchors.isEmpty()) {
+            taskDto.setSuggestedSectionAnchors(anchors);
+            return taskDto;
+        }
+
         int qNo = taskDto.getTargetQuestionNo() == null ? 0 : taskDto.getTargetQuestionNo();
-        String keyword = switch (qNo) {
+
+        for (int i = 0; i < document.sections().size(); i++) {
+            var sec = document.sections().get(i);
+            boolean match = matchesTaskSection(taskDto.getTaskType(), qNo, sec.title());
+            if (match) {
+                anchors.add(toSectionAnchor(document, i, sec));
+            }
+        }
+        taskDto.setSuggestedSectionAnchors(anchors);
+        return taskDto;
+    }
+
+    private boolean matchesTaskSection(String taskType, int questionNo, String rawTitle) {
+        String title = rawTitle == null ? "" : rawTitle.toLowerCase(java.util.Locale.ROOT);
+        if ("ABSTRACT_VERIFICATION".equals(taskType)) {
+            return title.contains("摘要")
+                    || title.contains("summary")
+                    || title.contains("abstract");
+        }
+        if ("SENSITIVITY_EVALUATION".equals(taskType)) {
+            return title.contains("灵敏度")
+                    || title.contains("检验")
+                    || title.contains("评价")
+                    || title.contains("sensitivity")
+                    || title.contains("robust")
+                    || title.contains("model evaluation")
+                    || title.contains("strength and weakness");
+        }
+        if (!"SUB_PROBLEM_EVALUATION".equals(taskType) || questionNo <= 0) {
+            return false;
+        }
+        return title.contains("问题" + questionNo)
+                || title.contains(chineseQuestionLabel(questionNo))
+                || title.contains("problem " + questionNo)
+                || title.contains("solution of problem " + questionNo);
+    }
+
+    private SubTaskPlanDTO.SectionAnchorDTO toSectionAnchor(
+            PaperDocumentV2 document,
+            int sectionIndex,
+            PaperDocumentV2.SectionIndex section
+    ) {
+        String endBlockId = sectionIndex + 1 < document.sections().size()
+                ? document.sections().get(sectionIndex + 1).headingBlockId()
+                : null;
+        return SubTaskPlanDTO.SectionAnchorDTO.builder()
+                .sectionId(section.sectionId())
+                .title(section.title())
+                .startBlockId(section.headingBlockId())
+                .endBlockId(endBlockId)
+                .physicalPage(section.physicalPage())
+                .matchConfidence(1.0)
+                .build();
+    }
+
+    private String chineseQuestionLabel(int questionNo) {
+        return switch (questionNo) {
             case 1 -> "问题一";
             case 2 -> "问题二";
             case 3 -> "问题三";
             case 4 -> "问题四";
             case 5 -> "问题五";
-            default -> (qNo > 0 ? "问题" + qNo : "");
+            default -> "问题" + questionNo;
         };
-
-        for (int i = 0; i < document.sections().size(); i++) {
-            var sec = document.sections().get(i);
-            boolean match = false;
-            if ("ABSTRACT_VERIFICATION".equals(taskDto.getTaskType()) && (sec.title().contains("摘要") || sec.title().contains("Summary"))) {
-                match = true;
-            } else if ("SENSITIVITY_EVALUATION".equals(taskDto.getTaskType()) && (sec.title().contains("灵敏度") || sec.title().contains("检验") || sec.title().contains("评价"))) {
-                match = true;
-            } else if ("SUB_PROBLEM_EVALUATION".equals(taskDto.getTaskType()) && !keyword.isEmpty() && sec.title().contains(keyword)) {
-                match = true;
-            }
-            if (match) {
-                String endBlockId = (i + 1 < document.sections().size())
-                        ? document.sections().get(i + 1).headingBlockId()
-                        : null;
-                anchors.add(SubTaskPlanDTO.SectionAnchorDTO.builder()
-                        .sectionId(sec.sectionId())
-                        .title(sec.title())
-                        .startBlockId(sec.headingBlockId())
-                        .endBlockId(endBlockId)
-                        .physicalPage(sec.physicalPage())
-                        .matchConfidence(1.0)
-                        .build());
-            }
-        }
-        taskDto.setSuggestedSectionAnchors(anchors);
-        return taskDto;
     }
 
     private TaskPlanResultDTO fallbackPlan(List<SubProblemCategoryDTO> categories, PaperDocumentV2 document) {

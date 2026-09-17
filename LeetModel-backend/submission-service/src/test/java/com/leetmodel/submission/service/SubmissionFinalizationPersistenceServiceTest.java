@@ -1,6 +1,7 @@
 package com.leetmodel.submission.service;
 
 import com.leetmodel.common.api.dto.FinalSubmissionChangedPayload;
+import com.leetmodel.common.api.dto.ReviewTaskReadyPayload;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.messaging.MessageEnvelopeFactory;
 import com.leetmodel.common.messaging.MessageEnvelopeV1;
@@ -48,7 +49,7 @@ class SubmissionFinalizationPersistenceServiceTest {
     }
 
     @Test
-    void lockAndFinalEventAreCreatedTogether() {
+    void lockFinalRankingEventAndReviewEventAreCreatedTogether() {
         Submission submission = submission();
         when(submissionMapper.selectOne(any())).thenReturn(submission);
 
@@ -63,6 +64,16 @@ class SubmissionFinalizationPersistenceServiceTest {
                 (FinalSubmissionChangedPayload) envelope.getValue().payload();
         assertThat(payload.submissionId()).isEqualTo(101L);
         assertThat(payload.problemId()).isEqualTo(51L);
+
+        ArgumentCaptor<MessageEnvelopeV1<?>> reviewEnvelope = ArgumentCaptor.forClass(MessageEnvelopeV1.class);
+        verify(messageOutbox).enqueue(eq("review-task-v1"),
+                eq("REVIEW_TASK_READY"), reviewEnvelope.capture());
+        ReviewTaskReadyPayload reviewPayload =
+                (ReviewTaskReadyPayload) reviewEnvelope.getValue().payload();
+        assertThat(reviewPayload.submissionId()).isEqualTo(101L);
+        assertThat(reviewPayload.teamId()).isEqualTo(41L);
+        assertThat(reviewPayload.problemId()).isEqualTo(51L);
+        assertThat(reviewPayload.workflowVersion()).isEqualTo("DEEP_EVIDENCE_REVIEW_V4");
     }
 
     @Test

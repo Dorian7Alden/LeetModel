@@ -72,6 +72,11 @@ public final class OperationAuditMessageCodec {
         return envelope;
     }
 
+    /** 严格解码 RocketMQ Spring 默认转换出的 UTF-8 文本。 */
+    public MessageEnvelopeV1<OperationAuditPayloadV1> decode(String body) {
+        return decode(delegate.bytes(body));
+    }
+
     private void validate(MessageEnvelopeV1<OperationAuditPayloadV1> envelope) {
         if (envelope == null) throw invalid("audit envelope is required");
         OperationAuditPayloadV1 payload = envelope.payload();

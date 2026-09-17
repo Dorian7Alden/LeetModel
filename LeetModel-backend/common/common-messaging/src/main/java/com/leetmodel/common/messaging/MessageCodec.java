@@ -83,6 +83,21 @@ public final class MessageCodec {
     }
 
     /**
+     * 将 RocketMQ Spring 默认转换出的 UTF-8 文本解码为消息信封。
+     *
+     * @param body UTF-8 JSON 文本
+     * @param payloadType 载荷类型
+     * @param <T> 载荷类型
+     * @return 消息信封
+     */
+    public <T> MessageEnvelopeV1<T> decode(String body, Class<T> payloadType) {
+        if (body == null || body.isEmpty()) {
+            throw new MessageContractException("message body size is invalid");
+        }
+        return decode(bytes(body), payloadType);
+    }
+
+    /**
      * 将 JSON 文本转换为 UTF-8 字节。
      *
      * @param json JSON 文本

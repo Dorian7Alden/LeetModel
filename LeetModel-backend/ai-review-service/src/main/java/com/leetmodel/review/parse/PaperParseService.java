@@ -12,6 +12,7 @@ import com.leetmodel.review.mapper.PaperParseArtifactMapper;
 import com.leetmodel.review.parse.v2.PaperDocumentV2;
 import com.leetmodel.review.parse.v2.PaperParseV2Parser;
 import com.leetmodel.review.parse.v2.PaperParseV2Properties;
+import com.leetmodel.review.parse.v2.PaperParseV2QualityGate;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -28,21 +29,26 @@ public class PaperParseService {
     private final PaperParseV1Parser parser;
     private final PaperParseV2Parser v2Parser;
     private final PaperParseV2Properties v2Properties;
+    private final PaperParseV2QualityGate v2QualityGate;
     private final ObjectMapper objectMapper;
 
-    public PaperParseService(PaperParseArtifactMapper mapper,
-                             SubmissionFeignClient submissionFeignClient,
-                             StorageService storageService,
-                             PaperParseV1Parser parser,
-                             PaperParseV2Parser v2Parser,
-                             PaperParseV2Properties v2Properties,
-                             ObjectMapper objectMapper) {
+    public PaperParseService(
+            PaperParseArtifactMapper mapper,
+            SubmissionFeignClient submissionFeignClient,
+            StorageService storageService,
+            PaperParseV1Parser parser,
+            PaperParseV2Parser v2Parser,
+            PaperParseV2Properties v2Properties,
+            PaperParseV2QualityGate v2QualityGate,
+            ObjectMapper objectMapper
+    ) {
         this.mapper = mapper;
         this.submissionFeignClient = submissionFeignClient;
         this.storageService = storageService;
         this.parser = parser;
         this.v2Parser = v2Parser;
         this.v2Properties = v2Properties;
+        this.v2QualityGate = v2QualityGate;
         this.objectMapper = objectMapper;
     }
 
@@ -100,9 +106,10 @@ public class PaperParseService {
                 .eq(PaperParseArtifact::getWorkflowVersion, PaperParseV2Parser.WORKFLOW_VERSION)
                 .eq(PaperParseArtifact::getSchemaVersion, PaperParseV2Parser.SCHEMA_VERSION)
                 .in(PaperParseArtifact::getStatus, "SUCCESS", "PARTIAL_SUCCESS")
+                .apply("JSON_LENGTH(JSON_EXTRACT(document_json, '$.blocks')) > 0")
                 .orderByDesc(PaperParseArtifact::getCreateTime)
                 .last("LIMIT 1"));
-        if (reusable != null) return toDTO(reusable);
+        if (isReusableV2Artifact(reusable)) return toDTO(reusable);
 
         SubmissionReviewDTO submission = requiredSubmission(submissionId);
         PaperParseArtifact artifact = new PaperParseArtifact();
@@ -156,6 +163,19 @@ public class PaperParseService {
             return objectMapper.readValue(artifact.getDocumentJson(), PaperDocumentV2.class);
         } catch (Exception exception) {
             throw new IllegalStateException("PAPER_DOCUMENT_V2 产物无法读取", exception);
+        }
+    }
+
+    private boolean isReusableV2Artifact(PaperParseArtifact artifact) {
+        if (artifact == null || artifact.getDocumentJson() == null) return false;
+        try {
+            PaperDocumentV2 document = objectMapper.readValue(
+                    artifact.getDocumentJson(),
+                    PaperDocumentV2.class
+            );
+            return v2QualityGate.isReusable(document);
+        } catch (Exception exception) {
+            return false;
         }
     }
 

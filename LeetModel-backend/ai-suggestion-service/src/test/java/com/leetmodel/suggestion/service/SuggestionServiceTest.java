@@ -1,5 +1,8 @@
 package com.leetmodel.suggestion.service;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.AiClientException;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -262,6 +266,20 @@ class SuggestionServiceTest {
     }
 
     @Test
+    void missingRetrievalVersionFallsBackToWorkflowCompatibleDefault() {
+        SuggestionTask v4Task = task("RUNNING");
+        v4Task.setWorkflowVersion(SuggestionService.SUGGESTION_V4_VERSION);
+        v4Task.setRetrievalWorkflowVersion(null);
+
+        assertThat(service.resolveRetrievalWorkflowVersion(v4Task))
+                .isEqualTo(SuggestionService.SUGGESTION_DEEP_RETRIEVAL_V1);
+
+        v4Task.setRetrievalWorkflowVersion("VECTOR_RAG_V1");
+        assertThat(service.resolveRetrievalWorkflowVersion(v4Task))
+                .isEqualTo("VECTOR_RAG_V1");
+    }
+
+    @Test
     void unknownAiOutcomeBecomesVisibleTerminalStateWithoutAutomaticRetry() throws Exception {
         SuggestionTask task = task("LEASED");
         when(taskMapper.selectById(task.getId())).thenReturn(task);
@@ -291,13 +309,56 @@ class SuggestionServiceTest {
         when(submissionFeignClient.getForReview(SUBMISSION_ID))
                 .thenThrow(new IllegalStateException("submission unavailable"));
 
-        service.executeClaimed(task.getId(), "owner-a", "token-a");
+        ListAppender<ILoggingEvent> appender = attachAppender();
+        try {
+            service.executeClaimed(task.getId(), "owner-a", "token-a");
+        } finally {
+            logger().detachAppender(appender);
+        }
 
         verify(taskMapper).scheduleRetry(eq(task.getId()), eq("token-a"), any(LocalDateTime.class),
                 eq("DEPENDENCY_TRANSIENT"), eq("论文建议依赖服务暂不可用"),
                 eq("suggestion:task:9001:attempt:2"));
         verify(taskMapper, never()).markTerminalFailure(anyLong(), anyString(), anyString(),
                 anyString(), anyString());
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(message -> message.contains(
+                        "dependency=submission-service.getForReview, "
+                                + "exceptionType=java.lang.IllegalStateException"
+                ));
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("submission unavailable"));
+    }
+
+    @Test
+    void dependencyBusinessFailureLogsOnlyDependencyAndCode() {
+        SuggestionTask task = task("LEASED");
+        when(taskMapper.selectById(task.getId())).thenReturn(task);
+        when(taskMapper.markRunning(anyLong(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
+        when(submissionFeignClient.getForReview(SUBMISSION_ID))
+                .thenReturn(Result.fail(40401, "sensitive downstream detail"));
+
+        ListAppender<ILoggingEvent> appender = attachAppender();
+        try {
+            service.executeClaimed(task.getId(), "owner-a", "token-a");
+        } finally {
+            logger().detachAppender(appender);
+        }
+
+        verify(taskMapper).scheduleRetry(eq(task.getId()), eq("token-a"), any(LocalDateTime.class),
+                eq("DEPENDENCY_TRANSIENT"), eq("论文建议依赖服务暂不可用"),
+                eq("suggestion:task:9001:attempt:2"));
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(message -> message.contains(
+                        "dependency=submission-service.getForReview, code=40401, hasData=false"
+                ));
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("sensitive downstream detail"));
     }
 
     @Test
@@ -393,5 +454,16 @@ class SuggestionServiceTest {
         task.setTraceId("trace-test");
         task.setCreateTime(LocalDateTime.now());
         return task;
+    }
+
+    private ListAppender<ILoggingEvent> attachAppender() {
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger().addAppender(appender);
+        return appender;
+    }
+
+    private Logger logger() {
+        return (Logger) LoggerFactory.getLogger(SuggestionService.class);
     }
 }

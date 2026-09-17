@@ -24,6 +24,7 @@ public class SubTaskPlanDTO implements Serializable {
     private String taskName;
     private Integer targetQuestionNo;
     private SubProblemCategoryDTO subProblemCategory;
+    private List<String> suggestedSectionIds;
     private List<SectionAnchorDTO> suggestedSectionAnchors;
     private List<String> evaluationObjectives;
     private String suggestedKnowledgeQuery;

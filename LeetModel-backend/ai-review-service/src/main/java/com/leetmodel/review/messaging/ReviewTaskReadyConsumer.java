@@ -12,6 +12,7 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.apache.rocketmq.common.message.MessageExt;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,7 @@ import org.springframework.stereotype.Component;
         consumeThreadMax = 2,
         maxReconsumeTimes = 5
 )
-public class ReviewTaskReadyConsumer implements RocketMQListener<byte[]> {
+public class ReviewTaskReadyConsumer implements RocketMQListener<MessageExt> {
 
     /** 稳定事件类型。 */
     public static final String EVENT_TYPE = "REVIEW_TASK_READY";
@@ -60,7 +61,16 @@ public class ReviewTaskReadyConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(MessageExt message) {
+        consume(message.getBody());
+    }
+
+    /** 供不依赖 Broker 的契约测试复用相同解析入口。 */
+    public void onMessage(String body) {
+        consume(codec.bytes(body));
+    }
+
+    private void consume(byte[] body) {
         MessageEnvelopeV1<ReviewTaskReadyPayload> envelope = codec.decode(
                 body, ReviewTaskReadyPayload.class);
         validate(envelope);

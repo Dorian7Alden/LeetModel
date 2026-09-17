@@ -88,14 +88,70 @@ class ModelExecutionCatalogContractTest {
     }
 
     @Test
+    void v3PaperWorkflowsHaveDedicatedImmutableTextConfigs() throws Exception {
+        ModelExecutionConfigProperties properties = properties();
+
+        ModelExecutionConfigProperties.Definition review = properties
+                .getExecutionConfigs().get("MODEL_CFG_REVIEW_TEXT_0003");
+        assertTextConfig(review, 8192, 0.1, "DEEP_EVIDENCE_REVIEW_V3");
+        assertThat(review.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PHASE1_STRUCTURAL_0001",
+                "PROMPT_PHASE2_PLANNER_0001",
+                "PROMPT_SUBTASK_ABSTRACT_VERIFICATION_0001",
+                "PROMPT_SUBTASK_SUB_PROBLEM_EVALUATION_0001",
+                "PROMPT_SUBTASK_SENSITIVITY_EVALUATION_0001"
+        );
+
+        ModelExecutionConfigProperties.Definition suggestion = properties
+                .getExecutionConfigs().get("MODEL_CFG_SUGGESTION_TEXT_0003");
+        assertTextConfig(suggestion, 8192, 0.15, "GROUNDED_SUGGESTION_V3");
+        assertThat(suggestion.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PLANNER_0001",
+                "PROMPT_SUBTASK_0001",
+                "PROMPT_SYNTHESIZER_0001"
+        );
+    }
+
+    @Test
+    void v4ProfessionalPaperWorkflowsHaveDedicatedImmutableTextConfigs() throws Exception {
+        ModelExecutionConfigProperties properties = properties();
+
+        ModelExecutionConfigProperties.Definition review = properties
+                .getExecutionConfigs().get("MODEL_CFG_REVIEW_TEXT_0004");
+        assertTextConfig(review, 8192, 0.1, "DEEP_EVIDENCE_REVIEW_V4");
+        assertThat(review.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PHASE1_STRUCTURAL_0002",
+                "PROMPT_PHASE2_PLANNER_0002",
+                "PROMPT_SUBTASK_ABSTRACT_VERIFICATION_0002",
+                "PROMPT_SUBTASK_SUB_PROBLEM_EVALUATION_0002",
+                "PROMPT_SUBTASK_SENSITIVITY_EVALUATION_0002"
+        );
+
+        ModelExecutionConfigProperties.Definition suggestion = properties
+                .getExecutionConfigs().get("MODEL_CFG_SUGGESTION_TEXT_0004");
+        assertTextConfig(suggestion, 8192, 0.15, "GROUNDED_SUGGESTION_V4");
+        assertThat(suggestion.getPromptVersions()).containsExactlyInAnyOrder(
+                "PROMPT_PLANNER_0002",
+                "PROMPT_SUBTASK_0002",
+                "PROMPT_SYNTHESIZER_0002"
+        );
+    }
+
+    @Test
     void paperParseV2WorkflowsHaveDedicatedExecutionConfigs() throws Exception {
         ModelExecutionConfigProperties properties = properties();
 
-        ModelExecutionConfigProperties.Definition visionDef = properties
+        ModelExecutionConfigProperties.Definition legacyVisionDef = properties
                 .getExecutionConfigs().get("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0001");
+        assertThat(legacyVisionDef).isNotNull();
+        assertThat(legacyVisionDef.getMaxTokens()).isEqualTo(4096);
+
+        ModelExecutionConfigProperties.Definition visionDef = properties
+                .getExecutionConfigs().get("MODEL_CFG_PAPER_PARSE_MULTIMODAL_0002");
         assertThat(visionDef).isNotNull();
         assertThat(visionDef.getCallType()).isEqualTo("CHAT");
         assertThat(visionDef.getModality()).isEqualTo(com.leetmodel.common.ai.model.AiModality.MULTIMODAL);
+        assertThat(visionDef.getMaxTokens()).isEqualTo(8192);
         assertThat(visionDef.getPromptVersions()).containsExactly("PROMPT_PAPER_PARSE_V2_0001");
         assertThat(visionDef.getWorkflowVersions()).containsExactly("PAPER_PARSE_V2");
 
@@ -106,11 +162,16 @@ class ModelExecutionCatalogContractTest {
     private void assertTextConfig(ModelExecutionConfigProperties properties, String version,
                                   int maxTokens, double temperature, String prompt, String workflow) {
         ModelExecutionConfigProperties.Definition definition = properties.getExecutionConfigs().get(version);
+        assertTextConfig(definition, maxTokens, temperature, workflow);
+        assertThat(definition.getPromptVersions()).containsExactly(prompt);
+    }
+
+    private void assertTextConfig(ModelExecutionConfigProperties.Definition definition,
+                                  int maxTokens, double temperature, String workflow) {
         assertThat(definition).isNotNull();
         assertThat(definition.getCallType()).isEqualTo("CHAT");
         assertThat(definition.getMaxTokens()).isEqualTo(maxTokens);
         assertThat(definition.getTemperature()).isEqualTo(temperature);
-        assertThat(definition.getPromptVersions()).containsExactly(prompt);
         assertThat(definition.getWorkflowVersions()).containsExactly(workflow);
     }
 

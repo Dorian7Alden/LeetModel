@@ -11,7 +11,38 @@ public record ReviewEvidenceSnapshot(
         List<Finding> findings,
         String snapshotJson
 ) {
-    public record Finding(String findingId, String type, String category, String severity,
-                          String statement, String scoreImpact, String sourcePath,
-                          List<String> paperEvidenceIds) {}
+    public record Finding(
+            String findingId,
+            String type,
+            String category,
+            String severity,
+            String statement,
+            String rationaleMarkdown,
+            String scoreImpact,
+            String sourcePath,
+            List<String> paperEvidenceIds
+    ) {
+        public Finding(
+                String findingId,
+                String type,
+                String category,
+                String severity,
+                String statement,
+                String scoreImpact,
+                String sourcePath,
+                List<String> paperEvidenceIds
+        ) {
+            this(
+                    findingId,
+                    type,
+                    category,
+                    severity,
+                    statement,
+                    "",
+                    scoreImpact,
+                    sourcePath,
+                    paperEvidenceIds
+            );
+        }
+    }
 }

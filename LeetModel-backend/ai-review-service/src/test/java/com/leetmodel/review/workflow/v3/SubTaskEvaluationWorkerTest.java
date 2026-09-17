@@ -107,5 +107,58 @@ class SubTaskEvaluationWorkerTest {
         // 降级分应为 maxScore(15.0) * 0.6 = 9.0
         assertThat(result.getScore()).isEqualTo(BigDecimal.valueOf(9.0).setScale(1));
         assertThat(result.getFindings().get(0).getType()).isEqualTo("ISSUE");
+        assertThat(result.getEvaluationSummary())
+                .contains("自动评审未能完整完成")
+                .doesNotContain("模型调用超时", "RuntimeException");
+    }
+
+    @Test
+    void shouldKeepValidJsonEscapedLatexInsteadOfDegrading() {
+        AiClient aiClient = mock(AiClient.class);
+        String jsonResponse = """
+                {
+                  "taskId": "TASK_SENSITIVITY_EVAL",
+                  "score": 13.0,
+                  "maxScore": 15.0,
+                  "evaluationSummary": "参数扰动 $\\\\Delta p$ 后，指标按 $x \\\\cdot y$ 计算。",
+                  "aspectScores": [],
+                  "observations": [],
+                  "findings": []
+                }
+                """;
+        when(aiClient.chat(any())).thenReturn(new AiChatResponse(
+                "call-sub", AiProvider.NEW_API, "deepseek-chat", "resp-s", jsonResponse, null, "stop", null));
+
+        ContextSlicingEngine slicingEngine = new ContextSlicingEngine(null);
+        SubTaskEvaluationWorker worker = new SubTaskEvaluationWorker(aiClient, objectMapper, slicingEngine);
+
+        ReviewTask task = new ReviewTask();
+        task.setId(3003L);
+        task.setAttemptNo(1);
+        task.setWorkflowVersion("DEEP_EVIDENCE_REVIEW_V4");
+
+        SubTaskPlanDTO plan = SubTaskPlanDTO.builder()
+                .taskId("TASK_SENSITIVITY_EVAL")
+                .taskType("SENSITIVITY_EVALUATION")
+                .taskName("敏感性分析审查")
+                .build();
+
+        PaperDocumentV2 doc = new PaperDocumentV2(
+                PaperDocumentV2.SCHEMA_VERSION,
+                3003L,
+                "sha",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null
+        );
+        ProblemContextDTO problem = new ProblemContextDTO(1L, "题目", "题面", 180, 1);
+
+        SubTaskEvaluationResultDTO result = worker.execute(task, plan, doc, problem);
+
+        assertThat(result.getExecutionStatus()).isEqualTo("SUCCESS");
+        assertThat(result.getEvaluationSummary())
+                .isEqualTo("参数扰动 $\\Delta p$ 后，指标按 $x \\cdot y$ 计算。");
     }
 }

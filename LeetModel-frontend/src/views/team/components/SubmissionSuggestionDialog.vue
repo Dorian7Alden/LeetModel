@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     title="有依据的论文改进建议"
-    width="820px"
+    width="min(960px, 92vw)"
     destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
     @open="onOpen"
@@ -63,14 +63,102 @@
           />
 
           <template v-if="task.status === 'COMPLETED' && result">
-            <template v-if="isV3">
+            <template v-if="isV4">
+              <el-alert
+                title="建议分为必要修正、完整性增强与可选探索；主观建模方向不代表唯一正确路径"
+                type="success"
+                :closable="false"
+                show-icon
+              />
+              <MarkdownView v-if="result.overallStrategyMarkdown" :content="result.overallStrategyMarkdown" />
+              <div v-if="result.topPriorities?.length" class="top-priorities">
+                <strong>本轮关键优先事项</strong>
+                <ol>
+                  <li v-for="item in result.topPriorities" :key="item.suggestionId">
+                    <b>{{ item.title }}</b>
+                    <MarkdownView :content="item.summaryMarkdown" compact />
+                  </li>
+                </ol>
+              </div>
+              <div class="items">
+                <article v-for="item in result.items" :key="item.suggestionId" class="item v4-item">
+                  <div class="item-head">
+                    <el-tag size="small" :type="guidanceTagType(item.guidanceType)" effect="dark">
+                      {{ guidanceLabel(item.guidanceType) }}
+                    </el-tag>
+                    <el-tag size="small" effect="plain">{{ categoryLabel(item.category) }}</el-tag>
+                    <el-tag size="small" type="warning" effect="light">{{ item.priority }}</el-tag>
+                    <strong>{{ item.suggestionId }} · {{ item.title }}</strong>
+                  </div>
+                  <div v-if="item.targetLocation" class="target-location">
+                    <span v-if="item.targetLocation.physicalPages?.length">
+                      论文第 {{ item.targetLocation.physicalPages.join('、') }} 页
+                    </span>
+                    <span v-if="item.targetLocation.section">{{ item.targetLocation.section }}</span>
+                  </div>
+                  <div class="suggestion-fields">
+                    <section>
+                    <b>针对的问题</b>
+                    <MarkdownView :content="item.currentStateMarkdown" compact />
+                    </section>
+                    <section>
+                    <b>为什么值得处理</b>
+                    <MarkdownView :content="item.rationaleMarkdown" compact />
+                    </section>
+                    <section class="suggestion-fields__guidance">
+                    <b>{{ item.guidanceType === 'OPTIONAL_EXPLORATION' ? '可选探索方向' : '建议补充的方面' }}</b>
+                    <MarkdownView :content="item.guidanceMarkdown" />
+                    </section>
+                    <section v-if="item.applicabilityMarkdown">
+                    <b>适用性与边界</b>
+                    <MarkdownView :content="item.applicabilityMarkdown" compact />
+                    </section>
+                    <section v-if="item.acceptanceCriteriaMarkdown?.length">
+                    <b>完成标准</b>
+                    <ul>
+                      <li v-for="criterion in item.acceptanceCriteriaMarkdown" :key="criterion">
+                        <MarkdownView :content="criterion" compact />
+                      </li>
+                    </ul>
+                    </section>
+                  </div>
+                  <details v-if="item.evidenceQuotes?.length" class="suggestion-evidence">
+                    <summary>论文原文依据（{{ item.evidenceQuotes.length }} 处）</summary>
+                    <div v-for="quote in item.evidenceQuotes" :key="quote.evidenceId" class="evidence-quote">
+                      <small>第 {{ quote.physicalPage }} 页 · {{ blockTypeLabel(quote.blockType) }} {{ quote.blockId }}</small>
+                      <MarkdownView :content="quote.quoteMarkdown" compact />
+                    </div>
+                  </details>
+                  <details v-if="item.evidenceChain?.knowledgeBasisIds?.length" class="knowledge-basis">
+                    <summary>专业依据（{{ item.evidenceChain.knowledgeBasisIds.length }} 条）</summary>
+                    <div class="knowledge-basis__list">
+                      <article v-for="basis in knowledgeByIds(item.evidenceChain.knowledgeBasisIds)" :key="basis.basisId">
+                        <strong>{{ basis.title }}</strong>
+                        <small>{{ basis.section || basis.sourcePath }}</small>
+                        <MarkdownView :content="basis.supportMarkdown" compact />
+                        <MarkdownView v-if="basis.applicabilityMarkdown" :content="basis.applicabilityMarkdown" compact />
+                      </article>
+                    </div>
+                  </details>
+                </article>
+              </div>
+              <div class="version-snapshot">
+                <span>工作流 {{ task.workflowVersion }}</span>
+                <span>评审 {{ task.reviewWorkflowVersion }}</span>
+                <span>解析 {{ task.paperParsingWorkflowVersion }}</span>
+                <span>检索 {{ task.retrievalWorkflowVersion }}</span>
+                <span v-if="task.modelName">模型 {{ task.modelName }}</span>
+              </div>
+            </template>
+
+            <template v-else-if="isV3">
               <el-alert
                 title="每项建议均经过专家思维双阶段推演、按需精准 RAG 与高保真证据链校验"
                 type="success"
                 :closable="false"
                 show-icon
               />
-              <div v-if="result.overallStrategy" class="summary v3-markdown" v-html="renderSafeMarkdown(result.overallStrategy)" />
+              <MarkdownView v-if="result.overallStrategy" :content="result.overallStrategy" />
               <div v-if="result.topPriorities?.length" class="top-priorities">
                 <strong>本轮关键优先事项</strong>
                 <ol><li v-for="item in result.topPriorities" :key="item">{{ item }}</li></ol>
@@ -89,7 +177,7 @@
                   <p v-if="item.diagnosis" class="diagnosis-text">诊断分析：{{ item.diagnosis }}</p>
                   <div v-if="item.actionPlanMarkdown" class="detail-section">
                     <b>详细修改指导方案 (含公式/算法)</b>
-                    <div class="v3-markdown action-plan" v-html="renderSafeMarkdown(item.actionPlanMarkdown)" />
+                    <MarkdownView :content="item.actionPlanMarkdown" />
                   </div>
                   <div v-if="item.acceptanceCriteria?.length" class="detail-section">
                     <b>验收标准</b>
@@ -186,7 +274,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
-import { renderSafeMarkdown } from "@/utils/markdown";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import { getSuggestionBySubmission, createSuggestion, retrySuggestion } from "@/api/suggestion";
 
 const props = defineProps({
@@ -203,6 +291,7 @@ const selectedTaskId = ref("");
 let timer = null;
 
 const result = computed(() => task.value?.result || null);
+const isV4 = computed(() => task.value?.workflowVersion === "GROUNDED_SUGGESTION_V4");
 const isV3 = computed(() => task.value?.workflowVersion === "GROUNDED_SUGGESTION_V3");
 const isV2 = computed(() => task.value?.workflowVersion === "GROUNDED_SUGGESTION_V2");
 
@@ -232,6 +321,30 @@ function categoryLabel(category) {
     WRITING: "写作", FIGURE: "图表", CITATION: "引用", APPENDIX: "附录",
     PRESENTATION: "表达",
   })[category] || category;
+}
+function guidanceLabel(value) {
+  return ({
+    REQUIRED_FIX: "必要修正",
+    COMPLETENESS_ENHANCEMENT: "完整性增强",
+    OPTIONAL_EXPLORATION: "可选探索",
+  })[value] || value;
+}
+function guidanceTagType(value) {
+  return ({ REQUIRED_FIX: "danger", COMPLETENESS_ENHANCEMENT: "warning", OPTIONAL_EXPLORATION: "success" })[value] || "info";
+}
+function blockTypeLabel(value) {
+  return ({
+    PARAGRAPH: "正文",
+    HEADING: "标题",
+    FORMULA: "公式",
+    TABLE: "表格",
+    FIGURE: "图示",
+    CODE: "代码",
+  })[value] || "内容块";
+}
+function knowledgeByIds(ids = []) {
+  const basis = new Map((result.value?.knowledgeBasis || []).map(item => [item.basisId, item]));
+  return ids.map(id => basis.get(id)).filter(Boolean);
 }
 function knowledgeLabels(ids = []) {
   const citations = new Map((task.value?.knowledgeCitations || []).map(item => [item.citationId, item]));
@@ -353,4 +466,23 @@ onBeforeUnmount(stopPolling);
 .evidence-chain { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .evidence-chain span, .version-snapshot span { padding: 4px 8px; border-radius: 6px; background: var(--lm-surface); color: var(--lm-text-muted); font-size: 12px; }
 .version-snapshot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--lm-border-light); }
+.v4-item { background: #fff; }
+.target-location { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.target-location span { padding: 3px 7px; border-radius: 5px; background: #eff6ff; color: #1d4ed8; font-size: 11px; }
+.suggestion-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.suggestion-fields section { min-width: 0; padding: 11px 12px; border: 1px solid var(--lm-border-light); border-radius: 7px; background: #f8fafc; color: var(--lm-text-secondary); }
+.suggestion-fields section > b { display: block; margin-bottom: 6px; color: var(--lm-text-primary); font-size: 12px; }
+.suggestion-fields__guidance { grid-column: 1 / -1; border-left: 3px solid #2563eb !important; background: #f8fbff !important; }
+.suggestion-fields ul { margin: 6px 0 0; padding-left: 20px; }
+.suggestion-evidence { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--lm-border-light); }
+.suggestion-evidence summary { cursor: pointer; color: #2563eb; font-size: 12px; font-weight: 700; }
+.evidence-quote { margin-top: 9px; padding: 10px 12px; border-left: 3px solid #bfdbfe; background: #f8fafc; }
+.evidence-quote small { display: block; margin-bottom: 6px; color: var(--lm-text-muted); font-size: 11px; }
+.knowledge-basis { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--lm-border-light); }
+.knowledge-basis > summary { cursor: pointer; color: #2563eb; font-size: 12px; font-weight: 700; }
+.knowledge-basis__list { display: grid; gap: 8px; margin-top: 9px; }
+.knowledge-basis__list > article { padding: 10px 12px; border-left: 3px solid #93c5fd; background: #f8fafc; }
+.knowledge-basis article > strong,.knowledge-basis article > small { display: block; }
+.knowledge-basis article > small { margin: 3px 0 6px; color: var(--lm-text-muted); font-size: 11px; }
+@media (max-width: 760px) { .suggestion-fields { grid-template-columns: 1fr; }.suggestion-fields__guidance { grid-column: auto; } }
 </style>

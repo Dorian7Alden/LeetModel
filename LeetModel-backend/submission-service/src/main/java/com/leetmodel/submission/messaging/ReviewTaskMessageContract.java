@@ -12,7 +12,7 @@ public final class ReviewTaskMessageContract {
     /** 消费组。 */
     public static final String CONSUMER_GROUP = "cg-ai-review-task-v1";
     /** 当前正式评审工作流。 */
-    public static final String WORKFLOW_VERSION = "EVIDENCE_REVIEW_V2";
+    public static final String WORKFLOW_VERSION = "DEEP_EVIDENCE_REVIEW_V4";
 
     private ReviewTaskMessageContract() {
     }

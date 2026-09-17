@@ -51,7 +51,7 @@ class RankingEventConsumerTest {
                         41L, 51L, 31L, LocalDateTime.of(2026, 9, 1, 8, 0)));
 
         new FinalSubmissionChangedConsumer(codec, inbox, requestService)
-                .onMessage(codec.encode(envelope));
+                .onMessage(new String(codec.encode(envelope), java.nio.charset.StandardCharsets.UTF_8));
 
         verify(requestService).request(51L, "trace-final");
         verify(inbox).executeOnce(eq(FinalSubmissionChangedConsumer.CONSUMER_GROUP), any(), any());
@@ -67,7 +67,7 @@ class RankingEventConsumerTest {
                         LocalDateTime.of(2026, 9, 1, 8, 5)));
 
         new ReviewCompletedConsumer(codec, inbox, requestService)
-                .onMessage(codec.encode(envelope));
+                .onMessage(new String(codec.encode(envelope), java.nio.charset.StandardCharsets.UTF_8));
 
         verify(requestService).request(51L, "trace-review");
         verify(inbox).executeOnce(eq(ReviewCompletedConsumer.CONSUMER_GROUP), any(), any());

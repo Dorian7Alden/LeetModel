@@ -64,7 +64,12 @@ class PaperParseV2ParserTest {
                 objectMapper
         );
 
-        parser = new PaperParseV2Parser(properties, scheduler, flattener);
+        parser = new PaperParseV2Parser(
+                properties,
+                scheduler,
+                flattener,
+                new PaperParseV2QualityGate()
+        );
     }
 
     @Test
@@ -146,6 +151,24 @@ class PaperParseV2ParserTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 parser.parse(4002L, encryptedBytes, "sha256-enc"));
+    }
+
+    @Test
+    void shouldRejectDocumentWhenModelAndLocalFallbackProduceNoContent() throws Exception {
+        when(aiClient.chat(any())).thenThrow(new IllegalStateException("gateway unavailable"));
+
+        IllegalStateException error = assertThrows(IllegalStateException.class, () ->
+                parser.parse(4003L, createBlankPdf(), "sha256-empty"));
+
+        assertThat(error.getMessage()).startsWith("PAPER_PARSE_V2_EMPTY_CONTENT");
+    }
+
+    private byte[] createBlankPdf() throws Exception {
+        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            doc.addPage(new PDPage());
+            doc.save(out);
+            return out.toByteArray();
+        }
     }
 
     private byte[] createSyntheticPdf(int pages) throws Exception {

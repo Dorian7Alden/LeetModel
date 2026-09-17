@@ -127,11 +127,11 @@ public interface ReviewTaskMapper extends BaseMapper<ReviewTask> {
                       @Param("token") String token,
                       @Param("finishedAt") LocalDateTime finishedAt);
 
-    /** 用户显式重试失败任务并清理旧租约。 */
+    /** 用户显式重试失败或结果待核查任务并清理旧租约。 */
     @Update("UPDATE review_task SET status=#{status}, retry_count=#{retryCount}, attempt_no=#{attemptNo}, " +
             "next_run_at=#{nextRunAt}, started_at=NULL, finished_at=NULL, failure_type=NULL, error_message=NULL, " +
             "ai_idempotency_key=#{aiIdempotencyKey}, lease_owner=NULL, lease_token=NULL, " +
             "lease_expires_at=NULL, heartbeat_at=NULL, update_time=NOW() " +
-            "WHERE id=#{id} AND status='FAILED'")
+            "WHERE id=#{id} AND status IN ('FAILED','UNKNOWN')")
     int resetForRetry(ReviewTask task);
 }

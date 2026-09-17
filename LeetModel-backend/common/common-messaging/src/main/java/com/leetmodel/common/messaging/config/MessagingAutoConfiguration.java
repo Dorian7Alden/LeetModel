@@ -25,13 +25,13 @@ import com.leetmodel.common.messaging.internal.MessagingOperationsService;
 import com.leetmodel.common.messaging.internal.OperationAuditGovernanceProducer;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -58,8 +58,13 @@ import java.util.List;
  */
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter({DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class,
-        TransactionAutoConfiguration.class, JacksonAutoConfiguration.class})
+@AutoConfigureAfter({
+        DataSourceAutoConfiguration.class,
+        JdbcTemplateAutoConfiguration.class,
+        TransactionAutoConfiguration.class,
+        JacksonAutoConfiguration.class,
+        RocketMQAutoConfiguration.class
+})
 @EnableConfigurationProperties(MessagingProperties.class)
 @ConditionalOnClass(RocketMQTemplate.class)
 public class MessagingAutoConfiguration {
@@ -247,8 +252,13 @@ public class MessagingAutoConfiguration {
          * @return 消息发布器
          */
         @Bean
-        @ConditionalOnBean(RocketMQTemplate.class)
         @ConditionalOnMissingBean(MessagePublisher.class)
+        @ConditionalOnProperty(
+                prefix = "leetmodel.messaging.relay",
+                name = "enabled",
+                havingValue = "true",
+                matchIfMissing = true
+        )
         public MessagePublisher rocketMqMessagePublisher(
                 RocketMQTemplate rocketMQTemplate,
                 MessagingProperties properties
@@ -279,7 +289,6 @@ public class MessagingAutoConfiguration {
          * @return Outbox Relay
          */
         @Bean
-        @ConditionalOnBean(MessagePublisher.class)
         @ConditionalOnProperty(
                 prefix = "leetmodel.messaging.relay",
                 name = "enabled",

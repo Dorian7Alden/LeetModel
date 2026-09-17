@@ -53,7 +53,8 @@
 
 ### 4. 统一渲染组件与垂直节奏
 
-1. 题目题面与 AI 客服回复统一使用 `src/components/common/MarkdownView.vue` 上屏；这两类业务页面不得再次直接组合 `renderSafeMarkdown()` 与 `v-html`，也不得复制一套局部 Markdown 排版规则。
+1. 题目题面、AI 客服回复、V4 论文评审报告和 V4 论文建议报告统一使用 `src/components/common/MarkdownView.vue` 上屏；这些业务页面不得再次直接组合 `renderSafeMarkdown()` 与 `v-html`，也不得复制一套局部 Markdown 排版规则。
 2. `src/utils/markdown.js` 只负责语法解析、流式未闭合语法容错、KaTeX、代码高亮和 HTML 安全清洗；字体、段落、标题、列表、公式、表格与代码块样式由 `MarkdownView` 统一维护。
 3. 正文保留统一的段落和块级元素上下间距。业务容器只负责外层气泡或卡片布局，不得把 Markdown 内部元素的垂直间距重置为零。
 4. 流式输出使用 `MarkdownView` 的 `streaming` 状态，将光标插入最后一个可见文本节点之后；不得把光标作为 Markdown 容器的块级兄弟节点，否则它会与当前打印字符脱离。
+5. V4 评审与建议的模型输出不得包含任意外部图片 URL。Markdown 图片只允许引用服务端校验过的内部文件资产；没有受信图片资产时展示图号、页码、图题和解析描述。

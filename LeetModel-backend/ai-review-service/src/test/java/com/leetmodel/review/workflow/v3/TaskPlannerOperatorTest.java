@@ -5,6 +5,7 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.ai.client.AiClient;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
+import com.leetmodel.common.api.dto.SubTaskPlanDTO;
 import com.leetmodel.common.api.dto.TaskPlanResultDTO;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.parse.v2.PaperDocumentV2;
@@ -38,7 +39,8 @@ class TaskPlannerOperatorTest {
                       "taskId": "TASK_Q1_EVAL",
                       "taskType": "SUB_PROBLEM_EVALUATION",
                       "taskName": "问题一建模",
-                      "targetQuestionNo": 1
+                      "targetQuestionNo": 1,
+                      "suggestedSectionIds": ["S2"]
                     }
                   ]
                 }
@@ -78,5 +80,12 @@ class TaskPlannerOperatorTest {
         assertThat(plan.getTasks().stream().anyMatch(t -> Integer.valueOf(1).equals(t.getTargetQuestionNo()))).isTrue();
         assertThat(plan.getTasks().stream().anyMatch(t -> Integer.valueOf(2).equals(t.getTargetQuestionNo()))).isTrue();
         assertThat(plan.getTasks().stream().anyMatch(t -> "SENSITIVITY_EVALUATION".equals(t.getTaskType()))).isTrue();
+        assertThat(plan.getTasks().stream()
+                .filter(t -> Integer.valueOf(1).equals(t.getTargetQuestionNo()))
+                .findFirst()
+                .orElseThrow()
+                .getSuggestedSectionAnchors())
+                .extracting(SubTaskPlanDTO.SectionAnchorDTO::getSectionId)
+                .containsExactly("S2");
     }
 }

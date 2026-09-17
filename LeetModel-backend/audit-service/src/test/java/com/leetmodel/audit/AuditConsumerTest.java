@@ -36,7 +36,9 @@ class AuditConsumerTest {
         };
         OperationAuditConsumer consumer = new OperationAuditConsumer(codec, archive, metrics);
 
-        consumer.onMessage(codec.encode(codec.envelope(payload())));
+        consumer.onMessage(new String(
+                codec.encode(codec.envelope(payload())),
+                java.nio.charset.StandardCharsets.UTF_8));
 
         assertThat(calls).hasValue(1);
         assertThat(registry.get("audit.archive.events").tag("result", "consumed").counter().count())
@@ -53,7 +55,7 @@ class AuditConsumerTest {
         AuditArchiveService archive = new AuditArchiveService(null, mapper, metrics);
         OperationAuditConsumer consumer = new OperationAuditConsumer(codec, archive, metrics);
 
-        assertThatThrownBy(() -> consumer.onMessage("{}".getBytes()))
+        assertThatThrownBy(() -> consumer.onMessage("{}"))
                 .hasMessageContaining("审计消息契约拒绝");
         assertThat(registry.get("audit.archive.events").tag("result", "rejected").counter().count())
                 .isEqualTo(1);

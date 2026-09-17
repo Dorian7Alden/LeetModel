@@ -41,7 +41,11 @@ public class Phase1StructuralReviewOperator {
 
     public Phase1StructuralReviewResultDTO execute(ReviewTask task, PaperDocumentV2 document) {
         var slices = sliceExtractor.extract(document);
-        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt("prompts/phase1-structural-review.st");
+        boolean v4 = "DEEP_EVIDENCE_REVIEW_V4".equals(task.getWorkflowVersion());
+        String systemPrompt = PromptTemplateRenderer.loadClasspathPrompt(
+                v4 ? "prompts/phase1-structural-review-v4.st"
+                        : "prompts/phase1-structural-review.st"
+        );
         String userPrompt = slices.consolidatedUserPrompt();
 
         String taskKey = task.getId() == null
@@ -53,9 +57,12 @@ public class Phase1StructuralReviewOperator {
                 AiFeatureCode.PAPER_REVIEW,
                 task.getId() == null ? AiOperationCode.EXPERIMENT_REVIEW : AiOperationCode.FORMAL_REVIEW,
                 taskKey,
-                "DEEP_EVIDENCE_REVIEW_V3",
-                "PROMPT_PHASE1_STRUCTURAL_0001",
-                task.getModelExecutionConfigVersion() == null ? "MODEL_CFG_REVIEW_TEXT_0002" : task.getModelExecutionConfigVersion(),
+                v4 ? "DEEP_EVIDENCE_REVIEW_V4" : "DEEP_EVIDENCE_REVIEW_V3",
+                v4 ? "PROMPT_PHASE1_STRUCTURAL_0002" : "PROMPT_PHASE1_STRUCTURAL_0001",
+                task.getModelExecutionConfigVersion() == null
+                        ? (v4 ? "MODEL_CFG_REVIEW_TEXT_0004"
+                        : DeepEvidenceReviewV3Workflow.MODEL_EXECUTION_CONFIG_VERSION)
+                        : task.getModelExecutionConfigVersion(),
                 task.getEvaluationTaskId(),
                 task.getId() == null ? AiCallPriority.P3 : AiCallPriority.P1,
                 "phase1:" + taskKey + ":attempt:" + task.getAttemptNo(),
@@ -69,8 +76,8 @@ public class Phase1StructuralReviewOperator {
                         new AiMessage(AiRole.SYSTEM, List.of(new AiContentPart(AiContentType.TEXT, systemPrompt, null))),
                         new AiMessage(AiRole.USER, List.of(new AiContentPart(AiContentType.TEXT, userPrompt, null)))
                 ),
-                4096,
-                0.1,
+                DeepEvidenceReviewV3Workflow.MAX_OUTPUT_TOKENS,
+                DeepEvidenceReviewV3Workflow.TEMPERATURE,
                 AiResponseFormat.JSON_OBJECT,
                 false
         );

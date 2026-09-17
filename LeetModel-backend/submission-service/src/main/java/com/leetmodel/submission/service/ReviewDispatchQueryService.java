@@ -41,6 +41,7 @@ public class ReviewDispatchQueryService {
         return switch (statuses.get(0)) {
             case "PUBLISHED" -> "DISPATCHED";
             case "BLOCKED" -> "DISPATCH_BLOCKED";
+            case "CANCELLED" -> "NOT_REQUESTED";
             default -> "WAITING_DISPATCH";
         };
     }

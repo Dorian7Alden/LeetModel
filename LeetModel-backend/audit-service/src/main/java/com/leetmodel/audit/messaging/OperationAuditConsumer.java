@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
         consumeThreadMax = 1,
         maxReconsumeTimes = OperationAuditResources.MAX_RECONSUME_TIMES
 )
-public class OperationAuditConsumer implements RocketMQListener<byte[]> {
+public class OperationAuditConsumer implements RocketMQListener<String> {
     private final OperationAuditMessageCodec codec;
     private final AuditArchiveService archiveService;
     private final AuditMetrics metrics;
@@ -43,7 +43,7 @@ public class OperationAuditConsumer implements RocketMQListener<byte[]> {
     }
 
     @Override
-    public void onMessage(byte[] body) {
+    public void onMessage(String body) {
         long started = System.nanoTime();
         MessageEnvelopeV1<OperationAuditPayloadV1> envelope;
         try {
