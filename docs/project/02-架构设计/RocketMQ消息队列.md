@@ -402,7 +402,7 @@ MQ5 实施结果：任务创建、失败项显式重试和管理员恢复都在�
 | 排行重建中重复事件 | requested revision 高于 completed revision | 当前完成后最多补跑一次 | problemId 活跃任务唯一约束 |
 | 消息超过 Broker 保留期 | Outbox、源业务事实和对账差异仍可查 | 受控重放或对账补建 | 原 eventId 与领域幂等键 |
 
-MQ6 已为故障矩阵建立两层证据：事务回滚、数据库短故障、重复消费、租约过期、fencing、乱序合并和 UNKNOWN 由自动化测试覆盖；`scripts/drill-messaging-failures.sh` 提供 Broker 重启、Broker 网络暂停/恢复、MySQL 暂停/恢复、指定消息服务 SIGKILL 和真实重复投递探针。脚本每次只执行一个明确动作，网络或数据库暂停不会自动串行执行，避免演练失败时把本地环境永久留在故障态。
+MQ6 已为故障矩阵建立两层证据：事务回滚、数据库短故障、重复消费、租约过期、fencing、乱序合并和 UNKNOWN 由自动化测试覆盖；`scripts/drill/drill-messaging-failures.sh` 提供 Broker 重启、Broker 网络暂停/恢复、MySQL 暂停/恢复、指定消息服务 SIGKILL 和真实重复投递探针。脚本每次只执行一个明确动作，网络或数据库暂停不会自动串行执行，避免演练失败时把本地环境永久留在故障态。
 
 
 ### 可观测性与管理
@@ -482,7 +482,7 @@ MQ6 的实际运维入口位于管理端“AI 中心 / 消息运维”：
 - submission、review、ranking、suggestion、evaluation 和 ai-gateway 分别使用全新 MySQL 8 验收库启动，到达 Flyway V5、V7、V5、V4、V10、V9；五个 `message_inbox.trace_id` 以及 `ai_call_task.trace_id`、`ai_call_log.trace_id` 均真实存在。
 - ai-review-service 连接真实 RocketMQ 5.5.0 后，`/internal/messaging/overview` 返回运行中的正式 consumer；`/internal/messaging/dlq` 从 `%DLQ%lm-dev%cg-ai-review-task-v1` 读取到 2 条历史死信及最早时间。查询过程只使用 Broker 管理读接口，没有订阅 DLQ、自动回灌或移动消费位点。
 - 管理端只允许管理员执行操作。DLQ 重放先在消费者服务按精确 eventId 定位并校验完整集合，再委托消息来源服务重置同一 Outbox 事件；任何 eventId 缺失都会拒绝整批，批量上限为 20。操作不返回 payload、幂等键、Broker 地址或密钥。
-- `scripts/drill-messaging-failures.sh` 将每种破坏性演练拆成单一显式动作，避免网络、数据库与进程故障被自动串联。真实启动所用六个临时数据库已在验收后精确删除。
+- `scripts/drill/drill-messaging-failures.sh` 将每种破坏性演练拆成单一显式动作，避免网络、数据库与进程故障被自动串联。真实启动所用六个临时数据库已在验收后精确删除。
 
 
 ### 非目标与关键取舍

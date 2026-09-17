@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+PATHS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$(cd "${PATHS_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPTS_DIR}/.." && pwd)"
+DEV_SCRIPTS_DIR="${SCRIPTS_DIR}/dev"
+INFRA_SCRIPTS_DIR="${SCRIPTS_DIR}/infra"
+TEST_SCRIPTS_DIR="${SCRIPTS_DIR}/test"
+VERIFY_SCRIPTS_DIR="${SCRIPTS_DIR}/verify"
+DRILL_SCRIPTS_DIR="${SCRIPTS_DIR}/drill"
+QUERY_SCRIPTS_DIR="${SCRIPTS_DIR}/query"
+BACKEND_DIR="${REPO_ROOT}/LeetModel-backend"
+FRONTEND_DIR="${REPO_ROOT}/LeetModel-frontend"
+MOCK_DIR="${REPO_ROOT}/LeetModel-mock"
+DATA_DIR="${REPO_ROOT}/data"
+DOCKER_DIR="${REPO_ROOT}/docker"
+OBSERVABILITY_CONFIG_DIR="${DOCKER_DIR}/observability"
+ROCKETMQ_CONFIG_DIR="${DOCKER_DIR}/rocketmq"
+
+export COMPOSE_FILE="${REPO_ROOT}/compose.yaml"
+OBSERVABILITY_COMPOSE_FILE="${REPO_ROOT}/compose.observability.yaml"
+
+RUNTIME_ROOT="${REPO_ROOT}/.runtime"
+SERVICE_RUNTIME_DIR="${RUNTIME_ROOT}/backend/services"
+OBSERVABILITY_RUNTIME_DIR="${RUNTIME_ROOT}/backend/observability"
+CONTRACT_RUNTIME_DIR="${RUNTIME_ROOT}/backend/contracts"
+DRILL_RUNTIME_DIR="${RUNTIME_ROOT}/backend/drills"
+FRONTEND_RUNTIME_DIR="${RUNTIME_ROOT}/frontend"

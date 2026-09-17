@@ -1,6 +1,6 @@
 # 全链路故障演练矩阵
 
-入口：`LeetModel-backend/scripts/drill-fault-protection.sh`。默认只校验脚本和输出计划；在已准备好的隔离可观测环境中显式执行 `--live`。不停止标准端口业务进程，不操作固定业务消费组，不修改 `cli-proxy-api`。
+入口：`scripts/drill/drill-fault-protection.sh`。默认只校验脚本和输出计划；在已准备好的隔离可观测环境中显式执行 `--live`。不停止标准端口业务进程，不操作固定业务消费组，不修改 `cli-proxy-api`。
 
 | 场景 | 注入/观察 | 受审计恢复动作 | 恢复判据 |
 |---|---|---|---|

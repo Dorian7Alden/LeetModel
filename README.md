@@ -1,279 +1,328 @@
 <p align="center">
-	<img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">
+  <img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">
 </p>
+
 <h1 align="center">LeetModel</h1>
 
-<p align="center"><strong>v2.1.0 · AI 专业评审与系统治理正式版</strong></p>
+<p align="center">
+  面向数学建模学习者的在线实训与 AI 论文评审平台
+</p>
 
-### 项目介绍
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v2.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-green" alt="Spring Boot" />
+  <img src="https://img.shields.io/badge/Vue-3-42b883" alt="Vue 3" />
+</p>
 
-LeetModel，中文名力模，是一款面向数学建模学习者的在线实训平台，核心聚焦 **"选题、组队、提交、评审、排行"** 全链路。
+## 项目简介
 
-平台以数学建模论文的 AI 自动评审为核心能力，为建模学习者提供高效、可量化的论文评估与排名体验。
+LeetModel 中文名为力模，是一个围绕数学建模竞赛实训构建的前后端分离平台。系统覆盖题库浏览、组队与职责分配、论文 PDF 提交、AI 自动评审、问题证据定位、改进建议和最终排行。
 
-### 发布状态
+项目采用 Spring Cloud 微服务架构，重点实践服务数据所有权、可靠异步消息、三级缓存、AI 调用治理、操作审计和可观测性。当前版本已完成既定功能范围的封版开发，但产品与工程细节仍在持续打磨，适合作为完整业务闭环与工程治理能力的学习和展示项目。
 
-当前已发布稳定版本为 `v2.1.0`。项目已完成最终封版开发，不再新增业务功能。普通用户可完成“选题 → 组队 → 提交 PDF → AI 评审 → 论文建议 → 排行榜”闭环，管理员可使用完整管理看板、AI 质量评价和可靠消息治理能力。
+> **重要说明**
+>
+> 当前项目仍处于持续打磨和作品展示阶段，尚未达到生产上线标准。页面细节、权限边界、并发容量、密钥管理、部署发布、备份恢复、监控告警和合规策略仍需要继续完善，暂不能直接上线或暴露到公网。
 
-当前封版基线已通过前端生产构建、后端 22 项 Maven Reactor 全量测试、15 个业务服务统一脚本启动和桌面浏览器页面复验。后端当前共执行 955 项测试，其中 929 项通过、26 项外部门禁按设计跳过、零失败。RocketMQ 五条业务消息协议、独立审计链路、三级缓存和统一消息运维接口均已纳入验收范围。
+
+## 核心功能
+
+| 模块 | 能力 |
+|:---:|:---:|
+| 题库 | 赛事、年份、题号、语言、难度、背景领域、题型和模型算法组合筛选 |
+| 组队 | 创建队伍、职责覆盖、招募申请、成员审核、开赛、结束练习和解散留存 |
+| 论文提交 | PDF 上传、断点续传、草稿版本、最终版锁定和提交记录 |
+| AI 评审 | V4 专业证据化评审、五维评分、结构化问题、原文证据和报告展示 |
+| AI 建议 | 基于论文与评审事实生成问题覆盖、修改步骤和验收标准 |
+| 排行榜 | 赛题天梯、分数分布、最高分与均分、队伍排名和个人定位 |
+| AI 客服 | 平台问答、受控题目检索、工具调用、会话历史和生产工作流治理 |
+| 管理端 | 用户权限、题库、队伍、提交、评审、建议、排行、文件、知识库、AI、审计和可靠消息运维 |
+| 系统治理 | Nacos、Sentinel、RocketMQ、SkyWalking、Prometheus、Grafana 和 Alertmanager |
 
 
-### 前端预览
+## 界面预览
 
-以下截图来自本地真实运行的前后端联调环境，不包含设计稿或手工合成界面。
+以下截图来自本地真实运行的前后端联调环境。
 
 <table>
   <tr>
-    <td width="50%">
+    <td width="50%" align="center">
       <img src="docs/assets/readme/official-home.png" alt="LeetModel 官网首页" />
       <br />
       <strong>官网首页</strong>
-      <br />
-      论文 AI 评审价值主张、真实结果切面与工作台入口
     </td>
-    <td width="50%">
-      <img src="docs/assets/readme/home-command-center.png" alt="LeetModel 赛前作战中枢首页" />
+    <td width="50%" align="center">
+      <img src="docs/assets/readme/home-command-center.png" alt="LeetModel 赛前作战中枢" />
       <br />
       <strong>赛前作战中枢</strong>
-      <br />
-      队伍进度、最近论文评审、真题与个人能力概览
     </td>
   </tr>
   <tr>
-    <td width="50%">
-      <img src="docs/assets/readme/problem-library.png" alt="LeetModel 题库页面" />
+    <td width="50%" align="center">
+      <img src="docs/assets/readme/problem-library.png" alt="LeetModel 公开题库" />
       <br />
       <strong>公开题库</strong>
-      <br />
-      赛事、年份、语言、难度与标签组合筛选
     </td>
-    <td width="50%">
-      <img src="docs/assets/readme/ranking-workspace.png" alt="LeetModel 排行榜工作台" />
+    <td width="50%" align="center">
+      <img src="docs/assets/readme/ranking-workspace.png" alt="LeetModel 排行榜" />
       <br />
       <strong>排行榜工作台</strong>
-      <br />
-      赛题天梯总览、分数分布、领奖台与队伍定位
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td width="50%" align="center">
       <img src="docs/assets/readme/login.png" alt="LeetModel 登录页" />
       <br />
       <strong>账号登录</strong>
-      <br />
-      统一身份入口与角色权限分流
     </td>
-    <td width="50%">
+    <td width="50%" align="center">
       <img src="docs/assets/readme/admin-dashboard.png" alt="LeetModel 管理端总览" />
       <br />
       <strong>管理端总览</strong>
-      <br />
-      用户、题库、评审、AI 调用与可靠消息治理
     </td>
   </tr>
 </table>
 
-#### 版本沿革
 
-| 版本 | 架构 | 说明 |
-|------|------|------|
-| `v1.0.0` | Spring Boot 单体架构 | 2026-05-04 停更前的单体项目版本 |
-| `v2.0.0` | Spring Cloud 微服务架构 | 微服务架构首个正式版本，完成选题、组队、提交、AI 评审、建议、排行和管理闭环 |
-| `v2.1.0` | Spring Cloud 微服务架构 | 当前稳定版本，完成 V4 专业评审与建议、独立审计、可观测性、可靠消息和封版收尾 |
+## 系统架构
 
-### 主要功能
+<p align="center">
+  <img src="https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/LeetModel系统架构全景图.png" alt="LeetModel 系统架构全景图" />
+</p>
 
-- 选题：题目浏览、分类筛选、标签检索
-- 组队：团队创建、成员管理、解散留存
-- 提交：论文 PDF 上传与提交记录管理
-- 评审：AI 自动评审打分
-- 建议：基于题面、论文和评审结果生成结构化改进建议
-- 排行：按题目展示最终提交的评审排名
-- AI 客服：平台操作答疑、受控选题辅助和历史会话
-- 管理端：用户与权限、题目与标签、队伍、提交、评审、建议、排行、AI 调用、质量评价和可靠消息运维
+<p align="center"><strong>LeetModel 系统架构全景图</strong></p>
 
-### 项目结构
+系统采用 API Gateway 统一接入，业务服务按领域数据所有者拆分。AI 调用统一经过 `ai-gateway-service` 和 new-api，跨服务异步事件通过 RocketMQ 可靠传递，审计事件进入独立归档服务。
 
-| 路径 | 说明 |
-|------|------|
-| `LeetModel-backend/` | 微服务后端，当前主要开发区域。Maven 多模块工程，基于 Spring Boot 3 与 Spring Cloud Alibaba |
-| `LeetModel-mock/` | Python mock 数据 API 服务，提供基础数据接口与场景脚本 |
-| `LeetModel-frontend/` | MVP 唯一前端，基于 Vue 3，与当前后端接口完成真实联调 |
-| `data/` | AI 评审本地测试数据集，按题目目录保存 Markdown 题面和对应论文 PDF；使用前阅读 `data/README.md` |
-| `docs/` | 项目全部文档，按 project / troubleshooting / learning / concepts / standards 五类组织 |
-| `rag_kb/` | 当前 RAG 知识源。V1 只索引 `数学建模/` 下排除 README 后的整理内容 |
-| `legacy/` | 历史与暂缓内容隔离区，含旧单体后端、旧 SQL、旧 AI 协作配置与历史知识库 |
-| `AGENTS.md` | 给 AI 看的行为说明与协作规则 |
-| `TODO.md` | 当前任务、候选任务和条件任务 |
-| `README.md` | 本文件，项目正常说明 |
 
-### 后端模块
+## AI 网关与模型供应商管理
 
-| 模块 | 说明 |
-|------|------|
-| `gateway-service` | API 网关，路由转发、鉴权、跨域、文档聚合 |
-| `user-service` | 用户服务，注册登录、个人信息、RBAC 权限 |
-| `team-service` | 团队服务，组队、成员管理、解散留存 |
-| `problem-service` | 题目服务，题目与标签 CRUD、分页筛选 |
-| `file-service` | 文件资产服务，统一元数据、逻辑分组、历史盘点、临时访问与安全清理 |
-| `admin-service` | 管理后台服务，Feign 聚合统计 |
-| `submission-service` | PDF 上传、版本记录、最终提交与评审触发 |
-| `ai-gateway-service` | AI 业务调度、new-api 协议适配、调用审计和计量 |
-| `ai-review-service` | AI 论文评审工作流与结构化结果 |
-| `ai-suggestion-service` | 论文改进建议生成与查询 |
-| `ai-assistant-service` | AI 客服会话、消息历史和受控工具 |
-| `knowledge-retrieval-service` | 版本化知识检索、来源适用性校验和检索快照 |
-| `ranking-service` | 最终提交排名计算与查询 |
-| `ai-evaluation-service` | AI 评审版本的固定测试集与质量评价 |
-| `common` | 公共模块，含 common-core、common-api、common-security、common-cache、common-messaging、common-ai |
+LeetModel 对模型供应商采用两层网关管理。业务服务只表达 AI 业务语义，不直接连接模型供应商；`ai-gateway-service` 负责 LeetModel 内部的模型执行配置、能力校验、任务调度、调用审计和成本统计；new-api 负责供应商渠道、API Key、模型名映射、渠道权重、健康检查、渠道级重试和额度管理。
 
-### 本地运行
+固定调用链为：
 
-#### 环境要求
-
-- JDK 17、Maven 3.9+
-- Node.js 20+、npm 10+
-- Docker Engine 与 Docker Compose
-
-MySQL、安全状态 Redis、业务缓存 Redis、MinIO、Nacos 2.3.2、Elasticsearch 8.14.3、RocketMQ 5.5.0 和独立第三方 AI 网关 new-api 由 Docker Compose 管理。业务缓存 Redis 绑定 `127.0.0.1:6380`，使用 `volatile-lfu` 且不持久化；Token 黑名单继续使用 `6379` 的安全状态 Redis。业务数据库首次启动会执行 Flyway 迁移并写入演示数据。`ai-gateway-service` 的文本与多模态 Chat 默认通过 new-api 调用。
-
-#### 启动 Nacos
-
-Nacos 使用单机内置 Derby，配置和日志分别持久化到 `nacos-data` 和 `nacos-logs` 命名卷：
-
-```bash
-cd LeetModel-backend
-docker compose up -d --wait nacos
-curl --fail http://127.0.0.1:8848/nacos/v1/console/health/readiness
+```text
+AI 业务服务 → common-ai → ai-gateway-service → new-api → 模型供应商渠道
 ```
 
-Nacos 控制台为 `http://127.0.0.1:8848/nacos`。常规停止可使用 `docker compose stop nacos`；`docker compose down` 会停止容器，但默认保留命名卷。不要使用 `down -v` 或删除 `nacos-data`，除非明确要清空 Nacos 配置。
+> **配置责任说明**
+>
+> 本仓库不提供可直接使用的大模型或 AI 供应商配置。模型供应商账号、接口地址、API Key、模型名映射、渠道配置和 LeetModel 专用 Relay Token 均需要使用者自行申请、配置和维护。仓库不会附带个人供应商账号、密钥、渠道数据或 Token。
 
-#### 启动 new-api
+因此新增、替换或扩展供应商时，优先在 new-api 中完成统一配置。供应商 API Key 只保存在 new-api，业务服务、`common-ai` 和 `ai-gateway-service` 均不保存供应商密钥，也不通过代码直连供应商。
+
+
+### 供应商接入步骤
+
+1. 启动 new-api 并完成管理员初始化：
 
 ```bash
-cd LeetModel-backend
-docker compose up -d --wait new-api
+docker compose -f compose.yaml up -d --wait new-api
 curl --fail http://localhost:3000/api/status
 ```
 
-首次启动后访问 `http://localhost:3000` 完成管理员初始化，再配置供应商渠道和 LeetModel 专用 Relay Token。数据保存在 Docker 卷 `new-api-data` 中。详细边界、接口和验证方式见 [new-api 第三方网关集成](docs/project/02-架构设计/new-api第三方网关集成.md)。
+项目内置的 new-api 是未初始化的空实例，不会提供现成渠道或模型额度。首次启动后需要由部署者自行创建管理员并补充全部供应商配置。
 
-#### 启动 Elasticsearch
+2. 访问 `http://localhost:3000`，在渠道管理中配置供应商类型、接口地址、API Key 和可调用模型。供应商凭据不得写入仓库。
 
-RAG V1 使用固定版本 Elasticsearch `8.14.3`。它可独立启动并保留索引数据：
+3. 确认渠道模型名可以真实调用。该模型名是 `ai-gateway-service` 与 new-api 的对接边界，也是后续模型执行配置中必须锁定的物理模型标识。
 
-```bash
-cd LeetModel-backend
-docker compose up -d --wait elasticsearch
-curl -fsS http://127.0.0.1:9200/_cluster/health
-```
-
-本地端口仅绑定 `127.0.0.1:9200`，JVM 堆限制为 512 MiB，容器内存限制为 1 GiB。常规停止使用 `docker compose stop elasticsearch`；`docker compose down` 默认保留命名卷。不要使用 `down -v` 或删除 `elasticsearch-data`，除非明确要清空本地索引。
-
-#### 验证 Actuator 与 Prometheus
-
-后端 15 个服务的 Actuator/Prometheus 静态契约可独立验证；全部服务由 `start-mvp.sh` 启动后可附加运行时验证：
+4. 为 LeetModel 创建专用 Relay Token，并通过环境变量注入 `ai-gateway-service`：
 
 ```bash
-cd LeetModel-backend
-./scripts/verify-actuator-contract.sh
-./scripts/verify-metric-contract.sh
-./scripts/verify-actuator-contract.sh --runtime
+export NEW_API_RELAY_TOKEN=<your-relay-token>
 ```
 
-`verify-metric-contract.sh` 校验 HTTP 直方图、关键业务指标和禁止 ID 标签策略。`/actuator/health/liveness` 与 `/readiness` 是编排探针；`info/prometheus` 只允许本机或携带 `X-LeetModel-Management-Token` 且匹配 `MANAGEMENT_TOKEN` 的请求。
+5. 在 `ai-gateway-service` 的模型执行配置中将逻辑步骤绑定到 new-api 模型名。业务服务只引用不可变的 `modelExecutionConfigVersion`，不感知供应商品牌、渠道 ID、账号或供应商密钥。
 
-#### 启动与验证观测栈
+new-api 数据保存在 Docker 卷 `new-api-data` 中。首次初始化、渠道配置和 Token 管理由管理员在控制台完成，完整接口与边界见 [new-api 第三方网关集成](docs/project/02-架构设计/new-api第三方网关集成.md)。
 
-本地观测栈会启动 SkyWalking/BanyanDB、Prometheus、Alertmanager 与 Grafana。启动脚本在 Git 忽略目录生成或复用管理 Token；随后用 `start-mvp.sh` 启动的 15 个服务会自动使用同一 Token，Prometheus 直接抓取各服务而不经过 Gateway：
+
+### 供应商变更原则
+
+- 只更换同一模型名背后的供应商账号或渠道时，在 new-api 中调整渠道即可，LeetModel 侧模型执行配置不变。
+- 模型名、模态、上下文、结构化输出或工具调用能力发生变化时，必须新增不可变的 `modelExecutionConfigVersion`，不能原位修改旧配置。
+- LeetModel 不复制 new-api 的渠道调度、渠道重试和额度账本，也不在请求失败后静默回退到供应商直连。
+- new-api 拥有渠道消耗和额度事实；LeetModel 只保存业务调用审计、可取得的用量和费用快照。
+
+
+## 技术栈
+
+| 层次 | 技术 |
+|:---:|:---:|
+| 后端 | Java 17、Spring Boot 3.3.5、Spring Cloud Alibaba、OpenFeign、Sa-Token |
+| 数据访问 | MyBatis-Plus、MySQL 8、Flyway |
+| 中间件 | Nacos、Redis、MinIO、RocketMQ 5.5、Elasticsearch 8.14 |
+| AI | new-api、LangChain4j、OpenAI Compatible Chat、Embedding、RAG |
+| 前端 | Vue 3、Vite、Pinia、Vue Router、Element Plus、ECharts、KaTeX |
+| 测试 | JUnit 5、Mockito、Spring Boot Test、Maven Surefire |
+| 可观测性 | SkyWalking、Prometheus、Grafana、Alertmanager |
+| 交付 | Maven Multi-Module、Docker Compose、Shell 验收脚本 |
+
+
+## 项目结构
+
+```text
+LeetModel/
+├── LeetModel-backend/           Spring Cloud 微服务后端
+├── LeetModel-frontend/          Vue 3 前端
+├── LeetModel-mock/              Mock 数据生成项目与服务
+├── compose.yaml                 后端基础设施 Compose 入口
+├── compose.observability.yaml   可选观察性栈 Compose 入口
+├── docker/                      Compose 挂载配置与规则
+├── scripts/                     启动、基础设施、测试、验证和演练脚本
+├── data/                        AI 评审固定测试数据及导入脚本
+├── docs/                        架构、设计、规范、排障和运行手册
+├── rag_kb/                      RAG 知识源
+├── .runtime/                    本地运行日志、PID 和验收产物
+├── legacy/                      历史归档，默认不参与运行
+├── AGENTS.md                    Agent 项目入口
+├── TODO.md                      当前任务与暂缓事项
+├── CHANGELOG.md                 版本变更记录
+└── README.md                    本项目入口
+```
+
+两个 Compose 文件保持独立管理：`compose.yaml` 启动后端运行必需的基础设施，`compose.observability.yaml` 按需启动资源占用更高的观察性栈。`scripts/` 只管理仓库级平台流程，不承载业务 Mock 生成或 RAG 知识源生产。`LeetModel-mock/` 是独立的 Mock 数据生成项目，`data/scripts/` 负责导入固定 AI 评审测试数据，`rag_kb/scripts/` 负责知识源采集和整理。`.runtime/`、`target/`、`dist/`、日志和缓存均由 Git 忽略。
+
+
+### 后端服务
+
+| 服务 | 职责 |
+|:---:|:---:|
+| `gateway-service` | API 路由、认证鉴权、跨域和文档聚合 |
+| `user-service` | 用户、登录和个人权限 |
+| `team-service` | 队伍、成员、招募和练习生命周期 |
+| `problem-service` | 赛事、题目、标签、附件和公开题库 |
+| `file-service` | 文件元数据、资产分组、临时访问和清理 |
+| `submission-service` | 论文上传、版本、最终提交和评审派发 |
+| `ai-gateway-service` | 模型路由、任务调度、new-api 适配、计量和审计 |
+| `ai-review-service` | AI 论文评审工作流与结构化结果 |
+| `ai-suggestion-service` | 论文问题覆盖、建议生成和建议报告 |
+| `ai-assistant-service` | AI 客服、工具调用、会话和生产工作流 |
+| `knowledge-retrieval-service` | 知识索引、混合检索、目录选文和检索快照 |
+| `ranking-service` | 最终提交排行、题目天梯和队伍定位 |
+| `ai-evaluation-service` | AI 评审固定样本评价和质量指标 |
+| `admin-service` | 管理端聚合、治理操作和只读展示 |
+| `audit-service` | 操作审计消费、不可变归档和受信查询 |
+
+
+## 快速开始
+
+### 环境要求
+
+- JDK 17
+- Maven 3.9+
+- Node.js 20+
+- npm 10+
+- Docker Engine 与 Docker Compose
+
+### 1. 启动 new-api
 
 ```bash
-cd LeetModel-backend
-./scripts/start-observability.sh
-./scripts/start-mvp.sh
-
-# 快速配置门禁，以及包含临时服务与 Prometheus 中断的完整运行验收
-./scripts/verify-observability-stack.sh --static
-./scripts/verify-observability-stack.sh
-
-# 生产告警规则/路由静态门禁，以及隔离 webhook 的 firing/resolved 闭环演练
-./scripts/verify-alerting-contract.sh
-./scripts/drill-alerting.sh
+docker compose -f compose.yaml up -d --wait new-api
 ```
 
-Prometheus、Alertmanager、Grafana、OAP 和 Horizon 分别只在本机 `19090`、`19093`、`13000`、`11234/11800/12800/17128` 与 `18080` 提供端口。Grafana 自动加载系统总览、MVP 主链、AI 资源与稳定性、异步任务、可靠消息和遥测管道六类看板。22 条规则覆盖服务/遥测空洞、Outbox/MQ/DLQ、AI 队列/UNKNOWN 和领域租约；版本化 Runbook 位于 `docs/runbooks/observability/`。告警闭环演练只使用临时端口 `19094`，指标栈验收只使用临时端口 `18094`，均不停止现有标准端口业务服务。
-
-#### 启动 RocketMQ
-
-本地可靠消息环境固定使用 Broker `5.5.0` 与 RocketMQ Spring `2.3.3`。自动创建 Topic 和消费组已关闭，必须通过版本化脚本显式创建五个业务 NORMAL Topic、一个操作审计专用 NORMAL Topic 及其六个消费组：
+访问 `http://localhost:3000` 完成 new-api 初始化并配置模型渠道和 Relay Token。具体步骤见 [AI 网关与模型供应商管理](#ai-网关与模型供应商管理)。将 Token 放入当前终端环境，不要写入仓库：
 
 ```bash
-cd LeetModel-backend
-docker compose up -d --wait rocketmq-namesrv rocketmq-broker
-./scripts/init-rocketmq.sh
-./scripts/verify-rocketmq.sh
-./scripts/verify-audit-contract.sh
-./scripts/drill-messaging-failures.sh status
+export NEW_API_RELAY_TOKEN=<your-relay-token>
 ```
 
-需要同时验证 Broker 重启与数据卷恢复时使用 `ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh`。真实 Java 发送、重复消费、Inbox 幂等和客户端重试测试使用 `RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test`。操作审计的严格信封、ACL 2.0 正负路径、固定重试与 DLQ 使用 `./scripts/verify-audit-rocketmq.sh` 在一次性非标准端口 Broker 集中验证，不修改常驻开发 Broker。`scripts/drill-messaging-failures.sh` 还提供 Broker 网络中断、MySQL 短故障和指定消息服务进程终止等单步演练命令；暂停故障必须显式执行对应的 resume 命令。可选 Dashboard 通过 `docker compose --profile tools up -d rocketmq-dashboard` 启动并访问 `http://127.0.0.1:8180`。
-
-NameServer、Broker 和 Dashboard 均只绑定本机端口。本地 Broker 数据保存在 `rocketmq-broker-store` 命名卷；常规停止使用 `docker compose stop rocketmq-broker rocketmq-namesrv`。`docker compose down` 默认保留消息，禁止使用 `down -v` 或删除 RocketMQ 命名卷，除非明确要清空本地消息与消费位点。常驻单 Broker 仍是受回环网络保护的开发环境；生产环境必须另行部署多副本集群，采用 `docker/rocketmq/broker-acl.conf.example` 的 ACL 2.0 开关并从 Secret Manager 注入管理与应用凭据。审计生产账号只授予精确 Topic `Pub`，归档账号只授予精确 Topic/Group `Sub`，不得把隔离验收的临时凭据用于其他环境。
-
-#### 1. 启动后端
+### 2. 启动后端
 
 ```bash
-cd LeetModel-backend
-./scripts/start-mvp.sh
+./scripts/dev/start-mvp.sh
 ```
 
-脚本会确保 Elasticsearch、RocketMQ 等项目基础设施和显式消息资源就绪，并构建、启动 15 个业务服务（包含端口 `8093` 的 knowledge-retrieval-service、端口 `8094` 的 audit-service 与端口 `8095` 的 file-service）；网关地址为 `http://localhost:8080`。已完成构建时可使用 `./scripts/start-mvp.sh --skip-build`。
+脚本会自动启动基础设施，执行 RocketMQ 资源初始化，构建并启动 15 个业务服务。网关地址为：
 
-AI 对话与评审要求 `ai-gateway-service` 的运行环境提供 new-api Relay Token。不要将 Token 写入仓库文件；未配置时 AI 网关无法启动。
+```text
+http://localhost:8080
+```
 
-需要本地 Trace/APM 时，先执行 `./scripts/start-observability.sh`，再以 `LEETMODEL_SKYWALKING_ENABLED=true ./scripts/start-mvp.sh` 启动业务服务。组件版本、端口、资源、登录和兼容限制见 [可观测性组件基线](docs/project/02-架构设计/可观测性组件基线.md)。
-
-#### 2. 启动前端
-
-新建终端窗口：
+已完成构建时可使用：
 
 ```bash
-cd LeetModel-frontend
-npm install
-npm run dev
+./scripts/dev/start-mvp.sh --skip-build
 ```
 
-请使用终端输出的地址访问（默认为 `http://localhost:5173`）。本地开发服务器会将 `/api` 请求代理到后端网关。演示管理员账号为 `admin`，密码为 `123456`；普通使用者可直接注册。
-
-#### 3. 停止服务
+### 3. 启动前端
 
 ```bash
-cd LeetModel-backend
-./scripts/stop-mvp.sh
+./scripts/dev/start-frontend.sh
 ```
 
-该脚本只停止业务服务，保留 MySQL、Redis、MinIO、Nacos、Elasticsearch 和 RocketMQ 等 Docker 基础设施。如需停止 Docker 基础设施，再执行 `docker compose down`；该命令默认保留命名卷。
+默认访问地址：
 
-### 验证命令
+```text
+http://localhost:5173
+```
+
+演示管理员账号：
+
+```text
+用户名：admin
+密码：123456
+```
+
+### 4. 停止服务
+
+```bash
+./scripts/dev/stop-mvp.sh
+docker compose -f compose.yaml down
+```
+
+`docker compose down` 默认保留命名卷。除非明确需要清空本地数据，否则不要使用 `docker compose down -v`。
+
+完整的 Nacos、Elasticsearch、RocketMQ、可观测性栈和运行时验收说明见 [本地开发与运行手册](docs/runbooks/local-development.md)。
+
+
+## 验证
+
+后端全量测试需要本地 MySQL、Redis、Nacos 和 RocketMQ 已启动；先执行快速开始中的基础设施和后端启动步骤即可。
 
 ```bash
 # 后端全量测试
-cd LeetModel-backend
-mvn test
+./scripts/test/backend.sh
 
-# 可观测基线真实运行验收
-./scripts/verify-observability-baseline.sh
-
-# Metrics/Grafana/Alertmanager 静态与真实运行验收
-./scripts/verify-observability-stack.sh --static
-./scripts/verify-observability-stack.sh
-./scripts/verify-alerting-contract.sh
-./scripts/drill-alerting.sh
+# 最终静态门禁
+./scripts/verify/verify-final-gate.sh
 
 # 前端生产构建
-cd ../LeetModel-frontend
-npm run build
+./scripts/test/frontend.sh
 ```
 
-运行或评审 AI 流程前，请先阅读 `data/README.md` 中的测试数据对应关系和文件限制。
+当前封版基线已执行 955 项后端测试，其中 929 项通过、26 项外部门禁按设计跳过、零失败；22 个 Maven Reactor 项目均可构建，15 个业务服务能够按统一脚本启动。
+
+
+## 项目状态
+
+- 当前稳定版本：`v2.1.1`
+- 版本历史：[CHANGELOG.md](CHANGELOG.md)
+- 当前状态：持续打磨，暂不具备上线条件
+- 开发状态：已完成最终封版，不再新增业务功能
+- 平台范围：PC Web
+- 运行定位：本地实训、作品展示和面试讲解，不是直接面向公网的生产部署
+- 生产使用前必须补充密钥管理、集群部署、容量规划、备份恢复和合规策略
+
+
+## 文档导航
+
+| 文档 | 内容 |
+|:---:|:---:|
+| [文档中心](docs/README.md) | 项目文档分类与导航 |
+| [需求分析](docs/project/01-需求分析/README.md) | 系统需求、用例和论文评审问题域 |
+| [架构设计](docs/project/02-架构设计/README.md) | 微服务、缓存、消息、文件、AI 和可观测性架构 |
+| [微服务设计](docs/project/03-微服务设计/README.md) | 各服务职责、数据所有权和功能设计 |
+| [前端设计](docs/project/04-前端设计/README.md) | 产品定位、信息架构、设计系统和页面规范 |
+| [本地开发与运行](docs/runbooks/local-development.md) | 基础设施、启动、停止、观测和完整验收 |
+| [可观测 Runbook](docs/runbooks/observability/README.md) | 告警调查、故障恢复和演练矩阵 |
+| [开发规范](docs/standards/README.md) | 开发流程、Git、数据库、接口和代码规范 |
+| [AI 评审数据](data/README.md) | 题面与论文数据的对应关系和限制 |
+| [RAG 知识源](rag_kb/CONTEXT.md) | 知识内容结构和维护入口 |
+
+
+## License
+
+当前仓库未附带开源许可证，默认保留全部权利。未经作者许可，不应将代码、数据和文档用于商业分发或再发布。
