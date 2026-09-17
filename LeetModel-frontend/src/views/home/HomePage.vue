@@ -124,7 +124,6 @@
           <div v-if="latestDiagnostic" class="diagnostic-content">
             <div class="score-seal" :aria-label="`评审得分 ${formatScore(latestDiagnostic.review.score)} 分`">
               <strong>{{ formatScore(latestDiagnostic.review.score) }}</strong>
-              <span>/ 100</span>
               <small>{{ scoreBand(latestDiagnostic.review.score) }}</small>
             </div>
 
@@ -596,6 +595,7 @@ function scoreBand(value) {
 }
 
 function workflowLabel(value) {
+  if (value === 'DEEP_EVIDENCE_REVIEW_V4') return 'V4 专业证据评审'
   if (value === 'DEEP_EVIDENCE_REVIEW_V3') return 'V3 双阶段深度评审'
   if (value === 'EVIDENCE_REVIEW_V2') return 'V2 证据化评审'
   if (value === 'BASIC_REVIEW_V1') return 'V1 基础评审'

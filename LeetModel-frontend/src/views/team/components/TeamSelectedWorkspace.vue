@@ -825,7 +825,11 @@ function reviewStatusHint(row) {
     DISPATCH_BLOCKED: '派发连续失败，系统保留任务并等待恢复。',
   })[status] || '评审状态正在同步。'
 }
-function workflowLabel(value) { return value === 'BASIC_REVIEW_V1' ? '基础评审 V1' : String(value || '评审版本待同步').replaceAll('_', ' ') }
+function workflowLabel(value) {
+  if (value === 'BASIC_REVIEW_V1') return '基础评审 V1'
+  if (value === 'DEEP_EVIDENCE_REVIEW_V4') return '专业证据评审 V4'
+  return String(value || '评审版本待同步').replaceAll('_', ' ')
+}
 watch(() => props.team.id, () => {
   activePanel.value = validPanel(route.query.panel) ? String(route.query.panel) : 'problem'
   loadWorkspaceData()
