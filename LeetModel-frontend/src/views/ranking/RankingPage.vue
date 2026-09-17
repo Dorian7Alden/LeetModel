@@ -1272,6 +1272,7 @@ function difficultyLabel(diff) {
 
 function workflowLabel(ver) {
   if (!ver || ver === 'BASIC_REVIEW_V1') return '基础评审 V1'
+  if (ver === 'DEEP_EVIDENCE_REVIEW_V4') return '专业证据评审 V4'
   return String(ver).replaceAll('_', ' ')
 }
 

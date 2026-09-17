@@ -140,7 +140,7 @@ class AssistantServiceTest {
                 "推荐题目", "request_003");
 
         assertThat(result.getAssistantMessage().getStatus()).isEqualTo("FAILED");
-        assertThat(result.getAssistantMessage().getErrorMessage()).contains("题目查询服务暂不可用");
+        assertThat(result.getAssistantMessage().getErrorMessage()).contains("题目查询服务当前不可用");
         verify(messageMapper).fail(anyLong(), any(), isNull(), any());
         verify(workflow, never()).reply(any(), any(), any(), any());
     }
@@ -161,7 +161,7 @@ class AssistantServiceTest {
 
         assertThat(result.getAssistantMessage().getStatus()).isEqualTo("FAILED");
         assertThat(result.getAssistantMessage().getErrorMessage())
-                .isEqualTo("AI 客服暂时无法回答，请稍后重试")
+                .contains("网络连接异常或上游服务超时")
                 .doesNotContain("localhost", "/internal/");
     }
 

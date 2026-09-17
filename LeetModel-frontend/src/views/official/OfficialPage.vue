@@ -9,7 +9,8 @@
         </router-link>
 
         <nav class="official-nav" aria-label="官网主导航">
-          <a href="#results">AI 评审结果</a>
+          <a href="#results-review">AI 评审结果</a>
+          <a href="#results-suggestion">AI 修改建议</a>
           <a href="#review">评审维度</a>
           <a href="#workflow">使用流程</a>
         </nav>
@@ -116,159 +117,302 @@
         <div class="section-heading section-heading--split">
           <div>
             <span class="section-kicker">REAL AI PAPER REVIEW RESULT</span>
-            <h2 id="results-heading">真实数学建模论文 AI 评审结果</h2>
+            <h2 id="results-heading">真实 AI 论文评审与修改建议示例</h2>
           </div>
           <div class="result-preview-intro">
             <span><BadgeCheck :size="17" aria-hidden="true" />完整论文评审与建议已跑通</span>
-            <p>基于 2025 MCM A 题面与匹配的 25 页论文 PDF，展示真实五维评分、论文问题与改进建议；内容已脱敏。</p>
+            <p>基于 2025 MCM Problem A 与匹配的 25 页论文，并列呈现系统真实跑通的“五维论文评分”与“有依据的改进建议”。</p>
           </div>
         </div>
 
-        <div class="product-shot-stage">
-          <div class="product-shot-label"><span></span>LeetModel 产品界面实景预览</div>
-
-          <figure class="product-shot" aria-label="LeetModel AI 论文评审详情页面预览">
-            <div class="product-shot__chrome" aria-hidden="true">
-              <div class="product-shot__traffic"><i></i><i></i><i></i></div>
-              <div class="product-shot__address"><ShieldCheck :size="12" />LeetModel / AI 论文评审结果</div>
-              <div class="product-shot__privacy">真实结果 · 已脱敏</div>
+        <div class="feature-slice-stage">
+          <div class="stage-telemetry-strip">
+            <div class="telemetry-status">
+              <span class="telemetry-pulse"></span>
+              <strong>SYSTEM LIVE RUNTIME</strong>
+              <span class="telemetry-divider">/</span>
+              <span>真实生产执行环境产物</span>
             </div>
+            <div class="telemetry-tags">
+              <span class="telemetry-tag">ENGINE: V4 DUAL-PIPELINE</span>
+              <span class="telemetry-tag">MODEL: GEMINI-3.8-FLASH-HIGH</span>
+              <span class="telemetry-tag">DATA: 2025 MCM PROBLEM A (25P)</span>
+            </div>
+          </div>
 
-            <div class="product-shot__app">
-              <aside class="product-shot__sidebar" aria-label="产品导航预览">
-                <div class="shot-brand"><img src="@/assets/images/logo-en.png" alt="LeetModel" /></div>
-                <nav>
-                  <span><LayoutDashboard :size="15" aria-hidden="true" />实训概览</span>
-                  <span><LibraryBig :size="15" aria-hidden="true" />赛题与队伍</span>
-                  <span><FileText :size="15" aria-hidden="true" />论文提交</span>
-                  <span class="is-active"><FileCheck2 :size="15" aria-hidden="true" />AI 评审</span>
-                </nav>
-                <div class="shot-profile"><i>LM</i><span>演练队伍<small>三职责已就绪</small></span></div>
-              </aside>
-
-              <div class="product-shot__workspace">
-                <header class="shot-appbar">
-                  <span>实训工作台&nbsp; / &nbsp;提交记录&nbsp; / &nbsp;<strong>AI 评审详情</strong></span>
-                  <div><span class="shot-appbar__status"><i></i>服务正常</span><i class="shot-avatar">A</i></div>
-                </header>
-
-                <div class="shot-page">
-                  <header class="shot-report-heading">
-                    <div class="shot-report-file">
-                      <span><FileText :size="18" aria-hidden="true" /></span>
-                      <div>
-                        <p>2025 MCM Problem A</p>
-                        <h3>论文 AI 深度评审</h3>
-                        <small>submission.pdf · 25 页 · 完整论文演练</small>
-                      </div>
-                    </div>
-                    <span class="shot-completed"><Check :size="14" aria-hidden="true" />评审已完成</span>
-                  </header>
-
-                  <div class="shot-tabs" aria-label="结果页面标签预览">
-                    <span class="is-active">评审结果</span>
-                    <span>改进建议 <i>5</i></span>
-                    <span>论文证据 <i>13</i></span>
+          <div class="feature-slice-container">
+            <!-- 功能一：真实 AI 论文评审结果示例 -->
+            <div id="results-review" class="slice-panel slice-panel--featured">
+              <div class="slice-panel__title-bar">
+                <div class="panel-title-group">
+                  <div class="panel-num-tag">FEATURE 01</div>
+                  <div class="panel-main-title">
+                    <FileCheck2 :size="20" aria-hidden="true" />
+                    <h3>核心功能一：AI 论文评审实际结果示例</h3>
                   </div>
+                </div>
+                <div class="slice-context-badge">
+                  <ShieldCheck :size="13" aria-hidden="true" />
+                  <span>真实已跑通产物 · 2025 MCM Problem A</span>
+                </div>
+              </div>
 
-                  <div class="shot-dashboard">
-                    <section class="shot-review-panel" aria-labelledby="review-result-title">
-                      <div class="shot-panel-heading">
-                        <div>
-                          <span>DEEP EVIDENCE REVIEW · V3</span>
-                          <h3 id="review-result-title">综合评审结果</h3>
-                        </div>
-                        <span>13 条发现</span>
-                      </div>
-
-                      <div class="shot-score-row">
-                        <div class="shot-score">
-                          <strong>45.0</strong><span>/ 100</span>
-                          <small>平台训练评分</small>
-                        </div>
-                        <p>模型框架已经成形，但关键机理、参数辨识与结果验证仍需补全证据闭环。</p>
-                      </div>
-
-                      <div class="shot-dimensions" aria-label="五维评审得分">
-                        <div v-for="dimension in reviewDimensions" :key="dimension.label" class="shot-dimension">
-                          <span>{{ dimension.label }}</span>
-                          <progress
-                            :value="dimension.score"
-                            :max="dimension.max"
-                            :aria-label="`${dimension.label} ${dimension.score} 分，满分 ${dimension.max} 分`"
-                          ></progress>
-                          <strong>{{ dimension.score }}<small>/{{ dimension.max }}</small></strong>
-                        </div>
-                      </div>
-
-                      <div class="shot-findings-heading">
-                        <h4>需要优先处理的问题</h4>
-                        <span>按影响程度排序</span>
-                      </div>
-
-                      <div class="shot-finding-list">
-                        <article>
-                          <span class="shot-severity">HIGH</span>
-                          <div>
-                            <h4>关键机理与参数来源缺少完整论证</h4>
-                            <p>现有推导尚未把状态变量、边界条件和参数辨识过程串成可复算链路。</p>
-                            <small><MapPinned :size="12" aria-hidden="true" />论文第 4 页 · 数学建模</small>
-                          </div>
-                          <span class="shot-impact">影响 8.0 分</span>
-                        </article>
-                        <article>
-                          <span class="shot-severity shot-severity--medium">MEDIUM</span>
-                          <div>
-                            <h4>验证结果与核心结论的对应关系不足</h4>
-                            <p>需要补充可复算的误差指标，并说明验证结果如何支持最终结论。</p>
-                            <small><MapPinned :size="12" aria-hidden="true" />论文证据锚点 · 结果与验证</small>
-                          </div>
-                          <span class="shot-impact">影响 5.0 分</span>
-                        </article>
-                      </div>
-                    </section>
-
-                    <aside class="shot-suggestion-panel" aria-labelledby="suggestion-result-title">
-                      <div class="shot-suggestion-heading">
-                        <span><Sparkles :size="14" aria-hidden="true" />AI 改进建议</span>
-                        <small>7 / 7 子任务完成</small>
-                      </div>
-
-                      <span class="shot-priority">P1 · 关键修改</span>
-                      <h3 id="suggestion-result-title">把损伤机理推进为可计算、可验证的模型</h3>
-                      <p>针对当前评审问题，优先补齐模型定义、求解依据与验证闭环。</p>
-
-                      <ol class="shot-action-list">
-                        <li v-for="(action, index) in suggestionActions" :key="action">
-                          <span>{{ index + 1 }}</span>
-                          <p>{{ action }}</p>
-                        </li>
-                      </ol>
-
-                      <div class="shot-acceptance">
-                        <span><ListChecks :size="14" aria-hidden="true" />验收标准</span>
-                        <p>方程、参数来源、求解日志与验证图表能够互相对应，关键误差指标可复算。</p>
-                      </div>
-
-                      <div class="shot-evidence">
-                        <span>建议依据链</span>
-                        <div><FileSearch :size="13" aria-hidden="true" />论文第 5 页</div>
-                        <i></i>
-                        <div><Crosshair :size="13" aria-hidden="true" />评审发现</div>
-                        <i></i>
-                        <div><BookOpenCheck :size="13" aria-hidden="true" />知识依据</div>
-                      </div>
-                    </aside>
-                  </div>
-
-                  <footer class="shot-disclaimer">
-                    <BadgeCheck :size="14" aria-hidden="true" />
-                    基于真实完整论文运行结果生成；展示内容已脱敏与概括，训练评分不代表赛事官方结果。
-                  </footer>
+          <!-- 切面一：AI 论文评审结果切面 -->
+          
+            <div class="slice-panel__meta">
+              <div class="slice-meta-item">
+                <span class="meta-kicker">SUBMISSION SPEC</span>
+                <strong>2025 MCM Problem A · submission-01.pdf</strong>
+                <small>25 页完整建模论文 · DEEP_EVIDENCE_REVIEW_V4 专业证据化评审已完成</small>
+              </div>
+              <div class="slice-score-seal">
+                <div class="seal-number">
+                  <strong>73.8</strong>
+                  <span>/ 100</span>
+                </div>
+                <div class="seal-label">
+                  <span class="seal-badge">平台训练评分</span>
+                  <small>稳定分位 · 算法与推导完备</small>
                 </div>
               </div>
             </div>
-          </figure>
+
+            <div class="slice-summary-card">
+              <div class="card-title">
+                <BookOpenCheck :size="15" aria-hidden="true" />
+                <span>综合评审评估</span>
+              </div>
+              <p>
+                本次平台训练评分为 <strong>73.8 / 100</strong>。宏观踏步磨损体积与微观单步摩擦滑移距离通过 Archard 动力学方程耦合的反演思路清晰且贴合题意；但在数据自洽性、量纲严密性与欠定反演逻辑上存在显著改进空间。
+              </p>
+            </div>
+
+            <div class="slice-grid slice-grid--review">
+              <!-- 左侧：真实五维量表与亮点 -->
+              <div class="slice-col">
+                <div class="slice-subhead">
+                  <span>SCORING DIMENSIONS</span>
+                  <h3>论文五维量表得分</h3>
+                </div>
+
+                <div class="dimension-bars">
+                  <div v-for="dim in realReviewDimensions" :key="dim.label" class="dimension-bar-item">
+                    <div class="bar-info">
+                      <span class="bar-label">{{ dim.label }}</span>
+                      <span class="bar-score"><strong>{{ dim.score }}</strong> / {{ dim.max }}</span>
+                    </div>
+                    <div class="bar-track" aria-hidden="true">
+                      <div class="bar-fill" :style="{ width: (dim.score / dim.max * 100) + '%' }"></div>
+                    </div>
+                    <p class="bar-eval">{{ dim.eval }}</p>
+                  </div>
+                </div>
+
+                <div class="strengths-box">
+                  <div class="strengths-title">
+                    <BadgeCheck :size="14" aria-hidden="true" />
+                    <span>已验证论文亮点（3 项）</span>
+                  </div>
+                  <ul class="strengths-list">
+                    <li>
+                      <strong>Archard 方程解构动力学耦合：</strong>
+                      <span>在 B133-B137 将累积摩擦距离解构为人流频次 n、单步滑动距离 d 与服役周期 t 线性累积，切中题目核心要求。</span>
+                    </li>
+                    <li>
+                      <strong>Delaunay 三角网格微元积分：</strong>
+                      <span>针对点云无解析曲面构建离散微元求和模型 V_total = ∑ A_i |h_i|，为不规则磨损数字化提供标准化计算通路。</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- 右侧：真实优先问题与证据链 -->
+              <div class="slice-col">
+                <div class="slice-subhead">
+                  <span>EVIDENCE FINDINGS</span>
+                  <h3>需要优先处理的问题与证据</h3>
+                </div>
+
+                <div class="finding-cards">
+                  <article class="slice-finding-card slice-finding-card--p1">
+                    <div class="finding-top">
+                      <span class="priority-tag priority-tag--p1">P1 严重硬伤</span>
+                      <span class="impact-tag">-12.0 分</span>
+                      <span class="page-anchor"><MapPinned :size="12" aria-hidden="true" />论文第 11 页 · 数据矛盾</span>
+                    </div>
+                    <h4>表 11 相同材料与使用时间的台阶估算人流量与理论公式反向变动</h4>
+                    <div class="finding-desc">
+                      <p><strong>问题成因：</strong>根据推导公式 (B137)，日人流 n 严格正比于磨损体积 V。但样本 6 磨损体积高达 13495 mm³ 对应日人流 6399.1，而体积仅 10617 mm³ 的样本 5 日人流反向激增至 8390.6。</p>
+                      <p class="finding-consequence"><strong>影响与判定：</strong>数据与核心理论模型发生直接冲突，存在严重人为拼接或程序计算错误，削弱人流量估算可信度。</p>
+                    </div>
+                  </article>
+
+                  <article class="slice-finding-card slice-finding-card--p1">
+                    <div class="finding-top">
+                      <span class="priority-tag priority-tag--p1">P1 量纲遗漏</span>
+                      <span class="impact-tag">-10.0 分</span>
+                      <span class="page-anchor"><MapPinned :size="12" aria-hidden="true" />论文第 10 页 · 理论公式</span>
+                    </div>
+                    <h4>磨料磨损简化公式 (B130) 存在确定性量纲缺失</h4>
+                    <div class="finding-desc">
+                      <p><strong>公式分析：</strong>标准 Archard 公式为 V = (K P L)/(3H)，论文简写为 V = K_abr · L / (3H)，漏乘法向载荷 P，导致等式两端量纲不守恒（[L³] 与 [L³]/[F]）。</p>
+                      <p class="finding-consequence"><strong>影响与判定：</strong>理论推导缺乏严密物理基础，混淆无量纲几何系数与力学量纲，导致后续模型迁移断层。</p>
+                    </div>
+                  </article>
+
+                  <article class="slice-finding-card slice-finding-card--p2">
+                    <div class="finding-top">
+                      <span class="priority-tag priority-tag--p2">P2 逻辑循环</span>
+                      <span class="impact-tag">-8.0 分</span>
+                      <span class="page-anchor"><MapPinned :size="12" aria-hidden="true" />论文第 11 页 · 算法设计</span>
+                    </div>
+                    <h4>贝叶斯参数反演在未知日人流前提下直接估计使用时间</h4>
+                    <div class="finding-desc">
+                      <p><strong>算法逻辑：</strong>磨损量取决于人流 n 与时间 t 乘积 (nt)，在无日人流先验时属于欠定系统，无法通过一维网格搜索得到最大后验估计值。</p>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <!-- 功能二：真实 AI 修改建议报告示例 -->
+            <div id="results-suggestion" class="slice-panel slice-panel--featured slice-panel--separator">
+              <div class="slice-panel__title-bar">
+                <div class="panel-title-group">
+                  <div class="panel-num-tag panel-num-tag--accent">FEATURE 02</div>
+                  <div class="panel-main-title">
+                    <Sparkles :size="20" aria-hidden="true" />
+                    <h3>核心功能二：AI 论文修改建议实际结果示例</h3>
+                  </div>
+                </div>
+                <div class="slice-context-badge">
+                  <BadgeCheck :size="13" aria-hidden="true" />
+                  <span>V4 动态流水线 · 证据闭环实测</span>
+                </div>
+              </div>
+            <div class="slice-panel__meta">
+              <div class="slice-meta-item">
+                <span class="meta-kicker">GROUNDED SUGGESTION V4</span>
+                <strong>有依据的论文改进建议与实施标准</strong>
+                <small>涵盖 5 项必要修正、4 项可选探索 · 严格对应评审证据与原文位置</small>
+              </div>
+              <div class="slice-strategy-stat">
+                <div class="stat-box">
+                  <span class="stat-num">5</span>
+                  <span class="stat-desc">必要修正</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-num stat-num--blue">4</span>
+                  <span class="stat-desc">可选探索</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-num stat-num--green">100%</span>
+                  <span class="stat-desc">证据链覆盖</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="slice-strategy-alert">
+              <div class="strategy-badge"><Sparkles :size="14" aria-hidden="true" />本轮论文完善主线</div>
+              <p>优先处理有明确论文与评审依据的确定性问题（如量纲、自相矛盾、欠定系统），再补充解释、验证与适用边界。可选探索仅用于提供拓展思考，不代表现有模型必须被推翻。</p>
+            </div>
+
+            <div class="suggestion-items-deck">
+              <article class="suggestion-deck-card">
+                <div class="deck-card__header">
+                  <div class="deck-card__tags">
+                    <span class="guidance-badge guidance-badge--required">必要修正</span>
+                    <span class="type-badge">数学建模</span>
+                    <span class="priority-badge">P1 优先级</span>
+                  </div>
+                  <span class="deck-card__location"><FileSearch :size="13" aria-hidden="true" />论文第 11、12 页 · 3.2.3 Bayesian Inversion Framework</span>
+                </div>
+                <h4 class="deck-card__title">S-1 · 闭合贝叶斯参数反演的未知量约束与可辨识性链条</h4>
+                
+                <div class="deck-card__body">
+                  <div class="deck-section">
+                    <b>针对问题：</b>
+                    <p>在未知日人流量的前提下直接估计使用时间，数学上属于欠定系统，一维网格搜索得到的 MAP 估计值缺乏约束。</p>
+                  </div>
+                  <div class="deck-section deck-section--guidance">
+                    <b>建议补充的方面（可执行操作）：</b>
+                    <p>补充对反演关系的未知量、约束条件与误差传播说明：引入日人流量先验分布（基于周边场景人流统计或双向分布假设），形成 (n, t) 联合后验估计；核对输入、参数、约束与输出闭合性，明确当前结论的适用条件。</p>
+                  </div>
+                  <div class="deck-section deck-section--acceptance">
+                    <b>完成标准（验收准则）：</b>
+                    <ul>
+                      <li>明确定义先验分布设定依据，反演算法能够输出包含人流与时间置信区间的后验分布。</li>
+                      <li>正文中对欠定性消除路径与误差传递上界做出数学阐述，与附录算法伪代码保持严格一致。</li>
+                    </ul>
+                  </div>
+                </div>
+              </article>
+
+              <article class="suggestion-deck-card">
+                <div class="deck-card__header">
+                  <div class="deck-card__tags">
+                    <span class="guidance-badge guidance-badge--required">必要修正</span>
+                    <span class="type-badge">公式推导</span>
+                    <span class="priority-badge">P1 优先级</span>
+                  </div>
+                  <span class="deck-card__location"><FileSearch :size="13" aria-hidden="true" />论文第 10 页 · 3.1 磨损模型</span>
+                </div>
+                <h4 class="deck-card__title">S-2 · 修正磨料磨损简化公式 (B130) 的量纲不守恒与参数定义</h4>
+                
+                <div class="deck-card__body">
+                  <div class="deck-section">
+                    <b>针对问题：</b>
+                    <p>磨料磨损简化公式遗漏法向载荷 P，强行将无量纲几何系数 tan θ 与带牛顿量纲的载荷乘积等同化简，导致物理量纲断层。</p>
+                  </div>
+                  <div class="deck-section deck-section--guidance">
+                    <b>建议补充的方面（可执行操作）：</b>
+                    <p>恢复 Archard 理论的标准量纲表达式 V = (K · P · L) / (3H)，明确符号说明表中 P 的物理意义（标准单人自重分力）及单位 [N]；规范载荷与摩擦系数的化简假设，消除正文与附录代码中的量纲冲突。</p>
+                  </div>
+                  <div class="deck-section deck-section--acceptance">
+                    <b>完成标准（验收准则）：</b>
+                    <ul>
+                      <li>公式等号两侧物理量纲严格平衡为 [L³]，并在正文符号表中补充载荷量纲说明。</li>
+                    </ul>
+                  </div>
+                </div>
+              </article>
+
+              <article class="suggestion-deck-card deck-card--exploration">
+                <div class="deck-card__header">
+                  <div class="deck-card__tags">
+                    <span class="guidance-badge guidance-badge--optional">可选探索</span>
+                    <span class="type-badge">高分升华</span>
+                    <span class="priority-badge">P2 思考方向</span>
+                  </div>
+                  <span class="deck-card__location"><FileSearch :size="13" aria-hidden="true" />论文第 16 页 · 3.3 Wear Distribution Model</span>
+                </div>
+                <h4 class="deck-card__title">S-7 · 完善横向多峰磨损模型中高斯分量权重与通行通道映射</h4>
+                
+                <div class="deck-card__body">
+                  <div class="deck-section">
+                    <b>思考拓展：</b>
+                    <p>多峰横向磨损反映了不同通道（靠扶手侧 vs 中央侧）频率加权混合。将等权求和拓展为带归一化混合权重系数的高斯混合模型，可进一步拟合双向流量不对称与偏好侧行走的真实复杂场景。</p>
+                  </div>
+                  <div class="deck-section deck-section--acceptance">
+                    <b>完成标准：</b>
+                    <ul>
+                      <li>公式中包含表征各通道通行相对频率的加权系数，给出非线性拟合与参数分解路径。</li>
+                    </ul>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+            <div class="slice-footer-note">
+              <div class="footer-live-badge">
+                <span class="pulse-dot"></span>
+                <span>端到端流水线已跑通</span>
+              </div>
+              <span>本切面数据抽取自后台实际生成的 JSON 报告实体，包含完整量表、具体数值推导及行号证据；平台训练评分用于论文模拟实训，不代表赛事官方成绩。</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -383,7 +527,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -409,18 +553,14 @@ import { useUserStore } from '@/store/user'
 const userStore = useUserStore()
 const primaryRoute = computed(() => userStore.isLogin ? '/home' : '/register')
 
-const reviewDimensions = [
-  { label: '结构与表达', score: 12.3, max: 20 },
-  { label: '题意与假设', score: 6.5, max: 15 },
-  { label: '数学建模', score: 11.7, max: 25 },
-  { label: '算法与求解', score: 6.7, max: 20 },
-  { label: '结果与验证', score: 7.8, max: 20 },
-]
+const activeSlice = ref('review')
 
-const suggestionActions = [
-  '补全状态变量、约束关系与初始边界，给出可复算的演变方程。',
-  '说明参数估计方法与数据对应关系，保留关键求解过程和收敛依据。',
-  '增加残差检验与全局灵敏度分析，用图表呈现模型稳定区间。',
+const realReviewDimensions = [
+  { label: '结构规范与排版可读性', score: 9.3, max: 20, eval: '结构完整，但缺少定量摘要闭环与充分的附录代码说明。' },
+  { label: '题意理解与假设符号规范', score: 12.5, max: 15, eval: '假设合理且有行为学解释；磨料磨损公式有确定性量纲遗漏。' },
+  { label: '数学形式化建模推导', score: 20.0, max: 25, eval: 'Archard 动力学解构切中题意；表 11 数据反向变动存在严重冲突。' },
+  { label: '求解算法与程序复现', score: 16.0, max: 20, eval: 'Delaunay 网格微元求和科学实用；贝叶斯反演存在欠定性。' },
+  { label: '结果合理性与灵敏度检验', score: 16.0, max: 20, eval: '算例分析完备，但缺少关键扰动步长下的定量灵敏度表格。' },
 ]
 
 const workflowSteps = [
