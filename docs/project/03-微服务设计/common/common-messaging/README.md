@@ -83,18 +83,17 @@ DLQ 查询使用现有生产者连接的 Broker 管理读接口读取 `%DLQ%Cons
 ### 本地验证
 
 ```bash
-cd LeetModel-backend
-docker compose up -d --wait rocketmq-namesrv rocketmq-broker
-./scripts/init-rocketmq.sh
-./scripts/verify-rocketmq.sh
-./scripts/verify-audit-contract.sh
-./scripts/verify-audit-rocketmq.sh
-./scripts/verify-skywalking-async.sh
-mvn -pl common/common-messaging test
-RUN_ROCKETMQ_INTEGRATION=true mvn -pl common/common-messaging test
-./scripts/verify-skywalking-async.sh --runtime
+docker compose -f compose.yaml up -d --wait rocketmq-namesrv rocketmq-broker
+./scripts/infra/init-rocketmq.sh
+./scripts/verify/verify-rocketmq.sh
+./scripts/verify/verify-audit-contract.sh
+./scripts/verify/verify-audit-rocketmq.sh
+./scripts/verify/verify-skywalking-async.sh
+mvn -f LeetModel-backend/pom.xml -pl common/common-messaging test
+RUN_ROCKETMQ_INTEGRATION=true mvn -f LeetModel-backend/pom.xml -pl common/common-messaging test
+./scripts/verify/verify-skywalking-async.sh --runtime
 ```
 
-RocketMQ 集成命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。SkyWalking 运行门禁使用唯一临时消费组，并直接在 OAP 验证 Outbox 成功/重试、Inbox consumed/duplicate、Producer Exit、独立 attempt Trace ID 与 tag 最小化。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。
+RocketMQ 集成命令通过 RocketMQ Spring 2.3.3 发布器真实发送消息，以预创建消费组接收同一 eventId 的两次投递并验证 Inbox 只执行一次，同时制造一次短暂消费失败并确认 `reconsumeTimes=1`。SkyWalking 运行门禁使用唯一临时消费组，并直接在 OAP 验证 Outbox 成功/重试、Inbox consumed/duplicate、Producer Exit、独立 attempt Trace ID 与 tag 最小化。`ROCKETMQ_VERIFY_RESTART=true ./scripts/verify/verify-rocketmq.sh` 会额外重启 Broker 并按 Key 验证消息仍可查询。
 
 操作审计门禁使用一次性非标准端口 Broker 和运行时随机凭据，不接触常驻开发 Broker。它验证严格序列化、ACL 正负路径、固定重试和真实 DLQ 后自动删除隔离容器；运行目录被 Git 忽略且不会输出凭据。生产部署使用 `docker/rocketmq/broker-acl.conf.example` 的 ACL 2.0 开关，通过 Secret Manager 补齐管理凭据，再以 `init-audit-rocketmq-acl.sh` 创建两个最小权限应用账号。

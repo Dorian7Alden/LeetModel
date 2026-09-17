@@ -139,9 +139,8 @@ S1 已完成客服文本与论文评审多模态真实冒烟。生产代码不�
 | Token 日志 | `GET /api/log/token` | Relay Token |
 
 ```bash
-cd LeetModel-backend
-docker compose up -d --wait new-api
+docker compose -f compose.yaml up -d --wait new-api
 curl --fail http://localhost:3000/api/status
 ```
 
-首次初始化、渠道配置和 Relay Token 创建由管理员在 new-api 控制台完成。真实密钥不写入仓库、日志、测试或文档。停止但保留数据使用 `docker compose stop new-api`；需要保留配置时不得执行会删除数据卷的命令。
+首次初始化、渠道配置和 Relay Token 创建由管理员在 new-api 控制台完成。真实密钥不写入仓库、日志、测试或文档。停止但保留数据使用 `docker compose -f compose.yaml stop new-api`；需要保留配置时不得执行会删除数据卷的命令。

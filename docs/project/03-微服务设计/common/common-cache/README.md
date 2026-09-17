@@ -51,10 +51,10 @@ leetmodel:
 普通单元测试不要求外部服务；需要真实协议验证时先启动 MySQL 与业务 Redis，再显式打开门禁：
 
 ```bash
-docker compose up -d --wait mysql cache-redis
+docker compose -f compose.yaml up -d --wait mysql cache-redis
 RUN_CACHE_REDIS_INTEGRATION=true \
 RUN_CACHE_MYSQL_INTEGRATION=true \
-mvn -pl common/common-cache test
+mvn -f LeetModel-backend/pom.xml -pl common/common-cache test
 ```
 
 MySQL 集成测试只插入并清理一条 `lm_problem.cache_invalidation_outbox` 测试事件；可通过 `CACHE_MYSQL_URL`、`CACHE_MYSQL_USERNAME` 和 `CACHE_MYSQL_PASSWORD` 覆盖本地测试连接。
