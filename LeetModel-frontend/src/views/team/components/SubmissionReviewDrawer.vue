@@ -94,22 +94,48 @@
               <small>{{ issues.length }} 条</small>
             </div>
             <div v-if="issues.length" class="finding-list">
-              <article v-for="item in issues" :key="item.key">
-                <div>
+              <article v-for="item in issues" :key="item.key" class="finding-card finding-card--issue">
+                <header class="finding-card__header">
                   <span class="severity" :class="`severity-${String(item.priority || item.severity).toLowerCase()}`">
                     {{ item.priority || severityLabel(item.severity) }}
                   </span>
                   <strong>{{ item.title || item.statement }}</strong>
+                  <small v-if="item.page">论文第 {{ item.page }} 页</small>
+                </header>
+                <div class="finding-fields">
+                  <section>
+                    <b>评审结论与原因</b>
+                    <MarkdownView :content="item.explanationMarkdown || item.statement" compact />
+                  </section>
+                  <section v-if="item.whyItMattersMarkdown">
+                    <b>为什么重要</b>
+                    <MarkdownView :content="item.whyItMattersMarkdown" compact />
+                  </section>
+                  <section v-if="item.scoreImpact">
+                    <b>评分影响</b>
+                    <p class="score-impact">{{ item.scoreImpact }}</p>
+                  </section>
                 </div>
-                <MarkdownView :content="item.explanationMarkdown || item.statement" compact />
-                <MarkdownView v-if="item.whyItMattersMarkdown" :content="item.whyItMattersMarkdown" compact />
-                <p v-if="item.scoreImpact" class="score-impact">{{ item.scoreImpact }}</p>
-                <small v-if="item.page">论文第 {{ item.page }} 页</small>
                 <details v-if="item.evidenceQuotes?.length" class="finding-evidence">
-                  <summary>查看原文依据</summary>
+                  <summary>论文原文依据（{{ item.evidenceQuotes.length }} 处）</summary>
                   <div v-for="quote in item.evidenceQuotes" :key="quote.evidenceId" class="evidence-quote">
-                    <small>第 {{ quote.physicalPage }} 页 · {{ quote.sectionTitle || quote.blockId }}</small>
+                    <small>
+                      第 {{ quote.physicalPage }} 页 ·
+                      {{ quote.sectionTitle || '未识别章节' }} ·
+                      {{ blockTypeLabel(quote.blockType) }} {{ quote.blockId }}
+                    </small>
                     <MarkdownView :content="quote.quoteMarkdown" compact />
+                  </div>
+                </details>
+                <details v-if="item.knowledgeBasisIds?.length" class="finding-basis">
+                  <summary>专业判断依据（{{ item.knowledgeBasisIds.length }} 条）</summary>
+                  <div class="knowledge-list">
+                    <article v-for="basis in knowledgeByIds(item.knowledgeBasisIds)" :key="basis.basisId">
+                      <strong>{{ basis.title || basis.basisId }}</strong>
+                      <small>{{ basis.section || basis.sourcePath || '知识库来源' }}</small>
+                      <MarkdownView :content="basis.supportMarkdown" compact />
+                      <MarkdownView v-if="basis.applicabilityMarkdown" :content="basis.applicabilityMarkdown" compact />
+                    </article>
                   </div>
                 </details>
               </article>
@@ -138,35 +164,44 @@
             <small>{{ strengths.length }} 条</small>
           </div>
           <div class="finding-list strength-list">
-            <article v-for="item in strengths" :key="item.key">
-              <div>
+            <article v-for="item in strengths" :key="item.key" class="finding-card finding-card--strength">
+              <header class="finding-card__header">
                 <span class="strength-badge">{{ importanceLabel(item.importance) }}</span>
                 <strong>{{ item.title || item.statement }}</strong>
+                <small v-if="item.page">论文第 {{ item.page }} 页</small>
+              </header>
+              <div class="finding-fields">
+                <section>
+                  <b>亮点结论与原因</b>
+                  <MarkdownView :content="item.explanationMarkdown || item.statement" compact />
+                </section>
+                <section v-if="item.whyItMattersMarkdown">
+                  <b>保留价值</b>
+                  <MarkdownView :content="item.whyItMattersMarkdown" compact />
+                </section>
               </div>
-              <MarkdownView :content="item.explanationMarkdown || item.statement" compact />
-              <MarkdownView v-if="item.whyItMattersMarkdown" :content="item.whyItMattersMarkdown" compact />
               <details v-if="item.evidenceQuotes?.length" class="finding-evidence">
-                <summary>查看原文依据</summary>
+                <summary>论文原文依据（{{ item.evidenceQuotes.length }} 处）</summary>
                 <div v-for="quote in item.evidenceQuotes" :key="quote.evidenceId" class="evidence-quote">
-                  <small>第 {{ quote.physicalPage }} 页 · {{ quote.sectionTitle || quote.blockId }}</small>
+                  <small>
+                    第 {{ quote.physicalPage }} 页 ·
+                    {{ quote.sectionTitle || '未识别章节' }} ·
+                    {{ blockTypeLabel(quote.blockType) }} {{ quote.blockId }}
+                  </small>
                   <MarkdownView :content="quote.quoteMarkdown" compact />
                 </div>
               </details>
-            </article>
-          </div>
-        </section>
-
-        <section v-if="knowledgeBasis.length" class="review-section" aria-labelledby="knowledge-heading">
-          <div class="section-heading">
-            <div><span>PROFESSIONAL BASIS</span><h3 id="knowledge-heading">专业依据</h3></div>
-            <small>{{ knowledgeBasis.length }} 条</small>
-          </div>
-          <div class="knowledge-list">
-            <article v-for="item in knowledgeBasis" :key="item.basisId">
-              <strong>{{ item.title || item.basisId }}</strong>
-              <small>{{ item.section || item.sourcePath || '知识库来源' }}</small>
-              <MarkdownView :content="item.supportMarkdown" compact />
-              <MarkdownView v-if="item.applicabilityMarkdown" :content="item.applicabilityMarkdown" compact />
+              <details v-if="item.knowledgeBasisIds?.length" class="finding-basis">
+                <summary>专业判断依据（{{ item.knowledgeBasisIds.length }} 条）</summary>
+                <div class="knowledge-list">
+                  <article v-for="basis in knowledgeByIds(item.knowledgeBasisIds)" :key="basis.basisId">
+                    <strong>{{ basis.title || basis.basisId }}</strong>
+                    <small>{{ basis.section || basis.sourcePath || '知识库来源' }}</small>
+                    <MarkdownView :content="basis.supportMarkdown" compact />
+                    <MarkdownView v-if="basis.applicabilityMarkdown" :content="basis.applicabilityMarkdown" compact />
+                  </article>
+                </div>
+              </details>
             </article>
           </div>
         </section>
@@ -239,11 +274,12 @@ const normalizedFindings = computed(() => {
         severity: item.severity || 'MEDIUM',
         title: item.title,
         statement: item.statement || '发现一项需要进一步核对的问题',
-        explanationMarkdown: item.explanationMarkdown,
+        explanationMarkdown: stripDuplicateScoreImpact(item.explanationMarkdown),
         whyItMattersMarkdown: item.whyItMattersMarkdown,
-        scoreImpact: item.scoreImpact,
+        scoreImpact: meaningfulScoreImpact(item.scoreImpact),
         page: item.physicalPage || (item.evidenceIds || []).map(id => evidence.get(id)?.physicalPage).find(Boolean),
         evidenceQuotes: item.evidenceQuotes || [],
+        knowledgeBasisIds: item.knowledgeBasisIds || [],
       }))
   }
   return (result.value?.weaknesses || []).map((statement, index) => ({
@@ -256,6 +292,11 @@ const normalizedFindings = computed(() => {
 const issues = computed(() => normalizedFindings.value.filter(item => item.findingType !== 'STRENGTH'))
 const strengths = computed(() => normalizedFindings.value.filter(item => item.findingType === 'STRENGTH'))
 const knowledgeBasis = computed(() => isV4.value ? (result.value?.knowledgeBasis || []) : [])
+
+function knowledgeByIds(ids = []) {
+  const basis = new Map(knowledgeBasis.value.map(item => [item.basisId, item]))
+  return ids.map(id => basis.get(id)).filter(Boolean)
+}
 
 const requirements = computed(() => (result.value?.requirementCoverage || []).map((item, index) => ({
   key: item.requirementId || `requirement-${index}`,
@@ -283,6 +324,20 @@ function formatScore(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(1)
 }
 
+function meaningfulScoreImpact(value) {
+  if (value == null || String(value).trim() === '') return null
+  const numbers = String(value).match(/-?\d+(?:\.\d+)?/g)
+  if (!numbers) return value
+  return numbers.some(number => Math.abs(Number(number)) > 0.000001) ? value : null
+}
+
+function stripDuplicateScoreImpact(value) {
+  if (!value) return value
+  return String(value)
+    .replace(/\n{2,}\*\*评分影响\*\*[：:][\s\S]*$/u, '')
+    .trim()
+}
+
 function statusLabel(status) {
   return ({ WAITING: '队列中', LEASED: '准备评审', RUNNING: '评审中', COMPLETED: '已完成', FAILED: '评审失败', UNKNOWN: '结果待核查' })[status] || status || '等待评审'
 }
@@ -302,6 +357,17 @@ function severityLabel(value) {
 
 function importanceLabel(value) {
   return ({ CORE: '核心亮点', IMPORTANT: '重要亮点', SUPPORTING: '支撑亮点' })[value] || '论文亮点'
+}
+
+function blockTypeLabel(value) {
+  return ({
+    PARAGRAPH: '正文',
+    HEADING: '标题',
+    FORMULA: '公式',
+    TABLE: '表格',
+    FIGURE: '图示',
+    CODE: '代码',
+  })[value] || '内容块'
 }
 
 function coverageLabel(value) {
@@ -348,13 +414,22 @@ function coverageLabel(value) {
 .score-track i { display: block; height: 100%; border-radius: inherit; background: #2563eb; }
 .dimension-grid p { margin: 8px 0 0; color: var(--lm-text-secondary); font-size: 11px; line-height: 1.6; }
 .review-detail-grid { display: grid; grid-template-columns: 1.12fr .88fr; gap: 14px; }
-.finding-list,.coverage-list { display: grid; gap: 0; }
-.finding-list article,.coverage-list article { padding: 12px 0; border-top: 1px solid var(--lm-border-light); }
-.finding-list article:first-child,.coverage-list article:first-child { border-top: 0; }
-.finding-list article > div { display: flex; align-items: flex-start; gap: 8px; }
+.finding-list { display: grid; gap: 12px; }
+.coverage-list { display: grid; gap: 0; }
+.finding-card { padding: 14px; border: 1px solid var(--lm-border-light); border-radius: 8px; background: #fff; }
+.finding-card--issue { border-left: 3px solid #f59e0b; }
+.finding-card--strength { border-left: 3px solid #10b981; }
+.finding-card__header { display: flex; align-items: flex-start; gap: 8px; }
+.finding-card__header strong { min-width: 0; flex: 1; }
+.finding-card__header small { flex: 0 0 auto; margin: 1px 0 0; }
+.coverage-list article { padding: 12px 0; border-top: 1px solid var(--lm-border-light); }
+.coverage-list article:first-child { border-top: 0; }
 .finding-list strong,.coverage-list strong { color: var(--lm-text-primary); font-size: 12px; line-height: 1.55; }
 .finding-list p,.coverage-list p { margin: 6px 0 0; color: var(--lm-text-secondary); font-size: 11px; line-height: 1.6; }
 .finding-list small { display: block; margin-top: 6px; color: var(--lm-text-muted); font-size: 10px; }
+.finding-fields { display: grid; gap: 10px; margin-top: 12px; }
+.finding-fields section { padding: 10px 12px; border-radius: 6px; background: #f8fafc; }
+.finding-fields b { display: block; margin-bottom: 5px; color: var(--lm-text-primary); font-size: 11px; }
 .severity { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: #fff7ed; color: #b45309; font-size: 9px; font-weight: 800; }
 .severity-critical,.severity-high { background: #fef2f2; color: #b91c1c; }
 .severity-p0,.severity-p1 { background: #fef2f2; color: #b91c1c; }
@@ -364,11 +439,11 @@ function coverageLabel(value) {
 .strength-badge { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 9px; font-weight: 800; }
 .finding-list :deep(.markdown-rendered-content) { font-size: 11.5px; }
 .score-impact { color: var(--lm-text-muted); }
-.finding-evidence { margin-top: 9px; border-top: 1px dashed var(--lm-border-light); padding-top: 8px; }
-.finding-evidence summary { cursor: pointer; color: #2563eb; font-size: 11px; font-weight: 700; }
+.finding-evidence,.finding-basis { margin-top: 10px; border-top: 1px dashed var(--lm-border-light); padding-top: 9px; }
+.finding-evidence summary,.finding-basis summary { cursor: pointer; color: #2563eb; font-size: 11px; font-weight: 700; }
 .evidence-quote { margin-top: 9px; padding: 9px 11px; border-left: 3px solid #bfdbfe; background: #f8fafc; }
-.strength-list article { border-color: #d1fae5; }
 .knowledge-list { display: grid; gap: 10px; }
+.finding-basis .knowledge-list { margin-top: 9px; }
 .knowledge-list article { padding: 12px 14px; border-left: 3px solid #93c5fd; background: #f8fafc; }
 .knowledge-list article > strong { display: block; color: var(--lm-text-primary); font-size: 12px; }
 .knowledge-list article > small { display: block; margin: 4px 0 7px; color: var(--lm-text-muted); font-size: 10px; }

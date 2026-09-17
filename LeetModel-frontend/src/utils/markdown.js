@@ -113,6 +113,57 @@ function preprocessLatex(text) {
 }
 
 /**
+ * 渲染原始 HTML 文本节点中的行内公式。
+ *
+ * marked-katex 只处理 Markdown 语法，不会进入解析器直接输出的 HTML 表格单元格。
+ *
+ * @param {string} html marked 生成的 HTML
+ * @returns {string} 已补齐表格等原始 HTML 内联公式的 HTML
+ */
+function renderInlineMathInRawHtml(html) {
+  if (typeof document === 'undefined' || !html?.includes('$')) return html
+  const container = document.createElement('div')
+  container.innerHTML = html
+  const textNodes = []
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
+  while (walker.nextNode()) textNodes.push(walker.currentNode)
+
+  for (const node of textNodes) {
+    const parent = node.parentElement
+    if (!parent || parent.closest('code, pre, math, annotation, annotation-xml, script, style, .katex')) {
+      continue
+    }
+    const value = node.textContent || ''
+    if (!value.includes('$')) continue
+
+    const fragment = document.createDocumentFragment()
+    let lastIndex = 0
+    let matched = false
+    value.replace(/(?<!\\)\$([^$\n]+?)\$/g, (match, latex, offset) => {
+      const formula = latex.trim()
+      if (!formula) return match
+      fragment.append(document.createTextNode(value.slice(lastIndex, offset)))
+      const formulaNode = document.createElement('span')
+      formulaNode.className = 'raw-html-math'
+      formulaNode.innerHTML = katex.renderToString(formula, {
+        throwOnError: false,
+        displayMode: false,
+        output: 'htmlAndMathml',
+      })
+      fragment.append(formulaNode)
+      lastIndex = offset + match.length
+      matched = true
+      return match
+    })
+    if (!matched) continue
+    fragment.append(document.createTextNode(value.slice(lastIndex)))
+    node.parentNode?.replaceChild(fragment, node)
+  }
+
+  return container.innerHTML
+}
+
+/**
  * 增强后处理：
  * 1. 自动为所有图片注入 referrerpolicy="no-referrer" 与懒加载，防止 Gitee/第三方图床 403
  * 2. 自动为表格包裹滚动容器，防止超宽排版破坏页面
@@ -145,7 +196,8 @@ export function renderSafeMarkdown(value) {
   const fixed = fixUnclosedMarkdown(value)
   const preprocessed = preprocessLatex(fixed)
   const rawHtml = marked.parse(preprocessed, { async: false, breaks: true, gfm: true })
-  const sanitized = DOMPurify.sanitize(rawHtml, {
+  const formulaEnhanced = renderInlineMathInRawHtml(rawHtml)
+  const sanitized = DOMPurify.sanitize(formulaEnhanced, {
     USE_PROFILES: { html: true, mathMl: true, svg: true },
     ADD_TAGS: [
       'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
