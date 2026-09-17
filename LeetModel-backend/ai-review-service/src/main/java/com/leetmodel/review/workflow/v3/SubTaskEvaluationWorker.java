@@ -91,7 +91,7 @@ public class SubTaskEvaluationWorker {
             AiChatResponse response = aiClient.chat(request);
             if (response == null || response.content() == null || response.content().isBlank()) {
                 log.warn("子任务调用未返回内容，启动降级容错: taskId={}", plan.getTaskId());
-                return fallbackDegradedResult(plan, "模型响应为空，启动容错保护");
+                return fallbackDegradedResult(plan);
             }
 
             SubTaskEvaluationResultDTO result = V3OutputParser.parse(
@@ -101,7 +101,7 @@ public class SubTaskEvaluationWorker {
         } catch (Exception exception) {
             log.warn("子任务执行失败，启动局部降级隔离: taskId={}, error={}",
                     plan.getTaskId(), exception.getMessage());
-            return fallbackDegradedResult(plan, exception.getMessage());
+            return fallbackDegradedResult(plan);
         }
     }
 
@@ -212,7 +212,7 @@ public class SubTaskEvaluationWorker {
         };
     }
 
-    private SubTaskEvaluationResultDTO fallbackDegradedResult(SubTaskPlanDTO plan, String reason) {
+    private SubTaskEvaluationResultDTO fallbackDegradedResult(SubTaskPlanDTO plan) {
         BigDecimal maxScore = determineMaxScore(plan.getTaskType());
         BigDecimal degradedScore = maxScore.multiply(BigDecimal.valueOf(0.6)).setScale(1, RoundingMode.HALF_UP);
 
@@ -223,7 +223,8 @@ public class SubTaskEvaluationWorker {
                 .executionStatus("DEGRADED")
                 .maxScore(maxScore)
                 .score(degradedScore)
-                .evaluationSummary("由于该章节复杂推导在当前调用中触发容错保底，系统赋予基准保底分并标记复核。原因: " + reason)
+                .evaluationSummary("该小题的自动评审未能完整完成，当前仅保留保守覆盖状态，"
+                        + "请重新评审后再依据完整结果修改论文。")
                 .aspectScores(List.of(
                         SubTaskEvaluationResultDTO.SubTaskAspectScoreDTO.builder()
                                 .aspectCode("FALLBACK")
