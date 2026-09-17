@@ -1,9 +1,26 @@
-**/.idea/
+# Build outputs
 **/target/
 **/node_modules/
-**/.vscode/
+**/dist/
+**/__pycache__/
+*.py[cod]
+
+# Local runtime and generated files
+.runtime/
 LeetModel-backend/.mvp-runtime/
 LeetModel-backend/.observability-runtime/
-LeetModel-backend/start-mvp.pid
+**/logs/
+**/*.log
+**/*.pid
+**/derby.log
+**/*.tmp
+**/*.bak
 
-**/**superpowers**/**
+# Editors and operating systems
+**/.idea/
+**/.vscode/
+.DS_Store
+Thumbs.db
+
+# Explicitly excluded local Agent content
+**/superpowers/**
