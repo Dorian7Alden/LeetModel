@@ -9,13 +9,13 @@ audit-service 是操作审计的中央归档与查询服务。它接收各业务
 
 ```mermaid
 flowchart LR
-    subgraph owners["业务所有者（目标改造）"]
+    subgraph owners["业务所有者"]
         domains["user / problem / submission / AI 等服务"]
         outbox["本地审计 Outbox"]
         domains -->|"业务变更同事务"| outbox
     end
 
-    topic["leetmodel-operation-audit-v1<br/>专用 NORMAL Topic（已建资源契约）"]
+    topic["leetmodel-operation-audit-v1<br/>专用 NORMAL Topic"]
 
     subgraph audit["audit-service（消费/归档/受信查询已实现）"]
         consumer["审计 Consumer / Inbox 幂等"]
@@ -26,8 +26,8 @@ flowchart LR
         archive --> query
     end
 
-    auditDb[("lm_audit（目标）")]
-    admin["admin-service<br/>统一审计页（目标）"]
+    auditDb[("lm_audit")]
+    admin["admin-service<br/>统一审计页"]
     prometheus["Prometheus<br/>归档延迟与缺口"]
 
     outbox -. "可靠异步投递" .-> topic -.-> consumer
@@ -37,7 +37,7 @@ flowchart LR
     audit -. "低基数指标" .-> prometheus
 ```
 
-图中业务生产者仍为目标设计；当前 audit-service 已启动专用 RocketMQ 消费、严格校验、异步归档和受信内部查询，查询结果具有明确的最终一致性窗口。
+图中业务生产者、专用 RocketMQ 消费、严格校验、异步归档、受信内部查询和统一审计页均已落地；查询结果具有明确的最终一致性窗口。
 
 
 ## 职责边界
@@ -63,7 +63,7 @@ flowchart LR
 
 ## 数据与配置所有权
 
-audit-service 目标上独占 `lm_audit`，核心事实是只追加的 `operation_audit_event`。常用调查字段使用结构化列，操作专属差异使用带 schema version、长度上限和字段白名单的摘要。表不提供普通更新、逻辑删除或业务回写能力。
+audit-service 独占 `lm_audit`，核心事实是只追加的 `operation_audit_event`。常用调查字段使用结构化列，操作专属差异使用带 schema version、长度上限和字段白名单的摘要。表不提供普通更新、逻辑删除或业务回写能力。
 
 服务拥有审计 schema 支持矩阵、操作目录投影视图、保留/归档策略、查询权限和告警 deadline 配置。业务服务仍拥有操作目录中每个编码的产生规则与差异计算；公共契约只定义稳定信封和基础字段，不吸收领域规则。
 

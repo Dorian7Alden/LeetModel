@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 基于 Flyway 演示数据验证公开题库动态查询语义。
  */
 @SpringBootTest
+@ActiveProfiles("test")
 class ProblemQueryIntegrationTest {
 
     @Autowired

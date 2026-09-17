@@ -61,7 +61,8 @@ public class RetrievalCacheService {
                     return objectMapper.readValue(json, new TypeReference<List<KnowledgeCitationDTO>>() {});
                 }
             } catch (Exception e) {
-                log.warn("读取 Redis L1 缓存异常，回退内存: {}", e.getMessage());
+                log.warn("读取 Redis L1 缓存异常，回退内存: exceptionType={}",
+                        e.getClass().getSimpleName());
             }
         }
 
@@ -89,7 +90,8 @@ public class RetrievalCacheService {
                 String json = objectMapper.writeValueAsString(citations);
                 redisTemplate.opsForValue().set(key, json, ttl);
             } catch (Exception e) {
-                log.warn("写入 Redis L1 缓存异常: {}", e.getMessage());
+                log.warn("写入 Redis L1 缓存异常: exceptionType={}",
+                        e.getClass().getSimpleName());
             }
         }
 
@@ -170,7 +172,8 @@ public class RetrievalCacheService {
                     redisTemplate.delete(keys);
                 }
             } catch (Exception e) {
-                log.warn("Redis 清理分类缓存异常: {}", e.getMessage());
+                log.warn("Redis 清理分类缓存异常: exceptionType={}",
+                        e.getClass().getSimpleName());
             }
         }
         log.info("按分类淘汰缓存: category={}", category);

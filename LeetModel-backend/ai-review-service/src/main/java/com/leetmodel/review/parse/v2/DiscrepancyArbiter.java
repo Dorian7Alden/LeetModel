@@ -270,8 +270,8 @@ public class DiscrepancyArbiter {
             }
             return arbitrated;
         } catch (Exception ex) {
-            log.warn("仲裁 AI 调用失败，触发 Fail-Safe 完整度回退: submissionId={}, page={}, error={}",
-                    submissionId, physicalPage, ex.getMessage());
+            log.warn("仲裁 AI 调用失败，触发 Fail-Safe 完整度回退: submissionId={}, page={}, exceptionType={}",
+                    submissionId, physicalPage, ex.getClass().getSimpleName());
             return selectRicherFallback(textA, textB);
         }
     }

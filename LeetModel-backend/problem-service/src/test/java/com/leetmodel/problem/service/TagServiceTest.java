@@ -1,5 +1,6 @@
 package com.leetmodel.problem.service;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.problem.entity.Tag;
@@ -77,8 +78,10 @@ class TagServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(tagService, "baseMapper", tagMapper);
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        configuration.setMapUnderscoreToCamelCase(true);
         com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
-                new org.apache.ibatis.builder.MapperBuilderAssistant(new org.apache.ibatis.session.Configuration(), ""),
+                new org.apache.ibatis.builder.MapperBuilderAssistant(configuration, ""),
                 ProblemTag.class
         );
         tag = new Tag();

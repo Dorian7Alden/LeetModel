@@ -40,7 +40,8 @@ public class CatalogSelectionDefenseEngine {
         try {
             parsed = outputParser.parse(rawLlmOutput);
         } catch (Exception e) {
-            log.warn("防线1触发失败熔断，转入防线4降级: error={}", e.getMessage());
+            log.warn("防线1触发失败熔断，转入防线4降级: exceptionType={}",
+                    e.getClass().getSimpleName());
             List<String> fallbacks = fallbackProvider.getFallbackPaths(category, validPaths);
             return new DefenseResult(fallbacks, "模型输出无法反序列化，已优雅降级至分类基准文档", true, e.getMessage());
         }

@@ -1094,7 +1094,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 }
             }
         } catch (Exception e) {
-            log.warn("获取赛题元数据失败: {}", e.getMessage());
+            log.warn("获取赛题元数据失败: exceptionType={}", e.getClass().getSimpleName());
         }
 
         List<Long> userIds = allMembers.stream().map(TeamMember::getUserId).distinct().toList();

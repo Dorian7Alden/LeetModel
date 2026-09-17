@@ -221,8 +221,8 @@ public class ContextSlicingEngine {
                 return result.getData().getCitations() != null ? result.getData().getCitations() : Collections.emptyList();
             }
         } catch (Exception exception) {
-            log.warn("调用知识检索服务失败，降级为空知识列表: taskId={}, error={}",
-                    taskPlan.getTaskId(), exception.getMessage());
+            log.warn("调用知识检索服务失败，降级为空知识列表: taskId={}, exceptionType={}",
+                    taskPlan.getTaskId(), exception.getClass().getSimpleName());
         }
         return Collections.emptyList();
     }

@@ -4,5 +4,6 @@
 **/.vscode/
 LeetModel-backend/.mvp-runtime/
 LeetModel-backend/.observability-runtime/
+LeetModel-backend/start-mvp.pid
 
 **/**superpowers**/**

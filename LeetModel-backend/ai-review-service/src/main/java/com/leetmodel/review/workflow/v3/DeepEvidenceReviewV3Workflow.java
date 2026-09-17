@@ -195,7 +195,8 @@ public class DeepEvidenceReviewV3Workflow implements ReviewWorkflow {
         try {
             allOf.get(properties.getPhase2TimeoutSeconds(), TimeUnit.SECONDS);
         } catch (Exception exception) {
-            log.warn("阶段二子任务并发等待超时，收集已完成或部分降级结果: {}", exception.getMessage());
+            log.warn("阶段二子任务并发等待超时，收集已完成或部分降级结果: exceptionType={}",
+                    exception.getClass().getSimpleName());
         }
 
         List<SubTaskEvaluationResultDTO> results = new ArrayList<>();

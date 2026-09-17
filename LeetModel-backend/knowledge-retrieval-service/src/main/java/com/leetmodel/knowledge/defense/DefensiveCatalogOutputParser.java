@@ -53,7 +53,8 @@ public class DefensiveCatalogOutputParser {
         try {
             return objectMapper.readValue(repairedJson, CatalogSelectionResponse.class);
         } catch (Exception e) {
-            log.warn("防御性 JSON 解析失败: rawLength={}, error={}", rawOutput.length(), e.getMessage());
+            log.warn("防御性 JSON 解析失败: rawLength={}, exceptionType={}",
+                    rawOutput.length(), e.getClass().getSimpleName());
             throw new IllegalArgumentException("无法反序列化模型选拔输出: " + e.getMessage(), e);
         }
     }

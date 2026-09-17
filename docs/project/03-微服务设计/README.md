@@ -18,10 +18,10 @@
 | [team-service/](team-service/) | 队伍生命周期、成员和团队角色 |
 | [problem-service/](problem-service/) | 预置赛事、题目、Markdown 题面、附件、标签和题库查询 |
 | [submission-service/](submission-service/) | 论文上传、文件存储、提交版本和归属 |
-| [ai-review-service/](ai-review-service/) | 版本化 AI 论文评审；V4 专业 Markdown 证据报告已完成设计 |
+| [ai-review-service/](ai-review-service/) | 版本化 AI 论文评审；V4 专业 Markdown 证据报告已实现 |
 | [ranking-service/](ranking-service/) | 论文评分口径、题目排行和队伍排名查询 |
 | [admin-service/](admin-service/) | 管理端聚合、AI 调用监控和 AI 测试控制 |
-| [audit-service/](audit-service/) | 目标服务（尚未实现）；集中不可变归档和查询各业务所有者可靠投递的操作审计事件 |
+| [audit-service/](audit-service/) | 集中不可变归档和查询各业务所有者可靠投递的操作审计事件 |
 | [file-service/](file-service/) | 文件资产控制面；第一阶段已实现独立 `lm_file`、手动分组资产、历史盘点、临时访问和延迟清理 |
 | [common/](common/) | 公共 Maven 模块，包含基础能力、服务调用、认证鉴权、三级缓存、可靠消息和 AI 调用客户端 |
 

@@ -341,7 +341,7 @@ public class SubmissionService {
                         .collect(Collectors.toMap(TeamDTO::getId, TeamDTO::getName, (a, b) -> a));
             }
         } catch (Exception e) {
-            log.warn("获取队伍名称摘要失败: {}", e.getMessage());
+            log.warn("获取队伍名称摘要失败: exceptionType={}", e.getClass().getSimpleName());
         }
 
         List<Long> problemIds = subPage.getRecords().stream().map(Submission::getProblemId).distinct().toList();
@@ -354,7 +354,7 @@ public class SubmissionService {
                         .collect(Collectors.toMap(ProblemPracticeDTO::getId, p -> p, (a, b) -> a));
             }
         } catch (Exception e) {
-            log.warn("获取题目摘要失败: {}", e.getMessage());
+            log.warn("获取题目摘要失败: exceptionType={}", e.getClass().getSimpleName());
         }
 
         List<Long> submitterIds = subPage.getRecords().stream().map(Submission::getSubmitterId).distinct().toList();
@@ -367,7 +367,7 @@ public class SubmissionService {
                         .collect(Collectors.toMap(UserPublicSummaryDTO::getUserId, u -> u, (a, b) -> a));
             }
         } catch (Exception e) {
-            log.warn("获取提交人摘要失败: {}", e.getMessage());
+            log.warn("获取提交人摘要失败: exceptionType={}", e.getClass().getSimpleName());
         }
 
         Map<Long, String> finalTeamMap = teamNameMap;

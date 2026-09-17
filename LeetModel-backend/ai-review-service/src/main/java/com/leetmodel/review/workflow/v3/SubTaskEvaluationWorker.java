@@ -99,8 +99,8 @@ public class SubTaskEvaluationWorker {
             return sanitizeResult(result, plan);
 
         } catch (Exception exception) {
-            log.warn("子任务执行失败，启动局部降级隔离: taskId={}, error={}",
-                    plan.getTaskId(), exception.getMessage());
+            log.warn("子任务执行失败，启动局部降级隔离: taskId={}, exceptionType={}",
+                    plan.getTaskId(), exception.getClass().getSimpleName());
             return fallbackDegradedResult(plan);
         }
     }

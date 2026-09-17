@@ -839,7 +839,8 @@ public class RankingService {
                 rebuild(pId);
                 rebuiltCount++;
             } catch (Exception e) {
-                log.error("赛题 {} 榜单批量重建失败: {}", pId, e.getMessage());
+                log.error("赛题 {} 榜单批量重建失败: exceptionType={}",
+                        pId, e.getClass().getSimpleName());
             }
         }
         return rebuiltCount;
