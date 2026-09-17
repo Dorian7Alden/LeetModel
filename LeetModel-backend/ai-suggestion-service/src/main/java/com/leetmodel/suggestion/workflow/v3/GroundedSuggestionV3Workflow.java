@@ -149,7 +149,7 @@ public class GroundedSuggestionV3Workflow {
                     candidateItems.addAll(outcome.items);
                 }
             } catch (Exception e) {
-                log.warn("子任务获取结果异常: {}", e.getMessage());
+                log.warn("子任务获取结果异常: exceptionType={}", e.getClass().getSimpleName());
             }
         }
 
@@ -226,7 +226,8 @@ public class GroundedSuggestionV3Workflow {
                 return V3OutputParser.parse(objectMapper, content, SuggestionPlannerOutput.class);
             }
         } catch (Exception e) {
-            log.warn("建议规划算子调用异常，采用默认拆解: {}", e.getMessage());
+            log.warn("建议规划算子调用异常，采用默认拆解: exceptionType={}",
+                    e.getClass().getSimpleName());
         }
         // 默认兜底拆解
         return new SuggestionPlannerOutput(List.of(
@@ -295,7 +296,8 @@ public class GroundedSuggestionV3Workflow {
                 return new SubTaskExecutionOutcome(summary, items);
             }
         } catch (Exception e) {
-            log.warn("子任务推演执行异常，降级隔离: taskId={}, error={}", taskId, e.getMessage());
+            log.warn("子任务推演执行异常，降级隔离: taskId={}, exceptionType={}",
+                    taskId, e.getClass().getSimpleName());
         }
         var degradedSummary = new GroundedSuggestionV3Output.SubTaskSummary(
                 taskId, subTask.taskType(), subTask.taskName(), "DEGRADED", 0);
@@ -334,7 +336,8 @@ public class GroundedSuggestionV3Workflow {
                 return V3OutputParser.parse(objectMapper, response.content(), GroundedSuggestionV3Output.class);
             }
         } catch (Exception e) {
-            log.warn("汇总 AI 统筹异常，采用本地聚合兜底: {}", e.getMessage());
+            log.warn("汇总 AI 统筹异常，采用本地聚合兜底: exceptionType={}",
+                    e.getClass().getSimpleName());
         }
         // 本地兜底汇总
         return new GroundedSuggestionV3Output(
@@ -574,7 +577,7 @@ public class GroundedSuggestionV3Workflow {
                 return sb.toString();
             }
         } catch (Exception e) {
-            log.debug("按需知识检索降级: {}", e.getMessage());
+            log.debug("按需知识检索降级: exceptionType={}", e.getClass().getSimpleName());
         }
         return "（未检索到特定参考知识）";
     }

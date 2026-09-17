@@ -102,7 +102,8 @@ public class AssistantContextPruner {
                 }
             }
         } catch (Exception e) {
-            log.debug("折叠工具上下文失败，保持静默: {}", e.getMessage());
+            log.debug("折叠工具上下文失败，保持静默: exceptionType={}",
+                    e.getClass().getSimpleName());
         }
         return "";
     }

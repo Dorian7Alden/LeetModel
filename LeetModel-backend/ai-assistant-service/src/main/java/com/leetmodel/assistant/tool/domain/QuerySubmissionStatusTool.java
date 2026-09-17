@@ -105,7 +105,7 @@ public class QuerySubmissionStatusTool implements AssistantTool<QuerySubmissionS
         } catch (JsonProcessingException e) {
             throw new AssistantToolException("TOOL_RESULT_INVALID", "提交状态无法序列化", e);
         } catch (Exception e) {
-            log.warn("查询提交状态失败: {}", e.getMessage());
+            log.warn("查询提交状态失败: exceptionType={}", e.getClass().getSimpleName());
             throw new AssistantToolException("TOOL_EXECUTION_FAILED", "提交服务调用失败", e);
         }
     }

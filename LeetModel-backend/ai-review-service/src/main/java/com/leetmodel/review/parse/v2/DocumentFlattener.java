@@ -82,7 +82,8 @@ public class DocumentFlattener {
                     try {
                         localText = textExtractor.extractPageText(document, page);
                     } catch (Exception ex) {
-                        log.warn("提取第 {} 页本地文本异常: {}", page, ex.getMessage());
+                        log.warn("提取第 {} 页本地文本异常: exceptionType={}",
+                                page, ex.getClass().getSimpleName());
                     }
 
                     List<WindowBlockDTO> arbitrated = arbiter.arbitrate(

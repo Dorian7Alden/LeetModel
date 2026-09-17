@@ -90,7 +90,8 @@ public class RagWorkflowContextProvider {
             request.setTokenBudget(properties.getTokenBudget());
             Result<KnowledgeRetrievalResultDTO> result = retrievalClient.retrieve(request);
             if (result == null || !result.isSuccess() || result.getData() == null) {
-                log.warn("跨服务知识检索响应异常，降级为空: {}", result == null ? "null" : result.getMessage());
+                log.warn("跨服务知识检索响应异常，降级为空: errorCode={}",
+                        result == null ? "null" : result.getCode());
                 return RagWorkflowContext.empty();
             }
             List<KnowledgeCitationDTO> citations = result.getData().getCitations();
@@ -112,7 +113,8 @@ public class RagWorkflowContextProvider {
             return new RagWorkflowContext(context.toString().strip(), result.getData().getIndexVersion(),
                     citations.size(), citations.stream().map(KnowledgeCitationDTO::getSourcePath).distinct().toList());
         } catch (Exception exception) {
-            log.warn("跨服务知识检索调用失败，执行优雅降级: {}", exception.getMessage());
+            log.warn("跨服务知识检索调用失败，执行优雅降级: exceptionType={}",
+                    exception.getClass().getSimpleName());
             return RagWorkflowContext.empty();
         }
     }

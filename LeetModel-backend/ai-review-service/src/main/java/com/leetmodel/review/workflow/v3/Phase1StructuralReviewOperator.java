@@ -92,7 +92,8 @@ public class Phase1StructuralReviewOperator {
                     objectMapper, response.content(), Phase1StructuralReviewResultDTO.class);
             return sanitizeResult(result);
         } catch (Exception exception) {
-            log.warn("阶段一结构化解析异常，启动容错回退: {}", exception.getMessage());
+            log.warn("阶段一结构化解析异常，启动容错回退: exceptionType={}",
+                    exception.getClass().getSimpleName());
             return fallbackPhase1Result(document);
         }
     }

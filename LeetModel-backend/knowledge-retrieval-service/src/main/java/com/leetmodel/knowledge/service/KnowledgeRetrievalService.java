@@ -162,7 +162,8 @@ public class KnowledgeRetrievalService {
         try {
             vectorSnap = vector(runId + ":vector", query, category, requiredIndexVersion, candidateK);
         } catch (Exception e) {
-            log.warn("混合检索向量分支异常，降级为空: {}", e.getMessage());
+            log.warn("混合检索向量分支异常，降级为空: exceptionType={}",
+                    e.getClass().getSimpleName());
             vectorSnap = new RetrievalSnapshot("VECTOR", requiredIndexVersion, null, null, List.of());
         }
         RetrievalSnapshot bm25Snap = bm25(runId + ":bm25", query, category, requiredIndexVersion, candidateK);
@@ -264,7 +265,8 @@ public class KnowledgeRetrievalService {
             }
             return new RetrievalSnapshot("BM25", actualVersion, null, null, citations);
         } catch (Exception exception) {
-            log.warn("Elasticsearch BM25 检索异常，降级为空: {}", exception.getMessage());
+            log.warn("Elasticsearch BM25 检索异常，降级为空: exceptionType={}",
+                    exception.getClass().getSimpleName());
             return new RetrievalSnapshot("BM25", requiredIndexVersion, null, null, List.of());
         }
     }
@@ -397,7 +399,8 @@ public class KnowledgeRetrievalService {
                 defenseResult = defenseEngine.defend(chatResponse.content(), category, maxSelection, validPaths);
             }
         } catch (Exception e) {
-            log.warn("选拔模型调用异常，直接转入防线4降级: runId={}, error={}", runId, e.getMessage());
+            log.warn("选拔模型调用异常，直接转入防线4降级: runId={}, exceptionType={}",
+                    runId, e.getClass().getSimpleName());
             defenseResult = defenseEngine.fallbackOnly(category, validPaths, e.getMessage());
         }
 
@@ -421,7 +424,8 @@ public class KnowledgeRetrievalService {
                 citations.add(citation(documentId, documentId + "-document", title,
                         selectedPath, contentHash, 1.0, wrappedContent));
             } catch (IOException e) {
-                log.error("读取选中知识文档失败: path={}, error={}", selectedPath, e.getMessage());
+                log.error("读取选中知识文档失败: path={}, exceptionType={}",
+                        selectedPath, e.getClass().getSimpleName());
             }
         }
 

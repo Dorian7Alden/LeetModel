@@ -254,7 +254,7 @@ public class AssistantService {
                     } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
-                log.warn("SSE 异步调度异常: {}", e.getMessage());
+                log.warn("SSE 异步调度异常: exceptionType={}", e.getClass().getSimpleName());
                 try {
                     emitter.send(SseEmitter.event().name("error")
                             .data(Map.of("code", 500, "message", userFacingError(e))));

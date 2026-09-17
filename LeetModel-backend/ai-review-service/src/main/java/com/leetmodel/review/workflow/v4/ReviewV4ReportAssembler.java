@@ -525,7 +525,8 @@ public class ReviewV4ReportAssembler {
             }
             return List.copyOf(basis);
         } catch (Exception exception) {
-            log.warn("V4 评审知识依据检索失败，按论文证据继续交付: {}", exception.getMessage());
+            log.warn("V4 评审知识依据检索失败，按论文证据继续交付: exceptionType={}",
+                    exception.getClass().getSimpleName());
             return List.of();
         }
     }

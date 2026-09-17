@@ -200,8 +200,8 @@ public class SlidingWindowScheduler {
                 return chunk;
             } catch (Exception ex) {
                 lastError = ex;
-                log.warn("滑窗多模态调用第 {} 次失败: submissionId={}, windowIndex={}, error={}",
-                        attempt, submissionId, windowIndex, ex.getMessage());
+                log.warn("滑窗多模态调用第 {} 次失败: submissionId={}, windowIndex={}, exceptionType={}",
+                        attempt, submissionId, windowIndex, ex.getClass().getSimpleName());
                 if (attempt <= maxRetries) {
                     try {
                         Thread.sleep(delay * attempt);
@@ -319,7 +319,8 @@ public class SlidingWindowScheduler {
                 }
             }
         } catch (Exception ex) {
-            log.warn("本地文本提取异常: page={}-{}, error={}", startPage, endPage, ex.getMessage());
+            log.warn("本地文本提取异常: page={}-{}, exceptionType={}",
+                    startPage, endPage, ex.getClass().getSimpleName());
         }
 
         WindowChunkDTO.WindowLayoutAesthetics aesthetics = new WindowChunkDTO.WindowLayoutAesthetics(
@@ -385,8 +386,8 @@ public class SlidingWindowScheduler {
                 chunkMapper.updateById(existing);
             }
         } catch (Exception ex) {
-            log.warn("保存滑窗中间切片异常: submissionId={}, windowIndex={}, error={}",
-                    submissionId, windowIndex, ex.getMessage());
+            log.warn("保存滑窗中间切片异常: submissionId={}, windowIndex={}, exceptionType={}",
+                    submissionId, windowIndex, ex.getClass().getSimpleName());
         }
     }
 

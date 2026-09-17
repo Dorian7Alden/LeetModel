@@ -77,7 +77,7 @@ public class QueryUserTeamTool implements AssistantTool<QueryUserTeamTool.Input>
         } catch (JsonProcessingException e) {
             throw new AssistantToolException("TOOL_RESULT_INVALID", "队伍状态无法序列化", e);
         } catch (Exception e) {
-            log.warn("查询用户队伍失败: {}", e.getMessage());
+            log.warn("查询用户队伍失败: exceptionType={}", e.getClass().getSimpleName());
             throw new AssistantToolException("TOOL_EXECUTION_FAILED", "队伍服务调用失败", e);
         }
     }

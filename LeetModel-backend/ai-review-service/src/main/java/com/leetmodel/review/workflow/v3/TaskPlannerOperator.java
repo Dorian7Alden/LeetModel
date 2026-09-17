@@ -101,7 +101,8 @@ public class TaskPlannerOperator {
                     objectMapper, response.content(), TaskPlanResultDTO.class);
             return reconcilePlan(rawResult, categories, document);
         } catch (Exception exception) {
-            log.warn("任务规划算子输出解析失败，使用启发式规划保底: {}", exception.getMessage());
+            log.warn("任务规划算子输出解析失败，使用启发式规划保底: exceptionType={}",
+                    exception.getClass().getSimpleName());
             return fallbackPlan(categories, document);
         }
     }
