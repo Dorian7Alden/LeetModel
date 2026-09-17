@@ -97,12 +97,15 @@ public interface SuggestionTaskMapper extends BaseMapper<SuggestionTask> {
 
     @Update("""
             UPDATE suggestion_task
-            SET retrieval_run_id = #{retrievalRunId}, knowledge_snapshot_json = #{knowledgeSnapshotJson},
+            SET retrieval_run_id = #{retrievalRunId},
+                retrieval_workflow_version = #{retrievalWorkflowVersion},
+                knowledge_snapshot_json = #{knowledgeSnapshotJson},
                 current_stage = 'GENERATING', update_time = NOW(3)
             WHERE id = #{id} AND status = 'RUNNING' AND lease_token = #{token}
             """)
     int saveKnowledge(@Param("id") Long id, @Param("token") String token,
                       @Param("retrievalRunId") String retrievalRunId,
+                      @Param("retrievalWorkflowVersion") String retrievalWorkflowVersion,
                       @Param("knowledgeSnapshotJson") String knowledgeSnapshotJson);
 
     @Update("""

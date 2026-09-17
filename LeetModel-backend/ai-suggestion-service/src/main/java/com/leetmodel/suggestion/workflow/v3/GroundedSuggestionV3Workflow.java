@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -159,7 +160,7 @@ public class GroundedSuggestionV3Workflow {
         finalOutput = normalizeAndSort(finalOutput, summaries, candidateItems);
 
         // 5. 丢弃缺少完整依据链的单个候选项，保留其余可验证建议
-        finalOutput = retainVerifiableItems(finalOutput, parse, reviewEvidence);
+        finalOutput = retainVerifiableItems(finalOutput, parse, reviewEvidence, isV4(task));
 
         // 6. 规整 topPriorities 保证严格符合 1 到 3 项要求
         List<String> finalTopPriorities = finalOutput.topPriorities();
@@ -180,7 +181,7 @@ public class GroundedSuggestionV3Workflow {
         );
 
         // 7. 服务端确定性强校验
-        validate(finalOutput, parse, reviewEvidence);
+        validate(finalOutput, parse, reviewEvidence, !isV4(task));
 
         String resultJson = objectMapper.writeValueAsString(finalOutput);
         return new SuggestionWorkflowResult(resultJson, MODEL_NAME, "call-sug-v3-" + task.getId());
@@ -204,7 +205,7 @@ public class GroundedSuggestionV3Workflow {
                     v4 ? plannerPromptTemplateV4 : plannerPromptTemplate,
                     variables
             );
-            String callId = "sug:planner:" + task.getId();
+            String callId = callId(task, "planner");
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, workflowVersion(task), v4 ? "PROMPT_PLANNER_0002" : "PROMPT_PLANNER_0001",
@@ -269,7 +270,7 @@ public class GroundedSuggestionV3Workflow {
                     v4 ? subTaskPromptTemplateV4 : subTaskPromptTemplate,
                     variables
             );
-            String callId = "sug:subtask:" + task.getId() + ":" + taskId;
+            String callId = subTaskCallId(task, taskId);
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, workflowVersion(task), v4 ? "PROMPT_SUBTASK_0002" : "PROMPT_SUBTASK_0001",
@@ -319,7 +320,7 @@ public class GroundedSuggestionV3Workflow {
                     v4 ? synthesizerPromptTemplateV4 : synthesizerPromptTemplate,
                     variables
             );
-            String callId = "sug:synth:" + task.getId();
+            String callId = callId(task, "synth");
             AiCallContext context = new AiCallContext("ai-suggestion-service",
                     AiFeatureCode.PAPER_SUGGESTION, AiOperationCode.GENERATE_SUGGESTION,
                     callId, workflowVersion(task), v4 ? "PROMPT_SYNTHESIZER_0002" : "PROMPT_SYNTHESIZER_0001",
@@ -406,7 +407,8 @@ public class GroundedSuggestionV3Workflow {
     private GroundedSuggestionV3Output retainVerifiableItems(
             GroundedSuggestionV3Output output,
             PaperParseDTO parse,
-            ReviewEvidenceSnapshot reviewEvidence
+            ReviewEvidenceSnapshot reviewEvidence,
+            boolean v4
     ) throws Exception {
         Set<String> paperBlockIds = extractPaperBlockIds(parse);
         Set<String> findingIds = reviewEvidence != null && reviewEvidence.findings() != null
@@ -416,16 +418,17 @@ public class GroundedSuggestionV3Workflow {
                 : Collections.emptySet();
 
         List<GroundedSuggestionV3Output.Item> retained = new ArrayList<>();
-        List<String> availableCitations = Collections.emptyList();
-        if (reviewEvidence != null && reviewEvidence.snapshotJson() != null) {
-            // 尝试收集可用的 citationIds
-        }
         for (var item : output.items()) {
-            var patchedItem = ensureKnowledgeCitationIfMissing(item);
-            if (!hasCompleteEvidenceChain(patchedItem, paperBlockIds, findingIds)) {
+            if (!hasCompleteEvidenceChain(
+                    item,
+                    paperBlockIds,
+                    findingIds,
+                    !v4,
+                    v4
+            )) {
                 continue;
             }
-            retained.add(withSuggestionId(patchedItem, "S-" + (retained.size() + 1)));
+            retained.add(withSuggestionId(item, "S-" + (retained.size() + 1)));
         }
         int discardedCount = output.items().size() - retained.size();
         if (discardedCount > 0) {
@@ -449,39 +452,12 @@ public class GroundedSuggestionV3Workflow {
         );
     }
 
-    private GroundedSuggestionV3Output.Item ensureKnowledgeCitationIfMissing(GroundedSuggestionV3Output.Item item) {
-        if (item == null || item.evidenceChain() == null) return item;
-        var ev = item.evidenceChain();
-        if (ev.knowledgeCitationIds() != null && !ev.knowledgeCitationIds().isEmpty()) {
-            return item;
-        }
-        // 兜底补齐基础规范引用 KC-68dd4b7ebef61918 (常见失分点/论文规范)
-        var fallbackCitations = List.of("KC-68dd4b7ebef61918");
-        var patchedEv = new GroundedSuggestionV3Output.EvidenceChain(
-                ev.paperEvidenceIds(),
-                ev.reviewFindingIds(),
-                fallbackCitations
-        );
-        return new GroundedSuggestionV3Output.Item(
-                item.suggestionId(),
-                item.priority(),
-                item.type(),
-                item.category(),
-                item.subProblemNo(),
-                item.title(),
-                item.problemOrGap(),
-                item.diagnosis(),
-                item.targetLocation(),
-                item.actionPlanMarkdown(),
-                item.acceptanceCriteria(),
-                patchedEv
-        );
-    }
-
     private boolean hasCompleteEvidenceChain(
             GroundedSuggestionV3Output.Item item,
             Set<String> paperBlockIds,
-            Set<String> findingIds
+            Set<String> findingIds,
+            boolean requireKnowledgeCitation,
+            boolean requireSingleReviewFinding
     ) {
         var evidence = item.evidenceChain();
         if (evidence == null) {
@@ -492,9 +468,11 @@ public class GroundedSuggestionV3Workflow {
             log.info("Discarded item: paperEvidenceIds empty, title={}", item.title());
             return false;
         }
-        if (evidence.knowledgeCitationIds() == null || evidence.knowledgeCitationIds().isEmpty()) {
-            // 如果候选未声明 citationId，从已检索的候选知识库中补充可引用的默认条目，保证证据链有效
-            log.info("Item knowledgeCitationIds was empty, attempting fallback: title={}", item.title());
+        if (requireKnowledgeCitation
+                && (evidence.knowledgeCitationIds() == null
+                || evidence.knowledgeCitationIds().isEmpty())) {
+            log.info("Discarded item: knowledgeCitationIds empty, title={}", item.title());
+            return false;
         }
         if (paperBlockIds.isEmpty() || !paperBlockIds.containsAll(evidence.paperEvidenceIds())) {
             log.info("Discarded item: paperBlockIds mismatch, required={}, title={}", evidence.paperEvidenceIds(), item.title());
@@ -503,6 +481,14 @@ public class GroundedSuggestionV3Workflow {
         List<String> reviewFindingIds = evidence.reviewFindingIds() == null ? List.of() : evidence.reviewFindingIds();
         if ("CORRECTION".equals(item.type()) && reviewFindingIds.isEmpty()) {
             log.info("Discarded item: CORRECTION reviewFindingIds empty, title={}", item.title());
+            return false;
+        }
+        if (requireSingleReviewFinding && reviewFindingIds.size() > 1) {
+            log.info(
+                    "Discarded item: multiple reviewFindingIds are not allowed in V4, required={}, title={}",
+                    reviewFindingIds,
+                    item.title()
+            );
             return false;
         }
         if (!findingIds.containsAll(reviewFindingIds)) {
@@ -611,22 +597,95 @@ public class GroundedSuggestionV3Workflow {
             JsonNode blocks = root.path("blocks");
             if (!blocks.isArray() || blocks.isEmpty()) return limit(docJson, 30000);
 
+            Map<String, Integer> blockIndex = new HashMap<>();
+            for (int index = 0; index < blocks.size(); index++) {
+                String blockId = blocks.get(index).path("blockId").asText();
+                if (!blockId.isBlank()) blockIndex.put(blockId, index);
+            }
+
+            Set<Integer> selectedIndexes = new java.util.TreeSet<>();
+            JsonNode sections = root.path("sections");
+            if (sectionIds != null && !sectionIds.isEmpty() && sections.isArray()) {
+                List<JsonNode> sectionList = new ArrayList<>();
+                sections.forEach(sectionList::add);
+                for (int sectionIndex = 0; sectionIndex < sectionList.size(); sectionIndex++) {
+                    JsonNode section = sectionList.get(sectionIndex);
+                    if (!sectionIds.contains(section.path("sectionId").asText())) continue;
+                    Integer start = blockIndex.get(section.path("headingBlockId").asText());
+                    if (start == null) continue;
+                    int end = blocks.size();
+                    for (int next = sectionIndex + 1; next < sectionList.size(); next++) {
+                        Integer nextStart = blockIndex.get(
+                                sectionList.get(next).path("headingBlockId").asText()
+                        );
+                        if (nextStart != null && nextStart > start) {
+                            end = nextStart;
+                            break;
+                        }
+                    }
+                    for (int index = start; index < end; index++) {
+                        selectedIndexes.add(index);
+                    }
+                }
+            }
+
+            if (selectedIndexes.isEmpty()) {
+                String questionMarker = questionNo == null || questionNo <= 0
+                        ? ""
+                        : String.valueOf(questionNo);
+                for (int index = 0; index < blocks.size(); index++) {
+                    JsonNode block = blocks.get(index);
+                    String text = block.path("text").asText("");
+                    if ("HEADING".equals(block.path("type").asText())
+                            && (questionMarker.isBlank()
+                            || text.contains("问题" + questionMarker)
+                            || text.toLowerCase(Locale.ROOT).contains("problem " + questionMarker)
+                            || text.toLowerCase(Locale.ROOT).contains("model " + questionMarker))) {
+                        int end = Math.min(blocks.size(), index + 45);
+                        for (int current = index; current < end; current++) {
+                            selectedIndexes.add(current);
+                        }
+                    }
+                }
+            }
+
+            if (selectedIndexes.isEmpty()) {
+                for (int index = 0; index < Math.min(35, blocks.size()); index++) {
+                    selectedIndexes.add(index);
+                }
+            }
+
             StringBuilder sb = new StringBuilder();
             int count = 0;
-            for (JsonNode block : blocks) {
-                String text = block.path("text").asText("");
-                String type = block.path("type").asText("");
-                if ("HEADING".equals(type) || text.contains("问题" + (questionNo == null ? 1 : questionNo)) || count < 25) {
-                    sb.append("[").append(block.path("blockId").asText("")).append("] ")
-                            .append(text).append("\n");
-                    count++;
-                }
-                if (count >= 30) break;
+            for (Integer index : selectedIndexes) {
+                sb.append(formatBlockForPrompt(blocks.get(index))).append("\n\n");
+                if (++count >= 80) break;
             }
             return sb.length() > 0 ? sb.toString() : limit(docJson, 20000);
         } catch (Exception e) {
             return limit(docJson, 20000);
         }
+    }
+
+    private String formatBlockForPrompt(JsonNode block) {
+        String blockId = block.path("blockId").asText("");
+        int page = block.path("physicalPage").asInt(1);
+        String type = block.path("type").asText("PARAGRAPH");
+        String content = block.path("text").asText("");
+        if (content.isBlank() && block.path("formula").isObject()) {
+            content = "$$" + block.path("formula").path("latex").asText("") + "$$";
+        }
+        if (content.isBlank() && block.path("table").isObject()) {
+            content = block.path("table").path("html").asText("");
+        }
+        if (content.isBlank() && block.path("figure").isObject()) {
+            content = block.path("figure").path("caption").asText("") + " "
+                    + block.path("figure").path("description").asText("");
+        }
+        if (content.isBlank() && block.path("code").isObject()) {
+            content = block.path("code").path("codeContent").asText("");
+        }
+        return "[" + blockId + " | 第 " + page + " 页 | " + type + "]\n" + content;
     }
 
     private String extractAssumptionsAndNomenclature(String docJson) {
@@ -659,16 +718,51 @@ public class GroundedSuggestionV3Workflow {
         StringBuilder sb = new StringBuilder();
         for (var f : reviewEvidence.findings()) {
             if ("ISSUE".equals(f.type()) || "WEAKNESS".equals(f.type())) {
-                sb.append("- 【").append(f.findingId()).append("】 [").append(f.category()).append("] ")
-                        .append(f.statement()).append(" (扣分影响: ").append(f.scoreImpact()).append(")\n");
+                sb.append("- 【").append(f.findingId()).append("】 [").append(f.category()).append("]\n")
+                        .append("  - 评审结论：").append(f.statement()).append("\n");
+                if (f.rationaleMarkdown() != null && !f.rationaleMarkdown().isBlank()) {
+                    sb.append("  - 为什么重要：").append(f.rationaleMarkdown()).append("\n");
+                }
+                List<String> evidenceIds = f.paperEvidenceIds() == null
+                        ? List.of()
+                        : f.paperEvidenceIds();
+                sb.append("  - 论文证据块（引用该问题时必须完整保留）：")
+                        .append(evidenceIds.isEmpty() ? "无" : String.join(", ", evidenceIds))
+                        .append("\n");
+                String scoreImpact = meaningfulScoreImpact(f.scoreImpact());
+                if (scoreImpact != null) {
+                    sb.append("  - 评分影响：").append(scoreImpact).append("\n");
+                }
+                sb.append("\n");
             }
         }
         return sb.length() > 0 ? sb.toString() : "（本次评审所有维度均表现优良，请重点审视升华空间）";
     }
 
+    private String meaningfulScoreImpact(String value) {
+        if (value == null || value.isBlank()) return null;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("-?\\d+(?:\\.\\d+)?")
+                .matcher(value);
+        boolean foundNumber = false;
+        while (matcher.find()) {
+            foundNumber = true;
+            if (Math.abs(Double.parseDouble(matcher.group())) > 0.000001D) {
+                return value;
+            }
+        }
+        return foundNumber ? null : value;
+    }
+
     private String limit(String text, int max) {
         if (text == null) return "";
-        return text.length() <= max ? text : text.substring(0, max) + "\n...（按长度规则截断）";
+        if (text.length() <= max) return text;
+        int boundary = Math.max(
+                text.lastIndexOf('\n', max),
+                Math.max(text.lastIndexOf('。', max), text.lastIndexOf('.', max))
+        );
+        int end = boundary >= max / 2 ? boundary + 1 : max;
+        return text.substring(0, end);
     }
 
     private boolean isV4(SuggestionTask task) {
@@ -683,12 +777,57 @@ public class GroundedSuggestionV3Workflow {
         return isV4(task) ? "MODEL_CFG_SUGGESTION_TEXT_0004" : MODEL_EXECUTION_CONFIG_VERSION;
     }
 
+    /**
+     * 构造包含物理尝试序号的 AI 调用标识。
+     *
+     * @param task 当前建议任务
+     * @param stage AI 调用阶段
+     * @return 可同时作为业务任务标识和幂等键的稳定字符串
+     */
+    private String callId(SuggestionTask task, String stage) {
+        int attempt = task.getAttemptNo() == null || task.getAttemptNo() <= 0
+                ? 1
+                : task.getAttemptNo();
+        return "sug:" + stage + ":" + task.getId() + ":attempt:" + attempt;
+    }
+
+    /**
+     * 构造子任务 AI 调用标识，并限制模型生成标识占用的长度。
+     *
+     * @param task 当前建议任务
+     * @param subTaskId 模型规划的子任务标识
+     * @return 不超过 AiCallContext 长度限制的稳定调用标识
+     */
+    private String subTaskCallId(SuggestionTask task, String subTaskId) {
+        return callId(task, "subtask") + ":" + stableCallSegment(subTaskId);
+    }
+
+    /**
+     * 将外部生成的标识转换为可安全进入调用上下文的稳定片段。
+     *
+     * @param value 原始标识
+     * @return 最长 48 字符的稳定片段
+     */
+    private String stableCallSegment(String value) {
+        String normalized = value == null
+                ? "unknown"
+                : value.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (normalized.length() <= 48) return normalized;
+        String suffix = Integer.toUnsignedString(normalized.hashCode(), 16);
+        return normalized.substring(0, 39) + "-" + suffix;
+    }
+
     private record SubTaskExecutionOutcome(
             GroundedSuggestionV3Output.SubTaskSummary summary,
             List<GroundedSuggestionV3Output.Item> items
     ) {}
 
-    private void validate(GroundedSuggestionV3Output output, PaperParseDTO parse, ReviewEvidenceSnapshot reviewEvidence) throws Exception {
+    private void validate(
+            GroundedSuggestionV3Output output,
+            PaperParseDTO parse,
+            ReviewEvidenceSnapshot reviewEvidence,
+            boolean requireKnowledgeCitation
+    ) throws Exception {
         requireText(output == null ? null : output.overallStrategy(), "overallStrategy");
         if (output.topPriorities() == null || output.topPriorities().isEmpty()) {
             throw new IllegalArgumentException("topPriorities 必须包含 1 到 3 项");
@@ -765,7 +904,9 @@ public class GroundedSuggestionV3Workflow {
                     throw new IllegalArgumentException("CORRECTION 修复类建议必须引用评审发现 reviewFindingIds");
                 }
             }
-            if (evidence.knowledgeCitationIds() == null || evidence.knowledgeCitationIds().isEmpty()) {
+            if (requireKnowledgeCitation
+                    && (evidence.knowledgeCitationIds() == null
+                    || evidence.knowledgeCitationIds().isEmpty())) {
                 throw new IllegalArgumentException("knowledgeCitationIds 不能为空");
             }
 

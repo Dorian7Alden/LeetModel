@@ -91,7 +91,8 @@ public class ReviewEvidenceProjector {
                         finding.path("explanationMarkdown").asText(
                                 finding.path("title").asText()
                         ),
-                        finding.path("scoreImpact").asText("0.0"),
+                        finding.path("whyItMattersMarkdown").asText(""),
+                        finding.path("scoreImpact").asText(null),
                         "$.findings[?(@.findingId=='" + findingId + "')]",
                         List.copyOf(blocks)
                 ));

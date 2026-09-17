@@ -74,6 +74,7 @@ class ReviewEvidenceProjectorTest {
         String json = "{\"findings\":[{\"findingId\":\"F-V4-1\",\"findingType\":\"ISSUE\","
                 + "\"category\":\"MODEL\",\"priority\":\"P1\","
                 + "\"explanationMarkdown\":\"公式中的 $P$ 未定义。\","
+                + "\"whyItMattersMarkdown\":\"未定义变量会使公式无法复核。\","
                 + "\"scoreImpact\":\"-1.0 分\",\"anchorBlockIds\":[\"B10\"]}]}";
         ReviewSummaryDTO review = review("DEEP_EVIDENCE_REVIEW_V4", json);
 
@@ -83,6 +84,21 @@ class ReviewEvidenceProjectorTest {
         assertThat(snapshot.findings().get(0).findingId()).isEqualTo("F-V4-1");
         assertThat(snapshot.findings().get(0).paperEvidenceIds()).containsExactly("B10");
         assertThat(snapshot.findings().get(0).statement()).contains("$P$");
+        assertThat(snapshot.findings().get(0).rationaleMarkdown()).contains("公式无法复核");
+    }
+
+    @Test
+    void keepsMissingNativeV4ScoreImpactEmpty() {
+        String json = "{\"findings\":[{\"findingId\":\"F-V4-1\",\"findingType\":\"STRENGTH\","
+                + "\"category\":\"MODEL\",\"importance\":\"IMPORTANT\","
+                + "\"explanationMarkdown\":\"模型结构完整。\","
+                + "\"whyItMattersMarkdown\":\"便于复核。\","
+                + "\"anchorBlockIds\":[\"B10\"]}]}";
+        ReviewSummaryDTO review = review("DEEP_EVIDENCE_REVIEW_V4", json);
+
+        ReviewEvidenceSnapshot snapshot = projector.nativeV4(review, review);
+
+        assertThat(snapshot.findings().get(0).scoreImpact()).isNull();
     }
 
     private ReviewSummaryDTO review(String workflow, String json) {
