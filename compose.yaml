@@ -1,5 +1,7 @@
-  # ==================== LeetModel 本地开发基础设施 ====================
-# 使用方式：docker compose up -d --wait mysql redis cache-redis minio nacos new-api elasticsearch
+name: leetmodel-backend
+
+# ==================== LeetModel 本地开发基础设施 ====================
+# 从仓库根目录执行：docker compose up -d --wait mysql redis cache-redis minio nacos new-api elasticsearch
 
 services:
   mysql:
@@ -103,7 +105,7 @@ services:
       retries: 30
       start_period: 20s
 
-  # 第三方 AI 网关。LeetModel ai-gateway-service 的 Chat 调用统一经由该上游。
+  # LeetModel 项目专用 AI 网关。仅供本项目的 ai-gateway-service 使用。
   new-api:
     image: calciumion/new-api:v1.0.0-rc.26
     container_name: leetmodel-new-api

@@ -118,9 +118,9 @@ services:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker/observability/prometheus-rules:/etc/prometheus/rules:ro
       - ./docker/observability/prometheus-targets:/etc/prometheus/targets:ro
-      - ./.observability-runtime/prometheus-rules:/etc/prometheus/runtime-rules:ro
-      - ./.observability-runtime/prometheus-targets:/etc/prometheus/runtime-targets:ro
-      - ${LEETMODEL_MANAGEMENT_TOKEN_FILE:-./.observability-runtime/management-token}:/run/secrets/management_token:ro
+      - ./.runtime/backend/observability/prometheus-rules:/etc/prometheus/runtime-rules:ro
+      - ./.runtime/backend/observability/prometheus-targets:/etc/prometheus/runtime-targets:ro
+      - ${LEETMODEL_MANAGEMENT_TOKEN_FILE:-./.runtime/backend/observability/management-token}:/run/secrets/management_token:ro
       - prometheus-data:/prometheus
     mem_limit: 512m
     healthcheck:
