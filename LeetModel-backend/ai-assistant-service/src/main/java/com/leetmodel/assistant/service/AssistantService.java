@@ -661,16 +661,34 @@ public class AssistantService {
 
     private String userFacingError(Exception exception) {
         if (exception instanceof AssistantToolException toolException) {
-            return "TOOL_TIMEOUT".equals(toolException.getErrorCode())
-                    ? "AI 客服工具调用超时，请稍后重试"
-                    : "AI 客服暂时无法完成该查询，请稍后重试";
+            String code = toolException.getErrorCode();
+            if ("TOOL_TIMEOUT".equals(code)) {
+                return "查询题目信息耗时较长，工具调用超时。建议您直接前往平台的「题库」页面，在搜索框中输入题目编号进行快速查看。";
+            }
+            if ("TOOL_ARGUMENT_INVALID".equals(code)) {
+                return "抱歉，未能精确识别该题号或查询参数格式。建议您检查题号是否正确，或直接前往平台「题库」页面按编号筛选查看。";
+            }
+            if ("TOOL_CALL_LIMIT".equals(code) || "TOOL_NO_PROGRESS".equals(code)) {
+                return "抱歉，本次题目事实检索未取得明确进展。您可以直接前往「题库」页面查看详情，或换一种方式提问（如提供题目标题关键词）。";
+            }
+            if ("PROBLEM_SERVICE_UNAVAILABLE".equals(code) || (toolException.getMessage() != null && toolException.getMessage().contains("题目查询服务"))) {
+                return "题目信息查询服务响应异常，暂无法获取该题详细数据。请您前往平台「题库」页面直接浏览题面，或稍后重试。";
+            }
+            return "AI 客服在查询题目相关事实时遇到临时问题。建议您前往平台「题库」页面按题号查看，或稍后重试。";
         }
         String message = exception.getMessage();
-        if ("题目查询服务暂不可用".equals(message)
-                || "AI 网关未返回客服回复".equals(message)) {
-            return message;
+        if (message != null) {
+            if (message.contains("题目查询服务暂不可用")) {
+                return "题目查询服务当前不可用，暂无法为您检索该题目信息。建议您直接在平台「题库」页面查看对应题号。";
+            }
+            if (message.contains("AI 网关未返回客服回复")) {
+                return "AI 网关响应异常，未生成有效回复，请稍后重试。";
+            }
+            if (message.contains("connection refused") || message.contains("Timeout")) {
+                return "网络连接异常或上游服务超时，建议您稍后重试，或直接通过顶部导航进入相应页面查看。";
+            }
         }
-        return "AI 客服暂时无法回答，请稍后重试";
+        return "抱歉，由于临时服务波动未能为您完成查询。建议您前往平台「题库」页面搜索该题号查看详情，也可以稍后再次向我提问。";
     }
 
     private record ReplyClaim(AssistantMessage reply, boolean claimed) {
