@@ -52,6 +52,13 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Micrometer：黑名单命中与降级计数；可启动服务通过 Actuator 自带注册表 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Spring Security 底层（Sa-Token 与其整合） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

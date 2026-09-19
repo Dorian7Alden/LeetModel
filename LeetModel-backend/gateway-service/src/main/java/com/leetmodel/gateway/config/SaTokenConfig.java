@@ -5,9 +5,8 @@ import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.reactor.filter.SaReactorFilter;
 import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.leetmodel.common.core.result.Result;
+import com.leetmodel.gateway.filter.UnauthorizedResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -106,15 +105,14 @@ public class SaTokenConfig {
                 .setError(e -> buildUnauthorizedResponse());
     }
 
+    /**
+     * 构造未登录响应，响应格式与黑名单过滤器共用同一份定义。
+     *
+     * @return JSON 响应体
+     */
     private String buildUnauthorizedResponse() {
         SaHolder.getResponse().setHeader("Content-Type", "application/json;charset=UTF-8");
         SaHolder.getResponse().setStatus(HttpStatus.UNAUTHORIZED.value());
-        try {
-            return objectMapper.writeValueAsString(
-                    Result.fail(40101, "未登录或 Token 已失效，请重新登录")
-            );
-        } catch (JsonProcessingException e) {
-            return "{\"code\":40101,\"message\":\"未登录或 Token 已失效，请重新登录\",\"data\":null}";
-        }
+        return UnauthorizedResponses.body(objectMapper, UnauthorizedResponses.UNAUTHENTICATED_MESSAGE);
     }
 }

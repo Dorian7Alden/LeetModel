@@ -13,6 +13,7 @@ import com.leetmodel.common.api.feign.UserFeignClient;
 import com.leetmodel.common.security.config.SaTokenAnnotationConfig;
 import com.leetmodel.common.security.config.SecurityConfig;
 import com.leetmodel.common.security.handler.AuthExceptionHandler;
+import com.leetmodel.common.security.token.TokenBlacklistService;
 import com.leetmodel.admin.service.AdminFeignExecutor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringBootConfiguration;
@@ -54,6 +55,7 @@ class DashboardAuthorizationTest {
     private MockMvc mockMvc;
 
     @MockBean UserFeignClient users;
+    @MockBean TokenBlacklistService tokenBlacklistService;
     @MockBean TeamFeignClient teams;
     @MockBean ProblemFeignClient problems;
     @MockBean SubmissionFeignClient submissions;

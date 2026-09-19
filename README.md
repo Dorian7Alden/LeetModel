@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.2.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v2.3.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17" />
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-green" alt="Spring Boot" />
   <img src="https://img.shields.io/badge/Vue-3-42b883" alt="Vue 3" />
@@ -293,15 +293,15 @@ docker compose -f compose.yaml down
 ./scripts/test/frontend.sh
 ```
 
-v2.2.0 交付前执行后端根 Reactor 全量测试，共 984 项，零失败，26 项外部门禁按设计跳过，22 个 Maven 模块均可构建；前端生产构建通过。统一文件资产、预签名分片直传、题库全文检索与评测口径已在本地真实环境完成端到端验收。
+v2.3.0 交付前执行后端根 Reactor 全量测试，共 1004 项，零失败，26 项外部门禁按设计跳过，22 个 Maven 模块均可构建；前端生产构建通过。统一文件资产、预签名分片直传、题库全文检索、评测口径与 Token 主动失效均已在本地真实环境完成端到端验收。
 
 
 ## 项目状态
 
-- 当前稳定版本：`v2.2.0`
+- 当前稳定版本：`v2.3.0`
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 - 当前状态：持续打磨，暂不具备上线条件
-- 开发状态：封版后按用户目标重新开启功能开发，v2.2.0 交付统一文件资产、预签名分片直传、题库全文检索与评测口径说明
+- 开发状态：封版后按用户目标重新开启功能开发，v2.3.0 交付 Token 主动失效（登出即时失效、Redis 黑名单、双端校验与降级观测）
 - 平台范围：PC Web
 - 运行定位：本地实训、作品展示和面试讲解，不是直接面向公网的生产部署
 - 生产使用前必须补充密钥管理、集群部署、容量规划、备份恢复和合规策略
