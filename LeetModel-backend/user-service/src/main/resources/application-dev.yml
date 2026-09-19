@@ -40,10 +40,3 @@ springdoc:
       packages-to-scan: com.leetmodel.user.controller
 
 # 暴露 Actuator 端点
-# MinIO 对象存储
-minio:
-  enabled: true
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket: leetmodel
