@@ -462,13 +462,17 @@ line2: content content content content content
 
 
 
-1. 【强制】文档内插入图片时，图片链接只能使用在线链接，禁止使用相对路径
+1. 【强制】根目录 `README.md` 的图片必须作为仓库内资源提交，并使用相对路径引用
 
-    - 说明：文档内插入图片必须使用稳定可访问的在线链接，严禁使用本地相对路径或绝对路径，避免文档迁移、跨平台分享时出现图片加载失效问题。
+    - 说明：README 是仓库对外展示的首页，渲染平台会代表浏览器抓取外链图片，图床的防盗链、跳转签名和跨境网络都会让抓取失败。GitHub 通过 `camo.githubusercontent.com` 代理取图，Gitee `/raw/` 会 302 到带签名、带过期时间的地址，代理取图超时后返回 504，页面只显示裂图；仓库内相对路径不依赖第三方，克隆、离线浏览和跨平台渲染都可用。
 
-    - 正例：![image-20260117021324172](https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260117021324172.png)
+    - 正例：`<img src="docs/assets/logo.png" />`、`![系统整体架构图](docs/assets/readme/architecture-overview.png)`
 
-    - 反例：`![系统整体架构图](images/system-architecture-full.png)`
+    - 反例：`![系统整体架构图](https://gitee.com/xxx/pic-go/raw/master/typora/architecture.png)`
+
+    - 范围：本条只约束根目录 README。`docs/` 下的其它文档当前允许继续使用图床外链，但需要知道这类链接在 GitHub 上可能显示不出来；如果某张图需要在仓库页面正常展示，应同样改为仓库内资源。仓库外单独分享的文档和个人笔记不受本条约束。
+
+    - 排障记录：[GitHub引用Gitee图床图片无法显示.md](../troubleshooting/GitHub引用Gitee图床图片无法显示.md)
 
 2. 【强制】markdown 文档中的图片资源大小超过 1MB 时必须压缩后再使用。
 
@@ -476,7 +480,7 @@ line2: content content content content content
 
 3. 【参考】给 typora 或其他 markdown 编辑器通过 pic-go 配置 gitee 个人仓库的图床
 
-    - 说明：配置图床后，当给文档编辑器粘贴图片时，会自动将该图片上传至个人的 gitee 仓库，作为稳定的图床链接
+    - 说明：配置图床后，在文档编辑器粘贴图片时会自动上传到个人 gitee 仓库并返回链接。该做法只适用于仓库外单独分享的文档和个人笔记；仓库内文档仍需按第 1 条提交为仓库内资源，否则在 GitHub 上会因代理取图失败而裂图。
 
     - 参考教程：https://juejin.cn/post/7089308017266524197
 

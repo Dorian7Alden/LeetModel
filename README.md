@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">
+  <img src="docs/assets/logo.png" alt="LeetModel Logo" height="80px">
 </p>
 
 <h1 align="center">LeetModel</h1>
@@ -88,7 +88,7 @@ LeetModel 中文名为力模，是一个围绕数学建模竞赛实训构建的�
 ## 系统架构
 
 <p align="center">
-  <img src="https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/LeetModel系统架构全景图.png" alt="LeetModel 系统架构全景图" />
+  <img src="docs/assets/readme/architecture-overview.png" alt="LeetModel 系统架构全景图" />
 </p>
 
 <p align="center"><strong>LeetModel 系统架构全景图</strong></p>
