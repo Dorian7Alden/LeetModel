@@ -693,8 +693,7 @@ class EvaluationServiceTest {
     }
 
     private SubmissionReviewDTO submission(Long id, Long teamId, Long problemId) {
-        return new SubmissionReviewDTO(id, teamId, problemId, 1,
-                "submissions/" + teamId + "/paper.pdf");
+        return new SubmissionReviewDTO(id, teamId, problemId, 1, 5001L);
     }
 
     private AiFeatureDefinitionDTO feature(String status) {

@@ -85,7 +85,7 @@ class ReviewResultPersistenceServiceTest {
     }
 
     private SubmissionReviewDTO submission() {
-        return new SubmissionReviewDTO(31L, 41L, 51L, 1, "paper.pdf");
+        return new SubmissionReviewDTO(31L, 41L, 51L, 1, 9007L);
     }
 
     private ReviewWorkflowResult result() {

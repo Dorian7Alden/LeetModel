@@ -9,7 +9,7 @@ import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class SuggestionV1WorkflowTest {
 
     @Mock
-    private StorageService storageService;
+    private FileContentClient fileContentClient;
     @Mock
     private PdfTextExtractor textExtractor;
     @Mock
@@ -43,7 +43,7 @@ class SuggestionV1WorkflowTest {
     @BeforeEach
     void setUp() throws Exception {
         workflow = new SuggestionV1Workflow(
-                storageService, textExtractor, aiClient, new ObjectMapper());
+                fileContentClient, textExtractor, aiClient, new ObjectMapper());
     }
 
     @Test
@@ -109,7 +109,7 @@ class SuggestionV1WorkflowTest {
     }
 
     private void preparePaper() throws Exception {
-        when(storageService.download("object")).thenReturn(new ByteArrayInputStream(new byte[]{1, 2, 3}));
+        when(fileContentClient.open(7004L)).thenReturn(new ByteArrayInputStream(new byte[]{1, 2, 3}));
         when(textExtractor.extract(any())).thenReturn(
                 new PdfTextExtractor.ExtractedPaper("[第 2 页]\n论文原文", 2, false));
     }
@@ -121,7 +121,7 @@ class SuggestionV1WorkflowTest {
     }
 
     private SubmissionReviewDTO submission() {
-        return new SubmissionReviewDTO(101L, 11L, 51L, 2, "object");
+        return new SubmissionReviewDTO(101L, 11L, 51L, 2, 7004L);
     }
 
     private ProblemContextDTO problem() {

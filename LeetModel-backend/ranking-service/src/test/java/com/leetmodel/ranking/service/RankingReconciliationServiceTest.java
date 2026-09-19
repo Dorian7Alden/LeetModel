@@ -30,7 +30,7 @@ class RankingReconciliationServiceTest {
                 submissionFeignClient, reviewFeignClient, requestService);
         LocalDateTime now = LocalDateTime.of(2026, 9, 1, 8, 0);
         SubmissionSnapshotDTO submission = new SubmissionSnapshotDTO(
-                31L, 41L, 51L, 1L, 1, "paper.pdf", "paper.pdf",
+                31L, 41L, 51L, 1L, 1, "paper.pdf", 8001L,
                 "SUCCESS", true, now);
         ReviewSummaryDTO review = new ReviewSummaryDTO(
                 21L, 31L, 41L, 51L, "COMPLETED", "EVIDENCE_REVIEW_V2",

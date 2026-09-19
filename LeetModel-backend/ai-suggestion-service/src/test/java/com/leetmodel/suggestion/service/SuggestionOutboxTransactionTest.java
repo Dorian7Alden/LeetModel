@@ -75,7 +75,7 @@ class SuggestionOutboxTransactionTest {
         TeamFeignClient team = mock(TeamFeignClient.class);
         GroundedSuggestionV2Workflow workflow = mock(GroundedSuggestionV2Workflow.class);
         when(submission.getForReview(101L)).thenReturn(Result.ok(
-                new SubmissionReviewDTO(101L, 11L, 51L, 1, "paper.pdf")));
+                new SubmissionReviewDTO(101L, 11L, 51L, 1, 7001L)));
         when(review.getByTask(5001L)).thenReturn(Result.ok(new ReviewSummaryDTO(
                 5001L, 101L, 11L, 51L, "COMPLETED", "EVIDENCE_REVIEW_V2",
                 BigDecimal.valueOf(88), "{}", "model", "call", null, LocalDateTime.now())));
