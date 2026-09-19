@@ -40,4 +40,8 @@ public interface ProblemAdminFeignClient {
     Result<Void> deleteAttachment(@PathVariable("problemId") Long problemId,
                                   @PathVariable("attachmentId") Long attachmentId);
 
+    @PostMapping("/api/problems/{id}/attachments/registered")
+    Result<Object> attachRegisteredFile(@PathVariable("id") Long id,
+                                        @RequestBody Map<String, Object> request);
+
 }
