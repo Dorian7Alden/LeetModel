@@ -16,8 +16,10 @@ public class FileAsset extends BaseEntity {
     private String originalName;
     private String contentType;
     private Long fileSize;
+    private String contentSha256;
     private String namespaceCode;
     private String groupPath;
+    private String accessLevel;
     private String sourceType;
     private String lifecycleStatus;
     private Long creatorId;

@@ -3,6 +3,7 @@ package com.leetmodel.file.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
 import com.leetmodel.common.core.config.MinioProperties;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.PageResult;
@@ -10,7 +11,9 @@ import com.leetmodel.common.core.storage.StorageContentTypes;
 import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.file.entity.FileAsset;
 import com.leetmodel.file.enums.FileErrorCode;
+import com.leetmodel.file.enums.FilePurpose;
 import com.leetmodel.file.mapper.FileAssetMapper;
+import com.leetmodel.file.mapper.FileBindingMapper;
 import com.leetmodel.file.model.FileAccessUrlVO;
 import com.leetmodel.file.model.FileAssetPageVO;
 import com.leetmodel.file.model.FileAssetQuery;
@@ -20,6 +23,8 @@ import com.leetmodel.file.model.FileReconcileVO;
 import com.leetmodel.file.service.FileAssetService;
 import com.leetmodel.file.storage.FileObjectInventory;
 import com.leetmodel.file.storage.PhysicalObject;
+import com.leetmodel.file.support.FileContentDigest;
+import com.leetmodel.file.support.FileGroupPath;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
@@ -37,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -45,13 +49,17 @@ public class FileAssetServiceImpl implements FileAssetService {
     private static final String SOURCE_MANUAL = "MANUAL";
     private static final String SOURCE_DISCOVERED = "DISCOVERED";
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_AVAILABLE_UNBOUND = "AVAILABLE_UNBOUND";
     private static final String STATUS_DISCOVERED = "DISCOVERED";
     private static final String STATUS_PENDING_DELETE = "PENDING_DELETE";
     private static final String STATUS_DELETE_FAILED = "DELETE_FAILED";
     private static final String UNGROUPED_FILTER = "__ungrouped__";
-    private static final Pattern GROUP_PATH_PATTERN = Pattern.compile("[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*");
+    /** 允许在普通读取链路生成短时效地址的资产状态。 */
+    private static final Set<String> ACCESSIBLE_STATUSES =
+            Set.of(STATUS_ACTIVE, STATUS_AVAILABLE_UNBOUND, STATUS_DISCOVERED);
 
     private final FileAssetMapper fileAssetMapper;
+    private final FileBindingMapper fileBindingMapper;
     private final StorageService storageService;
     private final FileObjectInventory objectInventory;
     private final MinioProperties minioProperties;
@@ -106,7 +114,7 @@ public class FileAssetServiceImpl implements FileAssetService {
 
     @Override
     public FileAssetVO upload(MultipartFile file, String groupPath, Long creatorId) {
-        String normalizedGroup = normalizeGroupPath(groupPath);
+        String normalizedGroup = FileGroupPath.normalize(groupPath);
         String prefix = normalizedGroup.isEmpty() ? "manual" : "manual/" + normalizedGroup;
         String objectKey = storageService.upload(file, prefix, StorageContentTypes.ARCHIVE);
         FileAsset asset = new FileAsset();
@@ -115,8 +123,10 @@ public class FileAssetServiceImpl implements FileAssetService {
         asset.setOriginalName(resolveOriginalName(file, objectKey));
         asset.setContentType(file.getContentType());
         asset.setFileSize(file.getSize());
+        asset.setContentSha256(FileContentDigest.sha256(file));
         asset.setNamespaceCode("manual");
         asset.setGroupPath(normalizedGroup);
+        asset.setAccessLevel("BUSINESS_AUTHORIZED");
         asset.setSourceType(SOURCE_MANUAL);
         asset.setLifecycleStatus(STATUS_ACTIVE);
         asset.setCreatorId(creatorId);
@@ -132,15 +142,69 @@ public class FileAssetServiceImpl implements FileAssetService {
     }
 
     @Override
+    public FileAssetSummaryDTO registerForPurpose(String purposeCode, String groupPath,
+                                                  MultipartFile file, Long creatorId) {
+        FilePurpose purpose = FilePurpose.fromCode(purposeCode);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(FileErrorCode.FILE_CONTENT_TYPE_NOT_ALLOWED, "上传文件不能为空");
+        }
+        if (!purpose.allowsContentType(file.getContentType())) {
+            throw new BusinessException(FileErrorCode.FILE_CONTENT_TYPE_NOT_ALLOWED,
+                    "用途 " + purpose.name() + " 不允许类型 " + file.getContentType());
+        }
+        String normalizedGroup = FileGroupPath.normalize(groupPath);
+        String contentSha256 = FileContentDigest.sha256(file);
+        String prefix = normalizedGroup.isEmpty()
+                ? purpose.namespaceCode()
+                : purpose.namespaceCode() + "/" + normalizedGroup;
+        String objectKey = storageService.upload(file, prefix, purpose.additionalContentTypes());
+
+        FileAsset asset = new FileAsset();
+        asset.setBucketName(minioProperties.getBucket());
+        asset.setObjectKey(objectKey);
+        asset.setOriginalName(resolveOriginalName(file, objectKey));
+        asset.setContentType(file.getContentType());
+        asset.setFileSize(file.getSize());
+        asset.setContentSha256(contentSha256);
+        asset.setNamespaceCode(purpose.namespaceCode());
+        asset.setGroupPath(normalizedGroup);
+        asset.setAccessLevel(purpose.accessLevel());
+        asset.setSourceType(purpose.sourceType());
+        asset.setLifecycleStatus(STATUS_AVAILABLE_UNBOUND);
+        asset.setCreatorId(creatorId);
+        // 登记后等待业务绑定事件；超过宽限期仍无有效引用才允许物理清理。
+        asset.setCleanupAfter(LocalDateTime.now().plus(deleteGrace));
+        asset.setRetryCount(0);
+        asset.setDeleted(0);
+        try {
+            fileAssetMapper.insert(asset);
+        } catch (RuntimeException exception) {
+            compensateUploadedObject(objectKey, exception);
+            throw exception;
+        }
+        return toSummary(asset);
+    }
+
+    @Override
+    public FileAssetSummaryDTO summary(Long fileId) {
+        return toSummary(requireAsset(fileId));
+    }
+
+    @Override
     public FileAccessUrlVO createAccessUrl(Long id) {
         FileAsset asset = requireAsset(id);
-        if (!Set.of(STATUS_ACTIVE, STATUS_DISCOVERED).contains(asset.getLifecycleStatus())) {
+        if (!ACCESSIBLE_STATUSES.contains(asset.getLifecycleStatus())) {
             throw new BusinessException(FileErrorCode.FILE_STATUS_INVALID);
         }
         return new FileAccessUrlVO(
                 storageService.getUrl(asset.getObjectKey()),
                 minioProperties.getExpirySeconds()
         );
+    }
+
+    @Override
+    public FileAccessUrlVO createAccessUrlByFileId(Long fileId) {
+        return createAccessUrl(fileId);
     }
 
     @Override
@@ -197,12 +261,22 @@ public class FileAssetServiceImpl implements FileAssetService {
     public int cleanupDueAssets() {
         LocalDateTime now = LocalDateTime.now();
         List<FileAsset> dueAssets = fileAssetMapper.selectList(new LambdaQueryWrapper<FileAsset>()
-                .in(FileAsset::getLifecycleStatus, STATUS_PENDING_DELETE, STATUS_DELETE_FAILED)
-                .le(FileAsset::getCleanupAfter, now)
+                .and(scope -> scope
+                        .in(FileAsset::getLifecycleStatus, STATUS_PENDING_DELETE, STATUS_DELETE_FAILED)
+                        .le(FileAsset::getCleanupAfter, now)
+                        .or(unbound -> unbound
+                                .eq(FileAsset::getLifecycleStatus, STATUS_AVAILABLE_UNBOUND)
+                                .isNotNull(FileAsset::getCleanupAfter)
+                                .le(FileAsset::getCleanupAfter, now)))
                 .orderByAsc(FileAsset::getCleanupAfter)
                 .last("LIMIT 100"));
         int cleaned = 0;
         for (FileAsset asset : dueAssets) {
+            // 宽限期内可能重新绑定；物理删除前再确认引用投影为空。
+            if (STATUS_AVAILABLE_UNBOUND.equals(asset.getLifecycleStatus())
+                    && fileBindingMapper.countActiveByFileId(asset.getId()) > 0) {
+                continue;
+            }
             try {
                 storageService.delete(asset.getObjectKey());
                 fileAssetMapper.markPhysicallyDeleted(asset.getId());
@@ -260,18 +334,6 @@ public class FileAssetServiceImpl implements FileAssetService {
         return asset;
     }
 
-    private String normalizeGroupPath(String groupPath) {
-        if (!StringUtils.hasText(groupPath)) {
-            return "";
-        }
-        String normalized = groupPath.trim();
-        if (normalized.length() > 128 || !GROUP_PATH_PATTERN.matcher(normalized).matches()) {
-            throw new BusinessException(FileErrorCode.GROUP_PATH_INVALID,
-                    "分组仅支持字母、数字、/、_、-，且不能以 / 开头或结尾");
-        }
-        return normalized;
-    }
-
     private List<FileGroupVO> aggregateGroups(List<FileAsset> assets) {
         Map<String, long[]> groups = new LinkedHashMap<>();
         for (FileAsset asset : assets) {
@@ -299,6 +361,7 @@ public class FileAssetServiceImpl implements FileAssetService {
                 .previewable(isPreviewable(asset))
                 .namespaceCode(asset.getNamespaceCode())
                 .groupPath(asset.getGroupPath())
+                .accessLevel(asset.getAccessLevel())
                 .sourceType(asset.getSourceType())
                 .lifecycleStatus(asset.getLifecycleStatus())
                 .creatorId(asset.getCreatorId())
@@ -309,6 +372,18 @@ public class FileAssetServiceImpl implements FileAssetService {
                 .deletable(SOURCE_MANUAL.equals(asset.getSourceType())
                         && STATUS_ACTIVE.equals(asset.getLifecycleStatus()))
                 .build();
+    }
+
+    private FileAssetSummaryDTO toSummary(FileAsset asset) {
+        return new FileAssetSummaryDTO(
+                asset.getId(),
+                asset.getNamespaceCode(),
+                asset.getSourceType(),
+                asset.getOriginalName(),
+                asset.getContentType(),
+                asset.getFileSize(),
+                asset.getLifecycleStatus()
+        );
     }
 
     private String resolveOriginalName(MultipartFile file, String objectKey) {

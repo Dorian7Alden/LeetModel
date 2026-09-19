@@ -19,6 +19,7 @@ public class FileAssetVO {
     private boolean previewable;
     private String namespaceCode;
     private String groupPath;
+    private String accessLevel;
     private String sourceType;
     private String lifecycleStatus;
     private Long creatorId;
