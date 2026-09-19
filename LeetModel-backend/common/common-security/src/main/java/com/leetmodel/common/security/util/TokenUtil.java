@@ -1,12 +1,15 @@
 package com.leetmodel.common.security.util;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.leetmodel.common.security.token.TokenBlacklistRegistry;
+import com.leetmodel.common.security.token.TokenBlacklistService;
 
 /**
  * Token 会话生命周期工具类。
  *
- * <p>封装基于 Sa-Token 的登录签发、主动登出、强行踢人与登录态探测；
- * 登出与踢人时自动将 Token 压入 Redis 黑名单以实现无状态 JWT 的主动失效。</p>
+ * <p>封装基于 Sa-Token 的登录签发、主动登出与登录态探测。JWT 无状态模式下 Sa-Token
+ * 自身不提供黑名单，登出时由 {@link TokenBlacklistService} 按 Token 指纹写入安全状态 Redis，
+ * 使 Token 在网关与业务服务两侧立即失效。</p>
  */
 public final class TokenUtil {
 
@@ -26,19 +29,17 @@ public final class TokenUtil {
     }
 
     /**
-     * 执行当前用户登出，将当前 Token 加入 Redis 黑名单使其立即失效。
+     * 执行当前用户登出：先把当前 Token 写入 Redis 黑名单使其立即失效，再清理本地登录态。
      */
     public static void logout() {
+        String token = StpUtil.getTokenValue();
+        TokenBlacklistService blacklistService = TokenBlacklistRegistry.get();
+        if (blacklistService != null && token != null && !token.isBlank()) {
+            // JWT 无状态模式下该值为 Token 剩余有效秒数，无法解析时返回负值交由策略兜底
+            long remainingSeconds = StpUtil.getTokenTimeout();
+            blacklistService.revoke(token, remainingSeconds);
+        }
         StpUtil.logout();
-    }
-
-    /**
-     * 强制指定用户下线，将其签发的所有 Token 全部封禁入黑名单。
-     *
-     * @param userId 待强制下线的目标用户 ID
-     */
-    public static void kickout(Long userId) {
-        StpUtil.kickout(userId);
     }
 
     /**
