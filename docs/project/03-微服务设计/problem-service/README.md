@@ -28,9 +28,11 @@ flowchart LR
         contestProblem["赛事、题目与题面"]
         tagPublish["标签、筛选与发布"]
         attachment["附件管理"]
+        fullTextSearch["全文检索与索引同步"]
 
         publicApi --> contestProblem
         publicApi --> tagPublish
+        publicApi --> fullTextSearch
         manageApi --> contestProblem
         manageApi --> tagPublish
         manageApi --> attachment
@@ -39,6 +41,7 @@ flowchart LR
 
     subgraph data["题目数据与文件"]
         problemDatabase[(lm_problem)]
+        searchIndex["Elasticsearch 题库索引"]
         minio["MinIO 题目附件"]
         fileService["file-service，目标文件资产控制面"]
         cacheRedis["独立业务缓存 Redis"]
@@ -57,9 +60,10 @@ flowchart LR
     attachment -. "目标：创建资产与发布绑定" .-> fileService
     fileService -. "目标：管理正式文件" .-> minio
     publicApi --> cacheRedis
+    fullTextSearch --> searchIndex
 ```
 
-公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，附件二进制归 MinIO 保存。当前附件模块直接使用 MinIO，虚线表示迁移到 file-service 后由文件资产控制面管理物理文件的目标关系。
+公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，附件二进制归 MinIO 保存。Elasticsearch 只保存题库检索副本，关键词召回与排序以它为准，返回字段仍从 `lm_problem` 读取。当前附件模块直接使用 MinIO，虚线表示迁移到 file-service 后由文件资产控制面管理物理文件的目标关系。
 
 ## 职责边界
 
@@ -69,6 +73,7 @@ flowchart LR
 - 维护可直接渲染的 Markdown 题面以及题目附件的归属、说明和顺序。附件只保存稳定 fileId，对象路由由 file-service 持有。
 - 维护题目标签和题目标签关系。
 - 提供题目管理、公开题库查询、条件筛选和内部题目摘要单个及批量查询。
+- 维护题库全文检索索引，提供标题与题面关键词检索、相关度排序和检索不可用时的数据库降级。
 - 维护用户对题目的收藏关联与收藏时刻，提供用户专属题单收藏查询与时序排序能力。
 - 校验标签使用约束、题目公开可见性和题目数据完整性。
 - 向团队、提交和评审链路提供必要的题目与赛事快照信息。
@@ -83,12 +88,14 @@ flowchart LR
 - 不支持 PDF、HTML 或富文本作为并行题面格式。
 - 不建设跨服务通用文件中心。
 - 不扫描、上传或删除头像、论文等不属于题目领域的存储对象。
-- 当前不负责 Elasticsearch 全文搜索和 AI 题目推荐工作流。
+- 不负责向量语义检索和 AI 题目推荐工作流；题库检索只做倒排索引与关键词相关度。
 - 不聚合管理看板和跨领域运行统计。
 
 ## 数据与协作边界
 
 problem-service 独占 `lm_problem` 数据库，预置赛事、题目、Markdown 题面、附件业务元数据、标签和题目标签关系以这里的数据为事实源。题目必须归属一个赛事，附件只属于一道题目。附件二进制内容保存在 MinIO，由 file-service 持有对象路由、访问策略和物理生命周期；problem-service 只保存稳定 fileId，并在本地事务内发布绑定或解绑事件。
+
+题库检索索引是 `lm_problem` 的派生副本，只保存题目、赛事、标签和状态的可检索字段。索引不参与业务写入决策，题目创建、更新和删除在事务提交后触发增量同步，索引缺失时由启动自举或管理端全量重建补齐。
 
 team-service 通过内部接口获取题目摘要，用于创建绑定队伍和计算练习时间。submission-service 通过内部接口校验提交对应的题目。ai-review-service 只获取评审路由所需的题目和赛事信息，不直接读取题目数据库。
 
@@ -96,7 +103,7 @@ team-service 通过内部接口获取题目摘要，用于创建绑定队伍和�
 
 ## 公开题库缓存
 
-公开筛选项、页码不大于 10 且每页不大于 50 的无关键词分页、已发布题目详情使用 HTTP、Caffeine、Redis 三级缓存。随机题目和自由文本搜索返回 `no-store`，不会制造高基数缓存 Key。
+公开筛选项、页码不大于 10 且每页不大于 50 的无关键词分页、已发布题目详情使用 HTTP、Caffeine、Redis 三级缓存。随机题目和关键词检索返回 `no-store`，不会制造高基数缓存 Key。
 
 所有公开题库缓存共用 `public/all/v1` 区域版本。题目、标签、赛事和附件写事务会同时写入 `cache_invalidation_outbox`，提交后推进 Redis 区域版本并发布 Caffeine 失效消息。详情缓存只保存附件对象路径等稳定元数据，MinIO 预签名 URL 在每次响应组装时生成。
 
@@ -113,6 +120,7 @@ team-service 通过内部接口获取题目摘要，用于创建绑定队伍和�
 | 标签管理 | 维护标签及题目标签关系，处理标签使用约束 |
 | 公开题库 | 提供已发布题目的列表和详情 |
 | 条件筛选 | 按赛事、难度、标签和关键条件筛选题目 |
+| 题库全文检索 | 标题与题面分词检索、相关度排序、索引同步与全量重建，检索不可用时降级数据库查询 |
 | 随机题目 | 为练习选题提供简单随机能力 |
 | 题目摘要 | 向队伍、提交、AI 评审和 AI 质量评价提供必要的单个或批量题目信息 |
 | AI 客服题目查询 | S11-02 已实现；向受控客服工具提供已发布题目查询和确定性候选筛选 |
@@ -124,5 +132,5 @@ team-service 通过内部接口获取题目摘要，用于创建绑定队伍和�
 |------|----------|
 | [赛事管理/](赛事管理/) | 预置赛事的定位与题目归属规则 |
 | [题目内容/](题目内容/) | Markdown 题面和可选附件的维护规则 |
-| [公开题库/](公开题库/) | 已发布题目的查询流程和筛选规则 |
+| [公开题库/](公开题库/) | 已发布题目的查询流程、筛选规则与全文检索设计 |
 | [文件资产管理架构](../../02-架构设计/文件资产管理架构.md) | 题目附件与 file-service 的数据归属、迁移和删除边界 |
