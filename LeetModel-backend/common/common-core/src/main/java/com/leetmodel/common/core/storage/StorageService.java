@@ -3,6 +3,7 @@ package com.leetmodel.common.core.storage;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -60,6 +61,36 @@ public interface StorageService {
      * @return 具备访问时效的预签名 GET 地址
      */
     String getUrl(String objectName);
+
+    /**
+     * 生成客户端直传的临时上传地址。
+     *
+     * <p>调用方按 PUT 方法在有效期内直接写入对象，字节不经过业务服务中转。</p>
+     *
+     * @param objectName 目标对象唯一标识路径，不能为空
+     * @return 具备上传时效的预签名 PUT 地址
+     */
+    String getUploadUrl(String objectName);
+
+    /**
+     * 在服务端合并多个对象为一个目标对象。
+     *
+     * <p>用于客户端分片直传后的合并，二进制不经过应用进程。</p>
+     *
+     * @param destinationObject 合并后的目标对象路径，不能为空
+     * @param sourceObjects 分片对象路径列表，按分片顺序排列，不能为空
+     */
+    void composeObjects(String destinationObject, List<String> sourceObjects);
+
+    /**
+     * 查询对象的实际字节数。
+     *
+     * <p>用于登记既有对象时核对声明大小，不读取对象内容。</p>
+     *
+     * @param objectName 存储桶中的对象唯一标识路径，不能为空
+     * @return 对象实际字节数
+     */
+    long sizeOf(String objectName);
 
     /**
      * 从存储桶中物理删除指定文件。

@@ -427,7 +427,7 @@ class SuggestionServiceTest {
     }
 
     private SubmissionReviewDTO submission() {
-        return new SubmissionReviewDTO(SUBMISSION_ID, TEAM_ID, PROBLEM_ID, 2, "object");
+        return new SubmissionReviewDTO(SUBMISSION_ID, TEAM_ID, PROBLEM_ID, 2, 7002L);
     }
 
     private ReviewSummaryDTO review() {

@@ -27,7 +27,7 @@ public class ProblemDetailReadModel {
     public static class AttachmentReadModel {
         private Long id;
         private String fileName;
-        private String objectKey;
+        private Long fileId;
         private String contentType;
         private Long fileSize;
         private String description;

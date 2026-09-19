@@ -120,4 +120,17 @@ public class AdminProblemController {
                 () -> problemClient.deleteAttachment(problemId, attachmentId));
     }
 
+    /**
+     * 绑定预签名直传完成的文件资产为题目附件。
+     *
+     * @param id 题目 ID
+     * @param request 绑定请求
+     * @return 附件视图对象
+     */
+    @PostMapping("/problems/{id}/attachments/registered")
+    public Result<Object> attachRegisteredFile(@PathVariable @Positive Long id,
+                                               @RequestBody java.util.Map<String, Object> request) {
+        return executor.forward("题目服务", () -> problemClient.attachRegisteredFile(id, request));
+    }
+
 }

@@ -129,6 +129,64 @@ public class MinioStorageServiceImpl implements StorageService {
     }
 
     @Override
+    public String getUploadUrl(String objectName) {
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(minioProperties.getBucket())
+                            .object(objectName)
+                            .method(Method.PUT)
+                            .expiry(minioProperties.getUploadExpirySeconds())
+                            .build()
+            );
+        } catch (Exception e) {
+            logStorageFailure("presign_upload", e);
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "获取文件上传链接失败");
+        }
+    }
+
+    @Override
+    public void composeObjects(String destinationObject, java.util.List<String> sourceObjects) {
+        try {
+            java.util.List<ComposeSource> sources = sourceObjects.stream()
+                    .map(objectName -> ComposeSource.builder()
+                            .bucket(minioProperties.getBucket())
+                            .object(objectName)
+                            .build())
+                    .toList();
+            minioClient.composeObject(
+                    ComposeObjectArgs.builder()
+                            .bucket(minioProperties.getBucket())
+                            .object(destinationObject)
+                            .sources(sources)
+                            .build()
+            );
+            log.atInfo()
+                    .addKeyValue(LogFieldNames.EVENT_CODE, LogEventCodes.STORAGE_OPERATION_COMPLETED)
+                    .addKeyValue(LogFieldNames.OUTCOME, "compose")
+                    .log("Object storage operation completed");
+        } catch (Exception e) {
+            logStorageFailure("compose", e);
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "文件合并失败");
+        }
+    }
+
+    @Override
+    public long sizeOf(String objectName) {
+        try {
+            return minioClient.statObject(
+                    io.minio.StatObjectArgs.builder()
+                            .bucket(minioProperties.getBucket())
+                            .object(objectName)
+                            .build()
+            ).size();
+        } catch (Exception e) {
+            logStorageFailure("stat", e);
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "获取文件大小失败");
+        }
+    }
+
+    @Override
     public void delete(String objectName) {
         try {
             minioClient.removeObject(

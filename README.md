@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://gitee.com/kualk/pic-go/raw/master/imgs/image-20260423174510998.png" alt="LeetModel Logo" height="80px">
+  <img src="docs/assets/logo.png" alt="LeetModel Logo" height="80px">
 </p>
 
 <h1 align="center">LeetModel</h1>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v2.2.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17" />
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-green" alt="Spring Boot" />
   <img src="https://img.shields.io/badge/Vue-3-42b883" alt="Vue 3" />
@@ -88,7 +88,7 @@ LeetModel 中文名为力模，是一个围绕数学建模竞赛实训构建的�
 ## 系统架构
 
 <p align="center">
-  <img src="https://gitee.com/Dorian7Alden/pic-go/raw/master/typora/LeetModel系统架构全景图.png" alt="LeetModel 系统架构全景图" />
+  <img src="docs/assets/readme/architecture-overview.png" alt="LeetModel 系统架构全景图" />
 </p>
 
 <p align="center"><strong>LeetModel 系统架构全景图</strong></p>
@@ -293,15 +293,15 @@ docker compose -f compose.yaml down
 ./scripts/test/frontend.sh
 ```
 
-当前封版基线已执行 955 项后端测试，其中 929 项通过、26 项外部门禁按设计跳过、零失败；22 个 Maven Reactor 项目均可构建，15 个业务服务能够按统一脚本启动。
+v2.2.0 交付前执行后端根 Reactor 全量测试，共 984 项，零失败，26 项外部门禁按设计跳过，22 个 Maven 模块均可构建；前端生产构建通过。统一文件资产、预签名分片直传、题库全文检索与评测口径已在本地真实环境完成端到端验收。
 
 
 ## 项目状态
 
-- 当前稳定版本：`v2.1.1`
+- 当前稳定版本：`v2.2.0`
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 - 当前状态：持续打磨，暂不具备上线条件
-- 开发状态：已完成最终封版，不再新增业务功能
+- 开发状态：封版后按用户目标重新开启功能开发，v2.2.0 交付统一文件资产、预签名分片直传、题库全文检索与评测口径说明
 - 平台范围：PC Web
 - 运行定位：本地实训、作品展示和面试讲解，不是直接面向公网的生产部署
 - 生产使用前必须补充密钥管理、集群部署、容量规划、备份恢复和合规策略

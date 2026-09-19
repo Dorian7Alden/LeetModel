@@ -139,7 +139,7 @@ public class EvaluationService {
                 submission = requiredSample(payload.submissionId());
                 BusinessException.throwIf(!payload.submissionId().equals(submission.getId())
                                 || submission.getTeamId() == null || submission.getProblemId() == null
-                                || submission.getObjectName() == null || submission.getObjectName().isBlank(),
+                                || submission.getFileId() == null,
                         EvaluationErrorCode.SAMPLE_UNAVAILABLE);
             }
             resolved.add(new ResolvedSample(submission, payload, trimToNull(input.getNote())));

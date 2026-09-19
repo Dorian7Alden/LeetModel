@@ -14,7 +14,7 @@ class SubmissionIdentifierSerializationTest {
         long id = 2_092_649_726_601_232_386L;
         SubmissionSnapshotDTO snapshot = new SubmissionSnapshotDTO(
                 id, id + 1, id + 2, id + 3, 1,
-                "solution.pdf", "submissions/solution.pdf", "SUCCESS", true, null);
+                "solution.pdf", id + 4, "SUCCESS", true, null);
 
         String json = objectMapper.writeValueAsString(snapshot);
 
@@ -22,6 +22,7 @@ class SubmissionIdentifierSerializationTest {
         assertThat(json).contains("\"teamId\":\"2092649726601232387\"");
         assertThat(json).contains("\"problemId\":\"2092649726601232388\"");
         assertThat(json).contains("\"submitterId\":\"2092649726601232389\"");
+        assertThat(json).contains("\"fileId\":\"2092649726601232390\"");
     }
 
     @Test

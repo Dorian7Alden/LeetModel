@@ -201,7 +201,7 @@ class DeepEvidenceReviewV3WorkflowTest {
         task.setAttemptNo(1);
         task.setWorkflowVersion(DeepEvidenceReviewV3Workflow.VERSION_CODE);
 
-        SubmissionReviewDTO submission = new SubmissionReviewDTO(submissionId, 10L, problemId, 1, "object-key.pdf");
+        SubmissionReviewDTO submission = new SubmissionReviewDTO(submissionId, 10L, problemId, 1, 9005L);
 
         ReviewWorkflowResult result = workflow.execute(task, submission);
 
@@ -239,7 +239,7 @@ class DeepEvidenceReviewV3WorkflowTest {
 
         ReviewTask task = new ReviewTask();
         task.setId(7002L);
-        SubmissionReviewDTO submission = new SubmissionReviewDTO(submissionId, 10L, 101L, 1, "key");
+        SubmissionReviewDTO submission = new SubmissionReviewDTO(submissionId, 10L, 101L, 1, 9006L);
 
         assertThrows(IllegalArgumentException.class, () -> workflow.execute(task, submission));
     }

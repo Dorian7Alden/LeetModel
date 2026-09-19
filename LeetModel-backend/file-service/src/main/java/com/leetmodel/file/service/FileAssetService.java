@@ -1,5 +1,7 @@
 package com.leetmodel.file.service;
 
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.file.model.FileAccessUrlVO;
 import com.leetmodel.file.model.FileAssetPageVO;
 import com.leetmodel.file.model.FileAssetQuery;
@@ -15,4 +17,40 @@ public interface FileAssetService {
     void requestDelete(Long id);
     FileReconcileVO reconcile();
     int cleanupDueAssets();
+
+    /**
+     * 按业务用途登记文件资产，返回可绑定的稳定 fileId 摘要。
+     *
+     * @param purposeCode 业务用途编码
+     * @param groupPath 逻辑分组路径，可为空
+     * @param file 待登记文件
+     * @param creatorId 发起人标识，可为空
+     * @return 文件资产摘要
+     */
+    FileAssetSummaryDTO registerForPurpose(String purposeCode, String groupPath,
+                                           MultipartFile file, Long creatorId);
+
+    /**
+     * 按 fileId 查询文件资产摘要。
+     *
+     * @param fileId 文件资产标识
+     * @return 文件资产摘要
+     */
+    FileAssetSummaryDTO summary(Long fileId);
+
+    /**
+     * 按 fileId 生成短时效访问地址。
+     *
+     * @param fileId 文件资产标识
+     * @return 预签名访问地址
+     */
+    FileAccessUrlVO createAccessUrlByFileId(Long fileId);
+
+    /**
+     * 接管业务服务在交接目录中已生成的对象。
+     *
+     * @param request 接管请求
+     * @return 文件资产摘要
+     */
+    FileAssetSummaryDTO adoptForPurpose(FileAssetAdoptRequestDTO request);
 }

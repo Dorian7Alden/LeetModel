@@ -6,7 +6,7 @@ import com.leetmodel.common.api.dto.PaperParseDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.review.entity.PaperParseArtifact;
 import com.leetmodel.review.mapper.PaperParseArtifactMapper;
 import com.leetmodel.review.parse.v2.PaperDocumentV2;
@@ -32,7 +32,7 @@ class PaperParseServiceV2Test {
 
     private PaperParseArtifactMapper mapper;
     private SubmissionFeignClient submissionFeignClient;
-    private StorageService storageService;
+    private FileContentClient fileContentClient;
     private PaperParseV1Parser v1Parser;
     private PaperParseV2Parser v2Parser;
     private PaperParseV2Properties v2Properties;
@@ -44,7 +44,7 @@ class PaperParseServiceV2Test {
     void setUp() {
         mapper = mock(PaperParseArtifactMapper.class);
         submissionFeignClient = mock(SubmissionFeignClient.class);
-        storageService = mock(StorageService.class);
+        fileContentClient = mock(FileContentClient.class);
         v1Parser = mock(PaperParseV1Parser.class);
         v2Parser = mock(PaperParseV2Parser.class);
         v2Properties = new PaperParseV2Properties();
@@ -53,7 +53,7 @@ class PaperParseServiceV2Test {
         parseService = new PaperParseService(
                 mapper,
                 submissionFeignClient,
-                storageService,
+                fileContentClient,
                 v1Parser,
                 v2Parser,
                 v2Properties,
@@ -65,11 +65,11 @@ class PaperParseServiceV2Test {
     @Test
     void shouldEnsureV2ParseAndPersistArtifact() throws Exception {
         Long submissionId = 5001L;
-        SubmissionReviewDTO sub = new SubmissionReviewDTO(submissionId, 1L, 1L, 1, "test-v2.pdf");
+        SubmissionReviewDTO sub = new SubmissionReviewDTO(submissionId, 1L, 1L, 1, 9001L);
         when(submissionFeignClient.getForReview(submissionId)).thenReturn(Result.ok(sub));
 
         byte[] pdfBytes = "fake pdf content".getBytes();
-        when(storageService.download("test-v2.pdf")).thenReturn(new ByteArrayInputStream(pdfBytes));
+        when(fileContentClient.open(9001L)).thenReturn(new ByteArrayInputStream(pdfBytes));
 
         PaperDocumentV2 doc = new PaperDocumentV2(
                 PaperDocumentV2.SCHEMA_VERSION,
@@ -123,7 +123,7 @@ class PaperParseServiceV2Test {
         assertThat(dto).isNotNull();
         assertThat(dto.getArtifactId()).isEqualTo(99L);
         assertThat(dto.getWorkflowVersion()).isEqualTo("PAPER_PARSE_V2");
-        verify(storageService, never()).download(any());
+        org.mockito.Mockito.verifyNoInteractions(fileContentClient);
     }
 
     @Test
@@ -144,10 +144,10 @@ class PaperParseServiceV2Test {
                 1L,
                 1L,
                 1,
-                "incomplete.pdf"
+                9002L
         );
         when(submissionFeignClient.getForReview(submissionId)).thenReturn(Result.ok(submission));
-        when(storageService.download("incomplete.pdf"))
+        when(fileContentClient.open(9002L))
                 .thenReturn(new ByteArrayInputStream("new pdf".getBytes()));
 
         PaperDocumentV2 reparsed = documentWithCoveredPages(submissionId, 3);
@@ -156,7 +156,7 @@ class PaperParseServiceV2Test {
         PaperParseDTO result = parseService.ensure(submissionId, PaperDocumentV2.WORKFLOW_VERSION);
 
         assertThat(result.getArtifactId()).isNull();
-        verify(storageService).download("incomplete.pdf");
+        verify(fileContentClient).open(9002L);
         verify(v2Parser).parse(any(), any(), any());
         verify(mapper).insert(any(PaperParseArtifact.class));
     }

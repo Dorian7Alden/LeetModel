@@ -6,12 +6,14 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
-import com.leetmodel.common.core.storage.StorageContentTypes;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.core.result.Result;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.api.dto.AssistantProblemQueryDTO;
 import com.leetmodel.common.api.dto.AssistantProblemQueryMode;
 import com.leetmodel.common.api.dto.AssistantProblemResultDTO;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.cache.ProblemDetailReadModel;
 import com.leetmodel.problem.audit.ProblemAuditEventProducer;
@@ -30,6 +32,10 @@ import com.leetmodel.problem.mapper.ContestMapper;
 import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
+import com.leetmodel.problem.messaging.ProblemAttachmentEventProducer;
+import com.leetmodel.problem.search.ProblemSearchPage;
+import com.leetmodel.problem.search.ProblemSearchService;
+import com.leetmodel.problem.search.ProblemSearchSyncService;
 import com.leetmodel.problem.service.ProblemService;
 import com.leetmodel.problem.vo.ProblemVO;
 import lombok.RequiredArgsConstructor;
@@ -57,13 +63,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> implements ProblemService {
 
+    /** 统一响应体成功状态码。 */
+    private static final int RESULT_SUCCESS_CODE = 20000;
+
     private final ProblemTagMapper problemTagMapper;
     private final TagMapper tagMapper;
     private final ProblemAttachmentMapper problemAttachmentMapper;
     private final ContestMapper contestMapper;
-    private final ObjectProvider<StorageService> storageServiceProvider;
+    private final FileFeignClient fileFeignClient;
+    private final ProblemAttachmentEventProducer attachmentEvents;
     private final CacheInvalidator cacheInvalidator;
     private final ProblemAuditEventProducer audit;
+    private final ObjectProvider<ProblemSearchService> problemSearchService;
+    private final ObjectProvider<ProblemSearchSyncService> problemSearchSyncService;
 
     // ==================== 分页查询 ====================
 
@@ -76,6 +88,11 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Override
     public IPage<ProblemVO> pageProblems(ProblemPageQuery query) {
         validateScoreRange(query);
+        String searchKeyword = normalized(query.getKeyword());
+        if (searchKeyword != null) {
+            IPage<ProblemVO> searched = searchByKeyword(query, searchKeyword);
+            if (searched != null) return searched;
+        }
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<>();
         if (query.getStatus() != null) {
             wrapper.eq(Problem::getStatus, query.getStatus());
@@ -184,7 +201,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .map(attachment -> new ProblemDetailReadModel.AttachmentReadModel(
                         attachment.getId(),
                         attachment.getFileName(),
-                        attachment.getObjectKey(),
+                        attachment.getFileId(),
                         attachment.getContentType(),
                         attachment.getFileSize(),
                         attachment.getDescription(),
@@ -203,7 +220,6 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Override
     public ProblemVO materializePublishedProblem(ProblemDetailReadModel readModel) {
         ProblemVO source = readModel.getProblem();
-        StorageService storageService = storageServiceProvider.getIfAvailable();
         List<ProblemVO.AttachmentVO> attachments = readModel.getAttachments().stream()
                 .map(attachment -> ProblemVO.AttachmentVO.builder()
                         .id(attachment.getId())
@@ -212,8 +228,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                         .fileSize(attachment.getFileSize())
                         .description(attachment.getDescription())
                         .sortOrder(attachment.getSortOrder())
-                        .downloadUrl(storageService == null
-                                ? null : storageService.getUrl(attachment.getObjectKey()))
+                        .downloadUrl(resolveDownloadUrl(attachment.getFileId()))
                         .build())
                 .toList();
         return ProblemVO.builder()
@@ -520,6 +535,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         save(problem);
         audit.problemCreated(problem.getId());
+        syncSearchIndexAfterCommit(problem.getId());
         log.info("创建题目完成: id={}", problem.getId());
 
         // 保存标签
@@ -604,6 +620,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             tagNames = replaceTags(id, request.getTagIds());
         }
         if (changed || request.getTagIds() != null) audit.problemUpdated(id);
+        if (changed || request.getTagIds() != null) syncSearchIndexAfterCommit(id);
 
         log.info("更新题目: {}", id);
         recordPublicInvalidation();
@@ -634,9 +651,9 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         // 逻辑删除题目
         removeById(id);
         audit.problemDeleted(id);
-        deleteObjectsAfterCommit(attachments.stream()
-                .map(ProblemAttachment::getObjectKey)
-                .toList());
+        removeSearchIndexAfterCommit(id);
+        // 附件关系解除后由 file-service 依据引用投影决定何时物理清理对象。
+        attachments.forEach(attachment -> attachmentEvents.unbound(attachment.getId(), attachment.getFileId()));
         recordPublicInvalidation();
         log.info("删除题目: {}", id);
     }
@@ -659,33 +676,25 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             String description,
             Integer sortOrder
     ) {
-        // 校验题目与存储服务
+        // 校验题目存在
         BusinessException.throwIf(getById(problemId) == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
-        StorageService storageService = getStorageService();
 
-        // 先上传对象，再保存元数据
-        String objectKey = storageService.upload(
-                file,
-                "problems/" + problemId + "/attachments",
-                StorageContentTypes.ARCHIVE
-        );
+        // 物理对象与访问策略由 file-service 管理，题目服务只保存稳定 fileId
+        FileAssetSummaryDTO asset = registerAttachment(problemId, file);
         ProblemAttachment attachment = new ProblemAttachment();
         attachment.setProblemId(problemId);
+        attachment.setFileId(asset.fileId());
         attachment.setFileName(normalizeFileName(file.getOriginalFilename()));
-        attachment.setObjectKey(objectKey);
         attachment.setContentType(file.getContentType() == null
                 ? "application/octet-stream" : file.getContentType());
         attachment.setFileSize(file.getSize());
         attachment.setDescription(description);
         attachment.setSortOrder(sortOrder == null ? 0 : sortOrder);
 
-        try {
-            problemAttachmentMapper.insert(attachment);
-            recordPublicInvalidation();
-        } catch (RuntimeException exception) {
-            deleteUploadedObject(storageService, objectKey);
-            throw exception;
-        }
+        problemAttachmentMapper.insert(attachment);
+        // 附件关系与绑定事件在同一事务内落库，保证引用投影最终一致。
+        attachmentEvents.bound(attachment.getId(), asset.fileId());
+        recordPublicInvalidation();
         return toAttachmentVO(attachment);
     }
 
@@ -704,11 +713,59 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 ProblemErrorCode.ATTACHMENT_NOT_FOUND
         );
 
-        // 删除元数据，提交后删除对象
+        // 只解除业务关系；物理清理由 file-service 依据引用投影在宽限期后执行
         problemAttachmentMapper.deleteById(attachmentId);
+        attachmentEvents.unbound(attachmentId, attachment.getFileId());
         audit.attachmentDeleted(attachmentId);
-        deleteObjectsAfterCommit(List.of(attachment.getObjectKey()));
         recordPublicInvalidation();
+    }
+
+    @Override
+    @Transactional
+    public ProblemVO.AttachmentVO attachRegisteredFile(
+            Long problemId, com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request) {
+        BusinessException.throwIf(getById(problemId) == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        FileAssetSummaryDTO asset = requireRegisteredAttachment(request.getFileId());
+
+        ProblemAttachment attachment = new ProblemAttachment();
+        attachment.setProblemId(problemId);
+        attachment.setFileId(asset.fileId());
+        attachment.setFileName(normalizeFileName(asset.originalName()));
+        attachment.setContentType(asset.contentType() == null
+                ? "application/octet-stream" : asset.contentType());
+        attachment.setFileSize(asset.fileSize());
+        attachment.setDescription(request.getDescription());
+        attachment.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+        problemAttachmentMapper.insert(attachment);
+        // 直传完成的资产仍处于未绑定状态，这里补齐题目附件引用
+        attachmentEvents.bound(attachment.getId(), asset.fileId());
+        recordPublicInvalidation();
+        return toAttachmentVO(attachment);
+    }
+
+    /**
+     * 校验并读取已登记的题目附件资产。
+     *
+     * @param fileId 文件资产标识
+     * @return 文件资产摘要
+     */
+    private FileAssetSummaryDTO requireRegisteredAttachment(Long fileId) {
+        Result<FileAssetSummaryDTO> result = fileFeignClient.getSummary(fileId);
+        if (result == null || result.getCode() != RESULT_SUCCESS_CODE || result.getData() == null) {
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED, "文件资产不可用");
+        }
+        FileAssetSummaryDTO asset = result.getData();
+        if (!ProblemAttachmentEventProducer.RESOURCE_TYPE.equals(asset.sourceType())) {
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED, "文件用途不是题目附件");
+        }
+        return asset;
+    }
+
+    @Override
+    public int rebuildSearchIndex() {
+        ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+        if (syncService == null) return -1;
+        return syncService.rebuildAll();
     }
 
     // ==================== 标签名称查询 ====================
@@ -951,7 +1008,6 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * @return 附件响应
      */
     private ProblemVO.AttachmentVO toAttachmentVO(ProblemAttachment attachment) {
-        StorageService storageService = storageServiceProvider.getIfAvailable();
         return ProblemVO.AttachmentVO.builder()
                 .id(attachment.getId())
                 .fileName(attachment.getFileName())
@@ -959,8 +1015,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 .fileSize(attachment.getFileSize())
                 .description(attachment.getDescription())
                 .sortOrder(attachment.getSortOrder())
-                .downloadUrl(storageService == null
-                        ? null : storageService.getUrl(attachment.getObjectKey()))
+                .downloadUrl(resolveDownloadUrl(attachment.getFileId()))
                 .build();
     }
 
@@ -968,10 +1023,60 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
      * 获取已启用的存储服务。
      * @return 存储服务
      */
-    private StorageService getStorageService() {
-        StorageService storageService = storageServiceProvider.getIfAvailable();
-        BusinessException.throwIf(storageService == null, ProblemErrorCode.STORAGE_NOT_ENABLED);
-        return storageService;
+    /**
+     * 通过 file-service 登记附件资产。
+     *
+     * <p>附件物理路由与访问策略由 file-service 决定，题目服务只声明用途与逻辑分组。</p>
+     *
+     * @param problemId 题目标识，用于逻辑分组
+     * @param file 附件文件
+     * @return 文件资产摘要
+     */
+    private FileAssetSummaryDTO registerAttachment(Long problemId, MultipartFile file) {
+        Result<FileAssetSummaryDTO> result;
+        try {
+            result = fileFeignClient.registerForPurpose(
+                    ProblemAttachmentEventProducer.PURPOSE_CODE,
+                    "problems/" + problemId,
+                    null,
+                    file);
+        } catch (RuntimeException exception) {
+            log.warn("附件登记调用失败: problemId={}, exceptionType={}",
+                    problemId, exception.getClass().getSimpleName());
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_STORAGE_UNAVAILABLE);
+        }
+        if (result == null || result.getCode() != RESULT_SUCCESS_CODE
+                || result.getData() == null || result.getData().fileId() == null) {
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED);
+        }
+        return result.getData();
+    }
+
+    /**
+     * 按 fileId 生成短时效下载地址。
+     *
+     * <p>公开题库详情不应因附件存储短暂不可用而整体失败，因此失败时返回 null 并记录告警。</p>
+     *
+     * @param fileId 文件资产标识
+     * @return 预签名下载地址；不可用时为 null
+     */
+    private String resolveDownloadUrl(Long fileId) {
+        if (fileId == null) {
+            return null;
+        }
+        try {
+            Result<FileAccessUrlDTO> result = fileFeignClient.createAccessUrl(fileId);
+            if (result == null || result.getCode() != RESULT_SUCCESS_CODE || result.getData() == null) {
+                log.warn("附件访问地址生成失败: fileId={}, code={}",
+                        fileId, result == null ? null : result.getCode());
+                return null;
+            }
+            return result.getData().url();
+        } catch (RuntimeException exception) {
+            log.warn("附件访问地址生成异常: fileId={}, exceptionType={}",
+                    fileId, exception.getClass().getSimpleName());
+            return null;
+        }
     }
 
     /**
@@ -985,57 +1090,6 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     }
 
     /**
-     * 元数据保存失败时补偿删除已上传对象。
-     * @param storageService 存储服务
-     * @param objectKey 对象路径
-     */
-    private void deleteUploadedObject(StorageService storageService, String objectKey) {
-        try {
-            storageService.delete(objectKey);
-        } catch (RuntimeException cleanupException) {
-            log.error("附件元数据保存失败且对象清理失败", cleanupException);
-        }
-    }
-
-    /**
-     * 数据库事务提交后删除对象。
-     * @param objectKeys 对象路径列表
-     */
-    private void deleteObjectsAfterCommit(List<String> objectKeys) {
-        if (objectKeys.isEmpty()) return;
-        Runnable deleteAction = () -> deleteObjects(objectKeys);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            deleteAction.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                deleteAction.run();
-            }
-        });
-    }
-
-    /**
-     * 删除对象存储中的附件。
-     * @param objectKeys 对象路径列表
-     */
-    private void deleteObjects(List<String> objectKeys) {
-        StorageService storageService = storageServiceProvider.getIfAvailable();
-        if (storageService == null) {
-            log.error("附件存储服务未启用，无法删除对象: count={}", objectKeys.size());
-            return;
-        }
-        for (String objectKey : objectKeys) {
-            try {
-                storageService.delete(objectKey);
-            } catch (RuntimeException exception) {
-                log.error("删除附件对象失败", exception);
-            }
-        }
-    }
-
-    /**
      * 在当前业务事务中记录公开题库失效事件。
      */
     private void recordPublicInvalidation() {
@@ -1044,5 +1098,81 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 ProblemPublicCacheService.SCOPE,
                 ProblemPublicCacheService.SCHEMA_VERSION
         );
+    }
+
+    /**
+     * 使用全文检索获取关键词命中的题目分页。
+     *
+     * @param query 查询条件
+     * @param keyword 关键词
+     * @return 命中分页；检索不可用时返回 null，由调用方降级到数据库查询
+     */
+    private IPage<ProblemVO> searchByKeyword(ProblemPageQuery query, String keyword) {
+        ProblemSearchService searchService = problemSearchService.getIfAvailable();
+        if (searchService == null) return null;
+        ProblemSearchPage hitPage = searchService.search(keyword, query);
+        if (hitPage == null) return null;
+
+        Page<ProblemVO> result = new Page<>(query.getPage(), query.getPageSize(), hitPage.total());
+        if (hitPage.problemIds().isEmpty()) {
+            result.setRecords(List.of());
+            return result;
+        }
+        Map<Long, Problem> problemById = baseMapper.selectBatchIds(hitPage.problemIds()).stream()
+                .collect(Collectors.toMap(Problem::getId, problem -> problem));
+        // 保持检索相关度顺序
+        List<Problem> ordered = hitPage.problemIds().stream()
+                .map(problemById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, List<String>> tagMap = batchGetTagNames(ordered.stream().map(Problem::getId).toList());
+        Map<Long, Contest> contestMap = batchGetContests(ordered);
+        result.setRecords(ordered.stream()
+                .map(problem -> toVO(problem, tagMap.getOrDefault(problem.getId(), List.of()),
+                        null, contestMap.get(problem.getContestId())))
+                .toList());
+        return result;
+    }
+
+    /**
+     * 事务提交后增量同步题目检索文档。
+     *
+     * @param problemId 题目标识
+     */
+    private void syncSearchIndexAfterCommit(Long problemId) {
+        runAfterCommit(() -> {
+            ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+            if (syncService != null) syncService.sync(problemId);
+        });
+    }
+
+    /**
+     * 事务提交后删除题目检索文档。
+     *
+     * @param problemId 题目标识
+     */
+    private void removeSearchIndexAfterCommit(Long problemId) {
+        runAfterCommit(() -> {
+            ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+            if (syncService != null) syncService.remove(problemId);
+        });
+    }
+
+    /**
+     * 在当前事务提交后执行动作；没有活动事务时立即执行。
+     *
+     * @param action 待执行动作
+     */
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

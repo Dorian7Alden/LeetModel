@@ -67,7 +67,7 @@ class DomainToolsTest {
         when(teamFeignClient.getUserCurrentTeam(100L)).thenReturn(Result.ok(new TeamDTO(
                 1024L, "极值探索队", 100L, 1, 3, 51001L, "IN_PROGRESS", null, null, null)));
         when(submissionFeignClient.getLatestTeamSubmission(1024L)).thenReturn(Result.ok(new SubmissionSnapshotDTO(
-                2048L, 1024L, 51001L, 100L, 2, "solution.pdf", "obj_key", "SCORED", true, LocalDateTime.now())));
+                2048L, 1024L, 51001L, 100L, 2, "solution.pdf", 6001L, "SCORED", true, LocalDateTime.now())));
 
         AssistantToolOutput output = submissionStatusTool.execute(
                 new QuerySubmissionStatusTool.Input(null, null),

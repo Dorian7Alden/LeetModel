@@ -19,9 +19,10 @@ public class ProblemAttachment {
 
     private Long problemId;
 
-    private String fileName;
+    /** 文件资产 ID，物理对象与访问策略由 file-service 管理 */
+    private Long fileId;
 
-    private String objectKey;
+    private String fileName;
 
     private String contentType;
 

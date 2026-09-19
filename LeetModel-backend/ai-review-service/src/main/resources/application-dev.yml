@@ -11,12 +11,6 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
-minio:
-  enabled: true
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket: leetmodel
 common:
   ai-client:
     enabled: true

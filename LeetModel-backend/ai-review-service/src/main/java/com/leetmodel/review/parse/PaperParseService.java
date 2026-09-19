@@ -6,7 +6,7 @@ import com.leetmodel.common.api.dto.PaperParseDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.feign.SubmissionFeignClient;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.review.entity.PaperParseArtifact;
 import com.leetmodel.review.mapper.PaperParseArtifactMapper;
 import com.leetmodel.review.parse.v2.PaperDocumentV2;
@@ -25,7 +25,7 @@ import java.util.HexFormat;
 public class PaperParseService {
     private final PaperParseArtifactMapper mapper;
     private final SubmissionFeignClient submissionFeignClient;
-    private final StorageService storageService;
+    private final FileContentClient fileContentClient;
     private final PaperParseV1Parser parser;
     private final PaperParseV2Parser v2Parser;
     private final PaperParseV2Properties v2Properties;
@@ -35,7 +35,7 @@ public class PaperParseService {
     public PaperParseService(
             PaperParseArtifactMapper mapper,
             SubmissionFeignClient submissionFeignClient,
-            StorageService storageService,
+            FileContentClient fileContentClient,
             PaperParseV1Parser parser,
             PaperParseV2Parser v2Parser,
             PaperParseV2Properties v2Properties,
@@ -44,7 +44,7 @@ public class PaperParseService {
     ) {
         this.mapper = mapper;
         this.submissionFeignClient = submissionFeignClient;
-        this.storageService = storageService;
+        this.fileContentClient = fileContentClient;
         this.parser = parser;
         this.v2Parser = v2Parser;
         this.v2Properties = v2Properties;
@@ -76,7 +76,7 @@ public class PaperParseService {
         artifact.setSubmissionId(submissionId);
         artifact.setWorkflowVersion(PaperParseV1Parser.WORKFLOW_VERSION);
         artifact.setSchemaVersion(PaperParseV1Parser.SCHEMA_VERSION);
-        try (InputStream input = storageService.download(submission.getObjectName())) {
+        try (InputStream input = fileContentClient.open(submission.getFileId())) {
             byte[] pdf = input.readAllBytes();
             if (pdf.length == 0) throw new IllegalArgumentException("提交 PDF 为空");
             artifact.setContentSha256(sha256(pdf));
@@ -116,7 +116,7 @@ public class PaperParseService {
         artifact.setSubmissionId(submissionId);
         artifact.setWorkflowVersion(PaperParseV2Parser.WORKFLOW_VERSION);
         artifact.setSchemaVersion(PaperParseV2Parser.SCHEMA_VERSION);
-        try (InputStream input = storageService.download(submission.getObjectName())) {
+        try (InputStream input = fileContentClient.open(submission.getFileId())) {
             byte[] pdf = input.readAllBytes();
             if (pdf.length == 0) throw new IllegalArgumentException("提交 PDF 为空");
             String contentSha256 = sha256(pdf);

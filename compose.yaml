@@ -125,7 +125,8 @@ services:
       retries: 20
       start_period: 10s
 
-  # RAG V1 正式向量索引。固定版本与 LangChain4j 0.34.0 的 ES 8.14.3 客户端同代。
+  # RAG V1 正式向量索引与题库全文检索共用实例（索引物理隔离）。
+  # 固定版本与 LangChain4j 0.34.0 及题库检索使用的 ES 8.14.3 客户端同代。
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
     container_name: leetmodel-elasticsearch

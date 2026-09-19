@@ -5,8 +5,11 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leetmodel.common.api.dto.UserPageQuery;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.core.result.Result;
 import com.leetmodel.user.dto.ChangePasswordRequest;
 import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.user.dto.UserUpdateRequest;
@@ -17,6 +20,7 @@ import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
+import com.leetmodel.user.messaging.UserAvatarEventProducer;
 import com.leetmodel.user.service.impl.UserServiceImpl;
 import com.leetmodel.user.vo.UserVO;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,7 +65,10 @@ class UserServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private StorageService storageService;
+    private FileFeignClient fileFeignClient;
+
+    @Mock
+    private UserAvatarEventProducer avatarEvents;
 
     @Mock
     private UserAuditEventProducer audit;
@@ -87,7 +94,8 @@ class UserServiceTest {
         user.setPassword("$2a$encoded");
         user.setNickname("Test");
         user.setEmail("test@example.com");
-        user.setAvatarPath(null);
+        user.setAvatarFileId(null);
+        user.setAvatarUrl(null);
         user.setStatus(1);
     }
 
@@ -131,20 +139,61 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("上传头像时只保存对象路径")
-    void updateAvatarStoresObjectPath() {
+    @DisplayName("上传头像时只保存 fileId 并写入绑定事件")
+    void updateAvatarStoresFileIdAndBinding() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "avatar.png", "image/png", "image-data".getBytes()
         );
         when(userMapper.selectById(1L)).thenReturn(user);
         when(userMapper.updateById(any(User.class))).thenReturn(1);
-        when(storageService.upload(file, "avatars")).thenReturn("avatars/avatar.png");
-        when(storageService.getUrl("avatars/avatar.png")).thenReturn("http://storage/avatar.png");
+        when(fileFeignClient.registerForPurpose(any(), any(), any(), any()))
+                .thenReturn(Result.ok(new FileAssetSummaryDTO(
+                        9101L, "avatar", "USER_AVATAR", "avatar.png",
+                        "image/png", 10L, "AVAILABLE_UNBOUND")));
+        when(fileFeignClient.createAccessUrl(9101L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("http://storage/avatar.png", 600)));
 
         String avatarUrl = userService.updateAvatar(1L, file);
 
-        assertEquals("avatars/avatar.png", user.getAvatarPath());
+        assertEquals(9101L, user.getAvatarFileId());
+        assertNull(user.getAvatarUrl());
         assertEquals("http://storage/avatar.png", avatarUrl);
+        verify(fileFeignClient).registerForPurpose(
+                eq(UserAvatarEventProducer.PURPOSE_CODE), eq("profile"), eq(null), eq(file));
+        verify(avatarEvents).bound(1L, 9101L);
+        verify(avatarEvents, never()).unbound(any(), any());
+    }
+
+    @Test
+    @DisplayName("更换头像时解除旧头像引用")
+    void updateAvatarReleasesPreviousBinding() {
+        user.setAvatarFileId(9000L);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "avatar.png", "image/png", "image-data".getBytes()
+        );
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(userMapper.updateById(any(User.class))).thenReturn(1);
+        when(fileFeignClient.registerForPurpose(any(), any(), any(), any()))
+                .thenReturn(Result.ok(new FileAssetSummaryDTO(
+                        9102L, "avatar", "USER_AVATAR", "avatar.png",
+                        "image/png", 10L, "AVAILABLE_UNBOUND")));
+        when(fileFeignClient.createAccessUrl(9102L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("http://storage/new.png", 600)));
+
+        userService.updateAvatar(1L, file);
+
+        verify(avatarEvents).unbound(1L, 9000L);
+        verify(avatarEvents).bound(1L, 9102L);
+    }
+
+    @Test
+    @DisplayName("外链头像在存储服务不可用时仍可返回")
+    void externalAvatarUrlRemainsUsable() {
+        user.setAvatarUrl("https://api.dicebear.com/9.x/micah/svg?seed=demo");
+
+        assertEquals("https://api.dicebear.com/9.x/micah/svg?seed=demo",
+                userService.resolveAvatarUrl(user));
+        verify(fileFeignClient, never()).createAccessUrl(any());
     }
 
     @Test

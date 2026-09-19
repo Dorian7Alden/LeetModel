@@ -127,7 +127,7 @@ public class InternalSubmissionController {
         return Result.ok(new SubmissionSnapshotDTO(
                 submission.getId(), submission.getTeamId(), submission.getProblemId(),
                 submission.getSubmitterId(), submission.getVersion(),
-                submission.getOriginalFilename(), submission.getObjectName(),
+                submission.getOriginalFilename(), submission.getFileId(),
                 submission.getStatus(), null, submission.getCreateTime()
         ));
     }
@@ -150,7 +150,7 @@ public class InternalSubmissionController {
         return Result.ok(new SubmissionSnapshotDTO(
                 submission.getId(), submission.getTeamId(), submission.getProblemId(),
                 submission.getSubmitterId(), submission.getVersion(),
-                submission.getOriginalFilename(), submission.getObjectName(),
+                submission.getOriginalFilename(), submission.getFileId(),
                 submission.getStatus(), null, submission.getCreateTime()
         ));
     }

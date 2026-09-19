@@ -13,13 +13,10 @@ spring:
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:005523}
+        password: ${NACOS_PASSWORD:}
 
 server:
   port: 8083
-
-minio:
-  enabled: false
 
 # Knife4j API 文档
 springdoc:
