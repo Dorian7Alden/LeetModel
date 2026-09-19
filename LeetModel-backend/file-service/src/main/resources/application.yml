@@ -14,7 +14,19 @@ spring:
 server:
   shutdown: graceful
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: false
+
 file:
+  messaging:
+    consumer-enabled: ${FILE_BINDING_CONSUMER_ENABLED:true}
   lifecycle:
     delete-grace: ${FILE_DELETE_GRACE:24h}
     cleanup-interval-ms: ${FILE_CLEANUP_INTERVAL_MS:60000}
