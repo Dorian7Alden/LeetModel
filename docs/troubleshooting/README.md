@@ -34,3 +34,4 @@
 | [题库检索索引启动自举未触发.md](题库检索索引启动自举未触发.md) | 索引删除后重启服务不触发索引自举，管理端重建接口却正常 | 低层 REST 客户端对 HEAD 请求固定忽略 404，存在性判断恒为“已存在” |
 | [GitHub引用Gitee图床图片无法显示.md](GitHub引用Gitee图床图片无法显示.md) | README 图片直连可访问，推送到 GitHub 后显示为裂图 | GitHub 代理抓取外部图床超时（Gitee `/raw/` 302 到带签名限时地址，海外代理返回 504） |
 | [Token黑名单查询被Lettuce默认超时拖住.md](Token黑名单查询被Lettuce默认超时拖住.md) | Redis 停机后携带有效 Token 的请求挂起 15 秒以上，fail-open 降级不生效 | Lettuce 默认 60 秒命令超时 + 响应式链路无错误信号，必须显式配置超时 |
+| [自动配置引用可选依赖导致无Redis服务启动失败.md](自动配置引用可选依赖导致无Redis服务启动失败.md) | 全量测试中 ai-gateway-service 上下文加载失败，报 NoClassDefFoundError | 公共模块自动配置的方法签名引用可选依赖类型，缺依赖的服务无法内省配置类 |
