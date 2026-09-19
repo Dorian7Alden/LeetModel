@@ -17,7 +17,7 @@ import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.api.dto.ProblemContextDTO;
 import com.leetmodel.common.api.dto.ReviewSummaryDTO;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.suggestion.entity.SuggestionTask;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -43,15 +43,15 @@ public class SuggestionV1Workflow {
     private static final Map<String, Integer> PRIORITY_ORDER = Map.of(
             "HIGH", 0, "MEDIUM", 1, "LOW", 2);
 
-    private final StorageService storageService;
+    private final FileContentClient fileContentClient;
     private final PdfTextExtractor textExtractor;
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final String prompt;
 
-    public SuggestionV1Workflow(StorageService storageService, PdfTextExtractor textExtractor,
+    public SuggestionV1Workflow(FileContentClient fileContentClient, PdfTextExtractor textExtractor,
                                 AiClient aiClient, ObjectMapper objectMapper) throws Exception {
-        this.storageService = storageService;
+        this.fileContentClient = fileContentClient;
         this.textExtractor = textExtractor;
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
@@ -80,7 +80,7 @@ public class SuggestionV1Workflow {
     public SuggestionWorkflowResult execute(SuggestionTask task, SubmissionReviewDTO submission,
                                             ProblemContextDTO problem, ReviewSummaryDTO review) throws Exception {
         byte[] pdf;
-        try (InputStream input = storageService.download(submission.getObjectName())) {
+        try (InputStream input = fileContentClient.open(submission.getFileId())) {
             pdf = input.readAllBytes();
         }
         PdfTextExtractor.ExtractedPaper paper = textExtractor.extract(pdf);

@@ -29,6 +29,9 @@ public class MinioProperties {
     /** 上传文件有效期（秒），获取预签名 URL 时使用，默认 7 天 */
     private int expirySeconds = 7 * 24 * 60 * 60;
 
+    /** 预签名上传地址有效期（秒），默认 15 分钟 */
+    private int uploadExpirySeconds = 15 * 60;
+
     /** 是否启用对象存储（设为 false 时跳过 Bean 创建） */
     private boolean enabled = false;
 }

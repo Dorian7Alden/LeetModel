@@ -173,7 +173,7 @@ class SuggestionV2CreationTest {
 
     private void prepareFacts() {
         when(submissionFeignClient.getForReview(SUBMISSION_ID)).thenReturn(Result.ok(
-                new SubmissionReviewDTO(SUBMISSION_ID, TEAM_ID, PROBLEM_ID, 2, "object")));
+                new SubmissionReviewDTO(SUBMISSION_ID, TEAM_ID, PROBLEM_ID, 2, 7003L)));
         when(teamFeignClient.getMemberIds(TEAM_ID)).thenReturn(Result.ok(List.of(USER_ID)));
         when(reviewFeignClient.getByTask(REVIEW_TASK_ID)).thenReturn(Result.ok(
                 new ReviewSummaryDTO(REVIEW_TASK_ID, SUBMISSION_ID, TEAM_ID, PROBLEM_ID,

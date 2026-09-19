@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.leetmodel.common.ai.client.HttpAiClient;
 import com.leetmodel.common.ai.model.AiChatResponse;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.service.ReviewTaskLogService;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -31,8 +31,8 @@ class ReviewNewApiSmokeTest {
     @Test
     void shouldReviewSyntheticPdfThroughNewApi() throws Exception {
         byte[] pdf = syntheticPdf();
-        StorageService storage = mock(StorageService.class);
-        when(storage.download("synthetic-smoke.pdf"))
+        FileContentClient storage = mock(FileContentClient.class);
+        when(storage.open(9003L))
                 .thenAnswer(ignored -> new ByteArrayInputStream(pdf));
         BasicReviewV1Properties properties = new BasicReviewV1Properties();
         properties.setRenderDpi(72);
@@ -55,7 +55,7 @@ class ReviewNewApiSmokeTest {
         task.setWorkflowVersion(BasicReviewV1Workflow.VERSION_CODE);
         task.setPromptSnapshot(workflow.currentPrompt());
         SubmissionReviewDTO submission = new SubmissionReviewDTO(
-                1L, 1L, 1L, 1, "synthetic-smoke.pdf");
+                1L, 1L, 1L, 1, 9003L);
 
         try {
             workflow.execute(task, submission);

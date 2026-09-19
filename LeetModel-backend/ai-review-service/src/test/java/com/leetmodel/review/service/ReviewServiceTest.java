@@ -433,6 +433,6 @@ class ReviewServiceTest {
     }
 
     private SubmissionReviewDTO submission() {
-        return new SubmissionReviewDTO(31L, 41L, 51L, 1, "submissions/41/paper.pdf");
+        return new SubmissionReviewDTO(31L, 41L, 51L, 1, 9008L);
     }
 }

@@ -131,6 +131,22 @@ public class ProblemController {
     }
 
     /**
+     * 绑定预签名直传完成后的文件资产为题目附件。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @param request 绑定请求
+     * @return 绑定成功后的附件视图对象
+     */
+    @Operation(summary = "绑定已登记文件为题目附件")
+    @PostMapping(path = "/{id}/attachments/registered")
+    public Result<ProblemVO.AttachmentVO> attachRegisteredFile(
+            @PathVariable Long id,
+            @Valid @RequestBody com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request
+    ) {
+        return Result.ok(problemService.attachRegisteredFile(id, request));
+    }
+
+    /**
      * 删除指定题目下关联的附件文件。
      *
      * @param problemId    目标题目 ID，不能为 null
@@ -145,5 +161,16 @@ public class ProblemController {
     ) {
         problemService.deleteAttachment(problemId, attachmentId);
         return Result.ok();
+    }
+
+    /**
+     * 按数据库快照重建题库全文检索索引。
+     *
+     * @return 成功写入的题目数量；全文检索未启用时返回 -1
+     */
+    @Operation(summary = "重建题库检索索引")
+    @PostMapping("/search-index/rebuild")
+    public Result<Integer> rebuildSearchIndex() {
+        return Result.ok(problemService.rebuildSearchIndex());
     }
 }

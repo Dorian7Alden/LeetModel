@@ -14,7 +14,26 @@ spring:
 server:
   shutdown: graceful
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+
+leetmodel:
+  messaging:
+    enabled: true
+    namespace: ${ROCKETMQ_NAMESPACE:lm-dev}
+    relay:
+      enabled: false
+
 file:
+  messaging:
+    consumer-enabled: ${FILE_BINDING_CONSUMER_ENABLED:true}
+  upload:
+    max-file-size: ${FILE_UPLOAD_MAX_FILE_SIZE:5368709120}
+    min-part-size: ${FILE_UPLOAD_MIN_PART_SIZE:5242880}
+    default-part-size: ${FILE_UPLOAD_DEFAULT_PART_SIZE:16777216}
+    max-part-count: ${FILE_UPLOAD_MAX_PART_COUNT:10000}
+    session-expiry: ${FILE_UPLOAD_SESSION_EXPIRY:24h}
+    sha256-verify-max-bytes: ${FILE_UPLOAD_SHA256_VERIFY_MAX_BYTES:67108864}
   lifecycle:
     delete-grace: ${FILE_DELETE_GRACE:24h}
     cleanup-interval-ms: ${FILE_CLEANUP_INTERVAL_MS:60000}

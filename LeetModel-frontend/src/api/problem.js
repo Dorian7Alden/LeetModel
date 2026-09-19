@@ -124,6 +124,18 @@ export function deleteAdminAttachment(problemId, attachmentId) {
   });
 }
 
+export function registerAdminAttachment(problemId, fileId, options = {}) {
+  return request({
+    url: `/admin/content/problems/${problemId}/attachments/registered`,
+    method: "post",
+    data: {
+      fileId,
+      description: options.description ?? null,
+      sortOrder: options.sortOrder ?? null,
+    },
+  });
+}
+
 // ==================== 题目收藏接口（需登录） ====================
 
 export function addProblemFavorite(problemId) {

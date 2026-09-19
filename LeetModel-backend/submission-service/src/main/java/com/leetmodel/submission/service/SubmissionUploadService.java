@@ -1,6 +1,9 @@
 package com.leetmodel.submission.service;
 
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.exception.ErrorCodeEnum;
@@ -14,6 +17,7 @@ import com.leetmodel.submission.entity.SubmissionUploadChunk;
 import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionUploadChunkMapper;
 import com.leetmodel.submission.mapper.SubmissionUploadMapper;
+import com.leetmodel.submission.messaging.SubmissionPaperEventProducer;
 import com.leetmodel.submission.storage.SubmissionChunkStorage;
 import com.leetmodel.submission.vo.SubmissionVO;
 import com.leetmodel.submission.vo.UploadSessionVO;
@@ -53,9 +57,13 @@ public class SubmissionUploadService {
     private final SubmissionUploadPersistenceService persistenceService;
     private final SubmissionService submissionService;
     private final TeamFeignClient teamFeignClient;
+    private final FileFeignClient fileFeignClient;
     private final StorageService storageService;
     private final SubmissionChunkStorage chunkStorage;
     private final SubmissionUploadProperties properties;
+
+    /** 统一响应体成功状态码。 */
+    private static final int RESULT_SUCCESS_CODE = 20000;
 
     /**
      * 初始化或恢复论文上传会话。
@@ -204,13 +212,15 @@ public class SubmissionUploadService {
             throw new BusinessException(SubmissionErrorCode.UPLOAD_STATE_INVALID);
         }
 
-        // 在数据库事务外完成 MinIO 合并和最终 PDF 校验
+        // 在数据库事务外完成对象合并、最终 PDF 校验与文件资产登记
+        Long fileId;
         try {
             List<String> sourceObjects = chunks.stream()
                     .map(SubmissionUploadChunk::getObjectName)
                     .toList();
             chunkStorage.compose(upload.getFinalObjectName(), sourceObjects);
             validateMergedPdf(upload);
+            fileId = adoptFinalPaper(upload);
         } catch (RuntimeException exception) {
             uploadMapper.resetCompletion(upload.getId());
             deleteFinalObject(upload.getFinalObjectName());
@@ -218,11 +228,43 @@ public class SubmissionUploadService {
         }
 
         // 短事务创建提交，再幂等触发评审
-        Submission submission = persistenceService.createSubmission(upload.getId());
+        Submission submission = persistenceService.createSubmission(upload.getId(), fileId);
         SubmissionVO response = submissionService.triggerReview(submission);
         uploadMapper.markCompleted(upload.getId(), submission.getId());
         cleanupChunks(upload.getId(), chunks);
         return response;
+    }
+
+    /**
+     * 将合并完成的正式论文交给 file-service 接管。
+     *
+     * <p>论文对象在提交服务的交接目录中生成，登记成功后与提交版本一起进入引用投影；
+     * 登记失败时按上传未完成处理，避免出现没有文件资产的提交版本。</p>
+     *
+     * @param upload 已合并的上传会话
+     * @return 文件资产标识
+     */
+    private Long adoptFinalPaper(SubmissionUpload upload) {
+        Result<FileAssetSummaryDTO> result;
+        try {
+            result = fileFeignClient.adopt(new FileAssetAdoptRequestDTO(
+                    SubmissionPaperEventProducer.PURPOSE_CODE,
+                    upload.getFinalObjectName(),
+                    upload.getOriginalFilename(),
+                    "application/pdf",
+                    upload.getFileSize(),
+                    null,
+                    upload.getUploaderId()));
+        } catch (RuntimeException exception) {
+            log.warn("论文登记调用失败: uploadId={}, exceptionType={}",
+                    upload.getId(), exception.getClass().getSimpleName());
+            throw new BusinessException(SubmissionErrorCode.PAPER_STORAGE_UNAVAILABLE);
+        }
+        if (result == null || result.getCode() != RESULT_SUCCESS_CODE
+                || result.getData() == null || result.getData().fileId() == null) {
+            throw new BusinessException(SubmissionErrorCode.PAPER_REGISTER_FAILED);
+        }
+        return result.getData().fileId();
     }
 
     /**

@@ -8,7 +8,7 @@ import com.leetmodel.common.ai.model.AiModality;
 import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiProvider;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.service.ReviewTaskLogService;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -28,24 +28,24 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BasicReviewV1WorkflowTest {
-    private StorageService storageService;
+    private FileContentClient fileContentClient;
     private AiClient aiClient;
     private BasicReviewV1Workflow workflow;
     private byte[] pdf;
 
     @BeforeEach
     void setUp() throws Exception {
-        storageService = mock(StorageService.class);
+        fileContentClient = mock(FileContentClient.class);
         aiClient = mock(AiClient.class);
         ReviewTaskLogService logService = mock(ReviewTaskLogService.class);
         BasicReviewV1Properties properties = new BasicReviewV1Properties();
         properties.setRenderDpi(72);
-        workflow = new BasicReviewV1Workflow(storageService, new PdfPageRenderer(properties), aiClient,
+        workflow = new BasicReviewV1Workflow(fileContentClient, new PdfPageRenderer(properties), aiClient,
                 new ObjectMapper(), logService);
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             document.addPage(new PDPage()); document.save(output); pdf = output.toByteArray();
         }
-        when(storageService.download("paper.pdf")).thenAnswer(ignored -> new ByteArrayInputStream(pdf));
+        when(fileContentClient.open(9004L)).thenAnswer(ignored -> new ByteArrayInputStream(pdf));
     }
 
     @Test
@@ -97,7 +97,7 @@ class BasicReviewV1WorkflowTest {
         return task;
     }
     private SubmissionReviewDTO submission() {
-        return new SubmissionReviewDTO(2L, 3L, 4L, 1, "paper.pdf");
+        return new SubmissionReviewDTO(2L, 3L, 4L, 1, 9004L);
     }
     private AiChatResponse response(String content) {
         return new AiChatResponse("call-1", AiProvider.NEW_API, "deepseek-v4-flash-vision-exp",

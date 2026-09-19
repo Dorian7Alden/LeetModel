@@ -15,7 +15,7 @@ import com.leetmodel.common.ai.model.AiOperationCode;
 import com.leetmodel.common.ai.model.AiResponseFormat;
 import com.leetmodel.common.ai.model.AiRole;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.api.feign.FileContentClient;
 import com.leetmodel.review.entity.ReviewTask;
 import com.leetmodel.review.entity.ReviewTaskLog;
 import com.leetmodel.review.service.ReviewTaskLogService;
@@ -39,16 +39,16 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
     public static final String VERSION_CODE = "BASIC_REVIEW_V1";
     public static final long VERSION_ID = 1L;
 
-    private final StorageService storageService;
+    private final FileContentClient fileContentClient;
     private final PdfPageRenderer pageRenderer;
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final ReviewTaskLogService logService;
     private final String prompt;
 
-    public BasicReviewV1Workflow(StorageService storageService, PdfPageRenderer pageRenderer, AiClient aiClient,
+    public BasicReviewV1Workflow(FileContentClient fileContentClient, PdfPageRenderer pageRenderer, AiClient aiClient,
                                  ObjectMapper objectMapper, ReviewTaskLogService logService) throws Exception {
-        this.storageService = storageService;
+        this.fileContentClient = fileContentClient;
         this.pageRenderer = pageRenderer;
         this.aiClient = aiClient;
         this.objectMapper = objectMapper;
@@ -74,7 +74,7 @@ public class BasicReviewV1Workflow implements ReviewWorkflow {
 
     private byte[] download(ReviewTask task, SubmissionReviewDTO submission) throws Exception {
         ReviewTaskLog step = logService.start(task, "FETCH_PDF", "获取 PDF", "submissionId=" + submission.getId());
-        try (InputStream input = storageService.download(submission.getObjectName())) {
+        try (InputStream input = fileContentClient.open(submission.getFileId())) {
             byte[] bytes = input.readAllBytes();
             if (bytes.length == 0) throw new IllegalArgumentException("提交 PDF 为空");
             logService.succeed(step, "pdfBytes=" + bytes.length, null);

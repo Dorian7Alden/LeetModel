@@ -267,7 +267,7 @@ class RankingServiceTest {
 
     private SubmissionSnapshotDTO submission(Long id, Long teamId, LocalDateTime createdAt) {
         return new SubmissionSnapshotDTO(
-                id, teamId, PROBLEM_ID, 9L, 1, "paper.pdf", "papers/paper.pdf",
+                id, teamId, PROBLEM_ID, 9L, 1, "paper.pdf", 8002L,
                 "SUCCESS", true, createdAt);
     }
 

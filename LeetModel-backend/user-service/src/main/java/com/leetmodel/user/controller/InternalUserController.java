@@ -3,7 +3,6 @@ package com.leetmodel.user.controller;
 import com.leetmodel.common.api.dto.UserRoleDTO;
 import com.leetmodel.common.api.dto.UserPublicSummaryDTO;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.user.entity.User;
 import com.leetmodel.user.service.RoleService;
 import com.leetmodel.user.service.UserService;
@@ -34,7 +33,6 @@ public class InternalUserController {
 
     private final RoleService roleService;
     private final UserService userService;
-    private final StorageService storageService;
 
     /**
      * 获取指定用户的角色编码与权限列表（供 common-security 鉴权使用）。
@@ -83,7 +81,7 @@ public class InternalUserController {
             summaries.add(new UserPublicSummaryDTO(
                     user.getId(),
                     user.getNickname(),
-                    resolveAvatarUrl(user.getAvatarPath())
+                    userService.resolveAvatarUrl(user)
             ));
         }
         return Result.ok(summaries);
@@ -101,15 +99,4 @@ public class InternalUserController {
         return Result.ok(count);
     }
 
-    /**
-     * 将头像对象路径转换为访问地址。
-     *
-     * @param avatarPath 头像对象路径
-     * @return 头像访问地址
-     */
-    private String resolveAvatarUrl(String avatarPath) {
-        if (avatarPath == null || avatarPath.isBlank()) return null;
-        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) return avatarPath;
-        return storageService.getUrl(avatarPath);
-    }
 }

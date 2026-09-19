@@ -338,7 +338,8 @@
                 @change="handleFileSelected"
               />
               <el-button size="small" type="primary" plain :loading="uploadingAttachment" @click="triggerChooseFile">
-                <el-icon><Upload /></el-icon> 上传附件
+                <el-icon><Upload /></el-icon>
+                {{ uploadingAttachment ? `上传中 ${uploadProgress}%` : '上传附件' }}
               </el-button>
             </div>
           </div>
@@ -472,10 +473,12 @@ import {
   updateAdminContentProblem,
   deleteAdminContentProblem,
   uploadAdminAttachment,
+  registerAdminAttachment,
   deleteAdminAttachment,
   getAdminContentContests,
   getAdminContentTags,
 } from '@/api/problem';
+import { shouldUseDirectUpload, uploadFileDirect } from '@/utils/directUpload';
 
 const emit = defineEmits(['changed']);
 const searchQuery = ref('');
@@ -557,6 +560,7 @@ const submitLoading = ref(false);
 const formRef = ref();
 const fileInputRef = ref(null);
 const uploadingAttachment = ref(false);
+const uploadProgress = ref(0);
 const existingAttachments = ref([]);
 const pendingAttachments = ref([]);
 
@@ -580,8 +584,15 @@ const handleFileSelected = async (e) => {
     // 编辑模式：直接调用后端接口上传并挂载至已有题目
     uploadingAttachment.value = true;
     try {
-      for (const file of files) {
-        const res = await uploadAdminAttachment(editId.value, file);
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        uploadProgress.value = 0;
+        const res = await attachFileToProblem(
+          editId.value,
+          file,
+          {},
+          existingAttachments.value.length + index,
+        );
         if (res.code === 20000 && res.data) {
           existingAttachments.value.push(res.data);
         }
@@ -624,6 +635,35 @@ const handleDeleteExistingAttachment = async (attachmentId) => {
 
 const removePendingAttachment = (index) => {
   pendingAttachments.value.splice(index, 1);
+};
+
+/**
+ * 上传附件：大文件走预签名分片直传，小文件继续使用后端代理上传。
+ * @param {number} problemId 目标题目 ID
+ * @param {File} file 浏览器文件对象
+ * @param {object} options 附件说明等可选参数
+ * @param {number} sortOrder 展示顺序
+ * @returns {Promise<object>} 后端返回的附件或文件资产结果
+ */
+const attachFileToProblem = async (problemId, file, options = {}, sortOrder = 0) => {
+  const reportProgress = (loaded, total) => {
+    uploadProgress.value = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+  };
+  if (shouldUseDirectUpload(file)) {
+    const asset = await uploadFileDirect(file, {
+      purpose: 'PROBLEM_ATTACHMENT',
+      groupPath: `problems/${problemId}`,
+      onProgress: reportProgress,
+    });
+    return registerAdminAttachment(problemId, asset.fileId, {
+      description: options.description,
+      sortOrder,
+    });
+  }
+  reportProgress(0, file.size);
+  const response = await uploadAdminAttachment(problemId, file, options);
+  reportProgress(file.size, file.size);
+  return response;
 };
 
 const form = reactive({
@@ -861,10 +901,13 @@ const onSubmit = async () => {
         for (let i = 0; i < pendingAttachments.value.length; i++) {
           const att = pendingAttachments.value[i];
           try {
-            await uploadAdminAttachment(newProblemId, att.file, {
-              description: att.description?.trim() || null,
-              sortOrder: i,
-            });
+            uploadProgress.value = 0;
+            await attachFileToProblem(
+              newProblemId,
+              att.file,
+              { description: att.description?.trim() || null },
+              i,
+            );
             uploadSuccessCount++;
           } catch (uploadErr) {
             console.error(`附件 ${att.fileName} 联动上传失败:`, uploadErr);

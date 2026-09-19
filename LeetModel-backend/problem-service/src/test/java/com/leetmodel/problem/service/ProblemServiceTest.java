@@ -4,9 +4,12 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.cache.CacheInvalidator;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.core.result.Result;
 import com.leetmodel.problem.audit.ProblemAuditEventProducer;
 import com.leetmodel.problem.dto.ProblemCreateRequest;
 import com.leetmodel.problem.dto.ProblemPageQuery;
@@ -22,6 +25,10 @@ import com.leetmodel.problem.mapper.ProblemAttachmentMapper;
 import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
+import com.leetmodel.problem.messaging.ProblemAttachmentEventProducer;
+import com.leetmodel.problem.search.ProblemSearchPage;
+import com.leetmodel.problem.search.ProblemSearchService;
+import com.leetmodel.problem.search.ProblemSearchSyncService;
 import com.leetmodel.problem.service.impl.ProblemServiceImpl;
 import com.leetmodel.problem.vo.ProblemVO;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -41,7 +48,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -49,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,8 +81,10 @@ class ProblemServiceTest {
     @Mock private TagMapper tagMapper;
     @Mock private ProblemAttachmentMapper problemAttachmentMapper;
     @Mock private ContestMapper contestMapper;
-    @Mock private ObjectProvider<StorageService> storageServiceProvider;
-    @Mock private StorageService storageService;
+    @Mock private FileFeignClient fileFeignClient;
+    @Mock private ProblemAttachmentEventProducer attachmentEvents;
+    @Mock private ObjectProvider<ProblemSearchService> problemSearchService;
+    @Mock private ObjectProvider<ProblemSearchSyncService> problemSearchSyncService;
     @Mock private CacheInvalidator cacheInvalidator;
     @Mock private ProblemAuditEventProducer audit;
 
@@ -87,6 +96,8 @@ class ProblemServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(problemService, "baseMapper", problemMapper);
+        ReflectionTestUtils.setField(problemService, "problemSearchService", problemSearchService);
+        ReflectionTestUtils.setField(problemService, "problemSearchSyncService", problemSearchSyncService);
         problem = new Problem();
         problem.setId(1L);
         problem.setTitle("测试题目");
@@ -236,11 +247,11 @@ class ProblemServiceTest {
         when(problemMapper.selectById(1L)).thenReturn(problem);
         when(problemTagMapper.selectList(any())).thenReturn(List.of());
         when(problemAttachmentMapper.selectList(any())).thenReturn(List.of(
-                attachment(201L, "data.xlsx", "problems/1/data.xlsx"),
-                attachment(202L, "statement.pdf", "problems/1/statement.pdf")
+                attachment(201L, "data.xlsx", 9001L),
+                attachment(202L, "statement.pdf", 9002L)
         ));
-        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
-        when(storageService.getUrl(any())).thenReturn("https://example.com/download");
+        when(fileFeignClient.createAccessUrl(any()))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("https://example.com/download", 600)));
 
         ProblemVO result = problemService.getProblemDetail(1L);
 
@@ -398,12 +409,15 @@ class ProblemServiceTest {
     }
 
     @Test
-    @DisplayName("上传附件保存对象路径和元数据")
-    void uploadAttachmentStoresObjectAndMetadata() {
+    @DisplayName("上传附件保存稳定 fileId 并写入绑定事件")
+    void uploadAttachmentStoresFileIdAndBinding() {
         when(problemMapper.selectById(1L)).thenReturn(problem);
-        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
-        when(storageService.upload(any(), any(), any())).thenReturn("problems/1/attachments/file.pdf");
-        when(storageService.getUrl(any())).thenReturn("https://example.com/file.pdf");
+        when(fileFeignClient.registerForPurpose(any(), any(), any(), any()))
+                .thenReturn(Result.ok(new FileAssetSummaryDTO(
+                        9003L, "problem", "PROBLEM_ATTACHMENT", "statement.pdf",
+                        "application/pdf", 3L, "AVAILABLE_UNBOUND")));
+        when(fileFeignClient.createAccessUrl(9003L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("https://example.com/file.pdf", 600)));
         when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
             ProblemAttachment attachment = invocation.getArgument(0);
             attachment.setId(201L);
@@ -419,34 +433,118 @@ class ProblemServiceTest {
 
         assertEquals("statement.pdf", result.getFileName());
         assertEquals("原始题面", result.getDescription());
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Set<String>> contentTypesCaptor = ArgumentCaptor.forClass(Set.class);
-        verify(storageService).upload(
-                eq(file),
-                eq("problems/1/attachments"),
-                contentTypesCaptor.capture()
+        assertEquals("https://example.com/file.pdf", result.getDownloadUrl());
+        verify(fileFeignClient).registerForPurpose(
+                eq(ProblemAttachmentEventProducer.PURPOSE_CODE),
+                eq("problems/1"),
+                eq(null),
+                eq(file)
         );
-        assertTrue(contentTypesCaptor.getValue().contains("application/zip"));
-        assertTrue(contentTypesCaptor.getValue().contains("application/x-7z-compressed"));
-        verify(problemAttachmentMapper).insert(any(ProblemAttachment.class));
+        ArgumentCaptor<ProblemAttachment> attachmentCaptor =
+                ArgumentCaptor.forClass(ProblemAttachment.class);
+        verify(problemAttachmentMapper).insert(attachmentCaptor.capture());
+        assertEquals(9003L, attachmentCaptor.getValue().getFileId());
+        verify(attachmentEvents).bound(201L, 9003L);
     }
 
     @Test
-    @DisplayName("删除附件清理元数据和对象")
-    void deleteAttachmentRemovesMetadataAndObject() {
-        ProblemAttachment attachment = attachment(
-                201L,
-                "statement.pdf",
-                "problems/1/attachments/file.pdf"
-        );
+    @DisplayName("删除附件只解除引用，物理清理由文件服务负责")
+    void deleteAttachmentReleasesBindingWithoutDeletingObject() {
+        ProblemAttachment attachment = attachment(201L, "statement.pdf", 9004L);
         when(problemAttachmentMapper.selectById(201L)).thenReturn(attachment);
         when(problemAttachmentMapper.deleteById(201L)).thenReturn(1);
-        when(storageServiceProvider.getIfAvailable()).thenReturn(storageService);
 
         problemService.deleteAttachment(1L, 201L);
 
         verify(problemAttachmentMapper).deleteById(201L);
-        verify(storageService).delete("problems/1/attachments/file.pdf");
+        verify(attachmentEvents).unbound(201L, 9004L);
+    }
+
+    @Test
+    @DisplayName("绑定已登记文件时复用 fileId 并写入绑定事件")
+    void attachRegisteredFileBindsExistingAsset() {
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(fileFeignClient.getSummary(9301L)).thenReturn(Result.ok(new FileAssetSummaryDTO(
+                9301L, "problem", "PROBLEM_ATTACHMENT", "big.csv",
+                "text/csv", 2048L, "AVAILABLE_UNBOUND")));
+        when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
+            ProblemAttachment attachment = invocation.getArgument(0);
+            attachment.setId(301L);
+            return 1;
+        });
+        when(fileFeignClient.createAccessUrl(9301L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("https://example.test/big.csv", 600)));
+
+        com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request =
+                new com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest();
+        request.setFileId(9301L);
+        request.setDescription("大数据集");
+        request.setSortOrder(2);
+
+        ProblemVO.AttachmentVO vo = problemService.attachRegisteredFile(1L, request);
+
+        assertEquals("big.csv", vo.getFileName());
+        assertEquals("大数据集", vo.getDescription());
+        assertEquals(2048L, vo.getFileSize());
+        verify(attachmentEvents).bound(301L, 9301L);
+        verify(fileFeignClient, never()).registerForPurpose(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("绑定非题目附件用途的文件时拒绝")
+    void attachRegisteredFileRejectsForeignPurpose() {
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(fileFeignClient.getSummary(9302L)).thenReturn(Result.ok(new FileAssetSummaryDTO(
+                9302L, "avatar", "USER_AVATAR", "a.png", "image/png", 10L, "ACTIVE")));
+
+        com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request =
+                new com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest();
+        request.setFileId(9302L);
+
+        assertThrows(BusinessException.class, () -> problemService.attachRegisteredFile(1L, request));
+        verify(problemAttachmentMapper, never()).insert(any(ProblemAttachment.class));
+    }
+
+    @Test
+    @DisplayName("关键词查询优先使用全文检索并保持相关度顺序")
+    void keywordSearchUsesSearchIndexOrder() {
+        ProblemSearchService searchService = mock(ProblemSearchService.class);
+        when(problemSearchService.getIfAvailable()).thenReturn(searchService);
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setPage(1);
+        query.setPageSize(10);
+        query.setStatus(1);
+        query.setKeyword("线性规划");
+        when(searchService.search(eq("线性规划"), any(ProblemPageQuery.class)))
+                .thenReturn(new ProblemSearchPage(List.of(1L), 1));
+        when(problemMapper.selectBatchIds(any())).thenReturn(List.of(problem));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+        when(contestMapper.selectBatchIds(any())).thenReturn(List.of());
+
+        var page = problemService.pageProblems(query);
+
+        assertEquals(1, page.getTotal());
+        assertEquals(1, page.getRecords().size());
+        assertEquals(1L, page.getRecords().get(0).getId());
+        verify(searchService).search(eq("线性规划"), any(ProblemPageQuery.class));
+    }
+
+    @Test
+    @DisplayName("全文检索不可用时关键词查询降级到数据库")
+    void keywordSearchFallsBackToDatabase() {
+        when(problemSearchService.getIfAvailable()).thenReturn(null);
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setPage(1);
+        query.setPageSize(10);
+        query.setStatus(1);
+        query.setKeyword("线性规划");
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+
+        var page = problemService.pageProblems(query);
+
+        assertEquals(0, page.getTotal());
+        verify(problemMapper).selectPage(any(IPage.class), any(Wrapper.class));
     }
 
     private ProblemCreateRequest validCreateRequest() {
@@ -461,12 +559,12 @@ class ProblemServiceTest {
         return request;
     }
 
-    private ProblemAttachment attachment(Long id, String fileName, String objectKey) {
+    private ProblemAttachment attachment(Long id, String fileName, Long fileId) {
         ProblemAttachment attachment = new ProblemAttachment();
         attachment.setId(id);
         attachment.setProblemId(1L);
         attachment.setFileName(fileName);
-        attachment.setObjectKey(objectKey);
+        attachment.setFileId(fileId);
         attachment.setContentType("application/octet-stream");
         attachment.setFileSize(10L);
         attachment.setSortOrder(0);

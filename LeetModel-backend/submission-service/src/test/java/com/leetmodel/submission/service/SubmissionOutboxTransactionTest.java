@@ -10,6 +10,7 @@ import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionUpload;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.mapper.SubmissionUploadMapper;
+import com.leetmodel.submission.messaging.SubmissionPaperEventProducer;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,22 +82,26 @@ class SubmissionOutboxTransactionTest {
                 new ObjectMapper().registerModule(new JavaTimeModule()), MessageCodec.MAX_PAYLOAD_BYTES);
         service = new SubmissionUploadPersistenceService(uploadMapper, submissionMapper,
                 new MessageEnvelopeFactory("submission-service", clock),
-                new JdbcMessageOutbox(jdbcTemplate, codec, new MessagingNamespace("lm-test"), clock));
+                new JdbcMessageOutbox(jdbcTemplate, codec, new MessagingNamespace("lm-test"), clock),
+                paperEventProducer(jdbcTemplate, codec, clock));
     }
 
     @Test
     void commitDraftSubmissionWithoutReviewOutbox() {
-        Submission submission = transactionTemplate.execute(status -> service.createSubmission(1L));
+        Submission submission = transactionTemplate.execute(status -> service.createSubmission(1L, 9101L));
 
         assertThat(submission).isNotNull();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM domain_submission", Long.class)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isZero();
+        // 草稿版本只写入论文绑定事件，不派发评审任务
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM message_outbox WHERE event_type = 'FILE_BOUND'", Long.class)).isEqualTo(1);
     }
 
     @Test
     void rollbackDraftSubmissionTogether() {
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            service.createSubmission(1L);
+            service.createSubmission(1L, 9102L);
             throw new IllegalStateException("simulate transaction failure");
         })).isInstanceOf(IllegalStateException.class);
 
@@ -113,9 +118,26 @@ class SubmissionOutboxTransactionTest {
         upload.setSubmissionId(101L);
         when(submissionMapper.selectById(101L)).thenReturn(existing);
 
-        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
-        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L));
+        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L, 9103L));
+        transactionTemplate.executeWithoutResult(status -> service.createSubmission(1L, 9103L));
 
+        // 重复完成不会重复写入绑定事件
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM message_outbox", Long.class)).isZero();
+    }
+
+    /**
+     * 构造正式论文引用事件生产者。
+     *
+     * @param jdbcTemplate 本地数据库访问
+     * @param codec 消息编解码器
+     * @param clock 时间源
+     * @return 事件生产者
+     */
+    private SubmissionPaperEventProducer paperEventProducer(
+            JdbcTemplate jdbcTemplate, MessageCodec codec, Clock clock) {
+        JdbcMessageOutbox outbox = new JdbcMessageOutbox(
+                jdbcTemplate, codec, new MessagingNamespace("lm-test"), clock);
+        return new SubmissionPaperEventProducer(
+                outbox, new MessageEnvelopeFactory("submission-service", clock));
     }
 }

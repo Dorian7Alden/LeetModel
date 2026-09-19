@@ -12,6 +12,7 @@ import com.leetmodel.submission.enums.SubmissionErrorCode;
 import com.leetmodel.submission.mapper.SubmissionMapper;
 import com.leetmodel.submission.mapper.SubmissionUploadMapper;
 import com.leetmodel.submission.messaging.ReviewTaskMessageContract;
+import com.leetmodel.submission.messaging.SubmissionPaperEventProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -29,14 +30,16 @@ public class SubmissionUploadPersistenceService {
     private final SubmissionMapper submissionMapper;
     private final MessageEnvelopeFactory envelopeFactory;
     private final MessageOutbox messageOutbox;
+    private final SubmissionPaperEventProducer paperEvents;
 
     /**
      * 为已合并的上传会话幂等创建提交版本。
      * @param uploadId 上传会话内部 ID
+     * @param fileId 已登记的正式论文文件资产 ID
      * @return 已创建或既有的提交记录
      */
     @Transactional
-    public Submission createSubmission(Long uploadId) {
+    public Submission createSubmission(Long uploadId, Long fileId) {
         // 锁定上传会话，保证重复完成只创建一个版本
         SubmissionUpload upload = uploadMapper.selectForUpdate(uploadId);
         BusinessException.throwIf(upload == null, SubmissionErrorCode.UPLOAD_NOT_FOUND);
@@ -53,10 +56,12 @@ public class SubmissionUploadPersistenceService {
         submission.setSubmitterId(upload.getUploaderId());
         submission.setVersion(submissionMapper.selectMaxVersion(upload.getTeamId()) + 1);
         submission.setOriginalFilename(upload.getOriginalFilename());
-        submission.setObjectName(upload.getFinalObjectName());
+        submission.setFileId(fileId);
         submission.setFileSize(upload.getFileSize());
         submission.setStatus("SUCCESS");
         submissionMapper.insert(submission);
+        // 提交版本与论文文件的归属关系在同一事务内进入引用投影
+        paperEvents.bound(submission.getId(), fileId);
 
         // 上传阶段只形成可继续修改的草稿版本；最终版评审在练习结束并锁定版本后派发。
         uploadMapper.linkSubmission(upload.getId(), submission.getId());

@@ -257,7 +257,7 @@
         <div><dt>状态</dt><dd>{{ statusLabel(selectedRow.status) }}</dd></div>
         <div><dt>提交人</dt><dd>{{ selectedRow.submitterName || "—" }}</dd></div>
         <div><dt>提交时间</dt><dd>{{ formatAdminTime(selectedRow.createTime) }}</dd></div>
-        <div><dt>存储对象</dt><dd class="code-id">{{ selectedRow.objectName || "—" }}</dd></div>
+        <div><dt>文件资产 ID</dt><dd class="code-id">{{ selectedRow.fileId || "—" }}</dd></div>
         <div><dt>提交 ID</dt><dd class="identifier-value"><span>{{ selectedRow.id }}</span><el-button link type="primary" @click="copyIdentifier(selectedRow.id)">复制</el-button></dd></div>
         <div><dt>队伍 ID</dt><dd class="identifier-value"><span>{{ selectedRow.teamId }}</span><el-button link type="primary" @click="copyIdentifier(selectedRow.teamId)">复制</el-button></dd></div>
         <div><dt>赛题 ID</dt><dd class="identifier-value"><span>{{ selectedRow.problemId }}</span><el-button link type="primary" @click="copyIdentifier(selectedRow.problemId)">复制</el-button></dd></div>

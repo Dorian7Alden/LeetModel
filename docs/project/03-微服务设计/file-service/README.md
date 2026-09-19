@@ -1,6 +1,6 @@
 ## 文件服务
 
-> 服务状态：第一阶段最小闭环已实现。file-service 已拥有独立 `lm_file`、管理员手动资产、历史盘点、临时访问和删除生命周期；业务文件迁移、上传会话与引用投影仍是后续目标。
+> 服务状态：控制面基础能力已实现。file-service 已拥有独立 `lm_file`、管理员手动资产、历史盘点、临时访问和删除生命周期，并新增按业务用途登记文件、按 fileId 访问与跨服务引用投影；业务文件实际迁移与预签名直传仍是后续目标。
 
 ### 服务定位
 
@@ -34,11 +34,11 @@ flowchart LR
         messageBroker["RocketMQ"]
     end
 
-    adminService -. "目标：管理查询和命令" .-> assetApi
-    problemService -. "目标：题目附件资产与绑定事件" .-> assetApi
-    userService -. "目标：头像资产与绑定事件" .-> assetApi
-    submissionService -. "目标：正式论文资产与绑定事件" .-> assetApi
-    internalConsumer -. "目标：受控临时访问" .-> accessControl
+    adminService -. "管理查询和命令" .-> assetApi
+    problemService -. "题目附件登记与绑定事件" .-> assetApi
+    userService -. "头像登记与绑定事件" .-> assetApi
+    submissionService -. "正式论文接管与绑定事件" .-> assetApi
+    internalConsumer -. "受控临时访问" .-> accessControl
     assetApi --> uploadControl
     assetApi --> accessControl
     uploadControl --> fileDatabase
@@ -46,10 +46,10 @@ flowchart LR
     bindingProjection --> fileDatabase
     lifecycle --> fileDatabase
     lifecycle --> minio
-    messageBroker -. "目标：绑定与解绑事件" .-> bindingProjection
+    messageBroker -. "绑定与解绑事件" .-> bindingProjection
 ```
 
-图中 admin-service 到 file-service 的管理链路已实现，其余业务服务虚线调用仍是目标关系。第一阶段由 admin-service 提供管理入口，file-service 执行文件规则并保存事实；业务服务随后按迁移计划逐个接入。
+上述链路均已实现：admin-service 提供管理入口，problem-service、user-service、submission-service 通过业务文件登记或接管接口取得 fileId，并在本地事务内发布绑定/解绑事件；file-service 消费事件维护引用投影，是文件技术元数据、访问策略与生命周期的唯一所有者。
 
 ### 负责
 
@@ -100,12 +100,12 @@ file-service 拥有文件类型、大小、命名空间、访问级别、链接�
 
 | 功能 | 状态 | 功能说明 |
 |------|------|----------|
-| 文件资产登记 | 第一阶段已实现 | 创建稳定 fileId，维护对象路由、大小、来源和状态 |
+| 文件资产登记 | 已实现 | 创建稳定 fileId，维护对象路由、大小、内容摘要、来源、访问级别和状态 |
 | 管理员手动素材 | 第一阶段已实现 | 在 manual 命名空间代理上传、分组和管理文件 |
-| 上传会话 | 目标 | 为代理上传或预签名直传创建可校验、可过期的会话 |
-| 文件访问 | 第一阶段已实现 | 为可访问资产按需生成短时效下载地址 |
-| 引用投影 | 目标 | 幂等消费业务绑定事件并支持删除保护 |
-| 生命周期管理 | 第一阶段已实现 | MANUAL 资产逻辑删除、宽限期、物理清理和失败重试 |
+| 上传会话 | 已实现 | 为预签名分片直传创建可续传、可过期、可按大小校验的会话 |
+| 文件访问 | 已实现 | 为可访问资产按需生成短时效下载地址，内部接口按 fileId 提供摘要与访问地址 |
+| 引用投影 | 已实现（基础能力） | 幂等消费绑定与解绑事件维护 file_binding，并在物理清理前校验有效引用 |
+| 生命周期管理 | 已实现 | MANUAL 资产逻辑删除、宽限期、物理清理和失败重试；无引用业务资产超过宽限期后进入清理 |
 | 存储对账 | 部分实现 | 扫描 MinIO、登记未知对象并报告物理缺失数量 |
 | 历史对象迁移 | 第一阶段已实现 | 将现有对象幂等登记为只读 DISCOVERED |
 | 强制删除 | 暂缓 | 独立高风险权限、原因和审计完成后再评估开放 |

@@ -25,7 +25,8 @@ public class SubmissionSnapshotDTO {
     private Long submitterId;
     private Integer version;
     private String originalFilename;
-    private String objectName;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long fileId;
     private String status;
     private Boolean finalVersion;
     private LocalDateTime createTime;
