@@ -3,9 +3,14 @@ package com.leetmodel.common.api.feign;
 import com.leetmodel.common.api.dto.FileAccessUrlDTO;
 import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.dto.FileUploadCreateRequestDTO;
+import com.leetmodel.common.api.dto.FileUploadPartUrlDTO;
+import com.leetmodel.common.api.dto.FileUploadSessionDTO;
 import com.leetmodel.common.core.result.Result;
+import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,6 +61,54 @@ public interface FileFeignClient {
      */
     @PostMapping("/internal/file-assets/adopt")
     Result<FileAssetSummaryDTO> adopt(@RequestBody FileAssetAdoptRequestDTO request);
+
+    /**
+     * 创建预签名分片直传会话。
+     *
+     * @param request 会话创建请求
+     * @return 上传会话状态
+     */
+    @PostMapping("/internal/file-uploads")
+    Result<FileUploadSessionDTO> createUploadSession(@Valid @RequestBody FileUploadCreateRequestDTO request);
+
+    /**
+     * 查询预签名直传会话状态。
+     *
+     * @param sessionId 上传会话标识
+     * @return 上传会话状态
+     */
+    @GetMapping("/internal/file-uploads/{sessionId}")
+    Result<FileUploadSessionDTO> getUploadSession(@PathVariable("sessionId") String sessionId);
+
+    /**
+     * 获取指定分片的预签名上传地址。
+     *
+     * @param sessionId 上传会话标识
+     * @param partNumber 分片序号，从 1 开始
+     * @return 分片上传地址
+     */
+    @PostMapping("/internal/file-uploads/{sessionId}/parts/{partNumber}/url")
+    Result<FileUploadPartUrlDTO> createUploadPartUrl(
+            @PathVariable("sessionId") String sessionId,
+            @PathVariable("partNumber") Integer partNumber);
+
+    /**
+     * 确认分片全部上传完成并合并为正式文件。
+     *
+     * @param sessionId 上传会话标识
+     * @return 文件资产摘要
+     */
+    @PostMapping("/internal/file-uploads/{sessionId}/complete")
+    Result<FileAssetSummaryDTO> completeUploadSession(@PathVariable("sessionId") String sessionId);
+
+    /**
+     * 取消上传会话并清理已上传分片。
+     *
+     * @param sessionId 上传会话标识
+     * @return 空响应
+     */
+    @DeleteMapping("/internal/file-uploads/{sessionId}")
+    Result<Void> abortUploadSession(@PathVariable("sessionId") String sessionId);
 
     /**
      * 生成文件短时效访问地址。
