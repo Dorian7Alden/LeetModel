@@ -17,7 +17,7 @@
 
 最近完成的阶段是「平台能力增强阶段」，已按用户验收合入 `dev` 并作为 `v2.2.0` 发布：统一文件资产身份、预签名分片直传与超大附件、题库全文检索、评测评分口径文档均已完成并验收。发布后 `dev` 与 `master` 位于同一发布基线。
 
-当前阶段「Token 主动失效」的 B1 已完成实现与真实验收，阶段分支 `phase/token-blacklist` 等待用户验收后合入 `dev`；B2（管理员按用户强制下线）按用户决定不做。已完成的阶段结论不再保留在本文件，长期有效的设计入口：文件资产见 [文件资产管理架构](docs/project/02-架构设计/文件资产管理架构.md)，题库检索见 [公开题库全文检索](docs/project/03-微服务设计/problem-service/公开题库/全文检索.md)，评测口径见 [指标来源与组合影响](docs/project/03-微服务设计/ai-evaluation-service/权重与选择指数/指标来源与组合影响.md)，Token 黑名单见 [认证鉴权](docs/project/03-微服务设计/common/common-security/认证鉴权.md)。
+最近完成的阶段是「Token 主动失效」：B1 已实现、真实验收并作为 `v2.3.0` 发布（阶段分支 `phase/token-blacklist` 已合入 `dev` 并删除），B2（管理员按用户强制下线）按用户决定不做。当前没有进行中的阶段或任务卡；下一轮开发由用户提出目标后建立任务卡并从 `dev` 创建新阶段分支。长期有效的设计入口：文件资产见 [文件资产管理架构](docs/project/02-架构设计/文件资产管理架构.md)，题库检索见 [公开题库全文检索](docs/project/03-微服务设计/problem-service/公开题库/全文检索.md)，评测口径见 [指标来源与组合影响](docs/project/03-微服务设计/ai-evaluation-service/权重与选择指数/指标来源与组合影响.md)，Token 黑名单见 [认证鉴权](docs/project/03-微服务设计/common/common-security/认证鉴权.md)。
 
 ## 当前阶段：Token 主动失效（候选分支 phase/token-blacklist）
 
