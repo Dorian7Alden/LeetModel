@@ -29,6 +29,11 @@ services:
     image: redis:7.2-alpine
     container_name: leetmodel-redis
     restart: unless-stopped
+    # 安全状态 Redis：承载 JWT Token 黑名单，禁止淘汰键，避免失效 Token 被提前清除
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
     ports:
       - "6379:6379"
     volumes:
