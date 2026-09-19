@@ -33,7 +33,7 @@ flowchart LR
     subgraph data["用户数据与文件"]
         userDatabase[(lm_user)]
         minio["MinIO 头像对象"]
-        fileService["file-service，目标文件资产控制面"]
+        fileService["file-service 文件资产控制面"]
     end
 
     apiGateway --> publicApi
@@ -44,12 +44,11 @@ flowchart LR
     profile --> userDatabase
     rbac --> userDatabase
     summary --> userDatabase
-    profile --> minio
-    profile -. "目标：头像资产与绑定事件" .-> fileService
-    fileService -. "目标：管理正式头像文件" .-> minio
+    profile -->|"按 USER_AVATAR 用途登记并保存 fileId"| fileService
+    fileService --> minio
 ```
 
-用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。头像已迁移到 file-service：profile 只保存稳定 fileId 并发布绑定/解绑事件，外部绝对 URL 仅保留给演示与遗留账号。
+用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，其他服务不得复制用户主数据。上传的头像按 `USER_AVATAR` 用途登记到 file-service，profile 只保存稳定 `avatar_file_id` 并发布绑定/解绑事件，二进制对象与访问地址由 file-service 结合 MinIO 管理；外部绝对 URL 仅保留给演示与遗留账号，user-service 不再持有对象存储配置。
 
 ## 职责边界
 

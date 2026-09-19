@@ -34,11 +34,11 @@ flowchart LR
         messageBroker["RocketMQ"]
     end
 
-    adminService -. "目标：管理查询和命令" .-> assetApi
-    problemService -. "目标：题目附件资产与绑定事件" .-> assetApi
-    userService -. "目标：头像资产与绑定事件" .-> assetApi
-    submissionService -. "目标：正式论文资产与绑定事件" .-> assetApi
-    internalConsumer -. "目标：受控临时访问" .-> accessControl
+    adminService -. "管理查询和命令" .-> assetApi
+    problemService -. "题目附件登记与绑定事件" .-> assetApi
+    userService -. "头像登记与绑定事件" .-> assetApi
+    submissionService -. "正式论文接管与绑定事件" .-> assetApi
+    internalConsumer -. "受控临时访问" .-> accessControl
     assetApi --> uploadControl
     assetApi --> accessControl
     uploadControl --> fileDatabase
@@ -46,10 +46,10 @@ flowchart LR
     bindingProjection --> fileDatabase
     lifecycle --> fileDatabase
     lifecycle --> minio
-    messageBroker -. "目标：绑定与解绑事件" .-> bindingProjection
+    messageBroker -. "绑定与解绑事件" .-> bindingProjection
 ```
 
-图中 admin-service 到 file-service 的管理链路已实现，其余业务服务虚线调用仍是目标关系。第一阶段由 admin-service 提供管理入口，file-service 执行文件规则并保存事实；业务服务随后按迁移计划逐个接入。
+上述链路均已实现：admin-service 提供管理入口，problem-service、user-service、submission-service 通过业务文件登记或接管接口取得 fileId，并在本地事务内发布绑定/解绑事件；file-service 消费事件维护引用投影，是文件技术元数据、访问策略与生命周期的唯一所有者。
 
 ### 负责
 

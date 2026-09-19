@@ -40,13 +40,13 @@ flowchart LR
         reviewService["ai-review-service"]
         suggestionService["ai-suggestion-service"]
         evaluationService["ai-evaluation-service"]
-        fileService["file-service，目标文件资产控制面"]
+        fileService["file-service 文件资产控制面"]
     end
 
     subgraph data["提交数据与文件"]
         submissionDatabase[(lm_submission)]
         messageOutbox[(message_outbox)]
-        minio["MinIO 原始 PDF"]
+        minio["MinIO 论文分片与对象"]
     end
 
     apiGateway --> submitApi
@@ -55,8 +55,8 @@ flowchart LR
     eligibility --> teamService
     eligibility --> problemService
     uploadTask --> minio
-    versionRecord -. "目标：登记正式论文资产与绑定" .-> fileService
-    fileService -. "目标：管理正式论文文件" .-> minio
+    versionRecord -->|"接管合并对象并保存 fileId"| fileService
+    fileService --> minio
     versionRecord --> submissionDatabase
     reviewTrigger --> messageOutbox
     messageOutbox -->|"RocketMQ / Feign Relay"| reviewService
@@ -66,7 +66,7 @@ flowchart LR
     snapshotApi -.-> evaluationService
 ```
 
-论文先完成分片、文件和提交资格校验，再形成可继续覆盖的草稿版本，上传本身不触发普通用户正式评审。练习到期或队长提前结束后，submission-service 锁定截止时刻前最新成功版本，并在同一本地事务写入 `FINAL_SUBMISSION_CHANGED` 与 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；重复锁定会按业务幂等键补建缺失事件，但不会重复创建正式评审。评审执行状态仍由 ai-review-service 自己维护。当前上传与正式文件均由 submission-service 直接管理，虚线表示未来只将合并后的正式论文登记到 file-service，临时分片首期保持现状。
+论文先完成分片、文件和提交资格校验，再形成可继续覆盖的草稿版本，上传本身不触发普通用户正式评审。练习到期或队长提前结束后，submission-service 锁定截止时刻前最新成功版本，并在同一本地事务写入 `FINAL_SUBMISSION_CHANGED` 与 `REVIEW_TASK_READY` Outbox。默认由 Relay 异步发布 RocketMQ，用户请求不等待 ai-review-service；重复锁定会按业务幂等键补建缺失事件，但不会重复创建正式评审。评审执行状态仍由 ai-review-service 自己维护。临时分片仍由 submission-service 管理；合并后的正式论文由 file-service 接管并返回稳定 fileId，submission-service 只保存 fileId 并发布绑定/解绑事件，AI 链路按 fileId 换取预签名地址读取论文。
 
 ## 职责边界
 

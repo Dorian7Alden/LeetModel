@@ -42,8 +42,8 @@ flowchart LR
     subgraph data["题目数据与文件"]
         problemDatabase[(lm_problem)]
         searchIndex["Elasticsearch 题库索引"]
-        minio["MinIO 题目附件"]
-        fileService["file-service，目标文件资产控制面"]
+        minio["MinIO 对象存储"]
+        fileService["file-service 文件资产控制面"]
         cacheRedis["独立业务缓存 Redis"]
     end
 
@@ -56,14 +56,13 @@ flowchart LR
     contestProblem --> problemDatabase
     tagPublish --> problemDatabase
     attachment --> problemDatabase
-    attachment --> minio
-    attachment -. "目标：创建资产与发布绑定" .-> fileService
-    fileService -. "目标：管理正式文件" .-> minio
+    attachment --> fileService
+    fileService --> minio
     publicApi --> cacheRedis
     fullTextSearch --> searchIndex
 ```
 
-公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，附件二进制归 MinIO 保存。Elasticsearch 只保存题库检索副本，关键词召回与排序以它为准，返回字段仍从 `lm_problem` 读取。当前附件模块直接使用 MinIO，虚线表示迁移到 file-service 后由文件资产控制面管理物理文件的目标关系。
+公开用户通过 API 网关查询已发布题目，管理员通过 admin-service 维护赛事、题目、标签和附件。team-service、submission-service 与 ai-review-service 只通过内部摘要接口获取必要题目事实。结构化数据归 `lm_problem` 所有，题面附件只保存稳定 fileId，二进制内容与访问地址由 file-service 结合 MinIO 管理；problem-service 不再直接持有对象存储配置。Elasticsearch 只保存题库检索副本，关键词召回与排序以它为准，返回字段仍从 `lm_problem` 读取。
 
 ## 职责边界
 
