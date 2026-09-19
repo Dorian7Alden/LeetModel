@@ -129,6 +129,21 @@ public class MinioStorageServiceImpl implements StorageService {
     }
 
     @Override
+    public long sizeOf(String objectName) {
+        try {
+            return minioClient.statObject(
+                    io.minio.StatObjectArgs.builder()
+                            .bucket(minioProperties.getBucket())
+                            .object(objectName)
+                            .build()
+            ).size();
+        } catch (Exception e) {
+            logStorageFailure("stat", e);
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "获取文件大小失败");
+        }
+    }
+
+    @Override
     public void delete(String objectName) {
         try {
             minioClient.removeObject(

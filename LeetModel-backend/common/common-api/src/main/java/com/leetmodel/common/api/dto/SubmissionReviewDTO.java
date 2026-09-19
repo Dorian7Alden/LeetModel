@@ -1,5 +1,7 @@
 package com.leetmodel.common.api.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,5 +14,6 @@ public class SubmissionReviewDTO {
     private Long teamId;
     private Long problemId;
     private Integer version;
-    private String objectName;
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long fileId;
 }

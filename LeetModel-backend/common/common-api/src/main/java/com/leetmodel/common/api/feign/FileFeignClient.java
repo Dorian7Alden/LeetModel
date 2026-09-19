@@ -1,6 +1,7 @@
 package com.leetmodel.common.api.feign;
 
 import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
 import com.leetmodel.common.core.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -45,6 +47,15 @@ public interface FileFeignClient {
      */
     @GetMapping("/internal/file-assets/{fileId}")
     Result<FileAssetSummaryDTO> getSummary(@PathVariable("fileId") Long fileId);
+
+    /**
+     * 接管业务服务在交接目录中已生成的对象。
+     *
+     * @param request 接管请求
+     * @return 文件资产摘要
+     */
+    @PostMapping("/internal/file-assets/adopt")
+    Result<FileAssetSummaryDTO> adopt(@RequestBody FileAssetAdoptRequestDTO request);
 
     /**
      * 生成文件短时效访问地址。

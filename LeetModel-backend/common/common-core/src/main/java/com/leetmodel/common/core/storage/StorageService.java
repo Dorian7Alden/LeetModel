@@ -62,6 +62,16 @@ public interface StorageService {
     String getUrl(String objectName);
 
     /**
+     * 查询对象的实际字节数。
+     *
+     * <p>用于登记既有对象时核对声明大小，不读取对象内容。</p>
+     *
+     * @param objectName 存储桶中的对象唯一标识路径，不能为空
+     * @return 对象实际字节数
+     */
+    long sizeOf(String objectName);
+
+    /**
      * 从存储桶中物理删除指定文件。
      *
      * @param objectName 待删除的对象唯一标识路径，不能为空

@@ -33,7 +33,8 @@
     private String submitterAvatarUrl;
     private Integer version;
      private String originalFilename;
-     private String objectName;
+     @JsonSerialize(using = ToStringSerializer.class)
+     private Long fileId;
      private Long fileSize;
      private String status;
      private Boolean finalVersion;
