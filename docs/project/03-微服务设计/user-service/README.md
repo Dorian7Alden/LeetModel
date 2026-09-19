@@ -49,7 +49,7 @@ flowchart LR
     fileService -. "目标：管理正式头像文件" .-> minio
 ```
 
-用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。当前 profile 直接使用 MinIO，虚线表示 file-service 建成后通过稳定 fileId 和绑定事件协作的目标关系。
+用户端请求通过 API 网关进入注册、认证和资料能力；管理后台通过 admin-service 调用用户与 RBAC 管理接口；团队等内部服务只读取最低必要的用户摘要。账号、资料和权限事实统一保存在 `lm_user`，头像二进制保存到 MinIO，其他服务不得复制用户主数据。头像已迁移到 file-service：profile 只保存稳定 fileId 并发布绑定/解绑事件，外部绝对 URL 仅保留给演示与遗留账号。
 
 ## 职责边界
 
@@ -60,7 +60,7 @@ flowchart LR
 - 维护角色、权限、用户角色和角色权限关系。
 - 提供当前用户信息、公开用户摘要、简约个人名片和内部用户查询能力。
 - 校验用户、角色和权限数据的合法性并保证 RBAC 变更事务一致性。
-- 维护用户当前头像的业务选择。目标迁移后只保存稳定 fileId，不拥有文件技术元数据和物理生命周期。
+- 维护用户当前头像的业务选择，只保存稳定 fileId，不拥有文件技术元数据和物理生命周期。
 
 ### 不负责
 
@@ -72,7 +72,7 @@ flowchart LR
 
 ## 数据与协作边界
 
-user-service 独占 `lm_user` 数据库，用户、角色、权限和当前头像选择以这里的数据为事实源。其他服务只通过内部接口获取必要摘要或权限信息，不直连 `lm_user`。队伍成员关系由 team-service 维护，管理后台通过 admin-service 聚合用户统计。目标 file-service 建成后，头像技术元数据和物理生命周期归 file-service，user-service 通过 fileId 和绑定事件维护头像关系。
+user-service 独占 `lm_user` 数据库，用户、角色、权限和当前头像选择以这里的数据为事实源。其他服务只通过内部接口获取必要摘要或权限信息，不直连 `lm_user`。队伍成员关系由 team-service 维护，管理后台通过 admin-service 聚合用户统计。头像技术元数据和物理生命周期归 file-service，user-service 通过 fileId 与绑定事件维护头像关系；`avatar_url` 仅用于演示与遗留外部链接。
 
 ## 功能清单
 
