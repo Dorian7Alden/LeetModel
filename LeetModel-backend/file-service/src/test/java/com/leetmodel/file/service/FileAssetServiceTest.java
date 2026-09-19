@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.common.core.config.MinioProperties;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.storage.StorageService;
@@ -230,6 +231,46 @@ class FileAssetServiceTest {
         FileAccessUrlVO result = service.createAccessUrlByFileId(21L);
 
         assertThat(result.url()).isEqualTo("https://minio.test/a.pdf");
+    }
+
+    @Test
+    void adoptRegistersHandoverObjectAfterCheckingSize() {
+        when(storageService.sizeOf("submission-uploads/token/final.pdf")).thenReturn(2048L);
+        when(mapper.insert(any(FileAsset.class))).thenAnswer(invocation -> {
+            FileAsset asset = invocation.getArgument(0);
+            asset.setId(300L);
+            return 1;
+        });
+
+        FileAssetSummaryDTO summary = service.adoptForPurpose(new FileAssetAdoptRequestDTO(
+                "SUBMISSION_PAPER", "submission-uploads/token/final.pdf",
+                "final.pdf", "application/pdf", 2048L, "2026", 7L));
+
+        assertThat(summary.fileId()).isEqualTo(300L);
+        assertThat(summary.sourceType()).isEqualTo("SUBMISSION_PAPER");
+        assertThat(summary.lifecycleStatus()).isEqualTo("AVAILABLE_UNBOUND");
+    }
+
+    @Test
+    void adoptRejectsObjectOutsideHandoverDirectory() {
+        assertThatThrownBy(() -> service.adoptForPurpose(new FileAssetAdoptRequestDTO(
+                "SUBMISSION_PAPER", "avatars/whatever.png",
+                "final.pdf", "application/pdf", 10L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("交接目录");
+        verify(storageService, never()).sizeOf(any());
+    }
+
+    @Test
+    void adoptRejectsSizeMismatch() {
+        when(storageService.sizeOf(any())).thenReturn(999L);
+
+        assertThatThrownBy(() -> service.adoptForPurpose(new FileAssetAdoptRequestDTO(
+                "SUBMISSION_PAPER", "submission-uploads/token/final.pdf",
+                "final.pdf", "application/pdf", 2048L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("大小");
+        verify(mapper, never()).insert(any(FileAsset.class));
     }
 
     @Test

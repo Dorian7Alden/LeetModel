@@ -1,6 +1,7 @@
 package com.leetmodel.file.service;
 
 import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.file.model.FileAccessUrlVO;
 import com.leetmodel.file.model.FileAssetPageVO;
 import com.leetmodel.file.model.FileAssetQuery;
@@ -44,4 +45,12 @@ public interface FileAssetService {
      * @return 预签名访问地址
      */
     FileAccessUrlVO createAccessUrlByFileId(Long fileId);
+
+    /**
+     * 接管业务服务在交接目录中已生成的对象。
+     *
+     * @param request 接管请求
+     * @return 文件资产摘要
+     */
+    FileAssetSummaryDTO adoptForPurpose(FileAssetAdoptRequestDTO request);
 }

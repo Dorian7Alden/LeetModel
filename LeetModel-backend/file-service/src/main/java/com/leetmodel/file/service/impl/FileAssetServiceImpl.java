@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.dto.FileAssetAdoptRequestDTO;
 import com.leetmodel.common.core.config.MinioProperties;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.PageResult;
@@ -57,6 +58,8 @@ public class FileAssetServiceImpl implements FileAssetService {
     /** 允许在普通读取链路生成短时效地址的资产状态。 */
     private static final Set<String> ACCESSIBLE_STATUSES =
             Set.of(STATUS_ACTIVE, STATUS_AVAILABLE_UNBOUND, STATUS_DISCOVERED);
+    /** 允许被业务服务接管的交接目录前缀；调用方不能借此提交任意物理路由。 */
+    private static final Set<String> HANDOVER_PREFIXES = Set.of("submission-uploads/", "submissions/");
 
     private final FileAssetMapper fileAssetMapper;
     private final FileBindingMapper fileBindingMapper;
@@ -183,6 +186,64 @@ public class FileAssetServiceImpl implements FileAssetService {
             throw exception;
         }
         return toSummary(asset);
+    }
+
+    @Override
+    public FileAssetSummaryDTO adoptForPurpose(FileAssetAdoptRequestDTO request) {
+        FilePurpose purpose = FilePurpose.fromCode(request.purpose());
+        if (!purpose.allowsContentType(request.contentType())) {
+            throw new BusinessException(FileErrorCode.FILE_CONTENT_TYPE_NOT_ALLOWED,
+                    "用途 " + purpose.name() + " 不允许类型 " + request.contentType());
+        }
+        String objectKey = request.objectKey() == null ? "" : request.objectKey().trim();
+        if (!isHandoverObjectKey(objectKey)) {
+            throw new BusinessException(FileErrorCode.FILE_OBJECT_KEY_NOT_ALLOWED);
+        }
+        long actualSize = storageService.sizeOf(objectKey);
+        if (actualSize != request.fileSize()) {
+            throw new BusinessException(FileErrorCode.FILE_SIZE_MISMATCH);
+        }
+        String normalizedGroup = FileGroupPath.normalize(request.groupPath());
+
+        FileAsset asset = new FileAsset();
+        asset.setBucketName(minioProperties.getBucket());
+        asset.setObjectKey(objectKey);
+        asset.setOriginalName(request.originalName());
+        asset.setContentType(request.contentType());
+        asset.setFileSize(actualSize);
+        asset.setNamespaceCode(purpose.namespaceCode());
+        asset.setGroupPath(normalizedGroup);
+        asset.setAccessLevel(purpose.accessLevel());
+        asset.setSourceType(purpose.sourceType());
+        asset.setLifecycleStatus(STATUS_AVAILABLE_UNBOUND);
+        asset.setCreatorId(request.creatorId());
+        // 登记后等待业务绑定事件；超过宽限期仍无有效引用才允许物理清理。
+        asset.setCleanupAfter(LocalDateTime.now().plus(deleteGrace));
+        asset.setRetryCount(0);
+        asset.setDeleted(0);
+        try {
+            fileAssetMapper.insert(asset);
+        } catch (DuplicateKeyException exception) {
+            // 同一物理对象只对应一个文件资产；重复接管返回已登记资产。
+            FileAsset existing = fileAssetMapper.selectByObjectKey(
+                    minioProperties.getBucket(), objectKey);
+            if (existing == null) {
+                throw exception;
+            }
+            return toSummary(existing);
+        }
+        return toSummary(asset);
+    }
+
+    /**
+     * 判断对象路径是否位于允许接管的交接目录。
+     *
+     * @param objectKey 对象路径
+     * @return 位于交接目录时为 true
+     */
+    private boolean isHandoverObjectKey(String objectKey) {
+        return HANDOVER_PREFIXES.stream().anyMatch(objectKey::startsWith)
+                && !objectKey.contains("..");
     }
 
     @Override

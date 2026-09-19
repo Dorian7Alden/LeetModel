@@ -14,6 +14,8 @@ public enum FileErrorCode implements ErrorCode {
     FILE_PURPOSE_INVALID(41305, "文件用途不合法"),
     FILE_CONTENT_TYPE_NOT_ALLOWED(41306, "当前用途不允许该文件类型"),
     FILE_BINDING_INVALID(41307, "文件绑定事件不合法"),
+    FILE_OBJECT_KEY_NOT_ALLOWED(41308, "对象路径不在允许接管的交接目录内"),
+    FILE_SIZE_MISMATCH(41309, "声明文件大小与对象实际大小不一致"),
     STORAGE_UNAVAILABLE(51301, "对象存储暂不可用");
 
     private final int code;
