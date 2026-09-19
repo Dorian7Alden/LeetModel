@@ -16,6 +16,15 @@ LeetModel-backend/.observability-runtime/
 **/*.tmp
 **/*.bak
 
+# Local secrets and environment overrides (never commit real credentials)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
 # Editors and operating systems
 **/.idea/
 **/.vscode/
