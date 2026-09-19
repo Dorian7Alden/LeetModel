@@ -8,9 +8,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class FileCleanupScheduler {
     private final FileAssetService fileAssetService;
+    private final FileUploadService fileUploadService;
 
     @Scheduled(fixedDelayString = "${file.lifecycle.cleanup-interval-ms:60000}")
     public void cleanup() {
         fileAssetService.cleanupDueAssets();
+        fileUploadService.cleanupExpiredSessions();
     }
 }
