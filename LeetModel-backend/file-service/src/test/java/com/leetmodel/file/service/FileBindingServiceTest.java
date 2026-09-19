@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -122,6 +123,53 @@ class FileBindingServiceTest {
         service.bind(new FileBindingChangedPayload(5L, "problem-service", "PROBLEM_ATTACHMENT", "77", 1L));
 
         verify(assetMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void bindingEventTakesOverDiscoveredAsset() {
+        FileAsset discovered = new FileAsset();
+        discovered.setId(7L);
+        discovered.setSourceType("DISCOVERED");
+        discovered.setLifecycleStatus("DISCOVERED");
+        FileAsset promoted = new FileAsset();
+        promoted.setId(7L);
+        promoted.setSourceType("PROBLEM_ATTACHMENT");
+        promoted.setLifecycleStatus("AVAILABLE_UNBOUND");
+        when(assetMapper.selectById(7L)).thenReturn(discovered, promoted);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(bindingMapper.selectByReference(any(), any(), any(), any())).thenReturn(null);
+        when(bindingMapper.insert(any(FileBinding.class))).thenReturn(1);
+
+        service.bind(new FileBindingChangedPayload(
+                7L, "problem-service", "PROBLEM_ATTACHMENT", "88", 1L));
+
+        // 第一次更新用于按声明用途接管 DISCOVERED 资产，第二次把资产置为已绑定
+        verify(assetMapper, times(2)).update(any(), any());
+        verify(bindingMapper).insert(any(FileBinding.class));
+        assertThat(promoted.getSourceType()).isEqualTo("PROBLEM_ATTACHMENT");
+    }
+
+    @Test
+    void unbindingDiscoveredAssetSchedulesCleanup() {
+        FileAsset discovered = new FileAsset();
+        discovered.setId(8L);
+        discovered.setSourceType("DISCOVERED");
+        discovered.setLifecycleStatus("DISCOVERED");
+        FileAsset promoted = new FileAsset();
+        promoted.setId(8L);
+        promoted.setSourceType("USER_AVATAR");
+        promoted.setLifecycleStatus("AVAILABLE_UNBOUND");
+        when(assetMapper.selectById(8L)).thenReturn(discovered, promoted);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(bindingMapper.selectByReference(any(), any(), any(), any())).thenReturn(null);
+        when(bindingMapper.insert(any(FileBinding.class))).thenReturn(1);
+        when(bindingMapper.countActiveByFileId(8L)).thenReturn(0L);
+
+        service.release(new FileBindingChangedPayload(
+                8L, "user-service", "USER_AVATAR", "1001", 2L));
+
+        // 接管写入一次，最后一个引用解除后再写入一次待清理状态
+        verify(assetMapper, times(2)).update(any(), any());
     }
 
     private FileAsset businessAsset(Long id) {

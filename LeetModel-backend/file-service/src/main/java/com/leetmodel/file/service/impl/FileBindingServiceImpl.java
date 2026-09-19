@@ -27,6 +27,7 @@ public class FileBindingServiceImpl implements FileBindingService {
     static final String BINDING_RELEASED = "RELEASED";
     private static final String ASSET_ACTIVE = "ACTIVE";
     private static final String ASSET_AVAILABLE_UNBOUND = "AVAILABLE_UNBOUND";
+    private static final String SOURCE_DISCOVERED = "DISCOVERED";
 
     private final FileBindingMapper fileBindingMapper;
     private final FileAssetMapper fileAssetMapper;
@@ -123,10 +124,42 @@ public class FileBindingServiceImpl implements FileBindingService {
         if (asset == null) {
             throw new BusinessException(FileErrorCode.FILE_BINDING_INVALID, "文件资产不存在");
         }
-        FilePurpose purpose = FilePurpose.fromSourceType(asset.getSourceType());
+        FilePurpose purpose = FilePurpose.fromSourceType(payload.resourceType());
         if (purpose == null || !purpose.ownerService().equals(payload.ownerService())) {
             throw new BusinessException(FileErrorCode.FILE_BINDING_INVALID, "文件用途与绑定服务不匹配");
         }
+        if (SOURCE_DISCOVERED.equals(asset.getSourceType())) {
+            return takeOverDiscoveredAsset(asset, purpose);
+        }
+        if (!purpose.sourceType().equals(asset.getSourceType())) {
+            throw new BusinessException(FileErrorCode.FILE_BINDING_INVALID, "文件用途与资产来源不匹配");
+        }
         return asset;
+    }
+
+    /**
+     * 依据业务所有者事件接管历史盘点资产。
+     *
+     * <p>DISCOVERED 对象在完成归属确认前保持只读；业务绑定事件即为归属确认，
+     * 此时按声明用途补齐命名空间、来源类型与访问级别。</p>
+     *
+     * @param asset 历史盘点资产
+     * @param purpose 业务声明的文件用途
+     * @return 接管后的资产
+     */
+    private FileAsset takeOverDiscoveredAsset(FileAsset asset, FilePurpose purpose) {
+        fileAssetMapper.update(null, new LambdaUpdateWrapper<FileAsset>()
+                .eq(FileAsset::getId, asset.getId())
+                .eq(FileAsset::getSourceType, SOURCE_DISCOVERED)
+                .set(FileAsset::getNamespaceCode, purpose.namespaceCode())
+                .set(FileAsset::getSourceType, purpose.sourceType())
+                .set(FileAsset::getAccessLevel, purpose.accessLevel())
+                .set(FileAsset::getLifecycleStatus, ASSET_AVAILABLE_UNBOUND)
+                .set(FileAsset::getCleanupAfter, LocalDateTime.now().plus(deleteGrace)));
+        FileAsset promoted = fileAssetMapper.selectById(asset.getId());
+        if (promoted == null) {
+            throw new BusinessException(FileErrorCode.FILE_BINDING_INVALID, "文件资产接管失败");
+        }
+        return promoted;
     }
 }
