@@ -25,6 +25,8 @@ public enum SubmissionErrorCode implements ErrorCode {
     CHUNK_MISSING(40619, "分片尚未全部上传"),
     FILE_CHECKSUM_MISMATCH(40620, "合并后的 PDF 内容校验失败"),
     UPLOAD_COMPLETING(40621, "论文正在合并，请稍后重试"),
-    REVIEW_TASK_CREATE_FAILED(50601, "评审任务创建失败");
+    REVIEW_TASK_CREATE_FAILED(50601, "评审任务创建失败"),
+    PAPER_STORAGE_UNAVAILABLE(40622, "论文存储服务暂不可用"),
+    PAPER_REGISTER_FAILED(40623, "论文登记失败");
     private final int code; private final String message;
 }

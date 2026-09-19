@@ -1,6 +1,8 @@
 package com.leetmodel.submission.service;
 
 import com.leetmodel.common.api.dto.TeamSubmissionAccessDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.Result;
@@ -45,6 +47,7 @@ class SubmissionUploadServiceTest {
     @Mock SubmissionUploadPersistenceService persistenceService;
     @Mock SubmissionService submissionService;
     @Mock TeamFeignClient teamFeignClient;
+    @Mock FileFeignClient fileFeignClient;
     @Mock StorageService storageService;
     @Mock SubmissionChunkStorage chunkStorage;
 
@@ -61,6 +64,7 @@ class SubmissionUploadServiceTest {
                 persistenceService,
                 submissionService,
                 teamFeignClient,
+                fileFeignClient,
                 storageService,
                 chunkStorage,
                 properties
@@ -164,7 +168,10 @@ class SubmissionUploadServiceTest {
         when(uploadMapper.claimCompletion(anyLong(), any(), any())).thenReturn(1);
         when(storageService.download(upload.getFinalObjectName()))
                 .thenReturn(new ByteArrayInputStream(pdf));
-        when(persistenceService.createSubmission(upload.getId())).thenReturn(submission);
+        when(fileFeignClient.adopt(any())).thenReturn(Result.ok(new FileAssetSummaryDTO(
+                9001L, "submission", "SUBMISSION_PAPER", "paper.pdf",
+                "application/pdf", (long) pdf.length, "AVAILABLE_UNBOUND")));
+        when(persistenceService.createSubmission(upload.getId(), 9001L)).thenReturn(submission);
         when(submissionService.triggerReview(submission))
                 .thenReturn(SubmissionVO.builder().id(101L).build());
 
@@ -197,7 +204,7 @@ class SubmissionUploadServiceTest {
         assertEquals(SubmissionErrorCode.PDF_ONLY.getCode(), error.getCode());
         verify(uploadMapper).resetCompletion(upload.getId());
         verify(storageService).delete(upload.getFinalObjectName());
-        verify(persistenceService, never()).createSubmission(anyLong());
+        verify(persistenceService, never()).createSubmission(anyLong(), anyLong());
     }
 
     @Test
@@ -219,7 +226,7 @@ class SubmissionUploadServiceTest {
 
         assertEquals(SubmissionErrorCode.UPLOAD_COMPLETING.getCode(), error.getCode());
         verify(chunkStorage, never()).compose(anyString(), any());
-        verify(persistenceService, never()).createSubmission(anyLong());
+        verify(persistenceService, never()).createSubmission(anyLong(), anyLong());
     }
 
     @Test
@@ -239,7 +246,7 @@ class SubmissionUploadServiceTest {
         SubmissionVO result = service.complete("upload-token", 10L);
 
         assertEquals(101L, result.getId());
-        verify(persistenceService, never()).createSubmission(anyLong());
+        verify(persistenceService, never()).createSubmission(anyLong(), anyLong());
         verify(chunkStorage, never()).compose(anyString(), any());
         verify(uploadMapper).markCompleted(upload.getId(), 101L);
         verify(submissionService).triggerReview(submission);

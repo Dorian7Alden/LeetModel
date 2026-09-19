@@ -3,10 +3,11 @@ package com.leetmodel.submission.service;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.submission.entity.Submission;
 import com.leetmodel.submission.entity.SubmissionLock;
 import com.leetmodel.submission.mapper.SubmissionLockMapper;
@@ -28,7 +29,7 @@ class SubmissionServiceTest {
     @Mock SubmissionMapper submissionMapper; @Mock SubmissionLockMapper lockMapper;
     @Mock TeamFeignClient teamFeignClient;
     @Mock ProblemFeignClient problemFeignClient;
-    @Mock StorageService storageService; @InjectMocks SubmissionService service;
+    @Mock FileFeignClient fileFeignClient; @InjectMocks SubmissionService service;
     @Mock ReviewDispatchQueryService reviewDispatchQueryService;
     @Mock SubmissionFinalizationPersistenceService finalizationPersistenceService;
 
@@ -53,7 +54,8 @@ class SubmissionServiceTest {
         Submission first = submission(101L, 1);
         Submission second = submission(102L, 2);
         when(submissionMapper.selectList(any())).thenReturn(List.of(second, first));
-        when(storageService.getUrl(anyString())).thenReturn("http://example.test/paper.pdf");
+        when(fileFeignClient.createAccessUrl(anyLong()))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("http://example.test/paper.pdf", 600)));
 
         List<SubmissionVO> history = service.history(1L, 10L);
 
@@ -110,8 +112,8 @@ class SubmissionServiceTest {
     @Test
     void createPreviewUrlOnlyWhenRequestedBySubmissionId() {
         when(submissionMapper.selectById(101L)).thenReturn(submission(101L, 1));
-        when(storageService.getUrl("submissions/1/paper.pdf"))
-                .thenReturn("http://minio.test/presigned-paper.pdf");
+        when(fileFeignClient.createAccessUrl(9201L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("http://minio.test/presigned-paper.pdf", 600)));
 
         SubmissionPreviewDTO preview = service.getPreview(101L);
 
@@ -138,7 +140,7 @@ class SubmissionServiceTest {
         Submission value = new Submission();
         value.setId(id); value.setTeamId(1L); value.setProblemId(100L); value.setSubmitterId(10L);
         value.setVersion(version); value.setOriginalFilename("paper.pdf"); value.setFileSize(100L);
-        value.setStatus("SUCCESS"); value.setObjectName("submissions/1/paper.pdf");
+        value.setStatus("SUCCESS"); value.setFileId(9201L);
         return value;
     }
 }

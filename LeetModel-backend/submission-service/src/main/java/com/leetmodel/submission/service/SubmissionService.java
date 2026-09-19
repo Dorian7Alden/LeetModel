@@ -9,6 +9,7 @@ import com.leetmodel.common.api.dto.FinalSubmissionChangedPayload;
 import com.leetmodel.common.api.dto.SubmissionReviewDTO;
 import com.leetmodel.common.api.dto.SubmissionSnapshotDTO;
 import com.leetmodel.common.api.dto.SubmissionPreviewDTO;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
 import com.leetmodel.common.api.dto.TeamDTO;
 import com.leetmodel.common.api.dto.ProblemPracticeDTO;
 import com.leetmodel.common.api.dto.ProblemSubmissionStatsDTO;
@@ -17,10 +18,10 @@ import com.leetmodel.common.api.vo.SubmissionAdminVO;
 import com.leetmodel.common.api.feign.ProblemFeignClient;
 import com.leetmodel.common.api.feign.TeamFeignClient;
 import com.leetmodel.common.api.feign.UserFeignClient;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
 import com.leetmodel.common.core.result.PageResult;
 import com.leetmodel.common.core.result.Result;
-import com.leetmodel.common.core.storage.StorageService;
 import com.leetmodel.common.core.util.TraceIdUtil;
 import com.leetmodel.common.messaging.MessageEnvelopeFactory;
 import com.leetmodel.common.messaging.MessageOutbox;
@@ -58,12 +59,15 @@ public class SubmissionService {
     private final TeamFeignClient teamFeignClient;
     private final ProblemFeignClient problemFeignClient;
     private final UserFeignClient userFeignClient;
-    private final StorageService storageService;
+    private final FileFeignClient fileFeignClient;
     private final ReviewDispatchQueryService reviewDispatchQueryService;
     private final SubmissionFinalizationPersistenceService finalizationPersistenceService;
     private final SubmissionUploadPersistenceService uploadPersistenceService;
     private final MessageEnvelopeFactory envelopeFactory;
     private final MessageOutbox messageOutbox;
+
+    /** 统一响应体成功状态码。 */
+    private static final int RESULT_SUCCESS_CODE = 20000;
 
     /**
      * 查询指定队伍的提交历史记录（倒序排列）。
@@ -145,7 +149,7 @@ public class SubmissionService {
     public SubmissionReviewDTO getForReview(Long id) {
         Submission value = requiredSubmission(id);
         return new SubmissionReviewDTO(value.getId(), value.getTeamId(), value.getProblemId(),
-                value.getVersion(), value.getObjectName());
+                value.getVersion(), value.getFileId());
     }
 
     /**
@@ -216,7 +220,7 @@ public class SubmissionService {
     public SubmissionPreviewDTO getPreview(Long submissionId) {
         Submission submission = requiredSubmission(submissionId);
         return new SubmissionPreviewDTO(submission.getId(), submission.getOriginalFilename(),
-                storageService.getUrl(submission.getObjectName()));
+                resolveDownloadUrl(submission.getFileId()));
     }
 
     /**
@@ -264,7 +268,7 @@ public class SubmissionService {
                 .originalFilename(value.getOriginalFilename()).fileSize(value.getFileSize()).status(value.getStatus())
                 .reviewDispatchStatus(reviewDispatchQueryService.status(value.getId()))
                 .finalVersion(value.getId().equals(finalSubmissionId))
-                .downloadUrl(storageService.getUrl(value.getObjectName())).createTime(value.getCreateTime()).build();
+                .downloadUrl(resolveDownloadUrl(value.getFileId())).createTime(value.getCreateTime()).build();
     }
 
     /**
@@ -280,7 +284,7 @@ public class SubmissionService {
                 value.getSubmitterId(),
                 value.getVersion(),
                 value.getOriginalFilename(),
-                value.getObjectName(),
+                value.getFileId(),
                 value.getStatus(),
                 true,
                 value.getCreateTime()
@@ -388,7 +392,7 @@ public class SubmissionService {
                     .submitterAvatarUrl(subUser != null ? subUser.getAvatarUrl() : null)
                     .version(sub.getVersion())
                     .originalFilename(sub.getOriginalFilename())
-                    .objectName(sub.getObjectName())
+                    .fileId(sub.getFileId())
                     .fileSize(sub.getFileSize())
                     .status(sub.getStatus())
                     .finalVersion(finalIds.contains(sub.getId()))
@@ -488,7 +492,7 @@ public class SubmissionService {
                 .submitterAvatarUrl(submitterAvatarUrl)
                 .version(sub.getVersion())
                 .originalFilename(sub.getOriginalFilename())
-                .objectName(sub.getObjectName())
+                .fileId(sub.getFileId())
                 .fileSize(sub.getFileSize())
                 .status(sub.getStatus())
                 .finalVersion(isFinal)
@@ -548,5 +552,33 @@ public class SubmissionService {
         String traceId = TraceIdUtil.getTraceId();
         return traceId == null || traceId.isBlank() || traceId.length() > 100
                 ? UUID.randomUUID().toString() : traceId;
+    }
+
+    /**
+     * 按 fileId 生成论文短时效访问地址。
+     *
+     * <p>历史演示数据可能没有对应物理文件，此时返回 null；file-service 不可用时同样返回 null，
+     * 不让提交列表整体失败。</p>
+     *
+     * @param fileId 文件资产标识
+     * @return 预签名访问地址；不存在或不可用时为 null
+     */
+    private String resolveDownloadUrl(Long fileId) {
+        if (fileId == null) {
+            return null;
+        }
+        try {
+            Result<FileAccessUrlDTO> result = fileFeignClient.createAccessUrl(fileId);
+            if (result == null || result.getCode() != RESULT_SUCCESS_CODE || result.getData() == null) {
+                log.warn("论文访问地址生成失败: fileId={}, code={}",
+                        fileId, result == null ? null : result.getCode());
+                return null;
+            }
+            return result.getData().url();
+        } catch (RuntimeException exception) {
+            log.warn("论文访问地址生成异常: fileId={}, exceptionType={}",
+                    fileId, exception.getClass().getSimpleName());
+            return null;
+        }
     }
 }
