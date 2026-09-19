@@ -4,6 +4,7 @@ import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
 import com.leetmodel.common.core.result.Result;
+import com.leetmodel.common.security.token.TokenBlacklistService;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,9 @@ public class AuthExceptionHandler {
     @ExceptionHandler(NotLoginException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public Result<?> handleNotLogin(NotLoginException e) {
+        if (TokenBlacklistService.BLACKLISTED_TOKEN_TYPE.equals(e.getType())) {
+            return Result.fail(40101, "登录已失效，请重新登录");
+        }
         return Result.fail(40101, "请先登录");
     }
 
