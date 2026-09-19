@@ -91,3 +91,7 @@
 - 审计完整实体快照：不做，保留 `beforeSummary`/`afterSummary` 设计。
 - 强制物理删除文件：仍按既有设计暂缓，需要独立高风险权限与审计后再评估。
 - Markdown 外链自动本地化、静态资源动态替换、压缩包在线解压：非目标。
+
+### 候选任务
+
+- **更新实体不刷新 `update_time`**。现象：通过管理端接口修改题目标题后，`lm_problem.problem.update_time` 仍是创建时刻（实测创建 `15:13:32`，6 秒后改名成功，库中 `create_time` 与 `update_time` 均为 `15:13:32`）。根因：`common-core` 的 `MybatisPlusConfig.metaObjectHandler()` 使用 `strictUpdateFill` 填充 `updateTime`，MyBatis-Plus 在字段已有值时跳过填充，而各服务普遍采用“先查实体、再 `updateById`”的写路径，实体始终带着旧时间戳。影响范围：管理端“最后更新时间”、审计快照时间和题目检索文档的 `updateTime` 均不反映真实修改时刻；不影响题目检索排序（排序用年份与题号）与主流程，因此本阶段不改。处理建议：填充改为无条件覆盖或在更新路径显式置空 `updateTime`，切换前需对全部写入路径做回归，避免覆盖业务显式设置的时间。
