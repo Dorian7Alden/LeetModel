@@ -25,3 +25,8 @@ leetmodel:
       enabled: false
   cache:
     enabled: false
+
+# 集成测试以数据库查询为基线，不依赖外部 Elasticsearch 实例与索引状态
+problem:
+  search:
+    enabled: false

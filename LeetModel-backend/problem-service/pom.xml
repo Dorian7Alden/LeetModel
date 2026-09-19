@@ -41,6 +41,12 @@
             <artifactId>minio</artifactId>
         </dependency>
 
+        <!-- 题库全文检索使用的 Elasticsearch 低层 REST 客户端 -->
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+        </dependency>
+
         <!-- REST 服务基础 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

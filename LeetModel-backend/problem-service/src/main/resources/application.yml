@@ -61,3 +61,10 @@ leetmodel:
       ssl: ${CACHE_REDIS_SSL:false}
       connect-timeout: 200ms
       command-timeout: 100ms
+
+problem:
+  search:
+    enabled: ${PROBLEM_SEARCH_ENABLED:true}
+    elasticsearch-uri: ${PROBLEM_SEARCH_ELASTICSEARCH_URI:http://127.0.0.1:9200}
+    index-name: ${PROBLEM_SEARCH_INDEX:leetmodel-problem-v1}
+    max-result-window: ${PROBLEM_SEARCH_MAX_WINDOW:1000}
