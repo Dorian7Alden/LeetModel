@@ -17,7 +17,7 @@
 
 最近完成的阶段是「平台能力增强阶段」，已按用户验收合入 `dev` 并作为 `v2.2.0` 发布：统一文件资产身份、预签名分片直传与超大附件、题库全文检索、评测评分口径文档均已完成并验收。发布后 `dev` 与 `master` 位于同一发布基线。
 
-当前正在规划新阶段「Token 主动失效」（候选阶段分支 `phase/token-blacklist`），任务卡见下方，等待用户确认决策点后开工。已完成的阶段结论不再保留在本文件，长期有效的设计入口：文件资产见 [文件资产管理架构](docs/project/02-架构设计/文件资产管理架构.md)，题库检索见 [公开题库全文检索](docs/project/03-微服务设计/problem-service/公开题库/全文检索.md)，评测口径见 [指标来源与组合影响](docs/project/03-微服务设计/ai-evaluation-service/权重与选择指数/指标来源与组合影响.md)。
+当前阶段「Token 主动失效」的 B1 已完成实现与真实验收，阶段分支 `phase/token-blacklist` 等待用户验收后合入 `dev`；B2（管理员按用户强制下线）按用户决定不做。已完成的阶段结论不再保留在本文件，长期有效的设计入口：文件资产见 [文件资产管理架构](docs/project/02-架构设计/文件资产管理架构.md)，题库检索见 [公开题库全文检索](docs/project/03-微服务设计/problem-service/公开题库/全文检索.md)，评测口径见 [指标来源与组合影响](docs/project/03-微服务设计/ai-evaluation-service/权重与选择指数/指标来源与组合影响.md)，Token 黑名单见 [认证鉴权](docs/project/03-微服务设计/common/common-security/认证鉴权.md)。
 
 ## 当前阶段：Token 主动失效（候选分支 phase/token-blacklist）
 
@@ -28,7 +28,7 @@
 ### 现状与关键补充（防止理解偏差）
 
 1. Sa-Token 1.38 的 JWT 无状态模式**没有内置黑名单**。`sa-token-core` 中不存在 blacklist 实现；`StpLogicJwtForStateless.logout()` 只删除本地 cookie 与 storage，不写任何服务端存储；`StpUtil.kickout()` 在没有服务端会话时同样不产生效果。因此必须自建机制，加 `sa-token-redis-*` 依赖解决不了这个问题（那套是给有状态会话用的）。
-2. 实测现象：登录 → 带 Token 访问 `/api/problems` 返回 200 → 调用 `POST /api/auth/logout` → 同一 Token 仍返回 200；安全状态 Redis 6379 键数为 0。
+2. 修复前实测现象：登录 → 带 Token 访问 `/api/problems` 返回 200 → 调用 `POST /api/auth/logout` → 同一 Token 仍返回 200；安全状态 Redis 6379 键数为 0。该问题已由 B1 修复，验收结果见下。
 3. 声明该能力的位置：`TokenUtil` 类注释、[认证鉴权.md](docs/project/03-微服务设计/common/common-security/认证鉴权.md) 4.1、[技术栈选型.md](docs/project/02-架构设计/技术栈选型.md)（JWT + Redis 黑名单）、[缓存策略.md](docs/project/02-架构设计/缓存策略.md)（安全隔离表）、网关 `application-dev.yml` 的 Redis 注释。属于“文档先写、实现未落地”，本阶段补齐实现并让文档与实现一致。
 4. 当前 JWT 载荷只有 `loginType`、`loginId`、`device`、`eff`、`rnStr`，没有 `iat` 与 `jti`。因此：Token 粒度失效用 Token 的 SHA-256 指纹做键；用户粒度强制下线需要额外口径（在登录时写入签发时间 extra claim，或引入 Token 版本号）。
 5. 基础设施已具备：`common-security` 已引入 `spring-boot-starter-data-redis`，gateway 已引入 reactive 版本；user、gateway、team、admin 的 dev 配置已指向 6379；compose 的 6379 未显式声明 `maxmemory-policy`（Redis 默认即 `noeviction`，文档要求显式声明）。
@@ -38,8 +38,8 @@
 
 | 顺序 | 任务卡 | 目标摘要 | 依赖 | 状态 |
 |------|--------|----------|------|------|
-| 1 | B1 | 登出 Token 黑名单与双端校验 | 无 | 待确认 |
-| 2 | B2 | 管理员按用户强制下线（可选） | B1 | 待确认 |
+| 1 | B1 | 登出 Token 黑名单与双端校验 | 无 | 已完成，待用户验收 |
+| 2 | B2 | 管理员按用户强制下线 | B1 | 已确认不做 |
 
 #### B1 登出 Token 黑名单与双端校验
 
@@ -67,12 +67,21 @@
 - 完成标准：强制下线后该用户此前签发的所有 Token 立即失效，之后重新登录的 Token 正常可用；有单测与真实验收。
 - 非目标：不做在线会话列表与单设备踢出。
 
-### 待用户确认的决策点
+### B1 实际验收结果（2026-09-19）
 
-1. 本次是否包含 B2（管理员按用户强制下线），还是只做 B1。
-2. Redis 不可用时的默认策略：`fail-open`（放行 + 告警 + 降级计数，可用性优先，推荐）还是 `fail-closed`（直接拒绝，安全优先）。
-3. 是否同时在业务服务侧校验（推荐是，否则绕过网关直连服务可复用旧 Token）。
-4. 阶段分支名是否使用 `phase/token-blacklist`。
+- 登录 → 登出前经网关访问受保护接口 200 → `POST /api/auth/logout` → 同一 Token 经网关返回 401（`40101`，提示“登录已失效，请重新登录”）。
+- 同一 Token 直连 problem-service `8083` 同样返回 401，证明服务侧防线有效。
+- 安全状态 Redis 出现 `leetmodel:auth:blacklist:{sha256}`，TTL 为 Token 剩余有效期（实测 604798 秒）。
+- 重启网关后旧 Token 仍被拒绝，说明黑名单来自 Redis 而非进程内状态；重新登录签发的新 Token 正常访问。
+- 停掉 6379：网关 0.7 秒内 fail-open 放行（默认 `fail-closed=false`）并累加 `auth_token_blacklist_degraded_total`，业务服务侧同样降级；恢复后旧 Token 仍被拒、新 Token 正常。
+- 受影响的五个模块测试全绿：common-core 55、common-security 7、user-service 38、problem-service 72、gateway-service 17，零失败。
+
+### 已确认的实现口径
+
+1. 只做 B1，不实现管理员按用户强制下线（无状态 JWT 无法枚举用户已签发 Token）。
+2. Redis 不可用默认 `fail-open`（`auth.token-blacklist.fail-closed=false`），可配置切换为 fail-closed。
+3. 网关与业务服务两侧都校验，避免绕过网关直连服务端口。
+4. 阶段分支名为 `phase/token-blacklist`，完成后 `--no-ff` 合入 `dev`。
 
 ## 已确认的系统边界
 
