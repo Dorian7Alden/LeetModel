@@ -33,3 +33,4 @@
 | [题库ES索引写入报document_parsing_exception.md](题库ES索引写入报document_parsing_exception.md) | 题库索引创建成功但文档全部写入失败，重建却显示成功数量 | 索引 date 映射不接受平台时间格式 + 单条写入吞掉 IOException 导致失败被计成成功 |
 | [题库检索索引启动自举未触发.md](题库检索索引启动自举未触发.md) | 索引删除后重启服务不触发索引自举，管理端重建接口却正常 | 低层 REST 客户端对 HEAD 请求固定忽略 404，存在性判断恒为“已存在” |
 | [GitHub引用Gitee图床图片无法显示.md](GitHub引用Gitee图床图片无法显示.md) | README 图片直连可访问，推送到 GitHub 后显示为裂图 | GitHub 代理抓取外部图床超时（Gitee `/raw/` 302 到带签名限时地址，海外代理返回 504） |
+| [Token黑名单查询被Lettuce默认超时拖住.md](Token黑名单查询被Lettuce默认超时拖住.md) | Redis 停机后携带有效 Token 的请求挂起 15 秒以上，fail-open 降级不生效 | Lettuce 默认 60 秒命令超时 + 响应式链路无错误信号，必须显式配置超时 |
