@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.leetmodel.common.api.dto.FileAccessUrlDTO;
+import com.leetmodel.common.api.dto.FileAssetSummaryDTO;
+import com.leetmodel.common.api.feign.FileFeignClient;
 import com.leetmodel.common.core.exception.BusinessException;
-import com.leetmodel.common.core.storage.StorageService;
+import com.leetmodel.common.core.result.Result;
 import com.leetmodel.user.dto.ChangePasswordRequest;
 import com.leetmodel.user.audit.UserAuditEventProducer;
 import com.leetmodel.common.api.dto.UserPageQuery;
@@ -17,6 +20,7 @@ import com.leetmodel.user.enums.UserErrorCode;
 import com.leetmodel.user.mapper.RoleMapper;
 import com.leetmodel.user.mapper.UserMapper;
 import com.leetmodel.user.mapper.UserRoleMapper;
+import com.leetmodel.user.messaging.UserAvatarEventProducer;
 import com.leetmodel.user.service.UserService;
 import com.leetmodel.common.api.vo.UserAdminVO;
 import com.leetmodel.user.vo.UserVO;
@@ -42,10 +46,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    /** 统一响应体成功状态码。 */
+    private static final int RESULT_SUCCESS_CODE = 20000;
+
     private final PasswordEncoder passwordEncoder;
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
-    private final StorageService storageService;
+    private final FileFeignClient fileFeignClient;
+    private final UserAvatarEventProducer avatarEvents;
     private final UserAuditEventProducer audit;
 
     /**
@@ -142,26 +150,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @param userId 目标用户 ID，不能为 null
      * @param file   待上传的头像图片文件，不能为 null
      * @return 头像访问公网 URL
-     * @throws BusinessException 若对象存储未启用或用户不存在
+     * @throws BusinessException 若头像存储不可用或用户不存在
      */
     @Override
+    @Transactional
     public String updateAvatar(Long userId, MultipartFile file) {
-        // 检查存储服务
-        if (storageService == null) {
-            throw new BusinessException(UserErrorCode.STORAGE_NOT_ENABLED);
-        }
-
-        // 获取用户
         User user = getById(userId);
         BusinessException.throwIf(user == null, UserErrorCode.USER_NOT_FOUND);
 
-        // 数据库只保存与域名无关的对象路径
-        String avatarPath = storageService.upload(file, "avatars");
-        user.setAvatarPath(avatarPath);
+        // 物理对象与访问策略由 file-service 管理，用户服务只保存稳定 fileId
+        FileAssetSummaryDTO asset = registerAvatar(file);
+        Long previousFileId = user.getAvatarFileId();
+        user.setAvatarFileId(asset.fileId());
+        user.setAvatarUrl(null);
         updateById(user);
+        // 替换头像时解除旧引用，避免旧文件因引用投影残留而无法清理
+        if (previousFileId != null && !previousFileId.equals(asset.fileId())) {
+            avatarEvents.unbound(userId, previousFileId);
+        }
+        avatarEvents.bound(userId, asset.fileId());
         log.info("用户 {} 更新头像", userId);
 
-        return storageService.getUrl(avatarPath);
+        return resolveAccessUrl(asset.fileId());
     }
 
     // ==================== 管理员方法 ====================
@@ -312,7 +322,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .username(user.getUsername())
                 .nickname(user.getNickname())
                 .email(user.getEmail())
-                .avatarUrl(resolveAvatarUrl(user.getAvatarPath()))
+                .avatarUrl(resolveAvatarUrl(user))
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())
                 .build();
@@ -331,7 +341,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .username(user.getUsername())
                 .nickname(user.getNickname())
                 .email(user.getEmail())
-                .avatarUrl(resolveAvatarUrl(user.getAvatarPath()))
+                .avatarUrl(resolveAvatarUrl(user))
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
@@ -340,17 +350,68 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 将数据库中的头像路径安全转换为可访问的 URL 地址（兼容完整外部链接）。
+     * 解析用户当前头像的访问地址。
      *
-     * @param avatarPath 存储桶对象路径或外部绝对 URL
-     * @return 最终可访问的头像 URL；若路径为空返回 null
+     * <p>平台内头像按 fileId 现取短时效地址；演示与遗留账号的外部绝对 URL 直接返回。
+     * file-service 短暂不可用时返回 null，不影响用户资料读取。</p>
+     *
+     * @param user 用户实体
+     * @return 可访问的头像地址；不存在或不可用时为 null
      */
-    private String resolveAvatarUrl(String avatarPath) {
-        if (avatarPath == null || avatarPath.isBlank()) return null;
-        if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
-            return avatarPath;
+    @Override
+    public String resolveAvatarUrl(User user) {
+        if (user.getAvatarFileId() != null) {
+            return resolveAccessUrl(user.getAvatarFileId());
         }
-        return storageService.getUrl(avatarPath);
+        String externalUrl = user.getAvatarUrl();
+        return externalUrl == null || externalUrl.isBlank() ? null : externalUrl;
+    }
+
+    /**
+     * 按 fileId 生成头像短时效访问地址。
+     *
+     * @param fileId 文件资产标识
+     * @return 预签名访问地址；不可用时为 null
+     */
+    private String resolveAccessUrl(Long fileId) {
+        if (fileId == null) {
+            return null;
+        }
+        try {
+            Result<FileAccessUrlDTO> result = fileFeignClient.createAccessUrl(fileId);
+            if (result == null || result.getCode() != RESULT_SUCCESS_CODE || result.getData() == null) {
+                log.warn("头像访问地址生成失败: fileId={}, code={}",
+                        fileId, result == null ? null : result.getCode());
+                return null;
+            }
+            return result.getData().url();
+        } catch (RuntimeException exception) {
+            log.warn("头像访问地址生成异常: fileId={}, exceptionType={}",
+                    fileId, exception.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /**
+     * 通过 file-service 登记头像资产。
+     *
+     * @param file 头像文件
+     * @return 文件资产摘要
+     */
+    private FileAssetSummaryDTO registerAvatar(MultipartFile file) {
+        Result<FileAssetSummaryDTO> result;
+        try {
+            result = fileFeignClient.registerForPurpose(
+                    UserAvatarEventProducer.PURPOSE_CODE, "profile", null, file);
+        } catch (RuntimeException exception) {
+            log.warn("头像登记调用失败: exceptionType={}", exception.getClass().getSimpleName());
+            throw new BusinessException(UserErrorCode.AVATAR_STORAGE_UNAVAILABLE);
+        }
+        if (result == null || result.getCode() != RESULT_SUCCESS_CODE
+                || result.getData() == null || result.getData().fileId() == null) {
+            throw new BusinessException(UserErrorCode.AVATAR_REGISTER_FAILED);
+        }
+        return result.getData();
     }
 
     /**

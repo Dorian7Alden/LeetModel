@@ -99,4 +99,15 @@ public interface UserService extends IService<User> {
      * @throws com.leetmodel.common.core.exception.BusinessException 若用户不存在或角色不存在
      */
     void updateRoles(Long userId, List<Long> roleIds);
+
+    /**
+     * 解析用户当前头像访问地址。
+     *
+     * <p>平台内头像按 fileId 现取短时效地址；演示与遗留账号的外部 URL 直接返回。
+     * 存储服务短暂不可用时返回 null。</p>
+     *
+     * @param user 用户实体，不能为 null
+     * @return 可访问的头像地址；不存在或不可用时为 null
+     */
+    String resolveAvatarUrl(User user);
 }
