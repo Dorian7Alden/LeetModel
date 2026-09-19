@@ -704,6 +704,47 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         recordPublicInvalidation();
     }
 
+    @Override
+    @Transactional
+    public ProblemVO.AttachmentVO attachRegisteredFile(
+            Long problemId, com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request) {
+        BusinessException.throwIf(getById(problemId) == null, ProblemErrorCode.PROBLEM_NOT_FOUND);
+        FileAssetSummaryDTO asset = requireRegisteredAttachment(request.getFileId());
+
+        ProblemAttachment attachment = new ProblemAttachment();
+        attachment.setProblemId(problemId);
+        attachment.setFileId(asset.fileId());
+        attachment.setFileName(normalizeFileName(asset.originalName()));
+        attachment.setContentType(asset.contentType() == null
+                ? "application/octet-stream" : asset.contentType());
+        attachment.setFileSize(asset.fileSize());
+        attachment.setDescription(request.getDescription());
+        attachment.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+        problemAttachmentMapper.insert(attachment);
+        // 直传完成的资产仍处于未绑定状态，这里补齐题目附件引用
+        attachmentEvents.bound(attachment.getId(), asset.fileId());
+        recordPublicInvalidation();
+        return toAttachmentVO(attachment);
+    }
+
+    /**
+     * 校验并读取已登记的题目附件资产。
+     *
+     * @param fileId 文件资产标识
+     * @return 文件资产摘要
+     */
+    private FileAssetSummaryDTO requireRegisteredAttachment(Long fileId) {
+        Result<FileAssetSummaryDTO> result = fileFeignClient.getSummary(fileId);
+        if (result == null || result.getCode() != RESULT_SUCCESS_CODE || result.getData() == null) {
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED, "文件资产不可用");
+        }
+        FileAssetSummaryDTO asset = result.getData();
+        if (!ProblemAttachmentEventProducer.RESOURCE_TYPE.equals(asset.sourceType())) {
+            throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED, "文件用途不是题目附件");
+        }
+        return asset;
+    }
+
     // ==================== 标签名称查询 ====================
 
     /**

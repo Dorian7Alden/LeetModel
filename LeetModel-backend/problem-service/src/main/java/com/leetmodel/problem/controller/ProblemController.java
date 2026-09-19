@@ -131,6 +131,22 @@ public class ProblemController {
     }
 
     /**
+     * 绑定预签名直传完成后的文件资产为题目附件。
+     *
+     * @param id 目标题目 ID，不能为 null
+     * @param request 绑定请求
+     * @return 绑定成功后的附件视图对象
+     */
+    @Operation(summary = "绑定已登记文件为题目附件")
+    @PostMapping(path = "/{id}/attachments/registered")
+    public Result<ProblemVO.AttachmentVO> attachRegisteredFile(
+            @PathVariable Long id,
+            @Valid @RequestBody com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request
+    ) {
+        return Result.ok(problemService.attachRegisteredFile(id, request));
+    }
+
+    /**
      * 删除指定题目下关联的附件文件。
      *
      * @param problemId    目标题目 ID，不能为 null

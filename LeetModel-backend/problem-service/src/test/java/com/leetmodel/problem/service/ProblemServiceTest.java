@@ -451,6 +451,51 @@ class ProblemServiceTest {
         verify(attachmentEvents).unbound(201L, 9004L);
     }
 
+    @Test
+    @DisplayName("绑定已登记文件时复用 fileId 并写入绑定事件")
+    void attachRegisteredFileBindsExistingAsset() {
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(fileFeignClient.getSummary(9301L)).thenReturn(Result.ok(new FileAssetSummaryDTO(
+                9301L, "problem", "PROBLEM_ATTACHMENT", "big.csv",
+                "text/csv", 2048L, "AVAILABLE_UNBOUND")));
+        when(problemAttachmentMapper.insert(any(ProblemAttachment.class))).thenAnswer(invocation -> {
+            ProblemAttachment attachment = invocation.getArgument(0);
+            attachment.setId(301L);
+            return 1;
+        });
+        when(fileFeignClient.createAccessUrl(9301L))
+                .thenReturn(Result.ok(new FileAccessUrlDTO("https://example.test/big.csv", 600)));
+
+        com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request =
+                new com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest();
+        request.setFileId(9301L);
+        request.setDescription("大数据集");
+        request.setSortOrder(2);
+
+        ProblemVO.AttachmentVO vo = problemService.attachRegisteredFile(1L, request);
+
+        assertEquals("big.csv", vo.getFileName());
+        assertEquals("大数据集", vo.getDescription());
+        assertEquals(2048L, vo.getFileSize());
+        verify(attachmentEvents).bound(301L, 9301L);
+        verify(fileFeignClient, never()).registerForPurpose(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("绑定非题目附件用途的文件时拒绝")
+    void attachRegisteredFileRejectsForeignPurpose() {
+        when(problemMapper.selectById(1L)).thenReturn(problem);
+        when(fileFeignClient.getSummary(9302L)).thenReturn(Result.ok(new FileAssetSummaryDTO(
+                9302L, "avatar", "USER_AVATAR", "a.png", "image/png", 10L, "ACTIVE")));
+
+        com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request =
+                new com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest();
+        request.setFileId(9302L);
+
+        assertThrows(BusinessException.class, () -> problemService.attachRegisteredFile(1L, request));
+        verify(problemAttachmentMapper, never()).insert(any(ProblemAttachment.class));
+    }
+
     private ProblemCreateRequest validCreateRequest() {
         ProblemCreateRequest request = new ProblemCreateRequest();
         request.setTitle("新题目");
