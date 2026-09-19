@@ -26,6 +26,9 @@ import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.messaging.ProblemAttachmentEventProducer;
+import com.leetmodel.problem.search.ProblemSearchPage;
+import com.leetmodel.problem.search.ProblemSearchService;
+import com.leetmodel.problem.search.ProblemSearchSyncService;
 import com.leetmodel.problem.service.impl.ProblemServiceImpl;
 import com.leetmodel.problem.vo.ProblemVO;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -38,6 +41,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -51,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,6 +83,8 @@ class ProblemServiceTest {
     @Mock private ContestMapper contestMapper;
     @Mock private FileFeignClient fileFeignClient;
     @Mock private ProblemAttachmentEventProducer attachmentEvents;
+    @Mock private ObjectProvider<ProblemSearchService> problemSearchService;
+    @Mock private ObjectProvider<ProblemSearchSyncService> problemSearchSyncService;
     @Mock private CacheInvalidator cacheInvalidator;
     @Mock private ProblemAuditEventProducer audit;
 
@@ -89,6 +96,8 @@ class ProblemServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(problemService, "baseMapper", problemMapper);
+        ReflectionTestUtils.setField(problemService, "problemSearchService", problemSearchService);
+        ReflectionTestUtils.setField(problemService, "problemSearchSyncService", problemSearchSyncService);
         problem = new Problem();
         problem.setId(1L);
         problem.setTitle("测试题目");
@@ -494,6 +503,48 @@ class ProblemServiceTest {
 
         assertThrows(BusinessException.class, () -> problemService.attachRegisteredFile(1L, request));
         verify(problemAttachmentMapper, never()).insert(any(ProblemAttachment.class));
+    }
+
+    @Test
+    @DisplayName("关键词查询优先使用全文检索并保持相关度顺序")
+    void keywordSearchUsesSearchIndexOrder() {
+        ProblemSearchService searchService = mock(ProblemSearchService.class);
+        when(problemSearchService.getIfAvailable()).thenReturn(searchService);
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setPage(1);
+        query.setPageSize(10);
+        query.setStatus(1);
+        query.setKeyword("线性规划");
+        when(searchService.search(eq("线性规划"), any(ProblemPageQuery.class)))
+                .thenReturn(new ProblemSearchPage(List.of(1L), 1));
+        when(problemMapper.selectBatchIds(any())).thenReturn(List.of(problem));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+        when(contestMapper.selectBatchIds(any())).thenReturn(List.of());
+
+        var page = problemService.pageProblems(query);
+
+        assertEquals(1, page.getTotal());
+        assertEquals(1, page.getRecords().size());
+        assertEquals(1L, page.getRecords().get(0).getId());
+        verify(searchService).search(eq("线性规划"), any(ProblemPageQuery.class));
+    }
+
+    @Test
+    @DisplayName("全文检索不可用时关键词查询降级到数据库")
+    void keywordSearchFallsBackToDatabase() {
+        when(problemSearchService.getIfAvailable()).thenReturn(null);
+        ProblemPageQuery query = new ProblemPageQuery();
+        query.setPage(1);
+        query.setPageSize(10);
+        query.setStatus(1);
+        query.setKeyword("线性规划");
+        when(problemMapper.selectPage(any(IPage.class), any(Wrapper.class)))
+                .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+
+        var page = problemService.pageProblems(query);
+
+        assertEquals(0, page.getTotal());
+        verify(problemMapper).selectPage(any(IPage.class), any(Wrapper.class));
     }
 
     private ProblemCreateRequest validCreateRequest() {

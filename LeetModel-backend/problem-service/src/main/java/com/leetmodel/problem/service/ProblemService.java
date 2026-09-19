@@ -126,6 +126,13 @@ public interface ProblemService extends IService<Problem> {
                                                 com.leetmodel.problem.dto.ProblemAttachmentRegisterRequest request);
 
     /**
+     * 按数据库快照重建题库全文检索索引。
+     *
+     * @return 成功写入的题目数量；全文检索未启用时返回 -1
+     */
+    int rebuildSearchIndex();
+
+    /**
      * 查询指定题目关联的所有标签名称集合。
      *
      * @param problemId 目标题目 ID，不能为 null

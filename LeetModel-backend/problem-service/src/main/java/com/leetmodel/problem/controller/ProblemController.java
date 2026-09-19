@@ -162,4 +162,15 @@ public class ProblemController {
         problemService.deleteAttachment(problemId, attachmentId);
         return Result.ok();
     }
+
+    /**
+     * 按数据库快照重建题库全文检索索引。
+     *
+     * @return 成功写入的题目数量；全文检索未启用时返回 -1
+     */
+    @Operation(summary = "重建题库检索索引")
+    @PostMapping("/search-index/rebuild")
+    public Result<Integer> rebuildSearchIndex() {
+        return Result.ok(problemService.rebuildSearchIndex());
+    }
 }

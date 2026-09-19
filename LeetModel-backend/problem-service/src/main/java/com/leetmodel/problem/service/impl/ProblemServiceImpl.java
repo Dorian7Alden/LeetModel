@@ -33,12 +33,18 @@ import com.leetmodel.problem.mapper.ProblemMapper;
 import com.leetmodel.problem.mapper.ProblemTagMapper;
 import com.leetmodel.problem.mapper.TagMapper;
 import com.leetmodel.problem.messaging.ProblemAttachmentEventProducer;
+import com.leetmodel.problem.search.ProblemSearchPage;
+import com.leetmodel.problem.search.ProblemSearchService;
+import com.leetmodel.problem.search.ProblemSearchSyncService;
 import com.leetmodel.problem.service.ProblemService;
 import com.leetmodel.problem.vo.ProblemVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
@@ -68,6 +74,8 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     private final ProblemAttachmentEventProducer attachmentEvents;
     private final CacheInvalidator cacheInvalidator;
     private final ProblemAuditEventProducer audit;
+    private final ObjectProvider<ProblemSearchService> problemSearchService;
+    private final ObjectProvider<ProblemSearchSyncService> problemSearchSyncService;
 
     // ==================== 分页查询 ====================
 
@@ -80,6 +88,11 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
     @Override
     public IPage<ProblemVO> pageProblems(ProblemPageQuery query) {
         validateScoreRange(query);
+        String searchKeyword = normalized(query.getKeyword());
+        if (searchKeyword != null) {
+            IPage<ProblemVO> searched = searchByKeyword(query, searchKeyword);
+            if (searched != null) return searched;
+        }
         LambdaQueryWrapper<Problem> wrapper = new LambdaQueryWrapper<>();
         if (query.getStatus() != null) {
             wrapper.eq(Problem::getStatus, query.getStatus());
@@ -522,6 +535,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
 
         save(problem);
         audit.problemCreated(problem.getId());
+        syncSearchIndexAfterCommit(problem.getId());
         log.info("创建题目完成: id={}", problem.getId());
 
         // 保存标签
@@ -606,6 +620,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             tagNames = replaceTags(id, request.getTagIds());
         }
         if (changed || request.getTagIds() != null) audit.problemUpdated(id);
+        if (changed || request.getTagIds() != null) syncSearchIndexAfterCommit(id);
 
         log.info("更新题目: {}", id);
         recordPublicInvalidation();
@@ -636,6 +651,7 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
         // 逻辑删除题目
         removeById(id);
         audit.problemDeleted(id);
+        removeSearchIndexAfterCommit(id);
         // 附件关系解除后由 file-service 依据引用投影决定何时物理清理对象。
         attachments.forEach(attachment -> attachmentEvents.unbound(attachment.getId(), attachment.getFileId()));
         recordPublicInvalidation();
@@ -743,6 +759,13 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
             throw new BusinessException(ProblemErrorCode.ATTACHMENT_REGISTER_FAILED, "文件用途不是题目附件");
         }
         return asset;
+    }
+
+    @Override
+    public int rebuildSearchIndex() {
+        ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+        if (syncService == null) return -1;
+        return syncService.rebuildAll();
     }
 
     // ==================== 标签名称查询 ====================
@@ -1075,5 +1098,81 @@ public class ProblemServiceImpl extends ServiceImpl<ProblemMapper, Problem> impl
                 ProblemPublicCacheService.SCOPE,
                 ProblemPublicCacheService.SCHEMA_VERSION
         );
+    }
+
+    /**
+     * 使用全文检索获取关键词命中的题目分页。
+     *
+     * @param query 查询条件
+     * @param keyword 关键词
+     * @return 命中分页；检索不可用时返回 null，由调用方降级到数据库查询
+     */
+    private IPage<ProblemVO> searchByKeyword(ProblemPageQuery query, String keyword) {
+        ProblemSearchService searchService = problemSearchService.getIfAvailable();
+        if (searchService == null) return null;
+        ProblemSearchPage hitPage = searchService.search(keyword, query);
+        if (hitPage == null) return null;
+
+        Page<ProblemVO> result = new Page<>(query.getPage(), query.getPageSize(), hitPage.total());
+        if (hitPage.problemIds().isEmpty()) {
+            result.setRecords(List.of());
+            return result;
+        }
+        Map<Long, Problem> problemById = baseMapper.selectBatchIds(hitPage.problemIds()).stream()
+                .collect(Collectors.toMap(Problem::getId, problem -> problem));
+        // 保持检索相关度顺序
+        List<Problem> ordered = hitPage.problemIds().stream()
+                .map(problemById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, List<String>> tagMap = batchGetTagNames(ordered.stream().map(Problem::getId).toList());
+        Map<Long, Contest> contestMap = batchGetContests(ordered);
+        result.setRecords(ordered.stream()
+                .map(problem -> toVO(problem, tagMap.getOrDefault(problem.getId(), List.of()),
+                        null, contestMap.get(problem.getContestId())))
+                .toList());
+        return result;
+    }
+
+    /**
+     * 事务提交后增量同步题目检索文档。
+     *
+     * @param problemId 题目标识
+     */
+    private void syncSearchIndexAfterCommit(Long problemId) {
+        runAfterCommit(() -> {
+            ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+            if (syncService != null) syncService.sync(problemId);
+        });
+    }
+
+    /**
+     * 事务提交后删除题目检索文档。
+     *
+     * @param problemId 题目标识
+     */
+    private void removeSearchIndexAfterCommit(Long problemId) {
+        runAfterCommit(() -> {
+            ProblemSearchSyncService syncService = problemSearchSyncService.getIfAvailable();
+            if (syncService != null) syncService.remove(problemId);
+        });
+    }
+
+    /**
+     * 在当前事务提交后执行动作；没有活动事务时立即执行。
+     *
+     * @param action 待执行动作
+     */
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }
