@@ -76,7 +76,7 @@ flowchart LR
 - 维护论文提交记录、提交版本、上传者和队伍归属。
 - 提供题目详情页使用的公开提交聚合统计，按题目计算未删除且状态为 `SUCCESS` 的提交总次数。
 - 校验文件类型、大小、分片数量、队伍上传资格和题目绑定。
-- 当前维护原始 PDF 在 MinIO 中的路由与必要文件元数据。目标迁移后继续拥有论文版本关系，通过 fileId 关联正式文件资产。
+- 继续拥有论文版本关系，通过 fileId 关联正式文件资产；对象路由与物理生命周期归 file-service。
 - 在最终提交锁定后触发一次正式评审链路，并提供不可变的提交与文件快照。
 - 拥有评审请求与最终提交变化的生产端 Outbox，并提供评审消息等待、已派发和阻塞状态。
 - 提供提交历史、当前状态和提交详情查询。
@@ -91,7 +91,7 @@ flowchart LR
 
 ## 数据与协作边界
 
-submission-service 独占 `lm_submission` 数据库，并拥有上传任务、提交记录、论文版本事实和 `message_outbox`。当前还维护原始 PDF 对象路由。目标 file-service 建成后，正式论文的技术元数据和物理生命周期归 file-service，submission-service 保存稳定 fileId 并发布绑定或解绑事件；临时分片与合并流程首期仍归 submission-service。它通过 team-service 校验队伍与成员关系，通过 problem-service 校验题目信息，向 ai-review-service 提供评审使用的 PDF 快照。ai-review-service 拥有评审执行状态，submission-service 只保存需要发起评审的消息事实和派发状态，不复制 review_task。
+submission-service 独占 `lm_submission` 数据库，并拥有上传任务、提交记录、论文版本事实和 `message_outbox`。正式论文的技术元数据和物理生命周期归 file-service，submission-service 保存稳定 fileId 并在创建提交版本时发布绑定事件；临时分片、合并流程与交接目录仍归 submission-service。它通过 team-service 校验队伍与成员关系，通过 problem-service 校验题目信息，向 ai-review-service 提供评审使用的 PDF 快照。ai-review-service 拥有评审执行状态，submission-service 只保存需要发起评审的消息事实和派发状态，不复制 review_task。
 
 ## 功能清单
 
@@ -99,7 +99,7 @@ submission-service 独占 `lm_submission` 数据库，并拥有上传任务、�
 |------|----------|
 | PDF 上传 | 接收论文 PDF 并完成基本文件校验 |
 | 分片上传 | 维护大文件上传任务、分片完整性和文件合并 |
-| 对象存储 | 将原始 PDF 保存到 MinIO 并只持久化对象路由 |
+| 文件资产 | 合并完成后把正式论文登记到 file-service 并只持久化 fileId |
 | 提交资格校验 | 校验队伍成员、题目绑定和提交时间窗口 |
 | 提交版本 | 为同一队伍的多次成功提交维护递增版本 |
 | 提交历史 | 查询队伍的历史提交记录 |
